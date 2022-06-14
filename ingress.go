@@ -26,9 +26,15 @@ func main() {
 				Usage:   "The path to the configuration file",
 				Aliases: []string{"c"},
 			},
+			&cli.StringFlag{
+				Name:    "port",
+				Usage:   "The port to listen on",
+				Aliases: []string{"p"},
+			},
 		},
 		Action: func(c *cli.Context) error {
 			configFilePath := c.String("config")
+			port := c.Int64("port")
 			if configFilePath == "" {
 				logger.Error("config file is required with -c or --config")
 				os.Exit(1)
@@ -52,6 +58,10 @@ func main() {
 				// j, _ := json.MarshalIndent(cfg, "", "  ")
 				// fmt.Println(string(j))
 				// os.Exit(0)
+			}
+
+			if port != 0 {
+				cfg.Port = port
 			}
 
 			// @TODO
