@@ -102,9 +102,10 @@ func (c *Core) GetSSLConfig(domain string) *SSLConfig {
 func (c *Core) OnRequest(ctx *ingress.Context) error {
 	cfg := c.getConfig(ctx.Host, ctx.Path)
 	if cfg.ServiceName == "" || cfg.ServicePort == int64(0) {
-		panic(proxy.NewHTTPError(404, "Not Found"))
+		return proxy.NewHTTPError(404, "Not Found")
 	}
 
+	ctx.Request.URL.Scheme = cfg.ServiceScheme
 	ctx.Request.URL.Host = fmt.Sprintf("%s:%d", cfg.ServiceName, cfg.ServicePort)
 
 	if cfg.Request.Rewrites != nil {
