@@ -1,0 +1,32 @@
+port: 80
+
+# https_port: 443
+
+ssl:
+  - domain: example.com
+    cert:
+      certificate: /config/ssl/example.com/fullchain.pem
+      certificate_key: /config/ssl/example.com/privkey.pem
+
+waf:
+  whiteHosts:
+    - waf.example.com
+
+rules:
+  - host: portainer.example.com
+    backend:
+      service_name: portainer
+      service_port: 80
+  - host: docker-registry.example.com
+    backend:
+      service_name: docker-registry
+      service_port: 80
+    paths:
+      - path: /v2
+        backend:
+          service_name: docker-registry-v2
+          service_port: 80
+  - host: httpbin.example.work
+    backend:
+      service_name: 127.0.0.1
+      service_port: 8080
