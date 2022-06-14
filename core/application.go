@@ -81,6 +81,12 @@ func (app *Application) createContext() *Context {
 }
 
 func (app *Application) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// health check
+	if req.URL.Path == "/health" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	ctx := app.createContext()
 
 	p := proxy.New(&proxy.Config{
