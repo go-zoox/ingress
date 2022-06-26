@@ -195,8 +195,14 @@ func (app *Application) Start() {
 			Handler: app,
 		}
 
-		go server.ListenAndServeTLS("", "")
+		go func() {
+			if err := server.ListenAndServeTLS("", ""); err != nil {
+				panic(err)
+			}
+		}()
 	}
 
-	http.ListenAndServe(fmt.Sprintf(":%d", port), app)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), app); err != nil {
+		panic(err)
+	}
 }
