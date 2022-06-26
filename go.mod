@@ -6,7 +6,7 @@ require (
 	github.com/go-zoox/config v1.0.4
 	github.com/go-zoox/fs v1.2.4
 	github.com/go-zoox/logger v1.1.3
-	github.com/go-zoox/proxy v1.0.0
+	github.com/go-zoox/proxy v1.0.2
 	github.com/go-zoox/uuid v0.0.1
 	github.com/urfave/cli/v2 v2.8.1
 )
@@ -26,7 +26,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd // indirect
-	golang.org/x/net v0.0.0-20220607020251-c690dde0001d // indirect
+	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e // indirect
 	golang.org/x/sys v0.0.0-20220608164250-635b8c9b7f68 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20220517211312-f3a8303e98df // indirect
