@@ -26,9 +26,9 @@ type Rule struct {
 }
 
 type Backend struct {
-	ServiceScheme string `config:"service_scheme,default=http"`
-	ServiceName   string `config:"service_name"`
-	ServicePort   int64  `config:"service_port"`
+	ServiceProtocol string `config:"service_protocol,default=http"`
+	ServiceName     string `config:"service_name"`
+	ServicePort     int64  `config:"service_port"`
 	//
 	Request  ConfigRequest  `config:"request"`
 	Response ConfigResponse `config:"response"`
@@ -63,3 +63,13 @@ type ConfigResponse struct {
 // 	ClientSecret string   `config:"client_secret"`
 // 	AllowIds     []string `config:"allow_ids"`
 // }
+
+type ServiceConfig struct {
+	Host            string
+	Path            string
+	ServiceName     string
+	ServicePort     int64
+	ServiceProtocol string
+	Request         ConfigRequest
+	Response        ConfigResponse
+}

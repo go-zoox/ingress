@@ -2,27 +2,29 @@ package core
 
 import (
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
-	"time"
 
-	ingress "github.com/go-zoox/ingress/core"
+	"github.com/go-zoox/ingress"
+	"github.com/go-zoox/ingress/core"
 	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/proxy/utils/rewriter"
+	"github.com/go-zoox/zoox"
 )
 
 type Core struct {
-	Application *ingress.Application
+	Application *core.Core
 }
 
 type Config struct {
-	Host          string
-	Path          string
-	ServiceName   string
-	ServicePort   int64
-	ServiceScheme string
-	Request       ingress.ConfigRequest
-	Response      ingress.ConfigResponse
+	Host            string
+	Path            string
+	ServiceName     string
+	ServicePort     int64
+	ServiceProtocol string
+	Request         core.ConfigRequest
+	Response        core.ConfigResponse
 }
 
 type SSLConfig struct {
@@ -44,7 +46,7 @@ func (c *Core) getConfig(host string, path string) *Config {
 					if isMatched, err := regexp.MatchString(rpath.Path, path); err == nil && isMatched {
 						cfg.Host = rule.Host
 						cfg.Path = rpath.Path
-						cfg.ServiceScheme = rpath.Backend.ServiceScheme
+						cfg.ServiceProtocol = rpath.Backend.ServiceProtocol
 						cfg.ServiceName = rpath.Backend.ServiceName
 						cfg.ServicePort = rpath.Backend.ServicePort
 						cfg.Request = rpath.Backend.Request
@@ -56,7 +58,7 @@ func (c *Core) getConfig(host string, path string) *Config {
 
 			if cfg.ServiceName == "" {
 				cfg.Host = rule.Host
-				cfg.ServiceScheme = rule.Backend.ServiceScheme
+				cfg.ServiceProtocol = rule.Backend.ServiceProtocol
 				cfg.ServiceName = rule.Backend.ServiceName
 				cfg.ServicePort = rule.Backend.ServicePort
 				cfg.Request = rule.Backend.Request
@@ -99,23 +101,22 @@ func (c *Core) GetSSLConfig(domain string) *SSLConfig {
 	return &cfg
 }
 
-func (c *Core) OnRequest(ctx *ingress.Context) error {
-	cfg := c.getConfig(ctx.Host, ctx.Path)
+func (c *Core) OnRequest(ctx *zoox.Context, req *http.Request) error {
+	ctx.Logger.Infof("[service][%s] %s %s", ctx.Hostname(), ctx.Method, ctx.Path)
+
+	cfg := c.getConfig(ctx.Hostname(), ctx.Path)
 	if cfg.ServiceName == "" || cfg.ServicePort == int64(0) {
 		return proxy.NewHTTPError(404, "Not Found")
 	}
 
-	ctx.Request.URL.Scheme = cfg.ServiceScheme
+	ctx.Request.URL.Scheme = cfg.ServiceProtocol
 	ctx.Request.URL.Host = fmt.Sprintf("%s:%d", cfg.ServiceName, cfg.ServicePort)
 
 	if cfg.Request.Rewrites != nil {
-		rewriters := rewriter.Rewriters{}
+		rewriters := &rewriter.Rewriters{}
 		for _, r := range cfg.Request.Rewrites {
 			ft := strings.Split(r, ":")
-			rewriters = append(rewriters, &rewriter.Rewriter{
-				From: ft[0],
-				To:   ft[1],
-			})
+			rewriters.Add(ft[0], ft[1])
 		}
 
 		ctx.Request.URL.Path = rewriters.Rewrite(ctx.Path)
@@ -136,17 +137,14 @@ func (c *Core) OnRequest(ctx *ingress.Context) error {
 		}
 	}
 
+	ctx.Logger.Debugf("request: %s://%s%s", ctx.Request.URL.Scheme, ctx.Request.URL.Host, ctx.Request.URL.Path)
+
 	return nil
 }
 
-func (c *Core) OnResponse(ctx *ingress.Context) error {
-	reqestTime := ctx.RequestTime() / time.Millisecond
-
-	ctx.Logger.Info("[service][%s][%s] %s %s %d +%d ms", ctx.Host, ctx.Request.URL.Host, ctx.Method, ctx.Path, ctx.Status, reqestTime)
-
-	ctx.Response.Header.Set("x-powered-by", fmt.Sprintf("go-zoox/ingress v%s", c.Application.Version))
-	ctx.Response.Header.Set("x-request-id", ctx.RequestId)
-	ctx.Response.Header.Set("x-request-time", fmt.Sprintf("%d ms", reqestTime))
-
+func (c *Core) OnResponse(ctx *zoox.Context, res http.ResponseWriter) error {
+	ctx.Logger.Info("[service][%s][%s] %s %s %d +%d ms", ctx.Host, ctx.Request.URL.Host, ctx.Method, ctx.Path, ctx.Status, 123456)
+	ctx.Set("X-Proxy", fmt.Sprintf("go-zoox_ingress/%s", ingress.Version))
+	ctx.Set("X-Request-ID", ctx.RequestID())
 	return nil
 }

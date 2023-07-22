@@ -1,16 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/go-zoox/config"
 	"github.com/go-zoox/fs"
-	ingress "github.com/go-zoox/ingress/core"
+	"github.com/go-zoox/ingress"
+	"github.com/go-zoox/ingress/core"
 	"github.com/go-zoox/logger"
 	"github.com/urfave/cli/v2"
-
-	corePlugin "github.com/go-zoox/ingress/plugins/core"
 )
 
 func main() {
@@ -18,7 +16,7 @@ func main() {
 		Name:        "ingress",
 		Usage:       "Reverse Proxy",
 		Description: "An Easy Self Hosted Reverse Proxy",
-		Version:     fmt.Sprintf("%s (%s %s)", Version, CommitHash, BuildTime),
+		Version:     ingress.Version,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name: "config",
@@ -40,7 +38,7 @@ func main() {
 				os.Exit(1)
 			}
 
-			var cfg ingress.Config
+			var cfg core.Config
 
 			if configFilePath != "" {
 				if !fs.IsExist(configFilePath) {
@@ -69,15 +67,13 @@ func main() {
 				logger.Debug("config: %v", cfg)
 			}
 
-			app := ingress.New(Version, &cfg)
+			app := core.New(ingress.Version, &cfg)
 
-			app.Use(&corePlugin.Core{
-				Application: app,
-			})
+			// app.Plugin(&corePlugin.Core{
+			// 	Application: app,
+			// })
 
-			app.Start()
-
-			return nil
+			return app.Start()
 		},
 	}
 

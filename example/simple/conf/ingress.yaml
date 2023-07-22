@@ -28,5 +28,11 @@ rules:
           service_port: 80
   - host: httpbin.example.work
     backend:
-      service_name: 127.0.0.1
-      service_port: 8080
+      service_protocol: https
+      service_name: httpbin.zcorky.com
+      service_port: 443
+  - host: httpbin2.example.work
+    backend:
+      service_protocol: https
+      service_name: httpbin.org
+      service_port: 443

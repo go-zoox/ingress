@@ -44,7 +44,7 @@ func TestGetConfig(t *testing.T) {
 	}
 
 	c := &Core{
-		Application: &ingress.Application{
+		Application: &ingress.Core{
 			Config: config,
 		},
 	}
