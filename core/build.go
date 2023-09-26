@@ -1,11 +1,8 @@
 package core
 
 import (
-	"fmt"
 	"net/http"
-	"time"
 
-	"github.com/go-zoox/ingress/core/service"
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/zoox"
@@ -44,17 +41,11 @@ func (c *core) build() error {
 		method := ctx.Method
 		path := ctx.Path
 
-		key := fmt.Sprintf("%s:%s", hostname, path)
-		serviceIns := &service.Service{}
-		if err := ctx.Cache().Get(key, serviceIns); err != nil {
-			serviceIns, err = c.match(hostname, path)
-			if err != nil {
-				logger.Errorf("failed to get config: %s", err)
-				//
-				return false, proxy.NewHTTPError(404, "Not Found")
-			}
-
-			ctx.Cache().Set(key, serviceIns, 15*time.Second)
+		serviceIns, err := c.match(ctx, hostname, path)
+		if err != nil {
+			logger.Errorf("failed to get config: %s", err)
+			//
+			return false, proxy.NewHTTPError(404, "Not Found")
 		}
 
 		if serviceIns == nil {

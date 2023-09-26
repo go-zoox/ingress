@@ -4,18 +4,55 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"time"
 
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/service"
 	"github.com/go-zoox/proxy/utils/rewriter"
+	"github.com/go-zoox/zoox"
 )
 
-func (c *core) match(host string, path string) (s *service.Service, err error) {
-	s, err = Match(c.cfg.Rules, host, path)
-	if err != nil {
-		return nil, err
+type HostMatcher struct {
+	Service service.Service
+	//
+	IsPathsExist bool
+	//
+	Rule rule.Rule
+}
+
+func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Service, err error) {
+	key := fmt.Sprintf("match.host:%s", host)
+	matcher := &HostMatcher{}
+	if err := ctx.Cache().Get(key, matcher); err != nil {
+		matcher, err = MatchHost(c.cfg.Rules, host)
+		if err != nil {
+			if !errors.Is(err, ErrHostNotFound) {
+				return nil, err
+			}
+
+			// ctx.Cache().Set(key, nil, 60*time.Second)
+			return nil, nil
+		}
+
+		ctx.Cache().Set(key, matcher, 60*time.Second)
 	}
 
+	// host service
+	s = &matcher.Service
+
+	// paths
+	if matcher.IsPathsExist {
+		ps, err := MatchPath(matcher.Rule.Paths, path)
+		if err != nil {
+			if !errors.Is(err, ErrPathNotFound) {
+				return nil, err
+			}
+		} else {
+			s = ps
+		}
+	}
+
+	// fallback
 	if s == nil {
 		if c.cfg.Match != nil {
 			return c.cfg.Match(host, path)
@@ -25,29 +62,7 @@ func (c *core) match(host string, path string) (s *service.Service, err error) {
 	return s, nil
 }
 
-func Match(rules []rule.Rule, host, path string) (s *service.Service, err error) {
-	hostService, rule, err := matchHost(rules, host)
-	if err != nil {
-		if !errors.Is(err, ErrHostNotFound) {
-			return nil, err
-		}
-
-		return nil, nil
-	}
-
-	pathService, err := matchPath(rule.Paths, path)
-	if err != nil {
-		if !errors.Is(err, ErrPathNotFound) {
-			return nil, err
-		}
-
-		return hostService, nil
-	}
-
-	return pathService, nil
-}
-
-func matchHost(rules []rule.Rule, host string) (b *service.Service, r *rule.Rule, err error) {
+func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 	for _, rule := range rules {
 		hostRegExp := fmt.Sprintf("^%s$", rule.Host)
 		if isMatched, _ := regexp.MatchString(hostRegExp, host); isMatched {
@@ -55,22 +70,25 @@ func matchHost(rules []rule.Rule, host string) (b *service.Service, r *rule.Rule
 				From: hostRegExp,
 				To:   rule.Backend.Service.Name,
 			}
-			s := &service.Service{
-				Protocol: rule.Backend.Service.Protocol,
-				Name:     hostRewriter.Rewrite(host),
-				Port:     rule.Backend.Service.Port,
-				Request:  rule.Backend.Service.Request,
-				Response: rule.Backend.Service.Response,
-			}
-			return s, &rule, nil
+
+			return &HostMatcher{
+				Service: service.Service{
+					Protocol: rule.Backend.Service.Protocol,
+					Name:     hostRewriter.Rewrite(host),
+					Port:     rule.Backend.Service.Port,
+					Request:  rule.Backend.Service.Request,
+					Response: rule.Backend.Service.Response,
+				},
+				IsPathsExist: len(rule.Paths) != 0,
+				Rule:         rule,
+			}, nil
 		}
 	}
 
-	// return nil, nil, fmt.Errorf("no rule found for host %s", host)
-	return nil, nil, ErrHostNotFound
+	return nil, ErrHostNotFound
 }
 
-func matchPath(paths []rule.Path, path string) (r *service.Service, err error) {
+func MatchPath(paths []rule.Path, path string) (r *service.Service, err error) {
 	for _, rpath := range paths {
 		rpathRe := fmt.Sprintf("^%s", rpath.Path)
 		//
@@ -90,6 +108,5 @@ func matchPath(paths []rule.Path, path string) (r *service.Service, err error) {
 		}
 	}
 
-	// return nil, fmt.Errorf("no rule found for path %s", path)
 	return nil, ErrPathNotFound
 }

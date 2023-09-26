@@ -31,36 +31,36 @@ func TestMatchHost(t *testing.T) {
 		},
 	}
 
-	s, err := Match(rules, "portainer.example.com", "/")
+	s, err := MatchHost(rules, "portainer.example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Name != "portainer" {
-		t.Fatalf("expected portainer, got %s", s.Name)
+	if s.Service.Name != "portainer" {
+		t.Fatalf("expected portainer, got %s", s.Service.Name)
 	}
-	if s.Port != 8080 {
-		t.Fatalf("expected 8080, got %d", s.Port)
+	if s.Service.Port != 8080 {
+		t.Fatalf("expected 8080, got %d", s.Service.Port)
 	}
-	if s.Protocol != "http" {
-		t.Fatalf("expected http, got %s", s.Protocol)
+	if s.Service.Protocol != "http" {
+		t.Fatalf("expected http, got %s", s.Service.Protocol)
 	}
 
-	s, err = Match(rules, "docker-registry.example.com", "/")
+	s, err = MatchHost(rules, "docker-registry.example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Name != "docker-registry" {
-		t.Fatalf("expected docker-registry, got %s", s.Name)
+	if s.Service.Name != "docker-registry" {
+		t.Fatalf("expected docker-registry, got %s", s.Service.Name)
 	}
-	if s.Port != 8080 {
-		t.Fatalf("expected 8080, got %d", s.Port)
+	if s.Service.Port != 8080 {
+		t.Fatalf("expected 8080, got %d", s.Service.Port)
 	}
-	if s.Protocol != "http" {
-		t.Fatalf("expected http, got %s", s.Protocol)
+	if s.Service.Protocol != "http" {
+		t.Fatalf("expected http, got %s", s.Service.Protocol)
 	}
 
-	s, err = Match(rules, "docker-registry.example.work", "/")
-	if err != nil {
+	s, err = MatchHost(rules, "docker-registry.example.work")
+	if err == nil {
 		t.Fatal(err)
 	}
 	if s != nil {
@@ -136,21 +136,15 @@ func TestMatchPath(t *testing.T) {
 		},
 	}
 
-	s, err := Match(rules, "httpbin.example.work", "/ip")
-	if err != nil {
-		t.Fatal(err)
+	s, err := MatchPath(rules[2].Paths, "/ip")
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
-	if s.Name != "httpbin.zcorky.com" {
-		t.Fatalf("expected httpbin.zcorky.com, got %s", s.Name)
-	}
-	if s.Port != 443 {
-		t.Fatalf("expected 443, got %d", s.Port)
-	}
-	if s.Protocol != "https" {
-		t.Fatalf("expected https, got %s", s.Protocol)
+	if s != nil {
+		t.Fatalf("expected nil, got %v", s)
 	}
 
-	s, err = Match(rules, "httpbin.example.work", "/ip1")
+	s, err = MatchPath(rules[2].Paths, "/ip1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +158,7 @@ func TestMatchPath(t *testing.T) {
 		t.Fatalf("expected http, got %s", s.Protocol)
 	}
 
-	s, err = Match(rules, "httpbin.example.work", "/ip2")
+	s, err = MatchPath(rules[2].Paths, "/ip2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,17 +187,17 @@ func TestMatchHostRewriteName(t *testing.T) {
 		},
 	}
 
-	s, err := Match(rules, "t-zero.example.work", "/")
+	s, err := MatchHost(rules, "t-zero.example.work")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Name != "task.zero.svc" {
-		t.Fatalf("expected portainer, got %s", s.Name)
+	if s.Service.Name != "task.zero.svc" {
+		t.Fatalf("expected portainer, got %s", s.Service.Name)
 	}
-	if s.Port != 8080 {
-		t.Fatalf("expected 8080, got %d", s.Port)
+	if s.Service.Port != 8080 {
+		t.Fatalf("expected 8080, got %d", s.Service.Port)
 	}
-	if s.Protocol != "http" {
-		t.Fatalf("expected http, got %s", s.Protocol)
+	if s.Service.Protocol != "http" {
+		t.Fatalf("expected http, got %s", s.Service.Protocol)
 	}
 }
