@@ -1,54 +1,39 @@
 # Builder
-FROM golang:1.18-alpine as builder
+FROM --platform=$BUILDPLATFORM whatwewant/builder-go:v1.20-1 as builder
 
-RUN         apk add --no-cache make git
+WORKDIR /build
 
-WORKDIR     /app
+COPY go.mod ./
 
-COPY        go.mod ./
+COPY go.sum ./
 
-COPY        go.sum ./
+RUN go mod download
 
-RUN         go mod download
+COPY . .
 
-ARG         VERSION=unknown
+ARG TARGETARCH
 
-ARG         BUILD_TIME=unknown
+RUN CGO_ENABLED=0 \
+  GOOS=linux \
+  GOARCH=$TARGETARCH \
+  go build \
+  -trimpath \
+  -ldflags '-w -s -buildid=' \
+  -v -o ingress ./cmd/ingress
 
-ARG         COMMIT_HASH=unknown
+# Server
+FROM whatwewant/alpine:v3.17-1
 
-COPY        . ./
+LABEL MAINTAINER="Zero<tobewhatwewant@gmail.com>"
 
-RUN         CGO_ENABLED=0 \
-            GOOS=linux \
-            GOARCH=amd64 \
-            go build \
-              -trimpath \
-              -ldflags '\
-                -X "github.com/go-zoox/ingress/constants.Version=${VERSION}" \
-                -X "github.com/go-zoox/ingress/constants.BuildTime=${BUILD_TIME}" \
-                -X "github.com/go-zoox/ingress/constants.CommitHash=${COMMIT_HASH}" \
-                -w -s -buildid= \
-              ' \
-              -v -o ingress
+LABEL org.opencontainers.image.source="https://github.com/go-zoox/ingress"
 
-# Product
-FROM  scratch
+ARG VERSION=latest
 
-LABEL       MAINTAINER="Zero<tobewhatwewant@gmail.com>"
+ENV TERMINAL_VERSION=${VERSION}
 
-LABEL       org.opencontainers.image.source="https://github.com/go-zoox/ingress"
+COPY --from=builder /build/ingress /bin
 
-ARG         VERSION=v1.0.0
+RUN ingress --version
 
-COPY        --from=builder /app/ingress /
-
-COPY        conf/ingress.yaml /conf/ingress.yaml
-
-EXPOSE      53
-
-ENV         GIN_MODE=release
-
-ENV         VERSION=${VERSION}
-
-CMD  ["/ingress", "-c", "/conf/ingress.yaml"]
+CMD ingress -c /etc/ingress/config.yaml

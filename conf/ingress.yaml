@@ -1,6 +1,23 @@
-port: 80
+version: v1
+
+port: 8090
 
 # https_port: 443
+
+cache:
+  engine: redis
+  host: 127.0.0.1
+  port: 6379
+  password: '123456'
+  db: 2
+
+database:
+  engine: postgres
+  host: postgres
+  port: 5432
+  username: postgres
+  password: postgres
+  db: ingress
 
 ssl:
   - domain: example.com
@@ -12,21 +29,113 @@ waf:
   whiteHosts:
     - waf.example.com
 
+search:
+  # api: https://httpbin.zcorky.com/api/v1/ingress/search
+  api: https://httpbin.zcorky.com/get
+
+fallback:
+  service:
+    name: httpbin.org
+    port: 443
+
+healthcheck:
+  # respond to health check requests
+  outer:
+    enable: true
+    path: /healthz
+    ok: true
+  # check inner services
+  inner:
+    enable: true
+    interval: 30
+    timeout: 5
+
 rules:
   - host: portainer.example.com
     backend:
-      service_name: portainer
-      service_port: 80
+      service:
+        name: portainer
+        port: 80
+        healthcheck:
+          enable: true
+          method: GET
+          path: /healthz
+          status:
+            - 200
   - host: docker-registry.example.com
     backend:
-      service_name: docker-registry
-      service_port: 80
+      service:
+        name: docker-registry
+        port: 80
     paths:
       - path: /v2
         backend:
-          service_name: docker-registry-v2
-          service_port: 80
+          service:
+            name: docker-registry-v2
+            port: 80
   - host: httpbin.example.work
     backend:
-      service_name: 127.0.0.1
-      service_port: 8080
+      service:
+        protocol: https
+        name: httpbin.zcorky.com
+        port: 443
+        request:
+          host:
+            rewrite: true
+    paths:
+      - path: /ip3
+        backend:
+          service:
+            protocol: https
+            name: httpbin.zcorky.com
+            port: 443
+            request:
+              host:
+                rewrite: true
+              path:
+                rewrites:
+                  - ^/ip3/(.*):/$1
+      - path: /ip2
+        backend:
+          service:
+            protocol: https
+            name: httpbin.zcorky.com
+            port: 443
+            request:
+              host:
+                rewrite: true
+              path:
+                rewrites:
+                  - ^/ip2:/ip
+      - path: /ip
+        backend:
+          service:
+            protocol: https
+            name: httpbin.org
+            port: 443
+      - path: /httpbin.org
+        backend:
+          service:
+            protocol: https
+            name: httpbin.org
+            port: 443
+            request:
+              path:
+                rewrites:
+                  - ^/httpbin.org/(.*):/$1
+                  
+  - host: t-(\w+).example.work
+    backend:
+      service:
+        name: task.$1.svc
+        port: 8080
+    paths:
+      - path: /api/v1/([^/]+)
+        backend:
+          service:
+            name: $1.example.work
+            port: 8080
+            request:
+              path:
+                rewrites:
+                  - ^/api/v1/([^/]+):/api/v1/task/$1

@@ -42,6 +42,8 @@ github.com/go-zoox/cache v1.0.4/go.mod h1:E+rxSaCqW0o/fM5KQSueJlEcUZQ9x3penrSMh8
 github.com/go-zoox/chalk v1.0.1/go.mod h1:z5+qvE9nEJI5uT4px2tyoFa/xxkqf3CUo22KmXLKbNI=
 github.com/go-zoox/chalk v1.0.2 h1:DCWft37fogmvqF37JdbGSLg28L/tQeA8u0lMvb62KOg=
 github.com/go-zoox/chalk v1.0.2/go.mod h1:z5+qvE9nEJI5uT4px2tyoFa/xxkqf3CUo22KmXLKbNI=
+github.com/go-zoox/cli v1.3.6 h1:+A4l9aBBvqO/xXjwZ1PCcX0ue/HZ/Ft0Wp/dDq27iVE=
+github.com/go-zoox/cli v1.3.6/go.mod h1:25ox3mVRJdRSyLJLvK8OHYEuXtMtfkTseWkJjlK9kM4=
 github.com/go-zoox/compress v1.0.1 h1:EyNxo5NscMLua5fvUdiGSF+BwhuTfMeyppu7OwKAW7Q=
 github.com/go-zoox/compress v1.0.1/go.mod h1:iV6CcNulf3OuEfA1h1VOsaBqYH81cVSg5wNi5HDx2h4=
 github.com/go-zoox/concurrency v1.2.0 h1:iucwSWQ0Y9fFIG+eZvyHjMrIPSnaKJTGfOcGbIx91yg=
@@ -72,6 +74,7 @@ github.com/go-zoox/debug v1.0.2/go.mod h1:7HvnBeV1dVuuGVnXSLdJ5OE6X/wIXAjIEyiaA7
 github.com/go-zoox/dotenv v1.0.7/go.mod h1:N2bXxghq3Zk+lpiOxv+m+0yjnGubVqJGJDR/9jWm3N0=
 github.com/go-zoox/dotenv v1.1.0/go.mod h1:elKALomz436YKX4Syo+f02ozIQYq2yFaprj6jL6GnCQ=
 github.com/go-zoox/dotenv v1.2.3 h1:9wx4sL2u/FrRLkzoOb7ozYii6NoGsl05KoGdZm1ebIE=
+github.com/go-zoox/dotenv v1.2.3/go.mod h1:hhl5WZUxI+DNJN6Zos1y7Nq0jDCXciphswPSYtInqg0=
 github.com/go-zoox/encoding v1.0.5/go.mod h1:WFF+m/IWYHtClMrcKnrdZHHf3cdIF8de2uTOILPM7lw=
 github.com/go-zoox/encoding v1.0.7/go.mod h1:h6ZgI27IaUSBq1ntaZjnSruPdRFuBLNUmfp57TaPxs4=
 github.com/go-zoox/encoding v1.2.1 h1:38rQRsfL1f1YHZaqsPaGcNMkPnzatnPlYiHioUh9F4A=
@@ -109,8 +112,8 @@ github.com/go-zoox/logger v1.2.0/go.mod h1:mBImRV6zpbGtiIjDz/C9vWi80wWc2OTOl9N9P
 github.com/go-zoox/logger v1.4.5 h1:HHNJNiNDA6c4T/pu9EJup85In+5ZF5SYEjqMvEEqnYU=
 github.com/go-zoox/logger v1.4.5/go.mod h1:o7ddvv/gMoMa0TomPhHoIz11ZWRbQ92pF6rwYbOY3iQ=
 github.com/go-zoox/proxy v1.2.3/go.mod h1:T+gbngAtIgvambbYibAbzrjwdu8j5pduJdA2j6RYi94=
-github.com/go-zoox/proxy v1.5.3 h1:HoWKuWBLHkFlHsI0tOr0t0IkKTpcDeypSjBv5BNHG4Q=
-github.com/go-zoox/proxy v1.5.3/go.mod h1:KLWeJqfQk1upCvEdXt3tEuM8xSu0ApbA9FNLOmyHysY=
+github.com/go-zoox/proxy v1.5.4 h1:gMQF+GoqUkxbus5kaoDlIhSPQFSjXJe07szSr5goT5s=
+github.com/go-zoox/proxy v1.5.4/go.mod h1:KLWeJqfQk1upCvEdXt3tEuM8xSu0ApbA9FNLOmyHysY=
 github.com/go-zoox/pubsub v1.2.2 h1:dpcFlZRSGhX0YqT/WoOJgP5bP2VDqswPqXiiFZCki1w=
 github.com/go-zoox/pubsub v1.2.2/go.mod h1:LWX0NAg80hkeGdZf7PJOEGnyN6CXooCxpIlh2MxESDo=
 github.com/go-zoox/random v1.0.0/go.mod h1:W+PTQiInxaCngiXpSvycucAKvu1tE/tKlZ9kaMp2/Ys=
@@ -133,8 +136,8 @@ github.com/go-zoox/testify v1.0.2 h1:G5sQ3xm0uwCuytnMhgnqZ5BItCt2DN3n2wLBqlIJEWA
 github.com/go-zoox/uuid v0.0.1 h1:txqmDavRTq68gzzqWfJQLorFyUp9a7M2lmq2KcwPGPA=
 github.com/go-zoox/uuid v0.0.1/go.mod h1:0/F4LdfLqFdyqOf7aXoiYXRkXHU324JQ5DZEytXYBPM=
 github.com/go-zoox/zoox v1.2.19/go.mod h1:xk3S3L58ugJIDyuZMCYrj3qIGLSxddbkARwTRkpxPVE=
-github.com/go-zoox/zoox v1.12.8 h1:6Mo507JhfAzfVC7huS/2kr6EAP4PjhflgY8gUjtMrXg=
-github.com/go-zoox/zoox v1.12.8/go.mod h1:W31vOF9Wo37KjJNFcD/4An0NU9lXH15vgaV7IDDp2r4=
+github.com/go-zoox/zoox v1.12.10 h1:59byyxNFwiqKZM9FNj9glPAybg5o4VIXlysGM/wlcnU=
+github.com/go-zoox/zoox v1.12.10/go.mod h1:NhjCY/uEBjASU+42u7Srb43Drwl7lWfKVO6IU/Y57rw=
 github.com/goccy/go-yaml v1.9.5/go.mod h1:U/jl18uSupI5rdI2jmuCswEA2htH9eXfferR3KfscvA=
 github.com/goccy/go-yaml v1.11.2 h1:joq77SxuyIs9zzxEjgyLBugMQ9NEgTWxXfz2wVqwAaQ=
 github.com/goccy/go-yaml v1.11.2/go.mod h1:wKnAMd44+9JAAnGQpWVEgBzGt3YuTaQ4uXoHvE4m7WU=
@@ -162,6 +165,9 @@ github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpO
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/joho/godotenv v1.4.0/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
+github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
+github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 h1:iQTw/8FWTuc7uiaSepXwyf3o52HaUYcV+Tu66S3F5GA=
+github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0/go.mod h1:1NbS8ALrpOvjt0rHPNLyCIeMtbizbir8U//inJ+zuB8=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pretty v0.3.0/go.mod h1:640gp4NfQd8pI5XOwp5fnNeVWj67G7CFk/SaSQn7NBk=
@@ -217,6 +223,8 @@ github.com/rogpeppe/go-internal v1.8.0/go.mod h1:WmiCO8CzOY8rg0OYDC4/i/2WRWAB6po
 github.com/rogpeppe/go-internal v1.9.0 h1:73kH8U+JUqXU8lRuOHeVHaa/SZPifC7BkcraZVejAe8=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
+github.com/sevlyar/go-daemon v0.1.6 h1:EUh1MDjEM4BI109Jign0EaknA2izkOyi0LV3ro3QQGs=
+github.com/sevlyar/go-daemon v0.1.6/go.mod h1:6dJpPatBT9eUwM5VCw9Bt6CdX9Tk6UWvhW3MebLDRKE=
 github.com/spaolacci/murmur3 v1.1.0/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
 github.com/spf13/cast v1.5.1 h1:R+kOtfhWQE6TVQzY+4D7wJLBgkdVasCEFxSUBYBYIlA=
 github.com/spf13/cast v1.5.1/go.mod h1:b9PdjNptOpzXr7Rq1q9gJML/2cdGQAo69NKzQ10KN48=
