@@ -1,7 +1,7 @@
 package service
 
 type Service struct {
-	Host     string `config:"host"`
+	Name     string `config:"name"`
 	Port     int64  `config:"port"`
 	Protocol string `config:"protocol,default=http"`
 	//

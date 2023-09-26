@@ -15,7 +15,7 @@ database:
   engine: postgres
   host: postgres
   port: 5432
-  userhost: postgres
+  username: postgres
   password: postgres
   db: ingress
 
@@ -37,50 +37,46 @@ rules:
   - host: portainer.example.com
     backend:
       service:
-        host: portainer
+        name: portainer
         port: 80
   - host: docker-registry.example.com
     backend:
       service:
-        host: docker-registry
+        name: docker-registry
         port: 80
     paths:
       - path: /v2
         backend:
           service:
-            host: docker-registry-v2
+            name: docker-registry-v2
             port: 80
   - host: httpbin.example.work
     backend:
       service:
         protocol: https
-        host: httpbin.zcorky.com
+        name: httpbin.zcorky.com
         port: 443
         request:
           host:
-            rewrite: true
+            rewrite:
     paths:
       - path: /ip3
         backend:
           service:
             protocol: https
-            host: httpbin.zcorky.com
+            name: httpbin.zcorky.com
             port: 443
             request:
-              host:
-                rewrite: true
               path:
                 rewrites:
-                  - ^/ip3:/ip
+                  - ^/ip3/(.*):/$1
       - path: /ip2
         backend:
           service:
             protocol: https
-            host: httpbin.zcorky.com
+            name: httpbin.zcorky.com
             port: 443
             request:
-              host:
-                rewrite: true
               path:
                 rewrites:
                   - ^/ip2:/ip
@@ -88,13 +84,13 @@ rules:
         backend:
           service:
             protocol: https
-            host: httpbin.org
+            name: httpbin.org
             port: 443
       - path: /httpbin.org
         backend:
           service:
             protocol: https
-            host: httpbin.org
+            name: httpbin.org
             port: 443
             request:
               path:
@@ -104,13 +100,13 @@ rules:
   - host: t-(\w+).example.work
     backend:
       service:
-        host: task.$1.svc
+        name: task.$1.svc
         port: 8080
     paths:
       - path: /api/v1/([^/]+)
         backend:
           service:
-            host: $1.example.work
+            name: $1.example.work
             port: 8080
             request:
               path:

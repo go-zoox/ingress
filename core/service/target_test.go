@@ -4,7 +4,7 @@ import "testing"
 
 func TestTarget(t *testing.T) {
 	s := &Service{
-		Host: "portainer",
+		Name: "portainer",
 		Port: 8080,
 	}
 

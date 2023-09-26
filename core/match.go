@@ -68,13 +68,13 @@ func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 		if isMatched, _ := regexp.MatchString(hostRegExp, host); isMatched {
 			hostRewriter := rewriter.Rewriter{
 				From: hostRegExp,
-				To:   rule.Backend.Service.Host,
+				To:   rule.Backend.Service.Name,
 			}
 
 			return &HostMatcher{
 				Service: service.Service{
 					Protocol: rule.Backend.Service.Protocol,
-					Host:     hostRewriter.Rewrite(host),
+					Name:     hostRewriter.Rewrite(host),
 					Port:     rule.Backend.Service.Port,
 					Request:  rule.Backend.Service.Request,
 					Response: rule.Backend.Service.Response,
@@ -100,7 +100,7 @@ func MatchPath(paths []rule.Path, path string) (r *service.Service, err error) {
 		if isMatched {
 			return &service.Service{
 				Protocol: rpath.Backend.Service.Protocol,
-				Host:     rpath.Backend.Service.Host,
+				Name:     rpath.Backend.Service.Name,
 				Port:     rpath.Backend.Service.Port,
 				Request:  rpath.Backend.Service.Request,
 				Response: rpath.Backend.Service.Response,
