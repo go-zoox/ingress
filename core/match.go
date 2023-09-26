@@ -52,11 +52,22 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 		}
 	}
 
-	// fallback
+	// match func
 	if s == nil {
 		if c.cfg.Match != nil {
-			return c.cfg.Match(host, path)
+			sm, err := c.cfg.Match(host, path)
+			if err != nil {
+				return nil, err
+			}
+
+			s = sm
 		}
+	}
+
+	if s == nil {
+		s = &c.cfg.Fallback
+		// force rewrite host
+		s.Request.Host.Rewrite = true
 	}
 
 	return s, nil

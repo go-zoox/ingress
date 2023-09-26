@@ -33,6 +33,11 @@ search:
   # api: https://httpbin.zcorky.com/api/v1/ingress/search
   api: https://httpbin.zcorky.com/get
 
+fallback:
+  service:
+    name: httpbin.org
+    port: 443
+
 rules:
   - host: portainer.example.com
     backend:

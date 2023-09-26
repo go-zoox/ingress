@@ -15,6 +15,8 @@ type Config struct {
 	HTTPSPort int64 `config:"https_port"`
 	SSL       []SSL `config:"ssl"`
 	//
+	Fallback service.Service `config:"fallback"`
+	//
 	Match func(host string, path string) (cfg *service.Service, err error)
 }
 
