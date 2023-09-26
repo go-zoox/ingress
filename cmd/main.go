@@ -3,16 +3,17 @@ package main
 import (
 	"os"
 
+	"github.com/go-zoox/cli"
 	"github.com/go-zoox/config"
+	"github.com/go-zoox/core-utils/fmt"
 	"github.com/go-zoox/fs"
 	"github.com/go-zoox/ingress"
 	"github.com/go-zoox/ingress/core"
 	"github.com/go-zoox/logger"
-	"github.com/urfave/cli/v2"
 )
 
 func main() {
-	app := &cli.App{
+	app := cli.NewSingleProgram(&cli.SingleProgramConfig{
 		Name:        "ingress",
 		Usage:       "Reverse Proxy",
 		Description: "An Easy Self Hosted Reverse Proxy",
@@ -23,6 +24,7 @@ func main() {
 				// Value:   "conf/ingress.yaml",
 				Usage:   "The path to the configuration file",
 				Aliases: []string{"c"},
+				// Required: true,
 			},
 			&cli.StringFlag{
 				Name:    "port",
@@ -30,54 +32,48 @@ func main() {
 				Aliases: []string{"p"},
 			},
 		},
-		Action: func(c *cli.Context) error {
-			configFilePath := c.String("config")
-			port := c.Int64("port")
-			if configFilePath == "" {
-				logger.Error("config file is required with -c or --config")
-				os.Exit(1)
+	})
+
+	app.Command(func(c *cli.Context) error {
+		configFilePath := c.String("config")
+		if configFilePath == "" {
+			configFilePath = "/etc/ingress/ingress.yaml"
+		}
+
+		var cfg core.Config
+		cfg.Port = c.Int64("port")
+
+		if configFilePath != "" {
+			if !fs.IsExist(configFilePath) {
+				return fmt.Errorf("config file(%s) not found", configFilePath)
 			}
 
-			var cfg core.Config
-
-			if configFilePath != "" {
-				if !fs.IsExist(configFilePath) {
-					logger.Error("config file(%s) not found", configFilePath)
-					os.Exit(1)
-				}
-
-				if err := config.Load(&cfg, &config.LoadOptions{
-					FilePath: configFilePath,
-				}); err != nil {
-					logger.Error("failed to read config file", err)
-					os.Exit(1)
-				}
-
-				// j, _ := json.MarshalIndent(cfg, "", "  ")
-				// fmt.Println(string(j))
-				// os.Exit(0)
+			if err := config.Load(&cfg, &config.LoadOptions{
+				FilePath: configFilePath,
+			}); err != nil {
+				return fmt.Errorf("failed to read config file: %s", err)
 			}
+		}
 
-			if port != 0 {
-				cfg.Port = port
-			}
+		if cfg.Port == 0 {
+			cfg.Port = 8080
+		}
 
-			// @TODO
-			if os.Getenv("DEBUG") == "true" {
-				logger.Debug("config: %v", cfg)
-			}
+		// @TODO
+		if os.Getenv("LOG_LEVEL") == "debug" {
+			// logger.Debug("config: %v", cfg)
+			fmt.PrintJSON("config:", cfg)
+		}
 
-			app := core.New(ingress.Version, &cfg)
+		app, err := core.New(ingress.Version, &cfg)
+		if err != nil {
+			return fmt.Errorf("failed to create core: %s", err)
+		}
 
-			// app.Plugin(&corePlugin.Core{
-			// 	Application: app,
-			// })
+		return app.Run()
+	})
 
-			return app.Start()
-		},
-	}
-
-	if err := app.Run(os.Args); err != nil {
+	if err := app.RunWithError(); err != nil {
 		logger.Fatal("%s", err.Error())
 	}
 }

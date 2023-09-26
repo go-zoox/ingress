@@ -1,11 +1,30 @@
 package core
 
+import (
+	"github.com/go-zoox/ingress/core/rule"
+	"github.com/go-zoox/ingress/core/service"
+)
+
 type Config struct {
-	Port  int64  `config:"port"`
-	SSL   []SSL  `config:"ssl"`
-	Rules []Rule `config:"rules"`
+	Port int64 `config:"port"`
+	//
+	Rules []rule.Rule `config:"rules"`
+	//
+	Cache Cache `config:"cache"`
 	//
 	HTTPSPort int64 `config:"https_port"`
+	SSL       []SSL `config:"ssl"`
+	//
+	Match func(host string, path string) (cfg *service.Service, err error)
+}
+
+type Cache struct {
+	Host     string `config:"host"`
+	Port     int64  `config:"port"`
+	Username string `config:"username"`
+	Password string `config:"password"`
+	DB       int64  `config:"db"`
+	Prefix   string `config:"prefix"`
 }
 
 type SSL struct {
@@ -16,60 +35,4 @@ type SSL struct {
 type SSLCert struct {
 	Certificate    string `config:"certificate"`
 	CertificateKey string `config:"certificate_key"`
-}
-
-type Rule struct {
-	Host    string  `config:"host"`
-	Backend Backend `config:"backend"`
-	//
-	Paths []Path `config:"paths"`
-}
-
-type Backend struct {
-	ServiceProtocol string `config:"service_protocol,default=http"`
-	ServiceName     string `config:"service_name"`
-	ServicePort     int64  `config:"service_port"`
-	//
-	Request  ConfigRequest  `config:"request"`
-	Response ConfigResponse `config:"response"`
-	//
-	// Auth ConfigAuth `config:"auth"`
-}
-
-type Path struct {
-	Path    string  `config:"path"`
-	Backend Backend `config:"backend"`
-}
-
-type ConfigRequest struct {
-	Rewrites []string          `config:"rewrites"`
-	Headers  map[string]string `config:"headers"`
-	Query    map[string]string `config:"query"`
-}
-
-type ConfigResponse struct {
-	Headers map[string]string `config:"headers"`
-}
-
-// type ConfigAuth struct {
-// 	Type string `config:"type"`
-// 	// type == basic
-// 	Username string `config:"username"`
-// 	Password string `config:"password"`
-// 	// type == bearer
-// 	Token string `config:"token"`
-// 	// type == oauth2 / oidc
-// 	ClientID     string   `config:"client_id"`
-// 	ClientSecret string   `config:"client_secret"`
-// 	AllowIds     []string `config:"allow_ids"`
-// }
-
-type ServiceConfig struct {
-	Host            string
-	Path            string
-	ServiceName     string
-	ServicePort     int64
-	ServiceProtocol string
-	Request         ConfigRequest
-	Response        ConfigResponse
 }
