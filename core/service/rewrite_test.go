@@ -13,7 +13,7 @@ func TestRewrite(t *testing.T) {
 		},
 	}
 
-	r := s.Rewrite()
+	r := s.rewriter()
 	if len(r) != 1 {
 		t.Fatalf("expected 1 rewrite, got %d", len(r))
 	}
@@ -36,7 +36,7 @@ func TestRewriteWithRegExp(t *testing.T) {
 		},
 	}
 
-	r := s.Rewrite()
+	r := s.rewriter()
 	if len(r) != 1 {
 		t.Fatalf("expected 1 rewrite, got %d", len(r))
 	}
@@ -63,7 +63,7 @@ func TestRewriteInvalid(t *testing.T) {
 		},
 	}
 
-	r := s.Rewrite()
+	r := s.rewriter()
 	if len(r) != 0 {
 		t.Fatalf("expected 0 rewrite, got %d", len(r))
 	}

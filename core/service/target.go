@@ -7,5 +7,5 @@ func (s *Service) Target() string {
 		s.Protocol = "http"
 	}
 
-	return fmt.Sprintf("%s://%s:%d", s.Protocol, s.Name, s.Port)
+	return fmt.Sprintf("%s://%s", s.Protocol, s.Host())
 }

@@ -11,8 +11,8 @@ import (
 
 func (c *core) build() error {
 	// plugins
-	c.app.Use(middleware.Proxy(func(cfg *middleware.ProxyConfig, ctx *zoox.Context) (next bool, err error) {
-		cfg.OnRequest = func(req *http.Request) error {
+	c.app.Use(middleware.Proxy(func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next bool, err error) {
+		cfg.OnRequest = func(req, inReq *http.Request) error {
 			for _, plugin := range c.plugins {
 				if err := plugin.OnRequest(ctx, ctx.Request); err != nil {
 					return err
@@ -22,7 +22,7 @@ func (c *core) build() error {
 			return nil
 		}
 
-		cfg.OnResponse = func(res *http.Response) error {
+		cfg.OnResponse = func(res *http.Response, inReq *http.Request) error {
 			for _, plugin := range c.plugins {
 				if err := plugin.OnResponse(ctx, ctx.Writer); err != nil {
 					return err
@@ -36,7 +36,7 @@ func (c *core) build() error {
 	}))
 
 	// services (core plugin)
-	c.app.Use(middleware.Proxy(func(cfg *middleware.ProxyConfig, ctx *zoox.Context) (next bool, err error) {
+	c.app.Use(middleware.Proxy(func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next bool, err error) {
 		hostname := ctx.Hostname()
 		method := ctx.Method
 		path := ctx.Path
@@ -54,10 +54,22 @@ func (c *core) build() error {
 		}
 
 		// service
-		cfg.Target = serviceIns.Target()
-		cfg.Rewrites = serviceIns.Rewrite()
+		// cfg.Target = serviceIns.Target()
+		// cfg.Rewrites := serviceIns.Rewrite()
 
-		ctx.Logger.Infof("[proxy: %s] %s %s => %s", hostname, method, path, cfg.Target)
+		cfg.OnRequest = func(req, inReq *http.Request) error {
+			req.URL.Scheme = serviceIns.Protocol
+			req.URL.Host = serviceIns.Host()
+			req.URL.Path = serviceIns.Rewrite(req.URL.Path)
+
+			if serviceIns.Request.Host.Rewrite {
+				req.Host = serviceIns.Host()
+			}
+
+			return nil
+		}
+
+		ctx.Logger.Infof("[proxy: %s] %s %s => %s", hostname, method, path, serviceIns.Target())
 
 		return
 	}))

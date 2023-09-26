@@ -12,9 +12,14 @@ type Service struct {
 }
 
 type Request struct {
+	Host    RequestHost       `config:"host"`
 	Path    RequestPath       `config:"path"`
 	Headers map[string]string `config:"headers"`
 	Query   map[string]string `config:"query"`
+}
+
+type RequestHost struct {
+	Rewrite bool `config:"rewrite"`
 }
 
 type RequestPath struct {

@@ -56,6 +56,9 @@ rules:
         protocol: https
         name: httpbin.zcorky.com
         port: 443
+        request:
+          host:
+            rewrite: true
     paths:
       - path: /ip3
         backend:
@@ -64,6 +67,8 @@ rules:
             name: httpbin.zcorky.com
             port: 443
             request:
+              host:
+                rewrite: true
               path:
                 rewrites:
                   - ^/ip3/(.*):/$1
@@ -74,6 +79,8 @@ rules:
             name: httpbin.zcorky.com
             port: 443
             request:
+              host:
+                rewrite: true
               path:
                 rewrites:
                   - ^/ip2:/ip

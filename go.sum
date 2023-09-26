@@ -112,8 +112,8 @@ github.com/go-zoox/logger v1.2.0/go.mod h1:mBImRV6zpbGtiIjDz/C9vWi80wWc2OTOl9N9P
 github.com/go-zoox/logger v1.4.5 h1:HHNJNiNDA6c4T/pu9EJup85In+5ZF5SYEjqMvEEqnYU=
 github.com/go-zoox/logger v1.4.5/go.mod h1:o7ddvv/gMoMa0TomPhHoIz11ZWRbQ92pF6rwYbOY3iQ=
 github.com/go-zoox/proxy v1.2.3/go.mod h1:T+gbngAtIgvambbYibAbzrjwdu8j5pduJdA2j6RYi94=
-github.com/go-zoox/proxy v1.5.3 h1:HoWKuWBLHkFlHsI0tOr0t0IkKTpcDeypSjBv5BNHG4Q=
-github.com/go-zoox/proxy v1.5.3/go.mod h1:KLWeJqfQk1upCvEdXt3tEuM8xSu0ApbA9FNLOmyHysY=
+github.com/go-zoox/proxy v1.5.4 h1:gMQF+GoqUkxbus5kaoDlIhSPQFSjXJe07szSr5goT5s=
+github.com/go-zoox/proxy v1.5.4/go.mod h1:KLWeJqfQk1upCvEdXt3tEuM8xSu0ApbA9FNLOmyHysY=
 github.com/go-zoox/pubsub v1.2.2 h1:dpcFlZRSGhX0YqT/WoOJgP5bP2VDqswPqXiiFZCki1w=
 github.com/go-zoox/pubsub v1.2.2/go.mod h1:LWX0NAg80hkeGdZf7PJOEGnyN6CXooCxpIlh2MxESDo=
 github.com/go-zoox/random v1.0.0/go.mod h1:W+PTQiInxaCngiXpSvycucAKvu1tE/tKlZ9kaMp2/Ys=
@@ -136,8 +136,8 @@ github.com/go-zoox/testify v1.0.2 h1:G5sQ3xm0uwCuytnMhgnqZ5BItCt2DN3n2wLBqlIJEWA
 github.com/go-zoox/uuid v0.0.1 h1:txqmDavRTq68gzzqWfJQLorFyUp9a7M2lmq2KcwPGPA=
 github.com/go-zoox/uuid v0.0.1/go.mod h1:0/F4LdfLqFdyqOf7aXoiYXRkXHU324JQ5DZEytXYBPM=
 github.com/go-zoox/zoox v1.2.19/go.mod h1:xk3S3L58ugJIDyuZMCYrj3qIGLSxddbkARwTRkpxPVE=
-github.com/go-zoox/zoox v1.12.9 h1:tzraTl4pQ0nFC76o+YCj9pW8nJuX7E0vv9h+s3bhJaw=
-github.com/go-zoox/zoox v1.12.9/go.mod h1:W31vOF9Wo37KjJNFcD/4An0NU9lXH15vgaV7IDDp2r4=
+github.com/go-zoox/zoox v1.12.10 h1:59byyxNFwiqKZM9FNj9glPAybg5o4VIXlysGM/wlcnU=
+github.com/go-zoox/zoox v1.12.10/go.mod h1:NhjCY/uEBjASU+42u7Srb43Drwl7lWfKVO6IU/Y57rw=
 github.com/goccy/go-yaml v1.9.5/go.mod h1:U/jl18uSupI5rdI2jmuCswEA2htH9eXfferR3KfscvA=
 github.com/goccy/go-yaml v1.11.2 h1:joq77SxuyIs9zzxEjgyLBugMQ9NEgTWxXfz2wVqwAaQ=
 github.com/goccy/go-yaml v1.11.2/go.mod h1:wKnAMd44+9JAAnGQpWVEgBzGt3YuTaQ4uXoHvE4m7WU=
