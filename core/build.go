@@ -10,6 +10,20 @@ import (
 )
 
 func (c *core) build() error {
+	// middlewares
+	c.app.Use(func(ctx *zoox.Context) {
+		if c.cfg.HealthCheck.Outer.Enable {
+			if ctx.Path == c.cfg.HealthCheck.Outer.Path {
+				if c.cfg.HealthCheck.Outer.Ok {
+					ctx.String(http.StatusOK, "ok")
+					return
+				}
+			}
+		}
+
+		ctx.Next()
+	})
+
 	// plugins
 	c.app.Use(middleware.Proxy(func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next bool, err error) {
 		cfg.OnRequest = func(req, inReq *http.Request) error {

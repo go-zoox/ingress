@@ -38,12 +38,30 @@ fallback:
     name: httpbin.org
     port: 443
 
+healthcheck:
+  # respond to health check requests
+  outer:
+    enable: true
+    path: /healthz
+    ok: true
+  # check inner services
+  inner:
+    enable: true
+    interval: 30
+    timeout: 5
+
 rules:
   - host: portainer.example.com
     backend:
       service:
         name: portainer
         port: 80
+        healthcheck:
+          enable: true
+          method: GET
+          path: /healthz
+          status:
+            - 200
   - host: docker-registry.example.com
     backend:
       service:
@@ -63,7 +81,7 @@ rules:
         port: 443
         request:
           host:
-            rewrite:
+            rewrite: true
     paths:
       - path: /ip3
         backend:
@@ -72,6 +90,8 @@ rules:
             name: httpbin.zcorky.com
             port: 443
             request:
+              host:
+                rewrite: true
               path:
                 rewrites:
                   - ^/ip3/(.*):/$1
@@ -82,6 +102,8 @@ rules:
             name: httpbin.zcorky.com
             port: 443
             request:
+              host:
+                rewrite: true
               path:
                 rewrites:
                   - ^/ip2:/ip

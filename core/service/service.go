@@ -9,6 +9,8 @@ type Service struct {
 	Response Response `config:"response"`
 	//
 	Auth Auth `config:"auth"`
+	//
+	HealthCheck HealthCheck `config:"health_check"`
 }
 
 type Request struct {
@@ -16,6 +18,18 @@ type Request struct {
 	Path    RequestPath       `config:"path"`
 	Headers map[string]string `config:"headers"`
 	Query   map[string]string `config:"query"`
+}
+
+type HealthCheck struct {
+	Enable bool `config:"enable"`
+
+	//
+	Method string  `config:"method,default=GET"`
+	Path   string  `config:"path,default=/health"`
+	Status []int64 `config:"status,default=[200]"`
+
+	// ok means health check is ok, ignore real check
+	Ok bool `config:"ok"`
 }
 
 type RequestHost struct {

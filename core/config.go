@@ -17,7 +17,29 @@ type Config struct {
 	//
 	Fallback service.Service `config:"fallback"`
 	//
+	HealthCheck HealthCheck `config:"healthcheck"`
+	//
 	Match func(host string, path string) (cfg *service.Service, err error)
+}
+
+type HealthCheck struct {
+	Outer HealthCheckOuter `config:"outer"`
+	Inner HealthCheckInner `config:"inner"`
+}
+
+type HealthCheckOuter struct {
+	Enable bool `config:"enable"`
+	// Path is the health check request path
+	Path string `config:"path"`
+	// Ok means all health check request returns ok
+	Ok bool `config:"ok"`
+}
+
+type HealthCheckInner struct {
+	Enable bool `config:"enable"`
+	//
+	Interval int64 `config:"interval"`
+	Timeout  int64 `config:"timeout"`
 }
 
 type Cache struct {
