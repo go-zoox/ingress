@@ -2,10 +2,10 @@ package service
 
 import "fmt"
 
-func (s *Service) Host() string {
+func (s *Service) URLHost() string {
 	if s.Port == 0 {
 		s.Port = 80
 	}
 
-	return fmt.Sprintf("%s:%d", s.Name, s.Port)
+	return fmt.Sprintf("%s:%d", s.Host, s.Port)
 }

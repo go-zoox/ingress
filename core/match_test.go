@@ -14,7 +14,7 @@ func TestMatchHost(t *testing.T) {
 			Backend: rule.Backend{
 				Service: service.Service{
 					Protocol: "http",
-					Name:     "portainer",
+					Host:     "portainer",
 					Port:     8080,
 				},
 			},
@@ -24,7 +24,7 @@ func TestMatchHost(t *testing.T) {
 			Backend: rule.Backend{
 				Service: service.Service{
 					Protocol: "http",
-					Name:     "docker-registry",
+					Host:     "docker-registry",
 					Port:     8080,
 				},
 			},
@@ -35,8 +35,8 @@ func TestMatchHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Service.Name != "portainer" {
-		t.Fatalf("expected portainer, got %s", s.Service.Name)
+	if s.Service.Host != "portainer" {
+		t.Fatalf("expected portainer, got %s", s.Service.Host)
 	}
 	if s.Service.Port != 8080 {
 		t.Fatalf("expected 8080, got %d", s.Service.Port)
@@ -49,8 +49,8 @@ func TestMatchHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Service.Name != "docker-registry" {
-		t.Fatalf("expected docker-registry, got %s", s.Service.Name)
+	if s.Service.Host != "docker-registry" {
+		t.Fatalf("expected docker-registry, got %s", s.Service.Host)
 	}
 	if s.Service.Port != 8080 {
 		t.Fatalf("expected 8080, got %d", s.Service.Port)
@@ -75,7 +75,7 @@ func TestMatchPath(t *testing.T) {
 			Backend: rule.Backend{
 				Service: service.Service{
 					Protocol: "http",
-					Name:     "portainer",
+					Host:     "portainer",
 					Port:     8080,
 				},
 			},
@@ -85,7 +85,7 @@ func TestMatchPath(t *testing.T) {
 			Backend: rule.Backend{
 				Service: service.Service{
 					Protocol: "http",
-					Name:     "docker-registry",
+					Host:     "docker-registry",
 					Port:     8080,
 				},
 			},
@@ -95,7 +95,7 @@ func TestMatchPath(t *testing.T) {
 					Backend: rule.Backend{
 						Service: service.Service{
 							Protocol: "http",
-							Name:     "docker-registry-v2",
+							Host:     "docker-registry-v2",
 							Port:     8080,
 						},
 					},
@@ -107,7 +107,7 @@ func TestMatchPath(t *testing.T) {
 			Backend: rule.Backend{
 				Service: service.Service{
 					Protocol: "https",
-					Name:     "httpbin.zcorky.com",
+					Host:     "httpbin.zcorky.com",
 					Port:     443,
 				},
 			},
@@ -117,7 +117,7 @@ func TestMatchPath(t *testing.T) {
 					Backend: rule.Backend{
 						Service: service.Service{
 							Protocol: "http",
-							Name:     "ip3.httpbin.zcorky.com",
+							Host:     "ip3.httpbin.zcorky.com",
 							Port:     443,
 						},
 					},
@@ -127,7 +127,7 @@ func TestMatchPath(t *testing.T) {
 					Backend: rule.Backend{
 						Service: service.Service{
 							Protocol: "https",
-							Name:     "ip2.httpbin.zcorky.com",
+							Host:     "ip2.httpbin.zcorky.com",
 							Port:     443,
 						},
 					},
@@ -148,8 +148,8 @@ func TestMatchPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Name != "ip3.httpbin.zcorky.com" {
-		t.Fatalf("expected ip3.httpbin.zcorky.com, got %s", s.Name)
+	if s.Host != "ip3.httpbin.zcorky.com" {
+		t.Fatalf("expected ip3.httpbin.zcorky.com, got %s", s.Host)
 	}
 	if s.Port != 443 {
 		t.Fatalf("expected 443, got %d", s.Port)
@@ -162,8 +162,8 @@ func TestMatchPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Name != "ip2.httpbin.zcorky.com" {
-		t.Fatalf("expected ip2.httpbin.zcorky.com, got %s", s.Name)
+	if s.Host != "ip2.httpbin.zcorky.com" {
+		t.Fatalf("expected ip2.httpbin.zcorky.com, got %s", s.Host)
 	}
 	if s.Port != 443 {
 		t.Fatalf("expected 443, got %d", s.Port)
@@ -180,7 +180,7 @@ func TestMatchHostRewriteName(t *testing.T) {
 			Backend: rule.Backend{
 				Service: service.Service{
 					Protocol: "http",
-					Name:     "task.$1.svc",
+					Host:     "task.$1.svc",
 					Port:     8080,
 				},
 			},
@@ -191,8 +191,8 @@ func TestMatchHostRewriteName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.Service.Name != "task.zero.svc" {
-		t.Fatalf("expected portainer, got %s", s.Service.Name)
+	if s.Service.Host != "task.zero.svc" {
+		t.Fatalf("expected portainer, got %s", s.Service.Host)
 	}
 	if s.Service.Port != 8080 {
 		t.Fatalf("expected 8080, got %d", s.Service.Port)

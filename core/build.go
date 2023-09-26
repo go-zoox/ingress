@@ -59,11 +59,11 @@ func (c *core) build() error {
 
 		cfg.OnRequest = func(req, inReq *http.Request) error {
 			req.URL.Scheme = serviceIns.Protocol
-			req.URL.Host = serviceIns.Host()
+			req.URL.Host = serviceIns.URLHost()
 			req.URL.Path = serviceIns.Rewrite(req.URL.Path)
 
 			if serviceIns.Request.Host.Rewrite {
-				req.Host = serviceIns.Host()
+				req.Host = serviceIns.URLHost()
 			}
 
 			return nil
