@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/go-zoox/logger"
@@ -74,12 +75,38 @@ func (c *core) build() error {
 		cfg.OnRequest = func(req, inReq *http.Request) error {
 			req.URL.Scheme = serviceIns.Protocol
 			req.URL.Host = serviceIns.Host()
-			req.URL.Path = serviceIns.Rewrite(req.URL.Path)
 
+			// apply host
 			if serviceIns.Request.Host.Rewrite {
 				req.Host = serviceIns.Host()
 			}
 
+			// apply path
+			req.URL.Path = serviceIns.Rewrite(req.URL.Path)
+
+			// apply headers
+			for k, v := range serviceIns.Request.Headers {
+				req.Header.Set(k, v)
+			}
+
+			// apply query
+			if serviceIns.Request.Query != nil {
+				originQuery := req.URL.Query()
+				for k, v := range serviceIns.Request.Query {
+					originQuery.Set(k, v)
+				}
+				req.URL.RawQuery = originQuery.Encode()
+			}
+
+			return nil
+		}
+
+		cfg.OnResponse = func(res *http.Response, inReq *http.Request) error {
+			for k, v := range serviceIns.Response.Headers {
+				ctx.Writer.Header().Set(k, v)
+			}
+
+			ctx.Writer.Header().Set("X-Proxy-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
 			return nil
 		}
 
