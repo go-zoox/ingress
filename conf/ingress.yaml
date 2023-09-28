@@ -139,3 +139,9 @@ rules:
               path:
                 rewrites:
                   - ^/api/v1/([^/]+):/api/v1/task/$1
+
+  - host: abc.example.work
+    backend:
+      service:
+        name: AAA
+        port: 8080
