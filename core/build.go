@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/proxy"
@@ -74,36 +75,28 @@ func (c *core) build() error {
 			return false, proxy.NewHTTPError(404, "Not Found")
 		}
 
+		// @TODO Next
 		if serviceIns == nil {
-			// return false, proxy.NewHTTPError(404, "Not Found")
 			return true, nil
 		}
 
-		// if err := serviceIns.Validate(); err != nil {
-		// 	return false, proxy.NewHTTPError(500, err.Error())
-		// }
+		if err := serviceIns.Validate(); err != nil {
+			return false, proxy.NewHTTPError(500, err.Error())
+		}
 
-		// if ok, ips, err := c.CheckDNS(serviceIns.Hostname()); err != nil {
-		// 	logger.Errorf("failed to check dns: %s", err)
-		// 	return false, proxy.NewHTTPError(500, err.Error())
-		// } else if !ok {
-		// 	logger.Warnf("[dns] service(%s) is not ok", serviceIns.Hostname())
-		// 	// return true, nil
-		// 	// return false, proxy.NewHTTPError(404, err.Error())
-
-		// 	// ctx.Status(404)
-		// 	return false, nil
-		// } else {
-		// 	ctx.Logger.Infof("[dns] service(%s) is ok (ips: %s)", serviceIns.Hostname(), strings.Join(ips, ", "))
-		// }
-
-		// service
-		// cfg.Target = serviceIns.Target()
-		// cfg.Rewrites := serviceIns.Rewrite()
+		if ok, ips, err := c.CheckDNS(serviceIns.Name); err != nil {
+			logger.Errorf("failed to check dns: %s", err)
+			return false, proxy.NewHTTPError(500, err.Error())
+		} else if !ok {
+			logger.Warnf("[dns] service(%s) is not ok", serviceIns.Name)
+			return true, proxy.NewHTTPError(404, "Not Found (DNS)")
+		} else {
+			ctx.Logger.Infof("[dns] service(%s) is ok (ips: %s)", serviceIns.Name, strings.Join(ips, ", "))
+		}
 
 		cfg.OnRequest = func(req, inReq *http.Request) error {
 			req.URL.Scheme = serviceIns.Protocol
-			req.URL.Host = "httpbin.org" // serviceIns.Host()
+			req.URL.Host = serviceIns.Host()
 
 			// apply host
 			if serviceIns.Request.Host.Rewrite {
@@ -143,6 +136,88 @@ func (c *core) build() error {
 
 		return
 	}))
+
+	// // services (core plugin)
+	// c.app.Use(func(ctx *zoox.Context) {
+	// 	hostname := ctx.Hostname()
+	// 	method := ctx.Method
+	// 	path := ctx.Path
+
+	// 	serviceIns, err := c.match(ctx, hostname, path)
+	// 	if err != nil {
+	// 		logger.Errorf("failed to get config: %s", err)
+	// 		//
+	// 		ctx.Error(500, "Internal Server Error")
+	// 		return
+	// 	}
+
+	// 	// 404
+	// 	if serviceIns == nil {
+	// 		ctx.Next()
+	// 		return
+	// 	}
+
+	// 	// if err := serviceIns.Validate(); err != nil {
+	// 	// 	return false, proxy.NewHTTPError(500, err.Error())
+	// 	// }
+
+	// 	if ok, ips, err := c.CheckDNS(serviceIns.Name); err != nil {
+	// 		logger.Errorf("failed to check dns: %s", err)
+	// 		ctx.Error(500, "Internal Server Error")
+	// 		return
+	// 	} else if !ok {
+	// 		// 404
+	// 		logger.Warnf("[dns] service(%s) is not ok", serviceIns.Name)
+	// 		ctx.Next()
+	// 		return
+	// 	} else {
+	// 		ctx.Logger.Infof("[dns] service(%s) is ok (ips: %s)", serviceIns.Name, strings.Join(ips, ", "))
+	// 	}
+
+	// 	cfg := &middleware.ProxyConfig{}
+
+	// 	cfg.OnRequest = func(req, inReq *http.Request) error {
+	// 		req.URL.Scheme = serviceIns.Protocol
+	// 		req.URL.Host = "httpbin.org" // serviceIns.Host()
+
+	// 		// apply host
+	// 		if serviceIns.Request.Host.Rewrite {
+	// 			req.Host = serviceIns.Host()
+	// 		}
+
+	// 		// apply path
+	// 		req.URL.Path = serviceIns.Rewrite(req.URL.Path)
+
+	// 		// apply headers
+	// 		for k, v := range serviceIns.Request.Headers {
+	// 			req.Header.Set(k, v)
+	// 		}
+
+	// 		// apply query
+	// 		if serviceIns.Request.Query != nil {
+	// 			originQuery := req.URL.Query()
+	// 			for k, v := range serviceIns.Request.Query {
+	// 				originQuery.Set(k, v)
+	// 			}
+	// 			req.URL.RawQuery = originQuery.Encode()
+	// 		}
+
+	// 		return nil
+	// 	}
+
+	// 	cfg.OnResponse = func(res *http.Response, inReq *http.Request) error {
+	// 		for k, v := range serviceIns.Response.Headers {
+	// 			ctx.Writer.Header().Set(k, v)
+	// 		}
+
+	// 		ctx.Writer.Header().Set("X-Proxy-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
+	// 		return nil
+	// 	}
+
+	// 	ctx.Logger.Infof("[proxy][host: %s] %s %s => %s", hostname, method, path, serviceIns.Target())
+
+	// 	zoox.WrapH(proxy.New(cfg))(ctx)
+	// })
 
 	return nil
 }

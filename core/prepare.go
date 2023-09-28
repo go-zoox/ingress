@@ -27,7 +27,7 @@ func (c *core) prepareCache() {
 
 		c.app.Config.Cache = kv.Config{
 			Engine: "redis",
-			Config: &redis.RedisConfig{
+			Config: &redis.Config{
 				Host:     c.cfg.Cache.Host,
 				Port:     int(c.cfg.Cache.Port),
 				Username: c.cfg.Cache.Username,
