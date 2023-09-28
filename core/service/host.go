@@ -1,6 +1,8 @@
 package service
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func (s *Service) Host() string {
 	if s.Port == 0 {

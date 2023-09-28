@@ -12,7 +12,18 @@ import (
 
 func (c *core) build() error {
 	// middlewares
+
 	c.app.Use(func(ctx *zoox.Context) {
+		// f, _ := os.Create("./trace.out")
+		// trace.Start(f)
+		// go func() {
+		// 	time.Sleep(3 * time.Second)
+		// 	trace.Stop()
+		// 	f.Close()
+		// 	time.Sleep(1 * time.Second)
+		// 	os.Exit(1)
+		// }()
+
 		if c.cfg.HealthCheck.Outer.Enable {
 			if ctx.Path == c.cfg.HealthCheck.Outer.Path {
 				if c.cfg.HealthCheck.Outer.Ok {
@@ -68,13 +79,31 @@ func (c *core) build() error {
 			return true, nil
 		}
 
+		// if err := serviceIns.Validate(); err != nil {
+		// 	return false, proxy.NewHTTPError(500, err.Error())
+		// }
+
+		// if ok, ips, err := c.CheckDNS(serviceIns.Hostname()); err != nil {
+		// 	logger.Errorf("failed to check dns: %s", err)
+		// 	return false, proxy.NewHTTPError(500, err.Error())
+		// } else if !ok {
+		// 	logger.Warnf("[dns] service(%s) is not ok", serviceIns.Hostname())
+		// 	// return true, nil
+		// 	// return false, proxy.NewHTTPError(404, err.Error())
+
+		// 	// ctx.Status(404)
+		// 	return false, nil
+		// } else {
+		// 	ctx.Logger.Infof("[dns] service(%s) is ok (ips: %s)", serviceIns.Hostname(), strings.Join(ips, ", "))
+		// }
+
 		// service
 		// cfg.Target = serviceIns.Target()
 		// cfg.Rewrites := serviceIns.Rewrite()
 
 		cfg.OnRequest = func(req, inReq *http.Request) error {
 			req.URL.Scheme = serviceIns.Protocol
-			req.URL.Host = serviceIns.Host()
+			req.URL.Host = "httpbin.org" // serviceIns.Host()
 
 			// apply host
 			if serviceIns.Request.Host.Rewrite {
@@ -110,7 +139,7 @@ func (c *core) build() error {
 			return nil
 		}
 
-		ctx.Logger.Infof("[proxy: %s] %s %s => %s", hostname, method, path, serviceIns.Target())
+		ctx.Logger.Infof("[proxy][host: %s] %s %s => %s", hostname, method, path, serviceIns.Target())
 
 		return
 	}))
