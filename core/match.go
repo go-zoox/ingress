@@ -95,10 +95,9 @@ func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 				}, nil
 			}
 		case "regex":
-			hostRegExp := fmt.Sprintf("^%s$", rule.Host)
-			if isMatched, _ := regexp.MatchString(hostRegExp, host); isMatched {
+			if isMatched, _ := regexp.MatchString(rule.Host, host); isMatched {
 				hostRewriter := rewriter.Rewriter{
-					From: hostRegExp,
+					From: rule.Host,
 					To:   rule.Backend.Service.Name,
 				}
 
