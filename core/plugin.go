@@ -14,7 +14,7 @@ type Plugin interface {
 	OnRequest(ctx *zoox.Context, req *http.Request) (err error)
 
 	// response
-	OnResponse(ctx *zoox.Context, res http.ResponseWriter) (err error)
+	OnResponse(ctx *zoox.Context, res *http.Response) (err error)
 }
 
 func (c *core) Plugin(plugin ...Plugin) Core {
