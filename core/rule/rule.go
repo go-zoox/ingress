@@ -10,7 +10,7 @@ type Rule struct {
 	//
 	Paths []Path `config:"paths"`
 	// HostType is the host match type of Rule, options: exact, regex, wildcard
-	HostType string `config:"path_type,default=exact"`
+	HostType string `config:"host_type,default=exact"`
 }
 
 type Backend struct {

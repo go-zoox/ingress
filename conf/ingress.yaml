@@ -147,7 +147,7 @@ rules:
         name: notfound
         port: 8080
 
-  - host: *.example.work
+  - host: '*.example.work'
     host_type: wildcard
     backend:
       service:
