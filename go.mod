@@ -10,7 +10,7 @@ require (
 	github.com/go-zoox/kv v1.5.9
 	github.com/go-zoox/logger v1.4.6
 	github.com/go-zoox/proxy v1.5.5
-	github.com/go-zoox/zoox v1.12.17
+	github.com/go-zoox/zoox v1.12.18
 )
 
 require (

@@ -138,8 +138,8 @@ github.com/go-zoox/testify v1.0.2 h1:G5sQ3xm0uwCuytnMhgnqZ5BItCt2DN3n2wLBqlIJEWA
 github.com/go-zoox/uuid v0.0.1 h1:txqmDavRTq68gzzqWfJQLorFyUp9a7M2lmq2KcwPGPA=
 github.com/go-zoox/uuid v0.0.1/go.mod h1:0/F4LdfLqFdyqOf7aXoiYXRkXHU324JQ5DZEytXYBPM=
 github.com/go-zoox/zoox v1.2.19/go.mod h1:xk3S3L58ugJIDyuZMCYrj3qIGLSxddbkARwTRkpxPVE=
-github.com/go-zoox/zoox v1.12.17 h1:oZv2KuzQqASFheKAwnWQjWW8Zp3M80Mr+fEPfRHttCw=
-github.com/go-zoox/zoox v1.12.17/go.mod h1:qrich/z4I6vLpi9FV5K0TUTZJdO6W5WTwxwv+BRwyH8=
+github.com/go-zoox/zoox v1.12.18 h1:YLnac9bxXXRY+n4HSpnCnzdzsgiAXBf+1kf+mefu19A=
+github.com/go-zoox/zoox v1.12.18/go.mod h1:qrich/z4I6vLpi9FV5K0TUTZJdO6W5WTwxwv+BRwyH8=
 github.com/goccy/go-yaml v1.9.5/go.mod h1:U/jl18uSupI5rdI2jmuCswEA2htH9eXfferR3KfscvA=
 github.com/goccy/go-yaml v1.11.2 h1:joq77SxuyIs9zzxEjgyLBugMQ9NEgTWxXfz2wVqwAaQ=
 github.com/goccy/go-yaml v1.11.2/go.mod h1:wKnAMd44+9JAAnGQpWVEgBzGt3YuTaQ4uXoHvE4m7WU=
