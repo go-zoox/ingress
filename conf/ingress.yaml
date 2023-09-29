@@ -140,8 +140,8 @@ rules:
                 rewrites:
                   - ^/api/v1/([^/]+):/api/v1/task/$1
 
-  - host: abc.example.work
+  - host: notfound.example.work
     backend:
       service:
-        name: notffff
+        name: notfound
         port: 8080

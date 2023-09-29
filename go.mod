@@ -11,7 +11,7 @@ require (
 	github.com/go-zoox/kv v1.5.9
 	github.com/go-zoox/logger v1.4.6
 	github.com/go-zoox/proxy v1.5.5
-	github.com/go-zoox/zoox v1.12.14
+	github.com/go-zoox/zoox v1.12.17
 )
 
 require (
@@ -26,6 +26,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
+	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/go-zoox/cache v1.0.6 // indirect
@@ -93,6 +94,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/go-zoox/proxy => ../proxy
+// replace github.com/go-zoox/proxy => ../proxy
 
-replace github.com/go-zoox/zoox => ../zoox
+// replace github.com/go-zoox/zoox => ../zoox
