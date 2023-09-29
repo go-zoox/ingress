@@ -27,31 +27,6 @@ func (c *core) build() error {
 		ctx.Next()
 	})
 
-	// plugins
-	c.app.Use(middleware.Proxy(func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next bool, err error) {
-		cfg.OnRequest = func(req, inReq *http.Request) error {
-			for _, plugin := range c.plugins {
-				if err := plugin.OnRequest(ctx, ctx.Request); err != nil {
-					return err
-				}
-			}
-
-			return nil
-		}
-
-		cfg.OnResponse = func(res *http.Response, inReq *http.Request) error {
-			for _, plugin := range c.plugins {
-				if err := plugin.OnResponse(ctx, ctx.Writer); err != nil {
-					return err
-				}
-			}
-
-			return nil
-		}
-
-		return true, nil
-	}))
-
 	// services (core plugin)
 	c.app.Use(middleware.Proxy(func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next bool, err error) {
 		hostname := ctx.Hostname()
@@ -110,12 +85,26 @@ func (c *core) build() error {
 				req.URL.RawQuery = originQuery.Encode()
 			}
 
+			// plugins
+			for _, plugin := range c.plugins {
+				if err := plugin.OnRequest(ctx, req); err != nil {
+					return err
+				}
+			}
+
 			return nil
 		}
 
 		cfg.OnResponse = func(res *http.Response, inReq *http.Request) error {
 			for k, v := range serviceIns.Response.Headers {
 				ctx.Writer.Header().Set(k, v)
+			}
+
+			// plugins
+			for _, plugin := range c.plugins {
+				if err := plugin.OnResponse(ctx, res); err != nil {
+					return err
+				}
 			}
 
 			ctx.Writer.Header().Del("X-Powered-By")
