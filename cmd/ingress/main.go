@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-
 	"github.com/go-zoox/cli"
 	"github.com/go-zoox/config"
 	"github.com/go-zoox/core-utils/fmt"
@@ -60,7 +58,7 @@ func main() {
 		}
 
 		// @TODO
-		if os.Getenv("LOG_LEVEL") == "debug" {
+		if logger.IsDebugLevel() {
 			// logger.Debug("config: %v", cfg)
 			fmt.PrintJSON("config:", cfg)
 		}
