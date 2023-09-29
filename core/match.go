@@ -32,7 +32,7 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 			}
 
 			// ctx.Cache().Set(key, nil, 60*time.Second)
-			return nil, nil, nil
+			return nil, nil, err
 		}
 
 		ctx.Cache().Set(key, matcher, 60*time.Second)
@@ -41,6 +41,11 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 	// host service
 	s = &matcher.Service
 	t := &matcher.Rule
+
+	// @TODO not found
+	if s == nil {
+		return nil, nil, fmt.Errorf("service not found at matcher")
+	}
 
 	// paths
 	if matcher.IsPathsExist {
@@ -116,9 +121,10 @@ func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 			}
 		case "wildcard":
 			re := wildCardToRegexp(rule.Host)
+			// fmt.Println("wildcard", rule.Host, re)
 			if isMatched, _ := regexp.MatchString(re, host); isMatched {
 				hostRewriter := rewriter.Rewriter{
-					From: rule.Host,
+					From: re,
 					To:   rule.Backend.Service.Name,
 				}
 
