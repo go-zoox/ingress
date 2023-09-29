@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/proxy"
@@ -12,6 +13,7 @@ import (
 
 func (c *core) build() error {
 	// middlewares
+
 	c.app.Use(func(ctx *zoox.Context) {
 		if c.cfg.HealthCheck.Outer.Enable {
 			if ctx.Path == c.cfg.HealthCheck.Outer.Path {
@@ -59,18 +61,21 @@ func (c *core) build() error {
 		serviceIns, err := c.match(ctx, hostname, path)
 		if err != nil {
 			logger.Errorf("failed to get config: %s", err)
-			//
+			// service not found
 			return false, proxy.NewHTTPError(404, "Not Found")
 		}
 
-		if serviceIns == nil {
-			// return false, proxy.NewHTTPError(404, "Not Found")
-			return true, nil
+		if err := serviceIns.Validate(); err != nil {
+			return false, proxy.NewHTTPError(500, err.Error())
 		}
 
-		// service
-		// cfg.Target = serviceIns.Target()
-		// cfg.Rewrites := serviceIns.Rewrite()
+		ips, err := c.CheckDNS(serviceIns.Name)
+		if err != nil {
+			logger.Errorf("failed to check dns: %s", err)
+			return false, proxy.NewHTTPError(503, "Service Unavailable")
+		}
+
+		ctx.Logger.Infof("[dns] service(%s) is ok (ips: %s)", serviceIns.Name, strings.Join(ips, ", "))
 
 		cfg.OnRequest = func(req, inReq *http.Request) error {
 			req.URL.Scheme = serviceIns.Protocol
@@ -106,11 +111,12 @@ func (c *core) build() error {
 				ctx.Writer.Header().Set(k, v)
 			}
 
-			ctx.Writer.Header().Set("X-Proxy-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
+			ctx.Writer.Header().Del("X-Powered-By")
+			ctx.Writer.Header().Set("X-Powered-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
 			return nil
 		}
 
-		ctx.Logger.Infof("[proxy: %s] %s %s => %s", hostname, method, path, serviceIns.Target())
+		ctx.Logger.Infof("[proxy][host: %s] %s %s => %s", hostname, method, path, serviceIns.Target())
 
 		return
 	}))
