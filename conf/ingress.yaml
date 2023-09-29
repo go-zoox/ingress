@@ -125,6 +125,7 @@ rules:
                   - ^/httpbin.org/(.*):/$1
                   
   - host: t-(\w+).example.work
+    host_type: regex
     backend:
       service:
         name: task.$1.svc

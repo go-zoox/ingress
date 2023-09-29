@@ -52,17 +52,17 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 		}
 	}
 
-	// match func
-	if s == nil {
-		if c.cfg.Match != nil {
-			sm, err := c.cfg.Match(host, path)
-			if err != nil {
-				return nil, err
-			}
+	// // match func
+	// if s == nil {
+	// 	if c.cfg.Match != nil {
+	// 		sm, err := c.cfg.Match(host, path)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
 
-			s = sm
-		}
-	}
+	// 		s = sm
+	// 	}
+	// }
 
 	if s == nil {
 		s = &c.cfg.Fallback
@@ -75,24 +75,43 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 
 func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 	for _, rule := range rules {
-		hostRegExp := fmt.Sprintf("^%s$", rule.Host)
-		if isMatched, _ := regexp.MatchString(hostRegExp, host); isMatched {
-			hostRewriter := rewriter.Rewriter{
-				From: hostRegExp,
-				To:   rule.Backend.Service.Name,
+		switch rule.HostType {
+		case "exact", "":
+			if rule.Host == host {
+				return &HostMatcher{
+					Service: service.Service{
+						Protocol: rule.Backend.Service.Protocol,
+						Name:     rule.Backend.Service.Name,
+						Port:     rule.Backend.Service.Port,
+						Request:  rule.Backend.Service.Request,
+						Response: rule.Backend.Service.Response,
+					},
+					IsPathsExist: len(rule.Paths) != 0,
+					Rule:         rule,
+				}, nil
 			}
+		case "regex":
+			hostRegExp := fmt.Sprintf("^%s$", rule.Host)
+			if isMatched, _ := regexp.MatchString(hostRegExp, host); isMatched {
+				hostRewriter := rewriter.Rewriter{
+					From: hostRegExp,
+					To:   rule.Backend.Service.Name,
+				}
 
-			return &HostMatcher{
-				Service: service.Service{
-					Protocol: rule.Backend.Service.Protocol,
-					Name:     hostRewriter.Rewrite(host),
-					Port:     rule.Backend.Service.Port,
-					Request:  rule.Backend.Service.Request,
-					Response: rule.Backend.Service.Response,
-				},
-				IsPathsExist: len(rule.Paths) != 0,
-				Rule:         rule,
-			}, nil
+				return &HostMatcher{
+					Service: service.Service{
+						Protocol: rule.Backend.Service.Protocol,
+						Name:     hostRewriter.Rewrite(host),
+						Port:     rule.Backend.Service.Port,
+						Request:  rule.Backend.Service.Request,
+						Response: rule.Backend.Service.Response,
+					},
+					IsPathsExist: len(rule.Paths) != 0,
+					Rule:         rule,
+				}, nil
+			}
+		default:
+			return nil, fmt.Errorf("unsupport host type: %s", rule.HostType)
 		}
 	}
 

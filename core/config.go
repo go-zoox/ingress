@@ -19,7 +19,7 @@ type Config struct {
 	//
 	HealthCheck HealthCheck `config:"healthcheck"`
 	//
-	Match func(host string, path string) (cfg *service.Service, err error)
+	// Match func(host string, path string) (cfg *service.Service, err error)
 }
 
 type HealthCheck struct {
