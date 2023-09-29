@@ -71,7 +71,7 @@ func (c *core) build() error {
 
 		ips, err := c.CheckDNS(serviceIns.Name)
 		if err != nil {
-			logger.Errorf("failed to check dns: %s", err)
+			logger.Errorf("check dns error: %s", err)
 			return false, proxy.NewHTTPError(503, "Service Unavailable")
 		}
 
