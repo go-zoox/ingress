@@ -58,7 +58,7 @@ func (c *core) build() error {
 		method := ctx.Method
 		path := ctx.Path
 
-		serviceIns, err := c.match(ctx, hostname, path)
+		serviceIns, rule, err := c.match(ctx, hostname, path)
 		if err != nil {
 			logger.Errorf("failed to get config: %s", err)
 			// service not found
@@ -72,7 +72,14 @@ func (c *core) build() error {
 		ips, err := c.CheckDNS(serviceIns.Name)
 		if err != nil {
 			logger.Errorf("check dns error: %s", err)
-			return false, proxy.NewHTTPError(503, "Service Unavailable")
+
+			// exact service specify
+			if rule.HostType == "exact" {
+				return false, proxy.NewHTTPError(503, "Service Unavailable")
+			}
+
+			// regular expression service specify, maybe the service is not found
+			return false, proxy.NewHTTPError(404, "Service Not Found")
 		}
 
 		ctx.Logger.Infof("[dns] service(%s) is ok (ips: %s)", serviceIns.Name, strings.Join(ips, ", "))

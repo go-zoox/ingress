@@ -20,18 +20,18 @@ type HostMatcher struct {
 	Rule rule.Rule
 }
 
-func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Service, err error) {
+func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Service, r *rule.Rule, err error) {
 	key := fmt.Sprintf("match.host:%s", host)
 	matcher := &HostMatcher{}
 	if err := ctx.Cache().Get(key, matcher); err != nil {
 		matcher, err = MatchHost(c.cfg.Rules, host)
 		if err != nil {
 			if !errors.Is(err, ErrHostNotFound) {
-				return nil, err
+				return nil, nil, err
 			}
 
 			// ctx.Cache().Set(key, nil, 60*time.Second)
-			return nil, nil
+			return nil, nil, nil
 		}
 
 		ctx.Cache().Set(key, matcher, 60*time.Second)
@@ -39,13 +39,14 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 
 	// host service
 	s = &matcher.Service
+	t := &matcher.Rule
 
 	// paths
 	if matcher.IsPathsExist {
 		ps, err := MatchPath(matcher.Rule.Paths, path)
 		if err != nil {
 			if !errors.Is(err, ErrPathNotFound) {
-				return nil, err
+				return nil, nil, err
 			}
 		} else {
 			s = ps
@@ -68,9 +69,12 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 		s = &c.cfg.Fallback
 		// force rewrite host
 		s.Request.Host.Rewrite = true
+		// @TODO
+		t = &rule.Rule{}
+		t.HostType = "exact"
 	}
 
-	return s, nil
+	return s, t, nil
 }
 
 func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
