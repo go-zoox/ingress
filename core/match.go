@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/go-zoox/ingress/core/rule"
@@ -113,6 +114,26 @@ func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 					Rule:         rule,
 				}, nil
 			}
+		case "wildcard":
+			re := wildCardToRegexp(rule.Host)
+			if isMatched, _ := regexp.MatchString(re, host); isMatched {
+				hostRewriter := rewriter.Rewriter{
+					From: rule.Host,
+					To:   rule.Backend.Service.Name,
+				}
+
+				return &HostMatcher{
+					Service: service.Service{
+						Protocol: rule.Backend.Service.Protocol,
+						Name:     hostRewriter.Rewrite(host),
+						Port:     rule.Backend.Service.Port,
+						Request:  rule.Backend.Service.Request,
+						Response: rule.Backend.Service.Response,
+					},
+					IsPathsExist: len(rule.Paths) != 0,
+					Rule:         rule,
+				}, nil
+			}
 		default:
 			return nil, fmt.Errorf("unsupport host type: %s", rule.HostType)
 		}
@@ -142,4 +163,26 @@ func MatchPath(paths []rule.Path, path string) (r *service.Service, err error) {
 	}
 
 	return nil, ErrPathNotFound
+}
+
+// stackoverflow: https://stackoverflow.com/questions/64509506/golang-determine-if-string-contains-a-string-with-wildcards
+func wildCardToRegexp(pattern string) string {
+	components := strings.Split(pattern, "*")
+	if len(components) == 1 {
+		// if len is 1, there are no *'s, return exact match pattern
+		return "^" + pattern + "$"
+	}
+	var result strings.Builder
+	for i, literal := range components {
+
+		// Replace * with .*
+		if i > 0 {
+			result.WriteString(".*")
+		}
+
+		// Quote any regular expression meta characters in the
+		// literal text.
+		result.WriteString(regexp.QuoteMeta(literal))
+	}
+	return "^" + result.String() + "$"
 }

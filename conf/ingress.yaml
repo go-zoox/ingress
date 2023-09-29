@@ -124,7 +124,7 @@ rules:
                 rewrites:
                   - ^/httpbin.org/(.*):/$1
                   
-  - host: t-(\w+).example.work
+  - host: ^t-(\w+).example.work
     host_type: regex
     backend:
       service:
@@ -145,4 +145,11 @@ rules:
     backend:
       service:
         name: notfound
+        port: 8080
+
+  - host: *.example.work
+    host_type: wildcard
+    backend:
+      service:
+        name: wildcard.match
         port: 8080
