@@ -176,7 +176,8 @@ func TestMatchPath(t *testing.T) {
 func TestMatchHostRewriteName(t *testing.T) {
 	rules := []rule.Rule{
 		{
-			Host: "t-(\\w+).example.work",
+			Host:     "^t-(\\w+).example.work",
+			HostType: "regex",
 			Backend: rule.Backend{
 				Service: service.Service{
 					Protocol: "http",

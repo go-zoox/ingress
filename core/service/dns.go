@@ -1,15 +1,16 @@
-package core
+package service
 
 import (
+	"fmt"
 	"net"
 )
 
-func (c *core) CheckDNS(name string) (ips []string, err error) {
-	// client := dns.NewClient()
+func (s *Service) CheckDNS() (ips []string, err error) {
+	if s.Name == "" {
+		return nil, fmt.Errorf("service name is required")
+	}
 
-	// if name == "" {
-	// 	return nil, fmt.Errorf("service name is required")
-	// }
+	// client := dns.NewClient()
 
 	// ips, err = client.LookUp(name)
 	// if err != nil {
@@ -25,5 +26,5 @@ func (c *core) CheckDNS(name string) (ips []string, err error) {
 	// 	return nil, fmt.Errorf("service %s not found with 0 ips", name)
 	// }
 
-	return net.LookupHost(name)
+	return net.LookupHost(s.Name)
 }
