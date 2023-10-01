@@ -44,7 +44,7 @@ func (c *core) build() error {
 			return false, proxy.NewHTTPError(500, err.Error())
 		}
 
-		ips, err := c.CheckDNS(serviceIns.Name)
+		ips, err := serviceIns.CheckDNS()
 		if err != nil {
 			logger.Errorf("check dns error: %s", err)
 
