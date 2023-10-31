@@ -1,7 +1,7 @@
 # Ingress - A Easy, Powerful, Fexible Reverse Proxy
 
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/go-zoox/ingress)](https://pkg.go.dev/github.com/go-zoox/ingress)
-[![Build Status](https://github.com/go-zoox/ingress/actions/workflows/lint.yml/badge.svg?branch=master)](https://github.com/go-zoox/ingress/actions/workflows/lint.yml)
+[![Build Status](https://github.com/go-zoox/ingress/actions/workflows/release.yml/badge.svg?branch=master)](https://github.com/go-zoox/ingress/actions/workflows/release.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/go-zoox/ingress)](https://goreportcard.com/report/github.com/go-zoox/ingress)
 [![Coverage Status](https://coveralls.io/repos/github/go-zoox/ingress/badge.svg?branch=master)](https://coveralls.io/github/go-zoox/ingress?branch=master)
 [![GitHub issues](https://img.shields.io/github/issues/go-zoox/ingress.svg)](https://github.com/go-zoox/ingress/issues)
