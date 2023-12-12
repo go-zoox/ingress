@@ -35,7 +35,7 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 			return nil, nil, err
 		}
 
-		ctx.Cache().Set(key, matcher, 60*time.Second)
+		ctx.Cache().Set(key, matcher, time.Duration(c.cfg.Cache.TTL)*time.Second)
 	}
 
 	// host service
