@@ -43,6 +43,9 @@ type HealthCheckInner struct {
 }
 
 type Cache struct {
+	// TTL is the cache ttl in seconds, default is 60 seconds
+	TTL int64 `config:"ttl"`
+	//
 	Host     string `config:"host"`
 	Port     int64  `config:"port"`
 	Username string `config:"username"`
