@@ -36,4 +36,4 @@ COPY --from=builder /build/ingress /bin
 
 RUN ingress --version
 
-CMD ingress serve -c /etc/ingress/config.yaml
+CMD ingress run -c /etc/ingress/config.yaml
