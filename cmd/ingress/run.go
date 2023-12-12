@@ -14,10 +14,10 @@ import (
 	"github.com/go-zoox/logger"
 )
 
-func Serve() *cli.Command {
+func Run() *cli.Command {
 	return &cli.Command{
-		Name:  "serve",
-		Usage: "Start the ingress server",
+		Name:  "run",
+		Usage: "Run the ingress server",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name: "config",

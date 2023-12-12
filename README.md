@@ -18,10 +18,10 @@ go install github.com/go-zoox/ingress@latest
 
 ```bash
 # start ingress, cached in memory, default udp port: 80
-sudo ingress
+ingress run
 
 # start ingress with config (see conf/ingress.yml for more options)
-sudo ingress -c ingress.yml
+ingress run -c ingress.yml
 ```
 
 ## Configuration

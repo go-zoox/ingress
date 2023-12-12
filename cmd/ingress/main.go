@@ -16,7 +16,7 @@ func main() {
 		Version:     ingress.Version,
 	})
 
-	app.Register("serve", Serve())
+	app.Register("run", Run())
 	app.Register("reload", Reload())
 
 	if err := app.RunWithError(); err != nil {
