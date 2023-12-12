@@ -15,6 +15,8 @@ import (
 type Core interface {
 	Version() string
 	Run() error
+	//
+	Reload(cfg *Config) error
 }
 
 type core struct {

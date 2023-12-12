@@ -5,11 +5,12 @@ port: 8090
 # https_port: 443
 
 cache:
-  engine: redis
-  host: 127.0.0.1
-  port: 6379
-  password: '123456'
-  db: 2
+  ttl: 30
+  # engine: redis
+  # host: 127.0.0.1
+  # port: 6379
+  # password: '123456'
+  # db: 2
 
 database:
   engine: postgres

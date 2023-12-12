@@ -6,6 +6,11 @@ import (
 )
 
 func (c *core) prepare() error {
+	// 补全配置
+	if c.cfg.Cache.TTL == 0 {
+		c.cfg.Cache.TTL = 60
+	}
+
 	// prepare cache
 	c.prepareCache()
 
