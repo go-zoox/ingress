@@ -28,7 +28,7 @@ func (c *core) build() error {
 	})
 
 	// services (core plugin)
-	c.app.Use(middleware.Proxy(func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next bool, err error) {
+	c.app.Use(middleware.Proxy(func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next, stop bool, err error) {
 		hostname := ctx.Hostname()
 		method := ctx.Method
 		path := ctx.Path
@@ -37,11 +37,24 @@ func (c *core) build() error {
 		if err != nil {
 			logger.Errorf("failed to get config: %s", err)
 			// service not found
-			return false, proxy.NewHTTPError(404, "Not Found")
+			return false, false, proxy.NewHTTPError(404, "Not Found")
+		}
+
+		// redirect
+		if rule.Backend.Redirect.URL != "" {
+			// if !rule.Backend.Redirect.Permanent {
+			// 	ctx.RedirectTemporary(rule.Backend.Redirect.URL)
+			// } else {
+			// 	ctx.RedirectPermanent(rule.Backend.Redirect.URL)
+			// }
+
+			ctx.Redirect(rule.Backend.Redirect.URL)
+
+			return false, true, nil
 		}
 
 		if err := serviceIns.Validate(); err != nil {
-			return false, proxy.NewHTTPError(500, err.Error())
+			return false, false, proxy.NewHTTPError(500, err.Error())
 		}
 
 		ips, err := serviceIns.CheckDNS()
@@ -50,11 +63,11 @@ func (c *core) build() error {
 
 			// exact service specify
 			if rule.HostType == "exact" {
-				return false, proxy.NewHTTPError(503, "Service Unavailable")
+				return false, false, proxy.NewHTTPError(503, "Service Unavailable")
 			}
 
 			// regular expression service specify, maybe the service is not found
-			return false, proxy.NewHTTPError(404, "Service Not Found")
+			return false, false, proxy.NewHTTPError(404, "Service Not Found")
 		}
 
 		ctx.Logger.Infof("[dns] service(%s) is ok (ips: %s)", serviceIns.Name, strings.Join(ips, ", "))
