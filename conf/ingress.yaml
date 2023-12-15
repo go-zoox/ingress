@@ -124,7 +124,12 @@ rules:
               path:
                 rewrites:
                   - ^/httpbin.org/(.*):/$1
-                  
+  
+  - host: 't-120.example.work'
+    backend:
+      redirect:
+        url: https://www.example.com
+
   - host: ^t-(\w+).example.work
     host_type: regex
     backend:
@@ -154,3 +159,4 @@ rules:
       service:
         name: wildcard.match
         port: 8080
+
