@@ -24,12 +24,13 @@ func Run() *cli.Command {
 				// Value:   "conf/ingress.yaml",
 				Usage:   "The path to the configuration file",
 				Aliases: []string{"c"},
-				// Required: true,
+				EnvVars: []string{"CONFIG"},
 			},
 			&cli.StringFlag{
 				Name:    "port",
 				Usage:   "The port to listen on",
 				Aliases: []string{"p"},
+				EnvVars: []string{"PORT"},
 			},
 			&cli.StringFlag{
 				Name:  "pid-file",
@@ -49,7 +50,6 @@ func Run() *cli.Command {
 			}
 
 			var cfg core.Config
-			cfg.Port = c.Int64("port")
 
 			if configFilePath != "" {
 				if !fs.IsExist(configFilePath) {
@@ -61,6 +61,10 @@ func Run() *cli.Command {
 				}); err != nil {
 					return fmt.Errorf("failed to read config file: %s", err)
 				}
+			}
+
+			if c.Int64("port") != 0 {
+				cfg.Port = c.Int64("port")
 			}
 
 			if cfg.Port == 0 {

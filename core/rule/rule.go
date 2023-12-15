@@ -15,9 +15,16 @@ type Rule struct {
 
 type Backend struct {
 	Service service.Service `config:"service"`
+	//
+	Redirect Redirect `config:"redirect"`
 }
 
 type Path struct {
 	Path    string  `config:"path"`
 	Backend Backend `config:"backend"`
+}
+
+type Redirect struct {
+	URL       string `config:"url"`
+	Permanent bool   `config:"permanent"`
 }
