@@ -10,7 +10,7 @@ require (
 	github.com/go-zoox/kv v1.5.9
 	github.com/go-zoox/logger v1.4.6
 	github.com/go-zoox/proxy v1.5.6
-	github.com/go-zoox/zoox v1.12.34
+	github.com/go-zoox/zoox v1.12.37
 )
 
 require (
@@ -38,7 +38,7 @@ require (
 	github.com/go-zoox/concurrency v1.2.0 // indirect
 	github.com/go-zoox/cookie v1.2.0 // indirect
 	github.com/go-zoox/counter v1.2.1 // indirect
-	github.com/go-zoox/cron v1.1.2 // indirect
+	github.com/go-zoox/cron v1.2.0 // indirect
 	github.com/go-zoox/crypto v1.1.8 // indirect
 	github.com/go-zoox/datetime v1.2.2 // indirect
 	github.com/go-zoox/debug v1.0.2 // indirect
