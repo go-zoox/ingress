@@ -3,6 +3,7 @@ package core
 import (
 	"github.com/go-zoox/kv"
 	"github.com/go-zoox/kv/redis"
+	"github.com/go-zoox/logger"
 )
 
 func (c *core) prepare() error {
@@ -41,5 +42,9 @@ func (c *core) prepareCache() {
 				Prefix:   prefix,
 			},
 		}
+	}
+
+	if err := c.app.Cache().Clear(); err != nil {
+		logger.Errorf("[prepareCache] failed to clear cache: %s", err)
 	}
 }
