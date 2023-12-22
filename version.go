@@ -1,4 +1,4 @@
 package ingress
 
 // Version is the version of ingress
-var Version = "1.5.1"
+var Version = "1.5.2"
