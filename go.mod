@@ -5,12 +5,12 @@ go 1.18
 require (
 	github.com/go-zoox/cli v1.3.6
 	github.com/go-zoox/config v1.2.10
-	github.com/go-zoox/core-utils v1.3.1
+	github.com/go-zoox/core-utils v1.3.2
 	github.com/go-zoox/fs v1.3.14
 	github.com/go-zoox/kv v1.5.9
 	github.com/go-zoox/logger v1.4.6
 	github.com/go-zoox/proxy v1.5.6
-	github.com/go-zoox/zoox v1.12.40
+	github.com/go-zoox/zoox v1.12.41
 )
 
 require (
@@ -32,7 +32,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-zoox/cache v1.0.7 // indirect
 	github.com/go-zoox/chalk v1.0.2 // indirect
-	github.com/go-zoox/command v1.2.9 // indirect
+	github.com/go-zoox/command v1.3.2 // indirect
 	github.com/go-zoox/commands-as-a-service v1.6.8 // indirect
 	github.com/go-zoox/compress v1.0.1 // indirect
 	github.com/go-zoox/concurrency v1.2.0 // indirect
