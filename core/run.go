@@ -52,6 +52,21 @@ func (c *core) serveHTTPs() error {
 		return nil
 	}
 
+	if len(c.cfg.SSL) == 0 {
+		return fmt.Errorf("cfg.SSL is required (domain + cert)")
+	}
+	for _, ssl := range c.cfg.SSL {
+		if ssl.Domain == "" {
+			return fmt.Errorf("cfg.SSL.Domain is required")
+		}
+		if ssl.Cert.Certificate == "" {
+			return fmt.Errorf("cfg.SSL.Cert.Certificate is required")
+		}
+		if ssl.Cert.CertificateKey == "" {
+			return fmt.Errorf("cfg.SSL.Cert.CertificateKey is required")
+		}
+	}
+
 	httpsPort := c.cfg.HTTPSPort
 
 	// http.ListenAndServeTLS(fmt.Sprintf(""::"%d", port), "", "", app)
