@@ -2,6 +2,8 @@ version: v1
 
 port: 8090
 
+https_port: 8443
+
 # https_port: 443
 
 cache:

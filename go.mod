@@ -11,6 +11,7 @@ require (
 	github.com/go-zoox/logger v1.4.6
 	github.com/go-zoox/proxy v1.5.6
 	github.com/go-zoox/zoox v1.13.6
+	golang.org/x/sync v0.5.0
 )
 
 require (
