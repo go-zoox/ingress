@@ -1,8 +1,10 @@
 package core
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -16,38 +18,46 @@ func (c *core) Run() error {
 		return err
 	}
 
-	g := &errgroup.Group{}
+	g, ctx := errgroup.WithContext(context.Background())
 
 	g.Go(func() error {
-		if err := c.serveHTTP(); err != nil {
-			c.app.Logger.Errorf("failed to start http server: %v", err)
-			return err
-		}
-		return nil
+		return c.serveHTTP(ctx)
 	})
 
 	g.Go(func() error {
-		if err := c.serveHTTPs(); err != nil {
-			c.app.Logger.Errorf("failed to start https server: %v", err)
-			return err
-		}
-		return nil
+		return c.serveHTTPs(ctx)
 	})
 
 	return g.Wait()
 }
 
-func (c *core) serveHTTP() error {
+func (c *core) serveHTTP(ctx context.Context) error {
 	port := c.cfg.Port
 	if port == 0 {
 		port = 8080
 	}
 
+	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+
+	server := &http.Server{
+		Addr:    fmt.Sprintf("0.0.0.0:%d", port),
+		Handler: c.app,
+	}
+
+	go func() {
+		<-ctx.Done() // 当上下文被取消时，停止服务器
+		server.Close()
+	}()
+
 	c.app.Logger.Info("ingress start at http://127.0.0.1:%d", port)
-	return http.ListenAndServe(fmt.Sprintf(":%d", port), c.app)
+	return server.Serve(listener)
 }
 
-func (c *core) serveHTTPs() error {
+func (c *core) serveHTTPs(ctx context.Context) error {
 	if c.cfg.HTTPSPort == 0 {
 		return nil
 	}
@@ -135,6 +145,11 @@ func (c *core) serveHTTPs() error {
 		},
 		Handler: c.app,
 	}
+
+	go func() {
+		<-ctx.Done() // 当上下文被取消时，停止服务器
+		server.Close()
+	}()
 
 	c.app.Logger.Info("ingress start at https://127.0.0.1:%d", httpsPort)
 	return server.ListenAndServeTLS("", "")
