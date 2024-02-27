@@ -12,8 +12,11 @@ import (
 )
 
 func (c *core) build() error {
-	// middlewares
+	// config
+	c.app.Config.Port = int(c.cfg.Port)
+	c.app.Config.HTTPSPort = int(c.cfg.HTTPSPort)
 
+	// middlewares
 	c.app.Use(func(ctx *zoox.Context) {
 		if c.cfg.HealthCheck.Outer.Enable {
 			if ctx.Path == c.cfg.HealthCheck.Outer.Path {
