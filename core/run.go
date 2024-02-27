@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-zoox/chalk"
 	"github.com/go-zoox/core-utils/strings"
-
-	"golang.org/x/sync/errgroup"
+	"github.com/go-zoox/ingress"
 )
 
 func (c *core) Run() error {
@@ -18,17 +18,66 @@ func (c *core) Run() error {
 		return err
 	}
 
-	g, ctx := errgroup.WithContext(context.Background())
+	// g, ctx := errgroup.WithContext(context.Background())
 
-	g.Go(func() error {
-		return c.serveHTTP(ctx)
+	// g.Go(func() error {
+	// 	return c.serveHTTP(ctx)
+	// })
+
+	// g.Go(func() error {
+	// 	return c.serveHTTPs(ctx)
+	// })
+
+	// return g.Wait()
+
+	c.app.SetBanner(fmt.Sprintf(`
+   ____                        
+  /  _/__  ___ ________ ___ ___
+ _/ // _ \/ _ '/ __/ -_|_-<(_-<
+/___/_//_/\_, /_/  \__/___/___/
+         /___/                 
+				 			 
+%s %s
+
+____________________________________O/_______
+                                    O\
+`, chalk.Green("Ingress"), chalk.Green("v"+ingress.Version)))
+
+	c.app.SetTLSCertLoader(func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		if chi.ServerName == "" {
+			return nil, fmt.Errorf("no server name (sni)")
+		}
+
+		// ssl
+		if c.cfg.SSL != nil {
+			var certificate string
+			var certificateKey string
+
+			serverName := chi.ServerName
+			for _, ssl := range c.cfg.SSL {
+				if strings.EndsWith(serverName, ssl.Domain) {
+					certificate = ssl.Cert.Certificate
+					certificateKey = ssl.Cert.CertificateKey
+					break
+				}
+			}
+
+			if certificate == "" || certificateKey == "" {
+				return nil, fmt.Errorf("no certificate")
+			}
+
+			cert, err := tls.LoadX509KeyPair(certificate, certificateKey)
+			if err != nil {
+				return nil, err
+			}
+
+			return &cert, nil
+		}
+
+		return nil, nil
 	})
 
-	g.Go(func() error {
-		return c.serveHTTPs(ctx)
-	})
-
-	return g.Wait()
+	return c.app.Run()
 }
 
 func (c *core) serveHTTP(ctx context.Context) error {

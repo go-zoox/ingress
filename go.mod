@@ -3,6 +3,7 @@ module github.com/go-zoox/ingress
 go 1.18
 
 require (
+	github.com/go-zoox/chalk v1.0.2
 	github.com/go-zoox/cli v1.3.8
 	github.com/go-zoox/config v1.2.10
 	github.com/go-zoox/core-utils v1.3.6
@@ -10,8 +11,7 @@ require (
 	github.com/go-zoox/kv v1.5.9
 	github.com/go-zoox/logger v1.4.6
 	github.com/go-zoox/proxy v1.5.6
-	github.com/go-zoox/zoox v1.14.7
-	golang.org/x/sync v0.6.0
+	github.com/go-zoox/zoox v1.14.8
 )
 
 require (
@@ -34,7 +34,6 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-zoox/cache v1.0.7 // indirect
-	github.com/go-zoox/chalk v1.0.2 // indirect
 	github.com/go-zoox/command v1.4.7 // indirect
 	github.com/go-zoox/commands-as-a-service v1.7.11 // indirect
 	github.com/go-zoox/compress v1.0.1 // indirect
@@ -100,6 +99,7 @@ require (
 	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/net v0.20.0 // indirect
+	golang.org/x/sync v0.6.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect
