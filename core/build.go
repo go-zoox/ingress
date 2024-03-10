@@ -73,7 +73,7 @@ func (c *core) build() error {
 			return false, false, proxy.NewHTTPError(404, "Service Not Found")
 		}
 
-		ctx.Logger.Infof("[dns] service(%s) is ok (ips: %s)", serviceIns.Name, strings.Join(ips, ", "))
+		ctx.Logger.Debugf("[dns] service(%s) is ok (ips: %s)", serviceIns.Name, strings.Join(ips, ", "))
 
 		cfg.OnRequest = func(req, inReq *http.Request) error {
 			req.URL.Scheme = serviceIns.Protocol
@@ -128,7 +128,7 @@ func (c *core) build() error {
 			return nil
 		}
 
-		ctx.Logger.Infof("[proxy][host: %s] %s %s => %s", hostname, method, path, serviceIns.Target())
+		ctx.Logger.Infof("[host: %s, target: %s] \"%s %s %s\" %d", hostname, serviceIns.Target(), method, path, ctx.Request.Proto, ctx.StatusCode())
 
 		return
 	}))
