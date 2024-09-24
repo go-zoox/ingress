@@ -83,7 +83,7 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 	return s, t, nil
 }
 
-func MatchHost(rules []rule.Rule, fallback *rule.Backend, host string) (hm *HostMatcher, err error) {
+func MatchHost(rules []rule.Rule, fallback rule.Backend, host string) (hm *HostMatcher, err error) {
 	for _, rule := range rules {
 		switch rule.HostType {
 		case "exact", "":
@@ -145,7 +145,7 @@ func MatchHost(rules []rule.Rule, fallback *rule.Backend, host string) (hm *Host
 		}
 	}
 
-	if fallback != nil {
+	if fallback.Service.Name != "" {
 		return &HostMatcher{
 			Service: &service.Service{
 				Protocol: fallback.Service.Protocol,

@@ -4,9 +4,9 @@ go 1.22.1
 
 require (
 	github.com/go-zoox/chalk v1.0.2
-	github.com/go-zoox/cli v1.4.0
-	github.com/go-zoox/config v1.3.0
-	github.com/go-zoox/core-utils v1.4.10
+	github.com/go-zoox/cli v1.4.1
+	github.com/go-zoox/config v1.3.2
+	github.com/go-zoox/core-utils v1.4.11
 	github.com/go-zoox/fs v1.3.15
 	github.com/go-zoox/kv v1.5.9
 	github.com/go-zoox/logger v1.5.1
@@ -64,10 +64,10 @@ require (
 	github.com/go-zoox/ratelimit v1.2.1 // indirect
 	github.com/go-zoox/safe v1.2.0 // indirect
 	github.com/go-zoox/session v1.2.0 // indirect
-	github.com/go-zoox/tag v1.3.3 // indirect
+	github.com/go-zoox/tag v1.3.4 // indirect
 	github.com/go-zoox/uuid v0.0.1 // indirect
 	github.com/go-zoox/websocket v1.3.4 // indirect
-	github.com/goccy/go-yaml v1.11.3 // indirect
+	github.com/goccy/go-yaml v1.12.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
@@ -94,11 +94,11 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sevlyar/go-daemon v0.1.6 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/spf13/cast v1.6.0 // indirect
+	github.com/spf13/cast v1.7.0 // indirect
 	github.com/tidwall/gjson v1.17.1 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/urfave/cli/v2 v2.27.2 // indirect
+	github.com/urfave/cli/v2 v2.27.4 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.52.0 // indirect
 	go.opentelemetry.io/otel v1.28.0 // indirect
@@ -107,9 +107,9 @@ require (
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
-	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
+	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/grpc v1.62.1 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

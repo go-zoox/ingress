@@ -31,7 +31,7 @@ func TestMatchHost(t *testing.T) {
 		},
 	}
 
-	s, err := MatchHost(rules, nil, "portainer.example.com")
+	s, err := MatchHost(rules, rule.Backend{}, "portainer.example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestMatchHost(t *testing.T) {
 		t.Fatalf("expected http, got %s", s.Service.Protocol)
 	}
 
-	s, err = MatchHost(rules, nil, "docker-registry.example.com")
+	s, err = MatchHost(rules, rule.Backend{}, "docker-registry.example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestMatchHost(t *testing.T) {
 		t.Fatalf("expected http, got %s", s.Service.Protocol)
 	}
 
-	s, err = MatchHost(rules, nil, "docker-registry.example.work")
+	s, err = MatchHost(rules, rule.Backend{}, "docker-registry.example.work")
 	if err == nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestMatchHostRewriteName(t *testing.T) {
 		},
 	}
 
-	s, err := MatchHost(rules, nil, "t-zero.example.work")
+	s, err := MatchHost(rules, rule.Backend{}, "t-zero.example.work")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestMatchHostWithFallback(t *testing.T) {
 		},
 	}
 
-	fallback := &rule.Backend{
+	fallback := rule.Backend{
 		Service: service.Service{
 			Protocol: "http",
 			Name:     "fallback",
