@@ -14,7 +14,7 @@ import (
 func (c *core) build() error {
 	// config
 	c.app.Config.Port = int(c.cfg.Port)
-	c.app.Config.HTTPSPort = int(c.cfg.HTTPSPort)
+	c.app.Config.HTTPSPort = int(c.cfg.HTTPS.Port)
 
 	// middlewares
 	c.app.Use(func(ctx *zoox.Context) {

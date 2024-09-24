@@ -11,14 +11,18 @@ type Config struct {
 	//
 	Cache Cache `config:"cache"`
 	//
-	HTTPSPort int64 `config:"https_port"`
-	SSL       []SSL `config:"ssl"`
+	HTTPS HTTPS `config:"https"`
 	//
 	Fallback rule.Backend `config:"fallback"`
 	//
 	HealthCheck HealthCheck `config:"healthcheck"`
 	//
 	// Match func(host string, path string) (cfg *service.Service, err error)
+}
+
+type HTTPS struct {
+	Port int64 `config:"port"`
+	SSL  []SSL `config:"ssl"`
 }
 
 type HealthCheck struct {

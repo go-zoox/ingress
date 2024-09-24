@@ -2,8 +2,6 @@ version: v1
 
 port: 8090
 
-https_port: 8443
-
 cache:
   ttl: 30
   # engine: redis
@@ -20,11 +18,13 @@ database:
   password: postgres
   db: ingress
 
-ssl:
-  - domain: example.com
-    cert:
-      certificate: /config/ssl/example.com/fullchain.pem
-      certificate_key: /config/ssl/example.com/privkey.pem
+https:
+  port: 8443
+  ssl:
+    - domain: example.com
+      cert:
+        certificate: /config/ssl/example.com/fullchain.pem
+        certificate_key: /config/ssl/example.com/privkey.pem
 
 waf:
   whiteHosts:

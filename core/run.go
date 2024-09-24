@@ -49,12 +49,12 @@ ____________________________________O/_______
 		}
 
 		// ssl
-		if c.cfg.SSL != nil {
+		if c.cfg.HTTPS.SSL != nil {
 			var certificate string
 			var certificateKey string
 
 			serverName := chi.ServerName
-			for _, ssl := range c.cfg.SSL {
+			for _, ssl := range c.cfg.HTTPS.SSL {
 				if strings.EndsWith(serverName, ssl.Domain) {
 					certificate = ssl.Cert.Certificate
 					certificateKey = ssl.Cert.CertificateKey
@@ -107,14 +107,14 @@ func (c *core) serveHTTP(ctx context.Context) error {
 }
 
 func (c *core) serveHTTPs(ctx context.Context) error {
-	if c.cfg.HTTPSPort == 0 {
+	if c.cfg.HTTPS.Port == 0 {
 		return nil
 	}
 
-	if len(c.cfg.SSL) == 0 {
+	if len(c.cfg.HTTPS.SSL) == 0 {
 		return fmt.Errorf("cfg.SSL is required (domain + cert)")
 	}
-	for _, ssl := range c.cfg.SSL {
+	for _, ssl := range c.cfg.HTTPS.SSL {
 		if ssl.Domain == "" {
 			return fmt.Errorf("cfg.SSL.Domain is required")
 		}
@@ -126,7 +126,7 @@ func (c *core) serveHTTPs(ctx context.Context) error {
 		}
 	}
 
-	httpsPort := c.cfg.HTTPSPort
+	httpsPort := c.cfg.HTTPS.Port
 
 	// http.ListenAndServeTLS(fmt.Sprintf(""::"%d", port), "", "", app)
 	// srv := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: app}
@@ -144,14 +144,14 @@ func (c *core) serveHTTPs(ctx context.Context) error {
 				}
 
 				// ssl
-				if c.cfg.SSL != nil {
+				if c.cfg.HTTPS.SSL != nil {
 					var certificate string
 					var certificateKey string
 
 					// parts := strings.Split(chi.ServerName, ".")
 
 					serverName := chi.ServerName
-					for _, ssl := range c.cfg.SSL {
+					for _, ssl := range c.cfg.HTTPS.SSL {
 						// // extract match domain
 						// // x.y.com.cn => x.y.com
 						// // x.y.z.com => x.y.z.com
