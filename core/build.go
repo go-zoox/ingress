@@ -38,7 +38,8 @@ func (c *core) build() error {
 
 		serviceIns, rule, err := c.match(ctx, hostname, path)
 		if err != nil {
-			logger.Errorf("failed to get config: %s", err)
+			logger.Errorf("failed to match rule (host: %s, path: %s): %s", hostname, path, err)
+
 			// service not found
 			return false, false, proxy.NewHTTPError(404, "Not Found")
 		}
