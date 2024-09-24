@@ -31,7 +31,7 @@ func TestMatchHost(t *testing.T) {
 		},
 	}
 
-	s, err := MatchHost(rules, "portainer.example.com")
+	s, err := MatchHost(rules, nil, "portainer.example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestMatchHost(t *testing.T) {
 		t.Fatalf("expected http, got %s", s.Service.Protocol)
 	}
 
-	s, err = MatchHost(rules, "docker-registry.example.com")
+	s, err = MatchHost(rules, nil, "docker-registry.example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestMatchHost(t *testing.T) {
 		t.Fatalf("expected http, got %s", s.Service.Protocol)
 	}
 
-	s, err = MatchHost(rules, "docker-registry.example.work")
+	s, err = MatchHost(rules, nil, "docker-registry.example.work")
 	if err == nil {
 		t.Fatal(err)
 	}
@@ -188,12 +188,63 @@ func TestMatchHostRewriteName(t *testing.T) {
 		},
 	}
 
-	s, err := MatchHost(rules, "t-zero.example.work")
+	s, err := MatchHost(rules, nil, "t-zero.example.work")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if s.Service.Name != "task.zero.svc" {
 		t.Fatalf("expected portainer, got %s", s.Service.Name)
+	}
+	if s.Service.Port != 8080 {
+		t.Fatalf("expected 8080, got %d", s.Service.Port)
+	}
+	if s.Service.Protocol != "http" {
+		t.Fatalf("expected http, got %s", s.Service.Protocol)
+	}
+}
+
+func TestMatchHostWithFallback(t *testing.T) {
+	rules := []rule.Rule{
+		{
+			Host: "portainer.example.com",
+			Backend: rule.Backend{
+				Service: service.Service{
+					Protocol: "http",
+					Name:     "portainer",
+					Port:     8080,
+				},
+			},
+		},
+	}
+
+	fallback := &rule.Backend{
+		Service: service.Service{
+			Protocol: "http",
+			Name:     "fallback",
+			Port:     8080,
+		},
+	}
+
+	s, err := MatchHost(rules, fallback, "portainer.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Service.Name != "portainer" {
+		t.Fatalf("expected portainer, got %s", s.Service.Name)
+	}
+	if s.Service.Port != 8080 {
+		t.Fatalf("expected 8080, got %d", s.Service.Port)
+	}
+	if s.Service.Protocol != "http" {
+		t.Fatalf("expected http, got %s", s.Service.Protocol)
+	}
+
+	s, err = MatchHost(rules, fallback, "portainer.example.work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Service.Name != "fallback" {
+		t.Fatalf("expected fallback, got %s", s.Service.Name)
 	}
 	if s.Service.Port != 8080 {
 		t.Fatalf("expected 8080, got %d", s.Service.Port)

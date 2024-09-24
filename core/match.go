@@ -14,18 +14,18 @@ import (
 )
 
 type HostMatcher struct {
-	Service service.Service
+	Service *service.Service
 	//
 	IsPathsExist bool
 	//
-	Rule rule.Rule
+	Rule *rule.Rule
 }
 
 func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Service, r *rule.Rule, err error) {
 	key := fmt.Sprintf("match.host:%s", host)
 	matcher := &HostMatcher{}
 	if err := ctx.Cache().Get(key, matcher); err != nil {
-		matcher, err = MatchHost(c.cfg.Rules, host)
+		matcher, err = MatchHost(c.cfg.Rules, c.cfg.Fallback, host)
 		if err != nil {
 			if !errors.Is(err, ErrHostNotFound) {
 				return nil, nil, err
@@ -39,8 +39,8 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 	}
 
 	// host service
-	s = &matcher.Service
-	t := &matcher.Rule
+	s = matcher.Service
+	t := matcher.Rule
 
 	// @TODO not found
 	if s == nil {
@@ -72,7 +72,7 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 	// }
 
 	if s == nil {
-		s = &c.cfg.Fallback
+		s = &c.cfg.Fallback.Service
 		// force rewrite host
 		s.Request.Host.Rewrite = true
 		// @TODO
@@ -83,13 +83,13 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 	return s, t, nil
 }
 
-func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
+func MatchHost(rules []rule.Rule, fallback *rule.Backend, host string) (hm *HostMatcher, err error) {
 	for _, rule := range rules {
 		switch rule.HostType {
 		case "exact", "":
 			if rule.Host == host {
 				return &HostMatcher{
-					Service: service.Service{
+					Service: &service.Service{
 						Protocol: rule.Backend.Service.Protocol,
 						Name:     rule.Backend.Service.Name,
 						Port:     rule.Backend.Service.Port,
@@ -97,7 +97,7 @@ func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 						Response: rule.Backend.Service.Response,
 					},
 					IsPathsExist: len(rule.Paths) != 0,
-					Rule:         rule,
+					Rule:         &rule,
 				}, nil
 			}
 		case "regex":
@@ -108,7 +108,7 @@ func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 				}
 
 				return &HostMatcher{
-					Service: service.Service{
+					Service: &service.Service{
 						Protocol: rule.Backend.Service.Protocol,
 						Name:     hostRewriter.Rewrite(host),
 						Port:     rule.Backend.Service.Port,
@@ -116,7 +116,7 @@ func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 						Response: rule.Backend.Service.Response,
 					},
 					IsPathsExist: len(rule.Paths) != 0,
-					Rule:         rule,
+					Rule:         &rule,
 				}, nil
 			}
 		case "wildcard":
@@ -129,7 +129,7 @@ func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 				}
 
 				return &HostMatcher{
-					Service: service.Service{
+					Service: &service.Service{
 						Protocol: rule.Backend.Service.Protocol,
 						Name:     hostRewriter.Rewrite(host),
 						Port:     rule.Backend.Service.Port,
@@ -137,12 +137,29 @@ func MatchHost(rules []rule.Rule, host string) (hm *HostMatcher, err error) {
 						Response: rule.Backend.Service.Response,
 					},
 					IsPathsExist: len(rule.Paths) != 0,
-					Rule:         rule,
+					Rule:         &rule,
 				}, nil
 			}
 		default:
 			return nil, fmt.Errorf("unsupport host type: %s", rule.HostType)
 		}
+	}
+
+	if fallback != nil {
+		return &HostMatcher{
+			Service: &service.Service{
+				Protocol: fallback.Service.Protocol,
+				Name:     fallback.Service.Name,
+				Port:     fallback.Service.Port,
+				Request:  fallback.Service.Request,
+				Response: fallback.Service.Response,
+			},
+			IsPathsExist: false,
+			Rule: &rule.Rule{
+				Host:     "@@fallback",
+				HostType: "exact",
+			},
+		}, nil
 	}
 
 	return nil, ErrHostNotFound

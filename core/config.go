@@ -2,7 +2,6 @@ package core
 
 import (
 	"github.com/go-zoox/ingress/core/rule"
-	"github.com/go-zoox/ingress/core/service"
 )
 
 type Config struct {
@@ -10,14 +9,14 @@ type Config struct {
 	//
 	Rules []rule.Rule `config:"rules"`
 	//
-	Cache Cache `config:"cache"`
+	Cache *Cache `config:"cache"`
 	//
 	HTTPSPort int64 `config:"https_port"`
 	SSL       []SSL `config:"ssl"`
 	//
-	Fallback service.Service `config:"fallback"`
+	Fallback *rule.Backend `config:"fallback"`
 	//
-	HealthCheck HealthCheck `config:"healthcheck"`
+	HealthCheck *HealthCheck `config:"healthcheck"`
 	//
 	// Match func(host string, path string) (cfg *service.Service, err error)
 }
