@@ -1,6 +1,6 @@
 version: v1
 
-port: 8090
+port: 8080
 
 cache:
   ttl: 30
