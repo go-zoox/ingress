@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-zoox/chalk"
@@ -43,39 +44,31 @@ ____________________________________O/_______
                                     O\
 `, chalk.Green("Ingress"), chalk.Green("v"+ingress.Version)))
 
-	c.app.SetTLSCertLoader(func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		if chi.ServerName == "" {
-			return nil, fmt.Errorf("no server name (sni)")
-		}
+	if c.cfg.HTTPS.SSL != nil {
+		c.app.SetTLSCertLoader(func(sni string) (key, cert string, err error) {
+			if sni == "" {
+				return "", "", fmt.Errorf("server name (sni) is missing")
+			}
 
-		// ssl
-		if c.cfg.HTTPS.SSL != nil {
-			var certificate string
-			var certificateKey string
-
-			serverName := chi.ServerName
+			serverName := sni
 			for _, ssl := range c.cfg.HTTPS.SSL {
 				if strings.EndsWith(serverName, ssl.Domain) {
-					certificate = ssl.Cert.Certificate
-					certificateKey = ssl.Cert.CertificateKey
-					break
+					certPEMBlock, err := os.ReadFile(ssl.Cert.Certificate)
+					if err != nil {
+						return "", "", fmt.Errorf("failed to read certificate file(%s) with sni(%s): %s", ssl.Cert.Certificate, sni, err)
+					}
+					keyPEMBlock, err := os.ReadFile(ssl.Cert.CertificateKey)
+					if err != nil {
+						return "", "", fmt.Errorf("failed to read certificate key file(%s) with sni(%s): %s", ssl.Cert.CertificateKey, sni, err)
+					}
+
+					return string(certPEMBlock), string(keyPEMBlock), nil
 				}
 			}
 
-			if certificate == "" || certificateKey == "" {
-				return nil, fmt.Errorf("no certificate")
-			}
-
-			cert, err := tls.LoadX509KeyPair(certificate, certificateKey)
-			if err != nil {
-				return nil, err
-			}
-
-			return &cert, nil
-		}
-
-		return nil, nil
-	})
+			return "", "", fmt.Errorf("certificate or certificate key not found")
+		})
+	}
 
 	return c.app.Run()
 }
