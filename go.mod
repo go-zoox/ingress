@@ -11,7 +11,7 @@ require (
 	github.com/go-zoox/kv v1.5.9
 	github.com/go-zoox/logger v1.6.2
 	github.com/go-zoox/proxy v1.5.6
-	github.com/go-zoox/zoox v1.15.14
+	github.com/go-zoox/zoox v1.15.17
 )
 
 require (
