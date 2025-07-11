@@ -12,6 +12,9 @@ func (c *core) prepare() error {
 		c.cfg.Cache.TTL = 60
 	}
 
+	// 补全配置
+	c.app.Config.Logger.Middleware.Disabled = true
+
 	// prepare cache
 	c.prepareCache()
 

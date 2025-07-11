@@ -95,7 +95,7 @@ func (c *core) serveHTTP(ctx context.Context) error {
 		server.Close()
 	}()
 
-	c.app.Logger.Info("ingress start at http://127.0.0.1:%d", port)
+	c.app.Logger().Info("ingress start at http://127.0.0.1:%d", port)
 	return server.Serve(listener)
 }
 
@@ -193,6 +193,6 @@ func (c *core) serveHTTPs(ctx context.Context) error {
 		server.Close()
 	}()
 
-	c.app.Logger.Info("ingress start at https://127.0.0.1:%d", httpsPort)
+	c.app.Logger().Info("ingress start at https://127.0.0.1:%d", httpsPort)
 	return server.ListenAndServeTLS("", "")
 }
