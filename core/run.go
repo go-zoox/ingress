@@ -62,7 +62,7 @@ ____________________________________O/_______
 						return "", "", fmt.Errorf("failed to read certificate key file(%s) with sni(%s): %s", ssl.Cert.CertificateKey, sni, err)
 					}
 
-					return string(certPEMBlock), string(keyPEMBlock), nil
+					return string(keyPEMBlock), string(certPEMBlock), nil
 				}
 			}
 
