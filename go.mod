@@ -9,9 +9,9 @@ require (
 	github.com/go-zoox/core-utils v1.4.11
 	github.com/go-zoox/fs v1.3.15
 	github.com/go-zoox/kv v1.5.9
-	github.com/go-zoox/logger v1.6.2
+	github.com/go-zoox/logger v1.6.3
 	github.com/go-zoox/proxy v1.5.6
-	github.com/go-zoox/zoox v1.15.17
+	github.com/go-zoox/zoox v1.16.4
 )
 
 require (
