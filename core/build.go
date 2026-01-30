@@ -91,6 +91,22 @@ func (c *core) build() error {
 			return false, false, proxy.NewHTTPError(500, "Service configuration is invalid")
 		}
 
+		// Validate client authentication before processing request
+		if err := serviceIns.ValidateAuth(ctx.Request); err != nil {
+			logger.Warnf("authentication failed for host: %s, path: %s: %s", hostname, path, err)
+
+			// Set WWW-Authenticate header based on auth type
+			if serviceIns.Auth.Type == "basic" {
+				ctx.Writer.Header().Set("WWW-Authenticate", "Basic realm=\"Restricted\"")
+			} else if serviceIns.Auth.Type == "bearer" {
+				ctx.Writer.Header().Set("WWW-Authenticate", "Bearer")
+			}
+
+			ctx.Status(http.StatusUnauthorized)
+			ctx.String(http.StatusUnauthorized, "Unauthorized")
+			return false, true, nil
+		}
+
 		if err := serviceIns.Validate(); err != nil {
 			return false, false, proxy.NewHTTPError(500, err.Error())
 		}
