@@ -21,18 +21,18 @@ type HostMatcher struct {
 	Rule *rule.Rule
 }
 
-func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Service, r *rule.Rule, err error) {
+func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Service, r *rule.Rule, pathBackend *rule.Backend, err error) {
 	key := fmt.Sprintf("match.host:%s", host)
 	matcher := &HostMatcher{}
 	if err := ctx.Cache().Get(key, matcher); err != nil {
 		matcher, err = MatchHost(c.cfg.Rules, c.cfg.Fallback, host)
 		if err != nil {
 			if !errors.Is(err, ErrHostNotFound) {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 
 			// ctx.Cache().Set(key, nil, 60*time.Second)
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		ctx.Cache().Set(key, matcher, time.Duration(c.cfg.Cache.TTL)*time.Second)
@@ -41,21 +41,25 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 	// host service
 	s = matcher.Service
 	t := matcher.Rule
+	var matchedPathBackend *rule.Backend
 
 	// @TODO not found
 	if s == nil {
-		return nil, nil, fmt.Errorf("service not found at matcher")
+		return nil, nil, nil, fmt.Errorf("service not found at matcher")
 	}
 
 	// paths
 	if matcher.IsPathsExist {
-		ps, err := MatchPath(matcher.Rule.Paths, path)
+		ps, matchedPath, err := MatchPath(matcher.Rule.Paths, path)
 		if err != nil {
 			if !errors.Is(err, ErrPathNotFound) {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 		} else {
 			s = ps
+			if matchedPath != nil {
+				matchedPathBackend = &matchedPath.Backend
+			}
 		}
 	}
 
@@ -80,7 +84,7 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 		t.HostType = "exact"
 	}
 
-	return s, t, nil
+	return s, t, matchedPathBackend, nil
 }
 
 func MatchHost(rules []rule.Rule, fallback rule.Backend, host string) (hm *HostMatcher, err error) {
@@ -165,13 +169,13 @@ func MatchHost(rules []rule.Rule, fallback rule.Backend, host string) (hm *HostM
 	return nil, ErrHostNotFound
 }
 
-func MatchPath(paths []rule.Path, path string) (r *service.Service, err error) {
+func MatchPath(paths []rule.Path, path string) (r *service.Service, matchedPath *rule.Path, err error) {
 	for _, rpath := range paths {
 		rpathRe := fmt.Sprintf("^%s", rpath.Path)
 		//
 		isMatched, err := regexp.MatchString(rpathRe, path)
 		if err != nil {
-			return nil, fmt.Errorf("failed to match path: %s", err)
+			return nil, nil, fmt.Errorf("failed to match path: %s", err)
 		}
 
 		if isMatched {
@@ -181,11 +185,11 @@ func MatchPath(paths []rule.Path, path string) (r *service.Service, err error) {
 				Port:     rpath.Backend.Service.Port,
 				Request:  rpath.Backend.Service.Request,
 				Response: rpath.Backend.Service.Response,
-			}, nil
+			}, &rpath, nil
 		}
 	}
 
-	return nil, ErrPathNotFound
+	return nil, nil, ErrPathNotFound
 }
 
 // stackoverflow: https://stackoverflow.com/questions/64509506/golang-determine-if-string-contains-a-string-with-wildcards
