@@ -36,7 +36,7 @@ func (c *core) build() error {
 		method := ctx.Method
 		path := ctx.Path
 
-		serviceIns, rule, err := c.match(ctx, hostname, path)
+		serviceIns, rule, pathBackend, err := c.match(ctx, hostname, path)
 		if err != nil {
 			logger.Errorf("failed to match rule (host: %s, path: %s): %s", hostname, path, err)
 
@@ -44,17 +44,51 @@ func (c *core) build() error {
 			return false, false, proxy.NewHTTPError(404, "Not Found")
 		}
 
-		// redirect
-		if rule.Backend.Redirect.URL != "" {
-			// if !rule.Backend.Redirect.Permanent {
-			// 	ctx.RedirectTemporary(rule.Backend.Redirect.URL)
-			// } else {
-			// 	ctx.RedirectPermanent(rule.Backend.Redirect.URL)
-			// }
+		// redirect: check path-level redirect first, then host-level redirect
+		var redirectURL string
+		var permanent bool
+		var hasRedirect bool
 
-			ctx.Redirect(rule.Backend.Redirect.URL)
+		if pathBackend != nil && pathBackend.Redirect.URL != "" {
+			redirectURL = pathBackend.Redirect.URL
+			permanent = pathBackend.Redirect.Permanent
+			hasRedirect = true
+		} else if rule.Backend.Redirect.URL != "" {
+			redirectURL = rule.Backend.Redirect.URL
+			permanent = rule.Backend.Redirect.Permanent
+			hasRedirect = true
+		}
+
+		if hasRedirect {
+			// If redirect URL is not a full URL (doesn't start with http:// or https://),
+			// construct the full URL by keeping the original path and query parameters
+			if !strings.HasPrefix(redirectURL, "http://") && !strings.HasPrefix(redirectURL, "https://") {
+				// Use the same scheme as the original request
+				scheme := "http"
+				if ctx.Request.TLS != nil || ctx.Request.Header.Get("X-Forwarded-Proto") == "https" {
+					scheme = "https"
+				}
+
+				// Build the redirect URL with original path and query
+				redirectURL = fmt.Sprintf("%s://%s%s", scheme, redirectURL, path)
+				if ctx.Request.URL.RawQuery != "" {
+					redirectURL = fmt.Sprintf("%s?%s", redirectURL, ctx.Request.URL.RawQuery)
+				}
+			}
+
+			if permanent {
+				ctx.RedirectPermanent(redirectURL)
+			} else {
+				ctx.RedirectTemporary(redirectURL)
+			}
 
 			return false, true, nil
+		}
+
+		// If there's only redirect config but no service, skip validation
+		if serviceIns.Name == "" {
+			logger.Errorf("service name is empty for host: %s, path: %s", hostname, path)
+			return false, false, proxy.NewHTTPError(500, "Service configuration is invalid")
 		}
 
 		if err := serviceIns.Validate(); err != nil {

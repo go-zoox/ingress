@@ -136,15 +136,18 @@ func TestMatchPath(t *testing.T) {
 		},
 	}
 
-	s, err := MatchPath(rules[2].Paths, "/ip")
+	s, matchedPath, err := MatchPath(rules[2].Paths, "/ip")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 	if s != nil {
 		t.Fatalf("expected nil, got %v", s)
 	}
+	if matchedPath != nil {
+		t.Fatalf("expected nil matchedPath, got %v", matchedPath)
+	}
 
-	s, err = MatchPath(rules[2].Paths, "/ip1")
+	s, matchedPath, err = MatchPath(rules[2].Paths, "/ip1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,8 +160,14 @@ func TestMatchPath(t *testing.T) {
 	if s.Protocol != "http" {
 		t.Fatalf("expected http, got %s", s.Protocol)
 	}
+	if matchedPath == nil {
+		t.Fatal("expected matchedPath, got nil")
+	}
+	if matchedPath.Path != "/ip1" {
+		t.Fatalf("expected /ip1, got %s", matchedPath.Path)
+	}
 
-	s, err = MatchPath(rules[2].Paths, "/ip2")
+	s, matchedPath, err = MatchPath(rules[2].Paths, "/ip2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,6 +179,12 @@ func TestMatchPath(t *testing.T) {
 	}
 	if s.Protocol != "https" {
 		t.Fatalf("expected https, got %s", s.Protocol)
+	}
+	if matchedPath == nil {
+		t.Fatal("expected matchedPath, got nil")
+	}
+	if matchedPath.Path != "/ip2" {
+		t.Fatalf("expected /ip2, got %s", matchedPath.Path)
 	}
 }
 
