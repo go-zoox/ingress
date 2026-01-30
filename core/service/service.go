@@ -18,6 +18,10 @@ type Request struct {
 	Path    RequestPath       `config:"path"`
 	Headers map[string]string `config:"headers"`
 	Query   map[string]string `config:"query"`
+	// Delay is the delay in milliseconds before sending the request
+	Delay int64 `config:"delay"`
+	// Timeout is the timeout in seconds for the request
+	Timeout int64 `config:"timeout"`
 }
 
 type HealthCheck struct {
