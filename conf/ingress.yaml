@@ -160,3 +160,99 @@ rules:
         name: wildcard.match
         port: 8080
 
+
+  # Basic Auth with multiple users
+  - host: basic-auth.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+        auth:
+          type: basic
+          basic:
+            users:
+              - username: admin
+                password: admin123
+              - username: user1
+                password: user123
+              - username: user2
+                password: user456
+
+  # Bearer Token with multiple tokens
+  - host: bearer-auth.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+        auth:
+          type: bearer
+          bearer:
+            tokens:
+              - token1-abc123xyz
+              - token2-def456uvw
+              - token3-ghi789rst
+
+
+
+  # Single user/token using array format (multiple format supports single)
+  - host: single-array.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+        auth:
+          type: basic
+          basic:
+            users:
+              - username: admin
+                password: admin123
+
+  - host: single-token-array.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+        auth:
+          type: bearer
+          bearer:
+            tokens:
+              - single-token-abc123
+
+  # Mixed: Basic Auth with multiple users on different paths
+  - host: mixed-auth.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+        auth:
+          type: basic
+          basic:
+            users:
+              - username: default
+                password: default123
+    paths:
+      - path: /admin
+        backend:
+          service:
+            name: api-service
+            port: 8080
+            auth:
+              type: basic
+              basic:
+                users:
+                  - username: admin
+                    password: admin123
+                  - username: superadmin
+                    password: super123
+      - path: /api
+        backend:
+          service:
+            name: api-service
+            port: 8080
+            auth:
+              type: bearer
+              bearer:
+                tokens:
+                  - api-token-1
+                  - api-token-2
+                  - api-token-3

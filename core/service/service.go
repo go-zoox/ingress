@@ -48,11 +48,10 @@ type Auth struct {
 	Type string `config:"type"`
 
 	// type: basic
-	Username string `config:"username"`
-	Password string `config:"password"`
+	Basic BasicAuth `config:"basic"`
 
 	// type: bearer
-	Token string `config:"token"`
+	Bearer BearerAuth `config:"bearer"`
 
 	// type: jwt
 	Secret string `config:"secret"`
@@ -67,4 +66,17 @@ type Auth struct {
 	// type: oidc
 
 	// type: service
+}
+
+type BasicAuth struct {
+	Users []BasicUser `config:"users"`
+}
+
+type BasicUser struct {
+	Username string `config:"username"`
+	Password string `config:"password"`
+}
+
+type BearerAuth struct {
+	Tokens []string `config:"tokens"`
 }
