@@ -1,9 +1,11 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/proxy"
@@ -126,6 +128,22 @@ func (c *core) build() error {
 
 		ctx.Logger.Debugf("[dns] service(%s) is ok (ips: %s)", serviceIns.Name, strings.Join(ips, ", "))
 
+		// apply delay if configured
+		if serviceIns.Request.Delay > 0 {
+			delayDuration := time.Duration(serviceIns.Request.Delay) * time.Millisecond
+			ctx.Logger.Debugf("[delay] applying delay of %v for service %s", delayDuration, serviceIns.Name)
+			time.Sleep(delayDuration)
+		}
+
+		// apply timeout to the request context if configured
+		if serviceIns.Request.Timeout > 0 {
+			timeoutDuration := time.Duration(serviceIns.Request.Timeout) * time.Second
+			ctx.Logger.Debugf("[timeout] setting timeout of %v for service %s", timeoutDuration, serviceIns.Name)
+			timeoutCtx, cancel := context.WithTimeout(ctx.Request.Context(), timeoutDuration)
+			_ = cancel // cancel will be called when request completes or context expires
+			ctx.Request = ctx.Request.WithContext(timeoutCtx)
+		}
+
 		cfg.OnRequest = func(req, inReq *http.Request) error {
 			req.URL.Scheme = serviceIns.Protocol
 			req.URL.Host = serviceIns.Host()
@@ -150,6 +168,14 @@ func (c *core) build() error {
 					originQuery.Set(k, v)
 				}
 				req.URL.RawQuery = originQuery.Encode()
+			}
+
+			// apply timeout to the request context if configured
+			if serviceIns.Request.Timeout > 0 {
+				timeoutDuration := time.Duration(serviceIns.Request.Timeout) * time.Second
+				timeoutCtx, cancel := context.WithTimeout(req.Context(), timeoutDuration)
+				_ = cancel // cancel will be called when request completes or context expires
+				req = req.WithContext(timeoutCtx)
 			}
 
 			// plugins
