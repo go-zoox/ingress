@@ -32,3 +32,8 @@ lighthouse
 data/
 
 bin/
+
+# VitePress
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+docs/node_modules/
