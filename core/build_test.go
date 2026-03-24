@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -314,5 +316,105 @@ func TestBuild_RequestTimeoutInHTTPRequest(t *testing.T) {
 	diff := expectedDeadline.Sub(deadline)
 	if diff < -time.Second || diff > time.Second {
 		t.Errorf("expected deadline to be approximately %v from now, got %v (diff: %v)", timeoutDuration, deadline, diff)
+	}
+}
+
+func TestBuild_HandlerBackendStatusCode(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "handler.example.work",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						StatusCode: 201,
+						Body:       "created",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("failed to create core: %v", err)
+	}
+
+	ins, ok := c.(*core)
+	if !ok {
+		t.Fatalf("failed to cast core instance")
+	}
+	if err := ins.build(); err != nil {
+		t.Fatalf("failed to build core: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://handler.example.work/", nil)
+	recorder := httptest.NewRecorder()
+	ins.app.ServeHTTP(recorder, req)
+
+	if recorder.Code != 201 {
+		t.Fatalf("expected status code 201, got %d", recorder.Code)
+	}
+	if body := recorder.Body.String(); body != "created" {
+		t.Fatalf("expected body 'created', got %q", body)
+	}
+}
+
+func TestBuild_HandlerBackendHeadersAndJSONBody(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "handler.example.work",
+				Backend: rule.Backend{
+					Service: service.Service{
+						Name: "upstream-service",
+						Port: 8080,
+					},
+				},
+				Paths: []rule.Path{
+					{
+						Path: "/custom/handler/json",
+						Backend: rule.Backend{
+							Type: backendTypeHandler,
+							Handler: rule.Handler{
+								Headers: map[string]string{
+									"Content-Type": "application/json",
+								},
+								Body: `{"message":"Hello, World!"}`,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("failed to create core: %v", err)
+	}
+
+	ins, ok := c.(*core)
+	if !ok {
+		t.Fatalf("failed to cast core instance")
+	}
+	if err := ins.build(); err != nil {
+		t.Fatalf("failed to build core: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://handler.example.work/custom/handler/json", nil)
+	recorder := httptest.NewRecorder()
+	ins.app.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status code 200, got %d", recorder.Code)
+	}
+	if contentType := recorder.Header().Get("Content-Type"); !strings.Contains(contentType, "application/json") {
+		t.Fatalf("expected Content-Type contains application/json, got %q", contentType)
+	}
+	if body := recorder.Body.String(); body != `{"message":"Hello, World!"}` {
+		t.Fatalf("expected json body, got %q", body)
 	}
 }

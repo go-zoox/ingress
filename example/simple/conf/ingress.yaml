@@ -15,24 +15,64 @@ waf:
 rules:
   - host: portainer.example.com
     backend:
-      service_name: portainer
-      service_port: 80
+      service:
+        name: portainer
+        port: 80
   - host: docker-registry.example.com
     backend:
-      service_name: docker-registry
-      service_port: 80
+      service:
+        name: docker-registry
+        port: 80
     paths:
       - path: /v2
         backend:
-          service_name: docker-registry-v2
-          service_port: 80
+          service:
+            name: docker-registry-v2
+            port: 80
   - host: httpbin.example.work
     backend:
-      service_protocol: https
-      service_name: httpbin.zcorky.com
-      service_port: 443
+      service:
+        protocol: https
+        name: httpbin.zcorky.com
+        port: 443
   - host: httpbin2.example.work
     backend:
-      service_protocol: https
-      service_name: httpbin.org
-      service_port: 443
+      service:
+        protocol: https
+        name: httpbin.org
+        port: 443
+  - host: handler.example.work
+    backend:
+      service:
+        protocol: https
+        name: httpbin.org
+        port: 443
+    paths:
+      - path: /custom/handler/string
+        backend:
+          type: handler
+          handler:
+            body: Hello World!
+      - path: /custom/handler/json
+        backend:
+          type: handler
+          handler:
+            headers:
+              Content-Type: application/json
+            body: |
+              {
+                "message": "Hello, World!"
+              }
+      - path: /custom/handler/html
+        backend:
+          type: handler
+          handler:
+            status_code: 200
+            headers:
+              Content-Type: text/html
+            body: |
+              <html>
+                <body>
+                  <h1>Hello, World!</h1>
+                </body>
+              </html>
