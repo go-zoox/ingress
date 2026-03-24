@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -160,7 +161,29 @@ func executeJavaScriptHandlerScript(ctx *zoox.Context, handlerCfg *rule.Handler)
 		if err != nil {
 			panic(vm.ToValue(err.Error()))
 		}
-		return vm.ToValue(res.String())
+
+		response := vm.NewObject()
+		headers := vm.NewObject()
+		for key, values := range res.Headers {
+			if len(values) > 0 {
+				_ = headers.Set(key, values[0])
+			}
+		}
+		_ = response.Set("status", res.Status)
+		_ = response.Set("ok", res.Ok())
+		_ = response.Set("headers", headers)
+		_ = response.Set("text", func(goja.FunctionCall) goja.Value {
+			return vm.ToValue(res.String())
+		})
+		_ = response.Set("json", func(goja.FunctionCall) goja.Value {
+			parsed := vm.NewObject()
+			for key, value := range res.Value().Map() {
+				_ = parsed.Set(key, value)
+			}
+			return parsed
+		})
+
+		return response
 	}
 	if err := ctxObject.Set("fetch", fetch); err != nil {
 		return err
@@ -196,7 +219,7 @@ Object.defineProperty(ctx, "body", {
 		return err
 	}
 
-	if _, err := vm.RunString(handlerCfg.Script); err != nil {
+	if err := runJavaScriptAsyncScript(vm, handlerCfg.Script); err != nil {
 		return err
 	}
 
@@ -209,4 +232,30 @@ Object.defineProperty(ctx, "body", {
 	ctx.Status(int(responseObject.Get("status_code").ToInteger()))
 	ctx.Write([]byte(responseObject.Get("body").String()))
 	return nil
+}
+
+func runJavaScriptAsyncScript(vm *goja.Runtime, script string) error {
+	scriptWrapper := fmt.Sprintf("(async () => {\n%s\n})()", script)
+	result, err := vm.RunString(scriptWrapper)
+	if err != nil {
+		return err
+	}
+
+	exported := result.Export()
+	promise, ok := exported.(*goja.Promise)
+	if !ok {
+		// non-promise values are treated as completed execution
+		return nil
+	}
+
+	switch promise.State() {
+	case goja.PromiseStateFulfilled:
+		return nil
+	case goja.PromiseStateRejected:
+		return errors.New(promise.Result().String())
+	case goja.PromiseStatePending:
+		return errors.New("javascript async script is still pending")
+	default:
+		return errors.New("javascript async script ended in unknown promise state")
+	}
 }

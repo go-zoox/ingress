@@ -87,7 +87,7 @@ func TestExecuteHandlerScript_UnsupportedEngine(t *testing.T) {
 func TestExecuteJavaScriptHandlerScript_Fetch(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("fetched-by-js"))
+		_, _ = w.Write([]byte(`{"message":"fetched-by-js"}`))
 	}))
 	defer server.Close()
 
@@ -95,13 +95,47 @@ func TestExecuteJavaScriptHandlerScript_Fetch(t *testing.T) {
 	handlerCfg := &rule.Handler{
 		Type:   handlerTypeScript,
 		Engine: scriptEngineJavaScript,
-		Script: `ctx.body = ctx.fetch("` + server.URL + `")`,
+		Script: `
+const res = ctx.fetch("` + server.URL + `")
+if (!res.ok) {
+  throw new Error("fetch response not ok")
+}
+if (res.status !== 200) {
+  throw new Error("unexpected status")
+}
+ctx.body = res.json().message + "|" + res.text()
+`,
 	}
 
 	if err := executeJavaScriptHandlerScript(ctx, handlerCfg); err != nil {
 		t.Fatalf("executeJavaScriptHandlerScript failed: %v", err)
 	}
-	if rec.Body.String() != "fetched-by-js" {
+	if rec.Body.String() != `fetched-by-js|{"message":"fetched-by-js"}` {
+		t.Fatalf("unexpected body: %q", rec.Body.String())
+	}
+}
+
+func TestExecuteJavaScriptHandlerScript_FetchWithAwait(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"message":"fetched-by-await"}`))
+	}))
+	defer server.Close()
+
+	ctx, rec := createTestZooxContext(http.MethodGet, "/")
+	handlerCfg := &rule.Handler{
+		Type:   handlerTypeScript,
+		Engine: scriptEngineJavaScript,
+		Script: `
+const res = await ctx.fetch("` + server.URL + `")
+ctx.body = res.json().message
+`,
+	}
+
+	if err := executeJavaScriptHandlerScript(ctx, handlerCfg); err != nil {
+		t.Fatalf("executeJavaScriptHandlerScript failed: %v", err)
+	}
+	if rec.Body.String() != "fetched-by-await" {
 		t.Fatalf("unexpected body: %q", rec.Body.String())
 	}
 }
