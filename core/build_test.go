@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -416,5 +418,103 @@ func TestBuild_HandlerBackendHeadersAndJSONBody(t *testing.T) {
 	}
 	if body := recorder.Body.String(); body != `{"message":"Hello, World!"}` {
 		t.Fatalf("expected json body, got %q", body)
+	}
+}
+
+func TestBuild_HandlerBackendFileServer(t *testing.T) {
+	tempDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempDir, "home.html"), []byte("file-server-home"), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tempDir, "asset.txt"), []byte("asset-content"), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "handler.example.work",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Type:      handlerTypeFileServer,
+						RootDir:   tempDir,
+						IndexFile: "home.html",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("failed to create core: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("failed to build core: %v", err)
+	}
+
+	reqIndex := httptest.NewRequest(http.MethodGet, "http://handler.example.work/", nil)
+	recIndex := httptest.NewRecorder()
+	ins.app.ServeHTTP(recIndex, reqIndex)
+	if recIndex.Code != http.StatusOK {
+		t.Fatalf("expected status code 200, got %d", recIndex.Code)
+	}
+	if body := recIndex.Body.String(); body != "file-server-home" {
+		t.Fatalf("expected index content, got %q", body)
+	}
+
+	reqFile := httptest.NewRequest(http.MethodGet, "http://handler.example.work/asset.txt", nil)
+	recFile := httptest.NewRecorder()
+	ins.app.ServeHTTP(recFile, reqFile)
+	if recFile.Code != http.StatusOK {
+		t.Fatalf("expected status code 200, got %d", recFile.Code)
+	}
+	if body := recFile.Body.String(); body != "asset-content" {
+		t.Fatalf("expected file content, got %q", body)
+	}
+}
+
+func TestBuild_HandlerBackendTemplates(t *testing.T) {
+	tempDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempDir, "index.html"), []byte("<h1>{{.Path}}</h1>"), 0o644); err != nil {
+		t.Fatalf("failed to write template: %v", err)
+	}
+
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "handler.example.work",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Type:    handlerTypeTemplates,
+						RootDir: tempDir,
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("failed to create core: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("failed to build core: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://handler.example.work/", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status code 200, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); body != "<h1>/</h1>" {
+		t.Fatalf("expected rendered template body, got %q", body)
 	}
 }

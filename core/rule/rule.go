@@ -34,7 +34,10 @@ type Redirect struct {
 }
 
 type Handler struct {
+	Type       string            `config:"type,default=static_response"`
 	StatusCode int64             `config:"status_code,default=200"`
 	Headers    map[string]string `config:"headers"`
 	Body       string            `config:"body"`
+	RootDir    string            `config:"root_dir"`
+	IndexFile  string            `config:"index_file,default=index.html"`
 }

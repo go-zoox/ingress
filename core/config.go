@@ -4,11 +4,6 @@ import (
 	"github.com/go-zoox/ingress/core/rule"
 )
 
-const (
-	backendTypeService = "service"
-	backendTypeHandler = "handler"
-)
-
 type Config struct {
 	Port int64 `config:"port"`
 	//

@@ -126,6 +126,7 @@ rules:
                   - ^/httpbin.org/(.*):/$1
   
   # backend.type defaults to service, options: service | handler
+  # handler.type defaults to static_response, options: static_response | file_server | templates
   - host: handler.example.work
     backend:
       # type: service
@@ -138,11 +139,13 @@ rules:
         backend:
           type: handler
           handler:
+            type: static_response
             body: Hello World!
       - path: /custom/handler/json
         backend:
           type: handler
           handler:
+            type: static_response
             headers:
               Content-Type: application/json
             body: |
@@ -153,6 +156,7 @@ rules:
         backend:
           type: handler
           handler:
+            type: static_response
             status_code: 200
             headers:
               Content-Type: text/html
@@ -162,6 +166,19 @@ rules:
                   <h1>Hello, World!</h1>
                 </body>
               </html>
+      - path: /custom/handler/files
+        backend:
+          type: handler
+          handler:
+            type: file_server
+            root_dir: /app/public
+            index_file: index.html
+      - path: /custom/handler/templates
+        backend:
+          type: handler
+          handler:
+            type: templates
+            root_dir: /app/templates
 
   - host: 't-120.example.work'
     backend:
