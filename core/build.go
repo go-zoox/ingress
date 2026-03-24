@@ -169,15 +169,10 @@ func (c *core) build() error {
 					return false, false, proxy.NewHTTPError(http.StatusInternalServerError, "Template Render Failed")
 				}
 			case handlerTypeScript:
-				scriptResponse, err := executeHandlerScript(ctx, handlerCfg)
-				if err != nil {
+				if err := executeHandlerScript(ctx, handlerCfg); err != nil {
 					return false, false, proxy.NewHTTPError(http.StatusInternalServerError, err.Error())
 				}
-				for key, value := range scriptResponse.Headers {
-					ctx.Writer.Header().Set(key, value)
-				}
-				ctx.Status(int(scriptResponse.StatusCode))
-				ctx.Writer.Write([]byte(scriptResponse.Body))
+				return false, true, nil
 			default:
 				return false, false, proxy.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("unsupported handler.type: %s", handlerType))
 			}

@@ -588,10 +588,8 @@ func TestBuild_HandlerBackendScriptGo(t *testing.T) {
 						Type:   handlerTypeScript,
 						Engine: scriptEngineGo,
 						Script: `
-ctx.Response.StatusCode = 200
-ctx.Response.ContentType = "text/plain"
-ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path
-ctx.Response.Headers["X-Handler-Engine"] = "go"
+ctx.SetHeader("X-Handler-Engine", "go")
+ctx.String(200, "%s %s", ctx.Method, ctx.Path)
 `,
 					},
 				},

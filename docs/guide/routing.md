@@ -233,10 +233,8 @@ rules:
             type: script
             engine: go
             script: |
-              ctx.Response.StatusCode = 200
-              ctx.Response.ContentType = "text/plain"
-              ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path
-              ctx.Response.Headers["X-Handler-Engine"] = "go"
+              ctx.SetHeader("X-Handler-Engine", "go")
+              ctx.String(200, "%s %s", ctx.Method, ctx.Path)
 ```
 
 - `backend.type`: `service` (default) or `handler`
@@ -250,7 +248,7 @@ rules:
     - aliases: `ctx.method`, `ctx.path`, `ctx.headers`
     - response aliases: `ctx.status` (`ctx.response.status_code`), `ctx.type` (`ctx.response.content_type`), `ctx.body` (`ctx.response.body`)
     - methods: `ctx.setHeader(key, value)` and `ctx.response.setHeader(key, value)`
-  - `engine=go`: powered by `yaegi`; script can read/write `ctx.Request` and `ctx.Response` directly (e.g. `ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path`)
+  - `engine=go`: powered by `yaegi`; `ctx` is the original `*zoox.Context` (e.g. `ctx.SetHeader(...)`, `ctx.String(...)`, `ctx.Fetch()`)
 
 ## Fallback Service
 

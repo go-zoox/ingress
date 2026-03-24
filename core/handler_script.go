@@ -2,8 +2,9 @@ package core
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 
 	"github.com/dop251/goja"
@@ -13,35 +14,67 @@ import (
 	"github.com/traefik/yaegi/stdlib"
 )
 
-type scriptRequestContext struct {
-	Method  string
-	Path    string
-	Headers map[string]string
-}
-
-type scriptResponseContext struct {
-	StatusCode  int64
-	ContentType string
-	Headers     map[string]string
-	Body        string
-}
-
-type scriptContext struct {
-	Request  scriptRequestContext
-	Response scriptResponseContext
-}
-
-func executeHandlerScript(ctx *zoox.Context, handlerCfg *rule.Handler) (*scriptResponseContext, error) {
+func executeHandlerScript(ctx *zoox.Context, handlerCfg *rule.Handler) error {
 	engine := handlerCfg.Engine
 	if engine == "" {
 		engine = scriptEngineJavaScript
 	}
 
-	requestHeaders := map[string]string{}
-	for key, values := range ctx.Request.Header {
-		requestHeaders[key] = strings.Join(values, ",")
+	switch engine {
+	case scriptEngineJavaScript:
+		if err := executeJavaScriptHandlerScript(ctx, handlerCfg); err != nil {
+			return err
+		}
+	case scriptEngineGo:
+		if err := executeGoYaegiHandlerScript(ctx, handlerCfg.Script); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported script engine: %s", engine)
 	}
 
+	return nil
+}
+
+func executeGoYaegiHandlerScript(ctx *zoox.Context, script string) error {
+	i := interp.New(interp.Options{
+		GoPath: getGoPath(),
+	})
+	i.Use(stdlib.Symbols)
+	i.Use(map[string]map[string]reflect.Value{
+		"ingressctx/ingressctx": {
+			"GetCtx": reflect.ValueOf(func() *zoox.Context {
+				return ctx
+			}),
+		},
+	})
+	scriptWithPrelude := fmt.Sprintf(`import "ingressctx"
+func __run() {
+	ctx := ingressctx.GetCtx()
+%s
+}
+`, script)
+	if _, err := i.Eval(scriptWithPrelude); err != nil {
+		return err
+	}
+	_, err := i.Eval("__run()")
+	return err
+}
+
+func getGoPath() string {
+	if gopath := os.Getenv("GOPATH"); gopath != "" {
+		return gopath
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	return filepath.Join(home, ".go")
+}
+
+func executeJavaScriptHandlerScript(ctx *zoox.Context, handlerCfg *rule.Handler) error {
 	responseHeaders := map[string]string{}
 	for key, value := range handlerCfg.Headers {
 		responseHeaders[key] = value
@@ -52,118 +85,13 @@ func executeHandlerScript(ctx *zoox.Context, handlerCfg *rule.Handler) (*scriptR
 		statusCode = 200
 	}
 	contentType := responseHeaders["Content-Type"]
+	body := handlerCfg.Body
 
-	runtimeCtx := &scriptContext{
-		Request: scriptRequestContext{
-			Method:  ctx.Method,
-			Path:    ctx.Path,
-			Headers: requestHeaders,
-		},
-		Response: scriptResponseContext{
-			StatusCode:  statusCode,
-			ContentType: contentType,
-			Headers:     responseHeaders,
-			Body:        handlerCfg.Body,
-		},
+	requestHeaders := map[string]string{}
+	for key, values := range ctx.Request.Header {
+		requestHeaders[key] = strings.Join(values, ",")
 	}
 
-	switch engine {
-	case scriptEngineJavaScript:
-		if err := executeJavaScriptHandlerScript(runtimeCtx, handlerCfg.Script); err != nil {
-			return nil, err
-		}
-	case scriptEngineGo:
-		if err := executeGoYaegiHandlerScript(runtimeCtx, handlerCfg.Script); err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("unsupported script engine: %s", engine)
-	}
-
-	if runtimeCtx.Response.ContentType != "" {
-		runtimeCtx.Response.Headers["Content-Type"] = runtimeCtx.Response.ContentType
-	}
-
-	return &runtimeCtx.Response, nil
-}
-
-func executeGoYaegiHandlerScript(runtimeCtx *scriptContext, script string) error {
-	i := interp.New(interp.Options{})
-	i.Use(stdlib.Symbols)
-	scriptWithPrelude := fmt.Sprintf(`
-type Request struct {
-	Method string
-	Path string
-	Headers map[string]string
-}
-type Response struct {
-	StatusCode int64
-	ContentType string
-	Headers map[string]string
-	Body string
-}
-type Context struct {
-	Request Request
-	Response Response
-}
-var ctx = &Context{
-	Request: Request{
-		Method: %s,
-		Path: %s,
-		Headers: %s,
-	},
-	Response: Response{
-		StatusCode: %d,
-		ContentType: %s,
-		Headers: %s,
-		Body: %s,
-	},
-}
-func __run(){
-%s
-}
-`, strconv.Quote(runtimeCtx.Request.Method), strconv.Quote(runtimeCtx.Request.Path), toGoStringMapLiteral(runtimeCtx.Request.Headers), runtimeCtx.Response.StatusCode, strconv.Quote(runtimeCtx.Response.ContentType), toGoStringMapLiteral(runtimeCtx.Response.Headers), strconv.Quote(runtimeCtx.Response.Body), script)
-	if _, err := i.Eval(scriptWithPrelude); err != nil {
-		return err
-	}
-	_, err := i.Eval("__run()")
-	if err != nil {
-		return err
-	}
-
-	ctxValue, err := i.Eval("ctx")
-	if err != nil {
-		return err
-	}
-
-	ctxReflectValue := reflect.Indirect(ctxValue)
-	responseValue := ctxReflectValue.FieldByName("Response")
-	runtimeCtx.Response.StatusCode = responseValue.FieldByName("StatusCode").Int()
-	runtimeCtx.Response.ContentType = responseValue.FieldByName("ContentType").String()
-	runtimeCtx.Response.Body = responseValue.FieldByName("Body").String()
-
-	headersValue := responseValue.FieldByName("Headers")
-	runtimeCtx.Response.Headers = map[string]string{}
-	for _, key := range headersValue.MapKeys() {
-		runtimeCtx.Response.Headers[key.String()] = headersValue.MapIndex(key).String()
-	}
-
-	return nil
-}
-
-func toGoStringMapLiteral(input map[string]string) string {
-	if len(input) == 0 {
-		return "map[string]string{}"
-	}
-
-	parts := make([]string, 0, len(input))
-	for key, value := range input {
-		parts = append(parts, fmt.Sprintf("%s: %s", strconv.Quote(key), strconv.Quote(value)))
-	}
-	return fmt.Sprintf("map[string]string{%s}", strings.Join(parts, ", "))
-}
-
-func executeJavaScriptHandlerScript(runtimeCtx *scriptContext, script string) error {
 	vm := goja.New()
 	ctxObject := vm.NewObject()
 	requestObject := vm.NewObject()
@@ -171,37 +99,37 @@ func executeJavaScriptHandlerScript(runtimeCtx *scriptContext, script string) er
 	requestHeadersObject := vm.NewObject()
 	responseHeadersObject := vm.NewObject()
 
-	for key, value := range runtimeCtx.Request.Headers {
+	for key, value := range requestHeaders {
 		if err := requestHeadersObject.Set(key, value); err != nil {
 			return err
 		}
 	}
-	for key, value := range runtimeCtx.Response.Headers {
+	for key, value := range responseHeaders {
 		if err := responseHeadersObject.Set(key, value); err != nil {
 			return err
 		}
 	}
 
-	if err := requestObject.Set("method", runtimeCtx.Request.Method); err != nil {
+	if err := requestObject.Set("method", ctx.Method); err != nil {
 		return err
 	}
-	if err := requestObject.Set("path", runtimeCtx.Request.Path); err != nil {
+	if err := requestObject.Set("path", ctx.Path); err != nil {
 		return err
 	}
 	if err := requestObject.Set("headers", requestHeadersObject); err != nil {
 		return err
 	}
 
-	if err := responseObject.Set("status_code", runtimeCtx.Response.StatusCode); err != nil {
+	if err := responseObject.Set("status_code", statusCode); err != nil {
 		return err
 	}
-	if err := responseObject.Set("content_type", runtimeCtx.Response.ContentType); err != nil {
+	if err := responseObject.Set("content_type", contentType); err != nil {
 		return err
 	}
 	if err := responseObject.Set("headers", responseHeadersObject); err != nil {
 		return err
 	}
-	if err := responseObject.Set("body", runtimeCtx.Response.Body); err != nil {
+	if err := responseObject.Set("body", body); err != nil {
 		return err
 	}
 
@@ -221,6 +149,20 @@ func executeJavaScriptHandlerScript(runtimeCtx *scriptContext, script string) er
 		return err
 	}
 	if err := ctxObject.Set("setHeader", setHeader); err != nil {
+		return err
+	}
+	fetch := func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 {
+			panic(vm.ToValue("ctx.fetch requires url argument"))
+		}
+		url := call.Argument(0).String()
+		res, err := ctx.Fetch().Get(url, nil).Execute()
+		if err != nil {
+			panic(vm.ToValue(err.Error()))
+		}
+		return vm.ToValue(res.String())
+	}
+	if err := ctxObject.Set("fetch", fetch); err != nil {
 		return err
 	}
 
@@ -254,17 +196,17 @@ Object.defineProperty(ctx, "body", {
 		return err
 	}
 
-	if _, err := vm.RunString(script); err != nil {
+	if _, err := vm.RunString(handlerCfg.Script); err != nil {
 		return err
 	}
 
-	runtimeCtx.Response.StatusCode = responseObject.Get("status_code").ToInteger()
-	runtimeCtx.Response.ContentType = responseObject.Get("content_type").String()
-	runtimeCtx.Response.Body = responseObject.Get("body").String()
-	runtimeCtx.Response.Headers = map[string]string{}
 	for _, key := range responseHeadersObject.Keys() {
-		runtimeCtx.Response.Headers[key] = responseHeadersObject.Get(key).String()
+		ctx.Writer.Header().Set(key, responseHeadersObject.Get(key).String())
 	}
-
+	if contentTypeValue := responseObject.Get("content_type").String(); contentTypeValue != "" {
+		ctx.Writer.Header().Set("Content-Type", contentTypeValue)
+	}
+	ctx.Status(int(responseObject.Get("status_code").ToInteger()))
+	ctx.Write([]byte(responseObject.Get("body").String()))
 	return nil
 }

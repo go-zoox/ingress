@@ -233,10 +233,8 @@ rules:
             type: script
             engine: go
             script: |
-              ctx.Response.StatusCode = 200
-              ctx.Response.ContentType = "text/plain"
-              ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path
-              ctx.Response.Headers["X-Handler-Engine"] = "go"
+              ctx.SetHeader("X-Handler-Engine", "go")
+              ctx.String(200, "%s %s", ctx.Method, ctx.Path)
 ```
 
 - `backend.type`: `service`（默认）或 `handler`
@@ -250,7 +248,7 @@ rules:
     - 别名：`ctx.method`、`ctx.path`、`ctx.headers`
     - 响应别名：`ctx.status`（`ctx.response.status_code`）、`ctx.type`（`ctx.response.content_type`）、`ctx.body`（`ctx.response.body`）
     - 方法：`ctx.setHeader(key, value)` 和 `ctx.response.setHeader(key, value)`
-  - `engine=go`：使用 `yaegi` 执行脚本，可直接读写 `ctx.Request` 和 `ctx.Response`（例如：`ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path`）
+  - `engine=go`：使用 `yaegi` 执行脚本，`ctx` 为原生 `*zoox.Context`（例如：`ctx.SetHeader(...)`、`ctx.String(...)`、`ctx.Fetch()`）
 
 ## 回退服务
 
