@@ -177,7 +177,11 @@ rules:
 
 ## Handler 后端
 
-除了转发到 service，您还可以通过设置 `backend.type: handler` 直接由 ingress 返回静态响应。
+除了转发到 service，您还可以设置 `backend.type: handler`，并通过 `handler.type` 选择：
+
+- `static_response`（默认）
+- `file_server`
+- `templates`
 
 ```yaml
 rules:
@@ -191,17 +195,32 @@ rules:
         backend:
           type: handler
           handler:
+            type: static_response
             status_code: 200
             headers:
               Content-Type: application/json
             body: |
               {"message":"Hello, World!"}
+      - path: /custom/handler/files
+        backend:
+          type: handler
+          handler:
+            type: file_server
+            root_dir: /app/public
+            index_file: index.html
+      - path: /custom/handler/templates
+        backend:
+          type: handler
+          handler:
+            type: templates
+            root_dir: /app/templates
 ```
 
 - `backend.type`: `service`（默认）或 `handler`
-- `handler.status_code`: HTTP 状态码（默认：`200`）
-- `handler.headers`: 响应头
-- `handler.body`: 响应体
+- `handler.type`: `static_response`（默认）、`file_server`、`templates`
+- 当 `handler.type=static_response`：支持 `status_code`、`headers`、`body`
+- 当 `handler.type=file_server`：支持 `root_dir`、`index_file`
+- 当 `handler.type=templates`：支持 `root_dir`
 
 ## 回退服务
 

@@ -177,7 +177,11 @@ rules:
 
 ## Handler Backend
 
-In addition to proxying to a service, you can return a static response directly from ingress by setting `backend.type: handler`.
+In addition to proxying to a service, you can set `backend.type: handler` and use `handler.type` to choose one of:
+
+- `static_response` (default)
+- `file_server`
+- `templates`
 
 ```yaml
 rules:
@@ -191,17 +195,32 @@ rules:
         backend:
           type: handler
           handler:
+            type: static_response
             status_code: 200
             headers:
               Content-Type: application/json
             body: |
               {"message":"Hello, World!"}
+      - path: /custom/handler/files
+        backend:
+          type: handler
+          handler:
+            type: file_server
+            root_dir: /app/public
+            index_file: index.html
+      - path: /custom/handler/templates
+        backend:
+          type: handler
+          handler:
+            type: templates
+            root_dir: /app/templates
 ```
 
 - `backend.type`: `service` (default) or `handler`
-- `handler.status_code`: HTTP status code (default: `200`)
-- `handler.headers`: response headers
-- `handler.body`: response body
+- `handler.type`: `static_response` (default), `file_server`, or `templates`
+- when `handler.type=static_response`: `status_code`, `headers`, `body`
+- when `handler.type=file_server`: `root_dir`, `index_file`
+- when `handler.type=templates`: `root_dir`
 
 ## Fallback Service
 

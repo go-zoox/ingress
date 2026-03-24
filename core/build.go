@@ -2,8 +2,13 @@ package core
 
 import (
 	"context"
+	"html/template"
 	"fmt"
+	"mime"
 	"net/http"
+	"os"
+	pathlib "path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -97,16 +102,75 @@ func (c *core) build() error {
 		}
 
 		if handlerCfg != nil {
-			for k, v := range handlerCfg.Headers {
-				ctx.Writer.Header().Set(k, v)
+			handlerType := handlerCfg.Type
+			if handlerType == "" {
+				handlerType = handlerTypeStaticResponse
 			}
 
-			statusCode := int(handlerCfg.StatusCode)
-			if statusCode == 0 {
-				statusCode = http.StatusOK
+			switch handlerType {
+			case handlerTypeStaticResponse:
+				for k, v := range handlerCfg.Headers {
+					ctx.Writer.Header().Set(k, v)
+				}
+
+				statusCode := int(handlerCfg.StatusCode)
+				if statusCode == 0 {
+					statusCode = http.StatusOK
+				}
+				ctx.Status(statusCode)
+				ctx.Writer.Write([]byte(handlerCfg.Body))
+			case handlerTypeFileServer:
+				if handlerCfg.RootDir == "" {
+					return false, false, proxy.NewHTTPError(http.StatusInternalServerError, "handler.root_dir is required for file_server")
+				}
+
+				indexFile := handlerCfg.IndexFile
+				if indexFile == "" {
+					indexFile = "index.html"
+				}
+
+				filePath := strings.TrimPrefix(pathlib.Clean(ctx.Path), "/")
+				if filePath == "" || strings.HasSuffix(ctx.Path, "/") {
+					filePath = indexFile
+				}
+				targetFilePath := filepath.Join(handlerCfg.RootDir, filepath.FromSlash(filePath))
+
+				content, err := os.ReadFile(targetFilePath)
+				if err != nil {
+					return false, false, proxy.NewHTTPError(http.StatusNotFound, "Not Found")
+				}
+
+				if contentType := mime.TypeByExtension(filepath.Ext(targetFilePath)); contentType != "" {
+					ctx.Writer.Header().Set("Content-Type", contentType)
+				}
+				ctx.Status(http.StatusOK)
+				ctx.Writer.Write(content)
+			case handlerTypeTemplates:
+				if handlerCfg.RootDir == "" {
+					return false, false, proxy.NewHTTPError(http.StatusInternalServerError, "handler.root_dir is required for templates")
+				}
+
+				templatePath := strings.TrimPrefix(pathlib.Clean(ctx.Path), "/")
+				if templatePath == "" || strings.HasSuffix(ctx.Path, "/") {
+					templatePath = "index.html"
+				}
+				targetTemplatePath := filepath.Join(handlerCfg.RootDir, filepath.FromSlash(templatePath))
+
+				tpl, err := template.ParseFiles(targetTemplatePath)
+				if err != nil {
+					return false, false, proxy.NewHTTPError(http.StatusNotFound, "Not Found")
+				}
+
+				ctx.Status(http.StatusOK)
+				if err := tpl.Execute(ctx.Writer, map[string]any{
+					"Path":   ctx.Path,
+					"Method": ctx.Method,
+				}); err != nil {
+					return false, false, proxy.NewHTTPError(http.StatusInternalServerError, "Template Render Failed")
+				}
+			default:
+				return false, false, proxy.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("unsupported handler.type: %s", handlerType))
 			}
-			ctx.Status(statusCode)
-			ctx.Writer.Write([]byte(handlerCfg.Body))
 
 			return false, true, nil
 		}
