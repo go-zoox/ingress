@@ -125,6 +125,44 @@ rules:
                 rewrites:
                   - ^/httpbin.org/(.*):/$1
   
+  # backend.type defaults to service, options: service | handler
+  - host: handler.example.work
+    backend:
+      # type: service
+      service:
+        protocol: https
+        name: httpbin.org
+        port: 443
+    paths:
+      - path: /custom/handler/string
+        backend:
+          type: handler
+          handler:
+            body: Hello World!
+      - path: /custom/handler/json
+        backend:
+          type: handler
+          handler:
+            headers:
+              Content-Type: application/json
+            body: |
+              {
+                "message": "Hello, World!"
+              }
+      - path: /custom/handler/html
+        backend:
+          type: handler
+          handler:
+            status_code: 200
+            headers:
+              Content-Type: text/html
+            body: |
+              <html>
+                <body>
+                  <h1>Hello, World!</h1>
+                </body>
+              </html>
+
   - host: 't-120.example.work'
     backend:
       redirect:

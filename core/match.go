@@ -21,6 +21,14 @@ type HostMatcher struct {
 	Rule *rule.Rule
 }
 
+func getBackendType(backend rule.Backend) string {
+	if backend.Type == "" {
+		return backendTypeService
+	}
+
+	return backend.Type
+}
+
 func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Service, r *rule.Rule, pathBackend *rule.Backend, err error) {
 	key := fmt.Sprintf("match.host:%s", host)
 	matcher := &HostMatcher{}
@@ -43,8 +51,8 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 	t := matcher.Rule
 	var matchedPathBackend *rule.Backend
 
-	// @TODO not found
-	if s == nil {
+	// service can be nil for backend.type=handler
+	if s == nil && getBackendType(matcher.Rule.Backend) != backendTypeHandler {
 		return nil, nil, nil, fmt.Errorf("service not found at matcher")
 	}
 
@@ -75,6 +83,12 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 	// 	}
 	// }
 
+	isPathHandlerBackend := matchedPathBackend != nil && getBackendType(*matchedPathBackend) == backendTypeHandler
+	isHostHandlerBackend := getBackendType(t.Backend) == backendTypeHandler
+	if s == nil && (isPathHandlerBackend || isHostHandlerBackend) {
+		return nil, t, matchedPathBackend, nil
+	}
+
 	if s == nil {
 		s = &c.cfg.Fallback.Service
 		// force rewrite host
@@ -92,6 +106,18 @@ func MatchHost(rules []rule.Rule, fallback rule.Backend, host string) (hm *HostM
 		switch rule.HostType {
 		case "exact", "":
 			if rule.Host == host {
+				backendType := getBackendType(rule.Backend)
+				if backendType == backendTypeHandler {
+					return &HostMatcher{
+						Service:      nil,
+						IsPathsExist: len(rule.Paths) != 0,
+						Rule:         &rule,
+					}, nil
+				}
+				if backendType != backendTypeService {
+					return nil, fmt.Errorf("unsupport backend type: %s", backendType)
+				}
+
 				return &HostMatcher{
 					Service: &service.Service{
 						Protocol: rule.Backend.Service.Protocol,
@@ -106,6 +132,18 @@ func MatchHost(rules []rule.Rule, fallback rule.Backend, host string) (hm *HostM
 			}
 		case "regex":
 			if isMatched, _ := regexp.MatchString(rule.Host, host); isMatched {
+				backendType := getBackendType(rule.Backend)
+				if backendType == backendTypeHandler {
+					return &HostMatcher{
+						Service:      nil,
+						IsPathsExist: len(rule.Paths) != 0,
+						Rule:         &rule,
+					}, nil
+				}
+				if backendType != backendTypeService {
+					return nil, fmt.Errorf("unsupport backend type: %s", backendType)
+				}
+
 				hostRewriter := rewriter.Rewriter{
 					From: rule.Host,
 					To:   rule.Backend.Service.Name,
@@ -127,6 +165,18 @@ func MatchHost(rules []rule.Rule, fallback rule.Backend, host string) (hm *HostM
 			re := wildCardToRegexp(rule.Host)
 			// fmt.Println("wildcard", rule.Host, re)
 			if isMatched, _ := regexp.MatchString(re, host); isMatched {
+				backendType := getBackendType(rule.Backend)
+				if backendType == backendTypeHandler {
+					return &HostMatcher{
+						Service:      nil,
+						IsPathsExist: len(rule.Paths) != 0,
+						Rule:         &rule,
+					}, nil
+				}
+				if backendType != backendTypeService {
+					return nil, fmt.Errorf("unsupport backend type: %s", backendType)
+				}
+
 				hostRewriter := rewriter.Rewriter{
 					From: re,
 					To:   rule.Backend.Service.Name,
@@ -179,6 +229,14 @@ func MatchPath(paths []rule.Path, path string) (r *service.Service, matchedPath 
 		}
 
 		if isMatched {
+			backendType := getBackendType(rpath.Backend)
+			if backendType == backendTypeHandler {
+				return nil, &rpath, nil
+			}
+			if backendType != backendTypeService {
+				return nil, nil, fmt.Errorf("unsupport backend type: %s", backendType)
+			}
+
 			return &service.Service{
 				Protocol: rpath.Backend.Service.Protocol,
 				Name:     rpath.Backend.Service.Name,

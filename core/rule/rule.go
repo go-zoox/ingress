@@ -14,7 +14,11 @@ type Rule struct {
 }
 
 type Backend struct {
+	Type string `config:"type,default=service"`
+	//
 	Service service.Service `config:"service"`
+	//
+	Handler Handler `config:"handler"`
 	//
 	Redirect Redirect `config:"redirect"`
 }
@@ -27,4 +31,10 @@ type Path struct {
 type Redirect struct {
 	URL       string `config:"url"`
 	Permanent bool   `config:"permanent"`
+}
+
+type Handler struct {
+	StatusCode int64             `config:"status_code,default=200"`
+	Headers    map[string]string `config:"headers"`
+	Body       string            `config:"body"`
 }

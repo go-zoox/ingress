@@ -175,6 +175,34 @@ rules:
 - `url`: 重定向目标 URL
 - `permanent`: 如果为 `true`，返回 301 重定向；如果为 `false`，返回 302 重定向
 
+## Handler 后端
+
+除了转发到 service，您还可以通过设置 `backend.type: handler` 直接由 ingress 返回静态响应。
+
+```yaml
+rules:
+  - host: handler.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+    paths:
+      - path: /custom/handler/json
+        backend:
+          type: handler
+          handler:
+            status_code: 200
+            headers:
+              Content-Type: application/json
+            body: |
+              {"message":"Hello, World!"}
+```
+
+- `backend.type`: `service`（默认）或 `handler`
+- `handler.status_code`: HTTP 状态码（默认：`200`）
+- `handler.headers`: 响应头
+- `handler.body`: 响应体
+
 ## 回退服务
 
 如果没有规则匹配请求，则使用回退服务：

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/zoox"
@@ -38,7 +39,7 @@ func (c *core) build() error {
 		method := ctx.Method
 		path := ctx.Path
 
-		serviceIns, rule, pathBackend, err := c.match(ctx, hostname, path)
+		serviceIns, matchedRule, pathBackend, err := c.match(ctx, hostname, path)
 		if err != nil {
 			logger.Errorf("failed to match rule (host: %s, path: %s): %s", hostname, path, err)
 
@@ -55,9 +56,9 @@ func (c *core) build() error {
 			redirectURL = pathBackend.Redirect.URL
 			permanent = pathBackend.Redirect.Permanent
 			hasRedirect = true
-		} else if rule.Backend.Redirect.URL != "" {
-			redirectURL = rule.Backend.Redirect.URL
-			permanent = rule.Backend.Redirect.Permanent
+		} else if matchedRule.Backend.Redirect.URL != "" {
+			redirectURL = matchedRule.Backend.Redirect.URL
+			permanent = matchedRule.Backend.Redirect.Permanent
 			hasRedirect = true
 		}
 
@@ -83,6 +84,29 @@ func (c *core) build() error {
 			} else {
 				ctx.RedirectTemporary(redirectURL)
 			}
+
+			return false, true, nil
+		}
+
+		// handler: check path-level backend first, then host-level backend
+		var handlerCfg *rule.Handler
+		if pathBackend != nil && getBackendType(*pathBackend) == backendTypeHandler {
+			handlerCfg = &pathBackend.Handler
+		} else if getBackendType(matchedRule.Backend) == backendTypeHandler {
+			handlerCfg = &matchedRule.Backend.Handler
+		}
+
+		if handlerCfg != nil {
+			for k, v := range handlerCfg.Headers {
+				ctx.Writer.Header().Set(k, v)
+			}
+
+			statusCode := int(handlerCfg.StatusCode)
+			if statusCode == 0 {
+				statusCode = http.StatusOK
+			}
+			ctx.Status(statusCode)
+			ctx.Writer.Write([]byte(handlerCfg.Body))
 
 			return false, true, nil
 		}
@@ -118,7 +142,7 @@ func (c *core) build() error {
 			logger.Errorf("check dns error: %s", err)
 
 			// exact service specify
-			if rule.HostType == "exact" {
+			if matchedRule.HostType == "exact" {
 				return false, false, proxy.NewHTTPError(503, "Service Unavailable")
 			}
 

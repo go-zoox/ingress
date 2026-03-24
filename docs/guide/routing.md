@@ -175,6 +175,34 @@ rules:
 - `url`: The redirect target URL
 - `permanent`: If `true`, returns a 301 redirect; if `false`, returns a 302 redirect
 
+## Handler Backend
+
+In addition to proxying to a service, you can return a static response directly from ingress by setting `backend.type: handler`.
+
+```yaml
+rules:
+  - host: handler.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+    paths:
+      - path: /custom/handler/json
+        backend:
+          type: handler
+          handler:
+            status_code: 200
+            headers:
+              Content-Type: application/json
+            body: |
+              {"message":"Hello, World!"}
+```
+
+- `backend.type`: `service` (default) or `handler`
+- `handler.status_code`: HTTP status code (default: `200`)
+- `handler.headers`: response headers
+- `handler.body`: response body
+
 ## Fallback Service
 
 If no rule matches a request, the fallback service is used:

@@ -47,6 +47,8 @@ fallback:
 rules:
   - host: example.com
     backend:
+      # type 默认为 service，可选：service | handler
+      # type: service
       service:
         name: backend-service
         port: 8080
@@ -134,6 +136,7 @@ rules:
   - host: example.com           # 要匹配的主机
     host_type: exact            # 匹配类型：exact、regex、wildcard
     backend:
+      type: service             # 后端类型：service（默认）或 handler
       service:
         name: backend-service
         port: 8080
@@ -170,6 +173,15 @@ rules:
           service:
             name: api-service
             port: 8080
+      - path: /healthz
+        backend:
+          type: handler
+          handler:
+            status_code: 200
+            headers:
+              Content-Type: application/json
+            body: |
+              {"ok": true}
 ```
 
 ## 环境变量

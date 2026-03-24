@@ -47,6 +47,8 @@ fallback:
 rules:
   - host: example.com
     backend:
+      # type defaults to service, options: service | handler
+      # type: service
       service:
         name: backend-service
         port: 8080
@@ -134,6 +136,7 @@ rules:
   - host: example.com           # Host to match
     host_type: exact            # Match type: exact, regex, wildcard
     backend:
+      type: service             # Backend type: service (default) or handler
       service:
         name: backend-service
         port: 8080
@@ -170,6 +173,15 @@ rules:
           service:
             name: api-service
             port: 8080
+      - path: /healthz
+        backend:
+          type: handler
+          handler:
+            status_code: 200
+            headers:
+              Content-Type: application/json
+            body: |
+              {"ok": true}
 ```
 
 ## Environment Variables

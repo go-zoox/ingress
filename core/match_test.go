@@ -268,3 +268,56 @@ func TestMatchHostWithFallback(t *testing.T) {
 		t.Fatalf("expected http, got %s", s.Service.Protocol)
 	}
 }
+
+func TestMatchHostWithHandlerBackend(t *testing.T) {
+	rules := []rule.Rule{
+		{
+			Host: "handler.example.work",
+			Backend: rule.Backend{
+				Type: "handler",
+				Handler: rule.Handler{
+					Body: "Hello World!",
+				},
+			},
+		},
+	}
+
+	s, err := MatchHost(rules, rule.Backend{}, "handler.example.work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s == nil {
+		t.Fatal("expected host matcher, got nil")
+	}
+	if s.Service != nil {
+		t.Fatalf("expected nil service for handler backend, got %v", s.Service)
+	}
+}
+
+func TestMatchPathWithHandlerBackend(t *testing.T) {
+	paths := []rule.Path{
+		{
+			Path: "/custom/handler/string",
+			Backend: rule.Backend{
+				Type: "handler",
+				Handler: rule.Handler{
+					Body: "Hello World!",
+				},
+			},
+		},
+	}
+
+	s, matchedPath, err := MatchPath(paths, "/custom/handler/string")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s != nil {
+		t.Fatalf("expected nil service for handler backend, got %v", s)
+	}
+	if matchedPath == nil {
+		t.Fatal("expected matchedPath, got nil")
+	}
+	if matchedPath.Backend.Type != "handler" {
+		t.Fatalf("expected handler backend type, got %s", matchedPath.Backend.Type)
+	}
+}
