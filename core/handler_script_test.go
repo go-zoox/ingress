@@ -1,28 +1,25 @@
 package core
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-zoox/ingress/core/rule"
+	"github.com/go-zoox/zoox"
+	"github.com/go-zoox/zoox/defaults"
 )
 
 func TestExecuteJavaScriptHandlerScript_AliasesAndSetHeader(t *testing.T) {
-	runtimeCtx := &scriptContext{
-		Request: scriptRequestContext{
-			Method: "GET",
-			Path:   "/test",
-			Headers: map[string]string{
-				"X-Test": "1",
-			},
-		},
-		Response: scriptResponseContext{
-			StatusCode:  200,
-			ContentType: "text/plain",
-			Headers:     map[string]string{},
-			Body:        "init",
-		},
-	}
-
-	script := `
+	ctx, rec := createTestZooxContext(http.MethodGet, "/test")
+	handlerCfg := &rule.Handler{
+		Type:       handlerTypeScript,
+		Engine:     scriptEngineJavaScript,
+		StatusCode: 200,
+		Body:       "init",
+		Headers:    map[string]string{},
+		Script: `
 if (ctx.method !== "GET") throw new Error("method alias failed")
 if (ctx.path !== "/test") throw new Error("path alias failed")
 if (ctx.headers["X-Test"] !== "1") throw new Error("headers alias failed")
@@ -31,81 +28,54 @@ ctx.type = "application/json"
 ctx.body = JSON.stringify({ ok: true })
 ctx.setHeader("X-From-Ctx", "1")
 ctx.response.setHeader("X-From-Response", "1")
-`
+`,
+	}
+	ctx.Request.Header.Set("X-Test", "1")
 
-	if err := executeJavaScriptHandlerScript(runtimeCtx, script); err != nil {
+	if err := executeJavaScriptHandlerScript(ctx, handlerCfg); err != nil {
 		t.Fatalf("executeJavaScriptHandlerScript failed: %v", err)
 	}
 
-	if runtimeCtx.Response.StatusCode != 201 {
-		t.Fatalf("expected status 201, got %d", runtimeCtx.Response.StatusCode)
+	if rec.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("expected content type application/json, got %s", rec.Header().Get("Content-Type"))
 	}
-	if runtimeCtx.Response.ContentType != "application/json" {
-		t.Fatalf("expected content type application/json, got %s", runtimeCtx.Response.ContentType)
+	if rec.Body.String() != `{"ok":true}` {
+		t.Fatalf("unexpected body: %q", rec.Body.String())
 	}
-	if runtimeCtx.Response.Body != `{"ok":true}` {
-		t.Fatalf("unexpected body: %q", runtimeCtx.Response.Body)
-	}
-	if runtimeCtx.Response.Headers["X-From-Ctx"] != "1" {
+	if rec.Header().Get("X-From-Ctx") != "1" {
 		t.Fatalf("expected X-From-Ctx header")
 	}
-	if runtimeCtx.Response.Headers["X-From-Response"] != "1" {
+	if rec.Header().Get("X-From-Response") != "1" {
 		t.Fatalf("expected X-From-Response header")
 	}
 }
 
-func TestExecuteGoYaegiHandlerScript_MutateResponse(t *testing.T) {
-	runtimeCtx := &scriptContext{
-		Request: scriptRequestContext{
-			Method: "POST",
-			Path:   "/go",
-			Headers: map[string]string{
-				"X-Test": "1",
-			},
-		},
-		Response: scriptResponseContext{
-			StatusCode:  200,
-			ContentType: "text/plain",
-			Headers:     map[string]string{},
-			Body:        "",
-		},
-	}
-
+func TestExecuteGoYaegiHandlerScript_UseZooxContext(t *testing.T) {
+	ctx, _ := createTestZooxContext(http.MethodPost, "/go")
 	script := `
-ctx.Response.StatusCode = 202
-ctx.Response.ContentType = "application/json"
-ctx.Response.Headers["X-Engine"] = "go"
-ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path
+ctx.Method = "PATCH"
+ctx.Set("X-Engine", "go")
 `
 
-	if err := executeGoYaegiHandlerScript(runtimeCtx, script); err != nil {
+	if err := executeGoYaegiHandlerScript(ctx, script); err != nil {
 		t.Fatalf("executeGoYaegiHandlerScript failed: %v", err)
 	}
 
-	if runtimeCtx.Response.StatusCode != 202 {
-		t.Fatalf("expected status 202, got %d", runtimeCtx.Response.StatusCode)
+	if ctx.Method != "PATCH" {
+		t.Fatalf("expected method patched, got %s", ctx.Method)
 	}
-	if runtimeCtx.Response.ContentType != "application/json" {
-		t.Fatalf("expected content type application/json, got %s", runtimeCtx.Response.ContentType)
-	}
-	if runtimeCtx.Response.Headers["X-Engine"] != "go" {
+	if ctx.Writer.Header().Get("X-Engine") != "go" {
 		t.Fatalf("expected X-Engine header")
-	}
-	if runtimeCtx.Response.Body != "POST /go" {
-		t.Fatalf("unexpected body: %q", runtimeCtx.Response.Body)
 	}
 }
 
 func TestExecuteHandlerScript_UnsupportedEngine(t *testing.T) {
-	runtimeCtx := &scriptContext{
-		Request: scriptRequestContext{Method: "GET", Path: "/"},
-		Response: scriptResponseContext{
-			StatusCode: 200,
-			Headers:    map[string]string{},
-		},
-	}
-
-	_, err := executeHandlerScriptWithContext(runtimeCtx, "unknown", "")
+	ctx, _ := createTestZooxContext(http.MethodGet, "/")
+	err := executeHandlerScript(ctx, &rule.Handler{
+		Type:   handlerTypeScript,
+		Engine: "unknown",
+		Script: "",
+	})
 	if err == nil {
 		t.Fatalf("expected unsupported engine error")
 	}
@@ -114,54 +84,60 @@ func TestExecuteHandlerScript_UnsupportedEngine(t *testing.T) {
 	}
 }
 
-func TestToGoStringMapLiteral(t *testing.T) {
-	if got := toGoStringMapLiteral(nil); got != "map[string]string{}" {
-		t.Fatalf("unexpected nil map literal: %s", got)
+func TestExecuteJavaScriptHandlerScript_Fetch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("fetched-by-js"))
+	}))
+	defer server.Close()
+
+	ctx, rec := createTestZooxContext(http.MethodGet, "/")
+	handlerCfg := &rule.Handler{
+		Type:   handlerTypeScript,
+		Engine: scriptEngineJavaScript,
+		Script: `ctx.body = ctx.fetch("` + server.URL + `")`,
 	}
 
-	got := toGoStringMapLiteral(map[string]string{
-		`a"b`: `c\d`,
+	if err := executeJavaScriptHandlerScript(ctx, handlerCfg); err != nil {
+		t.Fatalf("executeJavaScriptHandlerScript failed: %v", err)
+	}
+	if rec.Body.String() != "fetched-by-js" {
+		t.Fatalf("unexpected body: %q", rec.Body.String())
+	}
+}
+
+func TestExecuteGoYaegiHandlerScript_Fetch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("fetched-by-go"))
+	}))
+	defer server.Close()
+
+	ctx, rec := createTestZooxContext(http.MethodGet, "/")
+	script := `
+res, err := ctx.Fetch().Get("` + server.URL + `", nil).Execute()
+if err != nil {
+	panic(err)
+}
+ctx.String(200, res.String())
+`
+	if err := executeGoYaegiHandlerScript(ctx, script); err != nil {
+		t.Fatalf("executeGoYaegiHandlerScript failed: %v", err)
+	}
+	if rec.Body.String() != "fetched-by-go" {
+		t.Fatalf("unexpected body: %q", rec.Body.String())
+	}
+}
+
+func createTestZooxContext(method, path string) (*zoox.Context, *httptest.ResponseRecorder) {
+	app := defaults.Default()
+	req := httptest.NewRequest(method, "http://localhost"+path, nil)
+	rec := httptest.NewRecorder()
+
+	var captured *zoox.Context
+	app.Use(func(ctx *zoox.Context) {
+		captured = ctx
 	})
-	if !strings.HasPrefix(got, "map[string]string{") || !strings.HasSuffix(got, "}") {
-		t.Fatalf("unexpected map literal format: %s", got)
-	}
-	if !strings.Contains(got, `"a\"b"`) {
-		t.Fatalf("expected escaped key in literal: %s", got)
-	}
-	if !strings.Contains(got, `"c\\d"`) {
-		t.Fatalf("expected escaped value in literal: %s", got)
-	}
-}
-
-func executeHandlerScriptWithContext(runtimeCtx *scriptContext, engine string, script string) (*scriptResponseContext, error) {
-	handlerCfg := &struct {
-		Engine string
-		Script string
-	}{
-		Engine: engine,
-		Script: script,
-	}
-
-	switch handlerCfg.Engine {
-	case scriptEngineJavaScript:
-		if err := executeJavaScriptHandlerScript(runtimeCtx, handlerCfg.Script); err != nil {
-			return nil, err
-		}
-	case scriptEngineGo:
-		if err := executeGoYaegiHandlerScript(runtimeCtx, handlerCfg.Script); err != nil {
-			return nil, err
-		}
-	default:
-		return nil, &unsupportedEngineError{engine: handlerCfg.Engine}
-	}
-
-	return &runtimeCtx.Response, nil
-}
-
-type unsupportedEngineError struct {
-	engine string
-}
-
-func (e *unsupportedEngineError) Error() string {
-	return "unsupported script engine: " + e.engine
+	app.ServeHTTP(rec, req)
+	return captured, rec
 }
