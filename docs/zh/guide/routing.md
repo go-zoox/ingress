@@ -182,6 +182,7 @@ rules:
 - `static_response`（默认）
 - `file_server`
 - `templates`
+- `script`
 
 ```yaml
 rules:
@@ -214,13 +215,42 @@ rules:
           handler:
             type: templates
             root_dir: /app/templates
+      - path: /custom/handler/script/js
+        backend:
+          type: handler
+          handler:
+            type: script
+            engine: javascript
+            script: |
+              ctx.response.status_code = 200
+              ctx.type = "application/json"
+              ctx.body = JSON.stringify({ method: ctx.method, path: ctx.path })
+              ctx.setHeader("X-Handler-Engine", "javascript")
+      - path: /custom/handler/script/go
+        backend:
+          type: handler
+          handler:
+            type: script
+            engine: go
+            script: |
+              ctx.Response.StatusCode = 200
+              ctx.Response.ContentType = "text/plain"
+              ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path
+              ctx.Response.Headers["X-Handler-Engine"] = "go"
 ```
 
 - `backend.type`: `service`（默认）或 `handler`
-- `handler.type`: `static_response`（默认）、`file_server`、`templates`
+- `handler.type`: `static_response`（默认）、`file_server`、`templates`、`script`
 - 当 `handler.type=static_response`：支持 `status_code`、`headers`、`body`
 - 当 `handler.type=file_server`：支持 `root_dir`、`index_file`
 - 当 `handler.type=templates`：支持 `root_dir`
+- 当 `handler.type=script`：支持 `engine`、`script`
+  - `engine=javascript`：使用 `goja`；提供 `ctx`：
+    - `ctx.request` / `ctx.response`
+    - 别名：`ctx.method`、`ctx.path`、`ctx.headers`
+    - 响应别名：`ctx.status`（`ctx.response.status_code`）、`ctx.type`（`ctx.response.content_type`）、`ctx.body`（`ctx.response.body`）
+    - 方法：`ctx.setHeader(key, value)` 和 `ctx.response.setHeader(key, value)`
+  - `engine=go`：使用 `yaegi` 执行脚本，可直接读写 `ctx.Request` 和 `ctx.Response`（例如：`ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path`）
 
 ## 回退服务
 

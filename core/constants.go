@@ -9,4 +9,9 @@ const (
 	handlerTypeStaticResponse = "static_response"
 	handlerTypeFileServer     = "file_server"
 	handlerTypeTemplates      = "templates"
+	handlerTypeScript         = "script"
+
+	// script engine selector when handler.type=script
+	scriptEngineJavaScript = "javascript"
+	scriptEngineGo         = "go"
 )

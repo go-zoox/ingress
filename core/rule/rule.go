@@ -35,6 +35,8 @@ type Redirect struct {
 
 type Handler struct {
 	Type       string            `config:"type,default=static_response"`
+	Engine     string            `config:"engine,default=javascript"`
+	Script     string            `config:"script"`
 	StatusCode int64             `config:"status_code,default=200"`
 	Headers    map[string]string `config:"headers"`
 	Body       string            `config:"body"`

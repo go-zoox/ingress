@@ -518,3 +518,200 @@ func TestBuild_HandlerBackendTemplates(t *testing.T) {
 		t.Fatalf("expected rendered template body, got %q", body)
 	}
 }
+
+func TestBuild_HandlerBackendScriptJavaScript(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "handler.example.work",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Type:   handlerTypeScript,
+						Engine: scriptEngineJavaScript,
+						Script: `
+ctx.status = 202
+ctx.type = "application/json"
+ctx.body = JSON.stringify({
+  method: ctx.method,
+  path: ctx.path,
+})
+ctx.setHeader("X-Script", "javascript")
+ctx.response.setHeader("X-Response", "ok")
+`,
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("failed to create core: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("failed to build core: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://handler.example.work/demo", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected status code 202, got %d", rec.Code)
+	}
+	if contentType := rec.Header().Get("Content-Type"); !strings.Contains(contentType, "application/json") {
+		t.Fatalf("expected Content-Type contains application/json, got %q", contentType)
+	}
+	if rec.Header().Get("X-Script") != "javascript" {
+		t.Fatalf("expected X-Script header")
+	}
+	if rec.Header().Get("X-Response") != "ok" {
+		t.Fatalf("expected X-Response header")
+	}
+	if body := rec.Body.String(); body != `{"method":"GET","path":"/demo"}` {
+		t.Fatalf("unexpected response body: %q", body)
+	}
+}
+
+func TestBuild_HandlerBackendScriptGo(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "handler.example.work",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Type:   handlerTypeScript,
+						Engine: scriptEngineGo,
+						Script: `
+ctx.Response.StatusCode = 200
+ctx.Response.ContentType = "text/plain"
+ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path
+ctx.Response.Headers["X-Handler-Engine"] = "go"
+`,
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("failed to create core: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("failed to build core: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://handler.example.work/go-script", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status code 200, got %d", rec.Code)
+	}
+	if rec.Header().Get("X-Handler-Engine") != "go" {
+		t.Fatalf("expected X-Handler-Engine header")
+	}
+	if body := rec.Body.String(); body != "POST /go-script" {
+		t.Fatalf("unexpected response body: %q", body)
+	}
+}
+
+func TestBuild_HandlerBackendScriptJavaScriptStatusAlias(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "handler.example.work",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Type:   handlerTypeScript,
+						Engine: scriptEngineJavaScript,
+						Script: `
+ctx.response.status_code = 204
+if (ctx.status !== 204) {
+  throw new Error("ctx.status alias getter failed")
+}
+ctx.status = 206
+ctx.type = "text/plain"
+ctx.body = "status=" + ctx.status
+`,
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("failed to create core: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("failed to build core: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://handler.example.work/status-alias", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusPartialContent {
+		t.Fatalf("expected status code 206, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); body != "status=206" {
+		t.Fatalf("unexpected response body: %q", body)
+	}
+}
+
+func TestBuild_HandlerBackendScriptJavaScriptResponseSetHeader(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "handler.example.work",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Type:   handlerTypeScript,
+						Engine: scriptEngineJavaScript,
+						Script: `
+ctx.response.setHeader("X-From-Response", "1")
+ctx.setHeader("X-From-Ctx", "1")
+ctx.body = "ok"
+`,
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("failed to create core: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("failed to build core: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://handler.example.work/headers", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status code 200, got %d", rec.Code)
+	}
+	if rec.Header().Get("X-From-Response") != "1" {
+		t.Fatalf("expected X-From-Response header")
+	}
+	if rec.Header().Get("X-From-Ctx") != "1" {
+		t.Fatalf("expected X-From-Ctx header")
+	}
+}
