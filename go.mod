@@ -3,6 +3,7 @@ module github.com/go-zoox/ingress
 go 1.22.1
 
 require (
+	github.com/dop251/goja v0.0.0-20260311135729-065cd970411c
 	github.com/go-zoox/chalk v1.0.2
 	github.com/go-zoox/cli v1.4.1
 	github.com/go-zoox/config v1.3.2
@@ -12,6 +13,7 @@ require (
 	github.com/go-zoox/logger v1.6.3
 	github.com/go-zoox/proxy v1.5.6
 	github.com/go-zoox/zoox v1.16.4
+	github.com/traefik/yaegi v0.16.1
 )
 
 require (
@@ -23,6 +25,7 @@ require (
 	github.com/creack/pty v1.1.23 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/distribution/reference v0.6.0 // indirect
+	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/docker/cli v27.3.1+incompatible // indirect
 	github.com/docker/docker v27.3.1+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
@@ -36,6 +39,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
+	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/go-zoox/cache v1.0.7 // indirect
 	github.com/go-zoox/command v1.7.0 // indirect
 	github.com/go-zoox/commands-as-a-service v1.7.11 // indirect
@@ -70,6 +74,7 @@ require (
 	github.com/go-zoox/websocket v1.3.5 // indirect
 	github.com/goccy/go-yaml v1.12.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.19.0 // indirect

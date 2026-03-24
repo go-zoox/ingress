@@ -182,6 +182,7 @@ In addition to proxying to a service, you can set `backend.type: handler` and us
 - `static_response` (default)
 - `file_server`
 - `templates`
+- `script`
 
 ```yaml
 rules:
@@ -214,13 +215,42 @@ rules:
           handler:
             type: templates
             root_dir: /app/templates
+      - path: /custom/handler/script/js
+        backend:
+          type: handler
+          handler:
+            type: script
+            engine: javascript
+            script: |
+              ctx.response.status_code = 200
+              ctx.type = "application/json"
+              ctx.body = JSON.stringify({ method: ctx.method, path: ctx.path })
+              ctx.setHeader("X-Handler-Engine", "javascript")
+      - path: /custom/handler/script/go
+        backend:
+          type: handler
+          handler:
+            type: script
+            engine: go
+            script: |
+              ctx.Response.StatusCode = 200
+              ctx.Response.ContentType = "text/plain"
+              ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path
+              ctx.Response.Headers["X-Handler-Engine"] = "go"
 ```
 
 - `backend.type`: `service` (default) or `handler`
-- `handler.type`: `static_response` (default), `file_server`, or `templates`
+- `handler.type`: `static_response` (default), `file_server`, `templates`, or `script`
 - when `handler.type=static_response`: `status_code`, `headers`, `body`
 - when `handler.type=file_server`: `root_dir`, `index_file`
 - when `handler.type=templates`: `root_dir`
+- when `handler.type=script`: `engine`, `script`
+  - `engine=javascript`: powered by `goja`; `ctx` includes:
+    - `ctx.request` / `ctx.response`
+    - aliases: `ctx.method`, `ctx.path`, `ctx.headers`
+    - response aliases: `ctx.status` (`ctx.response.status_code`), `ctx.type` (`ctx.response.content_type`), `ctx.body` (`ctx.response.body`)
+    - methods: `ctx.setHeader(key, value)` and `ctx.response.setHeader(key, value)`
+  - `engine=go`: powered by `yaegi`; script can read/write `ctx.Request` and `ctx.Response` directly (e.g. `ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path`)
 
 ## Fallback Service
 

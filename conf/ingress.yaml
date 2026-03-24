@@ -126,7 +126,7 @@ rules:
                   - ^/httpbin.org/(.*):/$1
   
   # backend.type defaults to service, options: service | handler
-  # handler.type defaults to static_response, options: static_response | file_server | templates
+  # handler.type defaults to static_response, options: static_response | file_server | templates | script
   - host: handler.example.work
     backend:
       # type: service
@@ -179,6 +179,31 @@ rules:
           handler:
             type: templates
             root_dir: /app/templates
+      - path: /custom/handler/script/js
+        backend:
+          type: handler
+          handler:
+            type: script
+            engine: javascript
+            script: |
+              ctx.response.status_code = 200
+              ctx.type = "application/json"
+              ctx.body = JSON.stringify({
+                "method": ctx.method,
+                "path": ctx.path
+              })
+              ctx.setHeader("X-Handler-Engine", "javascript")
+      - path: /custom/handler/script/go
+        backend:
+          type: handler
+          handler:
+            type: script
+            engine: go
+            script: |
+              ctx.Response.StatusCode = 200
+              ctx.Response.ContentType = "text/plain"
+              ctx.Response.Body = ctx.Request.Method + " " + ctx.Request.Path
+              ctx.Response.Headers["X-Handler-Engine"] = "go"
 
   - host: 't-120.example.work'
     backend:
