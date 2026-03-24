@@ -589,7 +589,7 @@ func TestBuild_HandlerBackendScriptGo(t *testing.T) {
 						Engine: scriptEngineGo,
 						Script: `
 ctx.SetHeader("X-Handler-Engine", "go")
-ctx.String(200, "%s %s", ctx.Method, ctx.Path)
+ctx.String(200, ctx.Method+" "+ctx.Path)
 `,
 					},
 				},
