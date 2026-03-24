@@ -56,4 +56,28 @@ rules:
       service:
         name: api-service
         port: 8081
+
+## FastCGI / PHP-FPM
+
+Ingress can talk to `php-fpm` directly via FastCGI by setting the service protocol to `fastcgi`:
+
+```yaml
+version: v1
+port: 8080
+
+rules:
+  - host: php.example.com
+    backend:
+      service:
+        protocol: fastcgi
+        # php-fpm listening on 127.0.0.1:9000
+        name: 127.0.0.1
+        port: 9000
+```
+
+Then configure your `php-fpm` to listen on `127.0.0.1:9000` (or a unix socket), and send requests with:
+
+```bash
+curl -H "Host: php.example.com" http://localhost:8080/
+```
 ```

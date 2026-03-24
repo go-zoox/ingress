@@ -12,6 +12,7 @@ require (
 	github.com/go-zoox/logger v1.6.3
 	github.com/go-zoox/proxy v1.5.6
 	github.com/go-zoox/zoox v1.16.4
+	github.com/yookoala/gofast v0.8.0
 )
 
 require (
@@ -112,6 +113,7 @@ require (
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
+	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/grpc v1.62.1 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect

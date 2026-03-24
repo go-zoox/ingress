@@ -1,0 +1,33 @@
+version: v1
+
+port: 8099
+
+rules:
+  # Example: proxy PHP application via FastCGI directly to php-fpm
+  - host: php.example.local
+    backend:
+      service:
+        # Tell ingress to use FastCGI protocol
+        protocol: fastcgi
+        fastcgi:
+          # Framework hint: apply ThinkPHP defaults
+          # - script.filename defaults to /public/index.php
+          # - document_root defaults to /var/www/html
+          framework: thinkphp
+          script:
+            # Optional: absolute root path on php-fpm side
+            # rootdir: /var/www/html
+            # Optional: override the entry script
+            # filename: /public/index.php
+            {}
+        #
+        # Option 1: php-fpm listening on TCP
+        #   php-fpm listen = 127.0.0.1:9000
+        name: 127.0.0.1
+        port: 9000
+
+        # Option 2: php-fpm listening on unix socket
+        #   php-fpm listen = /var/run/php/php-fpm.sock
+        # name: /var/run/php/php-fpm.sock
+        # port: 0
+

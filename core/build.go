@@ -113,6 +113,16 @@ func (c *core) build() error {
 			return false, false, proxy.NewHTTPError(500, err.Error())
 		}
 
+		// FastCGI: directly talk to php-fpm instead of HTTP proxy
+		if strings.EqualFold(serviceIns.Protocol, "fastcgi") {
+			if err := c.handleFastCGI(ctx, serviceIns); err != nil {
+				return false, false, err
+			}
+
+			ctx.Logger.Infof("[host: %s, target: fastcgi://%s] \"%s %s %s\" %d", hostname, serviceIns.Host(), method, path, ctx.Request.Proto, ctx.StatusCode())
+			return false, true, nil
+		}
+
 		ips, err := serviceIns.CheckDNS()
 		if err != nil {
 			logger.Errorf("check dns error: %s", err)
