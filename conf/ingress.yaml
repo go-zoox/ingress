@@ -192,6 +192,26 @@ rules:
               - token2-def456uvw
               - token3-ghi789rst
 
+  # PHP-FPM via FastCGI
+  - host: php.example.com
+    backend:
+      service:
+        # protocol fastcgi means ingress will talk FastCGI to php-fpm directly
+        protocol: fastcgi
+        # when port != 0, Name is php-fpm host (tcp)
+        # e.g. php-fpm listening on 127.0.0.1:9000
+        name: 127.0.0.1
+        port: 9000
+        fastcgi:
+          # FastCGI script location: { rootdir, filename }
+          script:
+            # document root on php-fpm side (default /var/www/html/public)
+            rootdir: /var/www/html/public
+            # php entry script (default index.php)
+            filename: index.php
+            # optional query parameter name for original path (e.g. ThinkPHP uses "s")
+            # param: s
+
 
 
   # Single user/token using array format (multiple format supports single)

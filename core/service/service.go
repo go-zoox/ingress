@@ -4,6 +4,8 @@ type Service struct {
 	Name     string `config:"name"`
 	Port     int64  `config:"port"`
 	Protocol string `config:"protocol,default=http"`
+	// FastCGI contains FastCGI-specific settings when Protocol == "fastcgi".
+	FastCGI FastCGI `config:"fastcgi"`
 	//
 	Request  Request  `config:"request"`
 	Response Response `config:"response"`
@@ -83,4 +85,23 @@ type BasicUser struct {
 
 type BearerAuth struct {
 	Tokens []string `config:"tokens"`
+}
+
+// FastCGI defines FastCGI-specific options for a service.
+type FastCGI struct {
+	// Framework is an optional hint for common PHP frameworks
+	// (e.g. "thinkphp"), used to apply sensible defaults and routing behavior.
+	Framework string `config:"framework"`
+	// Script describes the FastCGI script location.
+	// If not set, RootDir defaults to /var/www/html/public and Filename defaults to index.php.
+	Script Script `config:"script"`
+}
+
+// Script defines the FastCGI script mapping for php-fpm.
+type Script struct {
+	// RootDir is the document root on the php-fpm side,
+	// e.g. /var/www/html or /var/www/html/public.
+	RootDir string `config:"rootdir"`
+	// Filename is the php entry script, e.g. index.php.
+	Filename string `config:"filename"`
 }
