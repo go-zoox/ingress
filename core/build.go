@@ -2,8 +2,8 @@ package core
 
 import (
 	"context"
-	"html/template"
 	"fmt"
+	"html/template"
 	"mime"
 	"net/http"
 	"os"
@@ -237,6 +237,8 @@ func (c *core) build() error {
 			ctx.Request = ctx.Request.WithContext(timeoutCtx)
 		}
 
+		proxyStart := time.Now()
+
 		cfg.OnRequest = func(req, inReq *http.Request) error {
 			req.URL.Scheme = serviceIns.Protocol
 			req.URL.Host = serviceIns.Host()
@@ -295,10 +297,11 @@ func (c *core) build() error {
 
 			ctx.Writer.Header().Del("X-Powered-By")
 			ctx.Writer.Header().Set("X-Powered-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
+
+			ctx.Logger.Infof("[host: %s, target: %s] \"%s %s %s\" %d 耗时=%v", hostname, serviceIns.Target(), method, path, ctx.Request.Proto, res.StatusCode, time.Since(proxyStart))
+
 			return nil
 		}
-
-		ctx.Logger.Infof("[host: %s, target: %s] \"%s %s %s\" %d", hostname, serviceIns.Target(), method, path, ctx.Request.Proto, ctx.StatusCode())
 
 		return
 	}))
