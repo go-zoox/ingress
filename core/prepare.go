@@ -1,6 +1,8 @@
 package core
 
 import (
+	"fmt"
+
 	"github.com/go-zoox/kv"
 	"github.com/go-zoox/kv/redis"
 	"github.com/go-zoox/logger"
@@ -22,6 +24,12 @@ func (c *core) prepare() error {
 		if err := plugin.Prepare(c.app, c.cfg); err != nil {
 			return err
 		}
+	}
+
+	var err error
+	c.router, err = compileRouterIndex(c.cfg.Rules, c.cfg.Fallback)
+	if err != nil {
+		return fmt.Errorf("compile router: %w", err)
 	}
 
 	return nil

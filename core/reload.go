@@ -9,7 +9,7 @@ func (c *core) Reload(cfg *Config) error {
 		return fmt.Errorf("failed to prepare: %s", err)
 	}
 
-	// @TODO clear cache
+	// prepare() -> prepareCache() clears the configured cache backend (same as startup).
 
 	return nil
 }
