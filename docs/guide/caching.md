@@ -114,7 +114,7 @@ With a prefix, cache keys are formatted as:
 {prefix}{key}
 ```
 
-For example, with `prefix: ingress:`, a key `match.host:example.com` becomes `ingress:match.host:example.com`.
+For example, with `prefix: ingress:`, a host routing cache key `match.host:v2:example.com` becomes `ingress:match.host:v2:example.com`. The `v2` segment denotes the cached value shape; it may change in future releases.
 
 ## What Gets Cached
 
@@ -134,7 +134,7 @@ Caching routing decisions is particularly beneficial when:
 Cache entries are automatically invalidated when:
 
 1. **TTL Expires**: Entries expire after the configured TTL
-2. **Configuration Reload**: Reloading configuration clears relevant cache entries
+2. **Configuration Reload**: `Reload` runs `prepare()`, which clears the configured cache backend (same as startup). Stale host entries are therefore removed on reload; rely on TTL for gradual expiry if you rely on external cache tooling.
 3. **Manual Invalidation**: Some cache entries may be invalidated on specific events
 
 ## Cache Performance

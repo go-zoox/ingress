@@ -323,10 +323,20 @@ rules:
 
 This matches any subdomain of `example.work` and routes to the same backend service.
 
+## How matching is built (precompilation)
+
+Ingress does **not** compile regular expressions on every request for host and path rules.
+
+- When the process **starts** or when configuration is **reloaded**, `prepare()` builds an internal **router index** (`core/compile.go`): each `host` pattern (for `host_type: regex` or `wildcard`) and each `paths[].path` pattern is compiled once with Go’s `regexp` package.
+- **Rule order in your config is preserved.** Matching walks rules in order; the **first** matching host rule wins, and within a host the **first** matching path wins (same semantics as before this optimization).
+- If any pattern is **invalid** (e.g. bad regex in `host` or `path`), **startup or `Reload` fails** with an error. You must fix the configuration before Ingress accepts traffic. This replaces the older behavior where some invalid patterns might only surface on the first matching request.
+
+The per-request proxy path still uses the precompiled index. Separately, if caching is enabled, **per-host** routing decisions may be stored under a key shaped like `match.host:v2:<hostname>` (see [Caching](./caching.md)) until `cache.ttl` expires.
+
 ## Best Practices
 
 1. **Order matters**: Place more specific rules before general ones
 2. **Use exact matching when possible**: It's faster than regex or wildcard matching
-3. **Test regex patterns**: Ensure your regex patterns match as expected
+3. **Test regex patterns**: Ensure your regex patterns match as expected; invalid patterns fail at startup or reload
 4. **Use path routing**: Organize routes by path for better maintainability
 5. **Set up fallback**: Always configure a fallback service for unmatched requests

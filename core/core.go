@@ -25,6 +25,8 @@ type core struct {
 	version string
 	cfg     *Config
 
+	router *routerIndex
+
 	plugins []Plugin
 }
 

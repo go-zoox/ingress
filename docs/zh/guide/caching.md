@@ -114,7 +114,7 @@ Ingress 在启动时连接到 Redis。如果 Redis 不可用：
 {prefix}{key}
 ```
 
-例如，使用 `prefix: ingress:`，键 `match.host:example.com` 变为 `ingress:match.host:example.com`。
+例如，使用 `prefix: ingress:`，主机路由缓存键 `match.host:v2:example.com` 变为 `ingress:match.host:v2:example.com`。其中 `v2` 表示缓存值结构版本，后续版本可能调整。
 
 ## 缓存内容
 
@@ -134,7 +134,7 @@ Ingress 缓存：
 缓存条目在以下情况下自动失效：
 
 1. **TTL 过期**：条目在配置的 TTL 后过期
-2. **配置重新加载**：重新加载配置会清除相关缓存条目
+2. **配置重新加载**：`Reload` 会执行 `prepare()`，并清空已配置的缓存后端（与启动时一致），因此重载后会清除旧条目；若依赖外部缓存工具，仍建议结合 TTL 做渐进失效。
 3. **手动失效**：某些缓存条目可能在特定事件上失效
 
 ## 缓存性能
