@@ -285,7 +285,7 @@ func (c *core) build() error {
 
 		cfg.OnResponse = func(res *http.Response, inReq *http.Request) error {
 			for k, v := range serviceIns.Response.Headers {
-				ctx.Writer.Header().Set(k, v)
+				res.Header.Set(k, v)
 			}
 
 			// plugins
@@ -295,8 +295,7 @@ func (c *core) build() error {
 				}
 			}
 
-			ctx.Writer.Header().Del("X-Powered-By")
-			ctx.Writer.Header().Set("X-Powered-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
+			res.Header.Set("X-Powered-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
 
 			ctx.Logger.Infof("[host: %s, target: %s] \"%s %s %s\" %d 耗时=%v", hostname, serviceIns.Target(), method, path, ctx.Request.Proto, res.StatusCode, time.Since(proxyStart))
 
