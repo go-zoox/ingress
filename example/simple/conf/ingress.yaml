@@ -35,6 +35,9 @@ rules:
         protocol: https
         name: httpbin.zcorky.com
         port: 443
+        request:
+          host:
+            rewrite: true
   - host: httpbin2.example.work
     backend:
       service:
