@@ -35,7 +35,35 @@ rules:
         port: 8080
 ```
 
-In this example, `$1` refers to the first capture group in the regex pattern. A request to `t-myapp.example.work` will be routed to `task.myapp.svc`.
+In this example, `$1` refers to the first capture group in the host regex pattern. A request to `t-myapp.example.work` will be routed to `task.myapp.svc`.
+
+### Service Name Capture Templates
+
+When `host_type: regex` is used, you can compose service names with scoped capture templates (advanced usage):
+
+- `${host.<index>}`: capture groups from the host regex
+- `${path.<index>}`: capture groups from the matched path regex
+
+```yaml
+rules:
+  - host: ^t-(\w+)-(dev|prod).example.work$
+    host_type: regex
+    backend:
+      service:
+        name: task.${host.1}.${host.2}.svc
+        port: 8080
+    paths:
+      - path: ^/api/v1/([^/]+)/([^/]+)$
+        backend:
+          service:
+            name: ${path.2}.${path.1}.${host.2}.${host.1}.svc
+            port: 8080
+```
+
+Compatibility notes:
+
+- Legacy `$1`, `$2`, ... in `service.name` are the preferred baseline and remain fully supported for host-regex captures.
+- Path rewrite rules keep using the rewrite syntax with `$1`, `$2`, ... (for example `^/api/(.*):/v2/$1`).
 
 ### Wildcard Matching
 
