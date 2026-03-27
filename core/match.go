@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,8 @@ type HostMatcher struct {
 	Rule *rule.Rule
 	// ruleIndex is the index in cfg.Rules; -1 when Rule is synthetic (e.g. fallback).
 	ruleIndex int
+	// hostSubmatches stores regex captures, where index 0 is the full match.
+	hostSubmatches []string
 }
 
 func getBackendType(backend rule.Backend) string {
@@ -108,17 +111,18 @@ func matchHostIndex(router *routerIndex, rules []rule.Rule, fallback rule.Backen
 			if e.exactHost != host {
 				continue
 			}
-			return hostMatcherFromMatchedRule(r, host, "", e.ruleIndex)
+			return hostMatcherFromMatchedRule(r, host, "", nil, e.ruleIndex)
 		case "regex":
-			if !e.re.MatchString(host) {
+			submatches := e.re.FindStringSubmatch(host)
+			if submatches == nil {
 				continue
 			}
-			return hostMatcherFromMatchedRule(r, host, r.Host, e.ruleIndex)
+			return hostMatcherFromMatchedRule(r, host, r.Host, submatches, e.ruleIndex)
 		case "wildcard":
 			if !e.re.MatchString(host) {
 				continue
 			}
-			return hostMatcherFromMatchedRule(r, host, e.wildcardRewriterFrom, e.ruleIndex)
+			return hostMatcherFromMatchedRule(r, host, e.wildcardRewriterFrom, nil, e.ruleIndex)
 		}
 	}
 
@@ -143,7 +147,7 @@ func matchHostIndex(router *routerIndex, rules []rule.Rule, fallback rule.Backen
 	return nil, ErrHostNotFound
 }
 
-func hostMatcherFromMatchedRule(rule *rule.Rule, host string, rewriterFrom string, ruleIndex int) (*HostMatcher, error) {
+func hostMatcherFromMatchedRule(rule *rule.Rule, host string, rewriterFrom string, hostSubmatches []string, ruleIndex int) (*HostMatcher, error) {
 	backendType := getBackendType(rule.Backend)
 	if backendType == backendTypeHandler {
 		return &HostMatcher{
@@ -151,6 +155,7 @@ func hostMatcherFromMatchedRule(rule *rule.Rule, host string, rewriterFrom strin
 			IsPathsExist: len(rule.Paths) != 0,
 			Rule:         rule,
 			ruleIndex:    ruleIndex,
+			hostSubmatches: hostSubmatches,
 		}, nil
 	}
 	if backendType != backendTypeService {
@@ -161,33 +166,42 @@ func hostMatcherFromMatchedRule(rule *rule.Rule, host string, rewriterFrom strin
 		return &HostMatcher{
 			Service: &service.Service{
 				Protocol: rule.Backend.Service.Protocol,
-				Name:     rule.Backend.Service.Name,
+				Name: renderServiceName(
+					rule.Backend.Service.Name,
+					"",
+					host,
+					hostSubmatches,
+					nil,
+				),
 				Port:     rule.Backend.Service.Port,
 				Request:  rule.Backend.Service.Request,
 				Response: rule.Backend.Service.Response,
 			},
-			IsPathsExist: len(rule.Paths) != 0,
-			Rule:         rule,
-			ruleIndex:    ruleIndex,
+			IsPathsExist:   len(rule.Paths) != 0,
+			Rule:           rule,
+			ruleIndex:      ruleIndex,
+			hostSubmatches: hostSubmatches,
 		}, nil
-	}
-
-	hostRewriter := rewriter.Rewriter{
-		From: rewriterFrom,
-		To:   rule.Backend.Service.Name,
 	}
 
 	return &HostMatcher{
 		Service: &service.Service{
 			Protocol: rule.Backend.Service.Protocol,
-			Name:     hostRewriter.Rewrite(host),
+			Name: renderServiceName(
+				rule.Backend.Service.Name,
+				rewriterFrom,
+				host,
+				hostSubmatches,
+				nil,
+			),
 			Port:     rule.Backend.Service.Port,
 			Request:  rule.Backend.Service.Request,
 			Response: rule.Backend.Service.Response,
 		},
-		IsPathsExist: len(rule.Paths) != 0,
-		Rule:         rule,
-		ruleIndex:    ruleIndex,
+		IsPathsExist:   len(rule.Paths) != 0,
+		Rule:           rule,
+		ruleIndex:      ruleIndex,
+		hostSubmatches: hostSubmatches,
 	}, nil
 }
 
@@ -197,20 +211,21 @@ func matchPathWithRouter(router *routerIndex, rules []rule.Rule, ruleIdx int, pa
 	}
 	matchedRule := &rules[ruleIdx]
 	for _, cp := range router.pathsByRule[ruleIdx] {
-		if !cp.re.MatchString(path) {
+		pathSubmatches := cp.re.FindStringSubmatch(path)
+		if pathSubmatches == nil {
 			continue
 		}
 		rp := &rules[ruleIdx].Paths[cp.pathIndex]
-		return pathMatchResultWithHost(rp, matchedRule, host)
+		return pathMatchResultWithHost(rp, matchedRule, host, nil, pathSubmatches)
 	}
 	return nil, nil, ErrPathNotFound
 }
 
 func pathMatchResult(rpath *rule.Path) (*service.Service, *rule.Path, error) {
-	return pathMatchResultWithHost(rpath, nil, "")
+	return pathMatchResultWithHost(rpath, nil, "", nil, nil)
 }
 
-func pathMatchResultWithHost(rpath *rule.Path, matchedRule *rule.Rule, host string) (*service.Service, *rule.Path, error) {
+func pathMatchResultWithHost(rpath *rule.Path, matchedRule *rule.Rule, host string, hostSubmatches []string, pathSubmatches []string) (*service.Service, *rule.Path, error) {
 	backendType := getBackendType(rpath.Backend)
 	if backendType == backendTypeHandler {
 		return nil, rpath, nil
@@ -220,13 +235,17 @@ func pathMatchResultWithHost(rpath *rule.Path, matchedRule *rule.Rule, host stri
 	}
 
 	name := rpath.Backend.Service.Name
-	if matchedRule != nil && matchedRule.HostType == "regex" && host != "" {
-		hostRewriter := rewriter.Rewriter{
-			From: matchedRule.Host,
-			To:   name,
+	rewriterFrom := ""
+	if matchedRule != nil && matchedRule.HostType == "regex" {
+		rewriterFrom = matchedRule.Host
+		if len(hostSubmatches) == 0 && host != "" {
+			re, err := regexp.Compile(matchedRule.Host)
+			if err == nil {
+				hostSubmatches = re.FindStringSubmatch(host)
+			}
 		}
-		name = hostRewriter.Rewrite(host)
 	}
+	name = renderServiceName(name, rewriterFrom, host, hostSubmatches, pathSubmatches)
 
 	return &service.Service{
 		Protocol: rpath.Backend.Service.Protocol,
@@ -250,6 +269,47 @@ func MatchPath(paths []rule.Path, path string) (r *service.Service, matchedPath 
 	}
 
 	return nil, nil, ErrPathNotFound
+}
+
+var serviceNameTemplateRegexp = regexp.MustCompile(`\$\{(host|path)\.(\d+)\}`)
+
+func renderServiceName(raw string, legacyHostPattern string, host string, hostSubmatches []string, pathSubmatches []string) string {
+	name := serviceNameTemplateRegexp.ReplaceAllStringFunc(raw, func(token string) string {
+		match := serviceNameTemplateRegexp.FindStringSubmatch(token)
+		if len(match) != 3 {
+			return token
+		}
+		index, err := strconv.Atoi(match[2])
+		if err != nil {
+			return token
+		}
+
+		var captures []string
+		switch match[1] {
+		case "host":
+			captures = hostSubmatches
+		case "path":
+			captures = pathSubmatches
+		default:
+			return token
+		}
+
+		if index < 0 || index >= len(captures) {
+			return token
+		}
+		return captures[index]
+	})
+
+	// Backward compatibility for legacy $1/$2 host capture syntax.
+	if legacyHostPattern != "" && host != "" {
+		hostRewriter := rewriter.Rewriter{
+			From: legacyHostPattern,
+			To:   name,
+		}
+		name = hostRewriter.Rewrite(host)
+	}
+
+	return name
 }
 
 // stackoverflow: https://stackoverflow.com/questions/64509506/golang-determine-if-string-contains-a-string-with-wildcards
