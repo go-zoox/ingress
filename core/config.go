@@ -17,6 +17,11 @@ type Config struct {
 	//
 	HealthCheck HealthCheck `config:"healthcheck"`
 	//
+	// ErrorPageExposeDetails includes host, path, method, and error strings in route-miss
+	// HTML responses. Leave false (default) on public-facing ingress; enable only for
+	// staging or trusted networks to avoid leaking internal details to clients.
+	ErrorPageExposeDetails bool `config:"error_page_expose_details"`
+	//
 	// Match func(host string, path string) (cfg *service.Service, err error)
 }
 
