@@ -322,6 +322,85 @@ func TestMatchServiceNameTemplateWithHostAndPathCaptures(t *testing.T) {
 	}
 }
 
+func TestMatchServiceNameTemplateWithIndexedCaptures(t *testing.T) {
+	rules := []rule.Rule{
+		{
+			Host:     "^t-(\\w+)-(dev|prod).example.work$",
+			HostType: "regex",
+			Backend: rule.Backend{
+				Service: service.Service{
+					Protocol: "http",
+					Name:     "${host.2}-${host.1}.svc",
+					Port:     8080,
+				},
+			},
+			Paths: []rule.Path{
+				{
+					Path: "^/api/v1/([^/]+)/([^/]+)$",
+					Backend: rule.Backend{
+						Service: service.Service{
+							Protocol: "http",
+							Name:     "${path.2}.${path.1}.${host.2}.${host.1}.svc",
+							Port:     8080,
+						},
+					},
+				},
+				{
+					Path: "^/api/v2/([^/]+)$",
+					Backend: rule.Backend{
+						Service: service.Service{
+							Protocol: "http",
+							Name:     "${path.9}.${host.9}.svc",
+							Port:     8080,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	hm, err := MatchHost(rules, rule.Backend{}, "t-zero-dev.example.work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hm.Service == nil {
+		t.Fatal("expected host service, got nil")
+	}
+	if hm.Service.Name != "dev-zero.svc" {
+		t.Fatalf("expected dev-zero.svc, got %s", hm.Service.Name)
+	}
+
+	idx, err := compileRouterIndex(rules, rule.Backend{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s, matchedPath, err := matchPathWithRouter(idx, rules, 0, "/api/v1/order/create", "t-zero-dev.example.work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if matchedPath == nil {
+		t.Fatal("expected matchedPath, got nil")
+	}
+	if s == nil {
+		t.Fatal("expected service, got nil")
+	}
+	if s.Name != "create.order.dev.zero.svc" {
+		t.Fatalf("expected create.order.dev.zero.svc, got %s", s.Name)
+	}
+
+	s, _, err = matchPathWithRouter(idx, rules, 0, "/api/v2/onlyone", "t-zero-dev.example.work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s == nil {
+		t.Fatal("expected service, got nil")
+	}
+	if s.Name != "${path.9}.${host.9}.svc" {
+		t.Fatalf("expected unresolved placeholders, got %s", s.Name)
+	}
+}
+
 func TestMatchHostWithFallback(t *testing.T) {
 	rules := []rule.Rule{
 		{
