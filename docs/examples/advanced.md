@@ -13,13 +13,13 @@ rules:
     host_type: regex
     backend:
       service:
-        name: task.$1.svc
+        name: task.${host.1}.svc
         port: 8080
     paths:
       - path: /api/v1/([^/]+)
         backend:
           service:
-            name: $1.example.work
+            name: ${path.1}.${host.1}.example.work
             port: 8080
             request:
               path:
@@ -29,7 +29,7 @@ rules:
 
 This example:
 - Matches hosts like `t-myapp.example.work` using regex
-- Routes to `task.myapp.svc` using the captured group `$1`
+- Routes using scoped captures in `service.name` (`${host.<index>}` and `${path.<index>}`)
 - Rewrites paths for specific API routes
 
 ## Wildcard Host Matching

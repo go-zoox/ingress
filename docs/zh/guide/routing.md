@@ -35,7 +35,35 @@ rules:
         port: 8080
 ```
 
-在此示例中，`$1` 引用正则表达式模式中的第一个捕获组。对 `t-myapp.example.work` 的请求将被路由到 `task.myapp.svc`。
+在此示例中，`$1` 引用 host 正则中的第一个捕获组。对 `t-myapp.example.work` 的请求将被路由到 `task.myapp.svc`。
+
+### Service 名称捕获模板
+
+当使用 `host_type: regex` 时，也可以在 `service.name` 中使用带作用域的捕获模板（高级用法）：
+
+- `${host.<索引>}`：来自 host 正则的捕获组
+- `${path.<索引>}`：来自命中 path 正则的捕获组
+
+```yaml
+rules:
+  - host: ^t-(\w+)-(dev|prod).example.work$
+    host_type: regex
+    backend:
+      service:
+        name: task.${host.1}.${host.2}.svc
+        port: 8080
+    paths:
+      - path: ^/api/v1/([^/]+)/([^/]+)$
+        backend:
+          service:
+            name: ${path.2}.${path.1}.${host.2}.${host.1}.svc
+            port: 8080
+```
+
+兼容性说明：
+
+- `service.name` 中旧写法 `$1`、`$2`...（基于 host 正则）是默认优先/基础用法，并持续完全兼容。
+- `request.path.rewrites` 仍使用重写语法里的 `$1`、`$2`...（例如 `^/api/(.*):/v2/$1`）。
 
 ### 通配符匹配
 

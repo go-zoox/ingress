@@ -13,13 +13,13 @@ rules:
     host_type: regex
     backend:
       service:
-        name: task.$1.svc
+        name: task.${host.1}.svc
         port: 8080
     paths:
       - path: /api/v1/([^/]+)
         backend:
           service:
-            name: $1.example.work
+            name: ${path.1}.${host.1}.example.work
             port: 8080
             request:
               path:
@@ -29,7 +29,7 @@ rules:
 
 此示例：
 - 使用正则表达式匹配像 `t-myapp.example.work` 这样的主机
-- 使用捕获组 `$1` 路由到 `task.myapp.svc`
+- 在 `service.name` 中使用带作用域捕获（`${host.<索引>}` 与 `${path.<索引>}`）进行路由
 - 为特定 API 路由重写路径
 
 ## 通配符主机匹配
