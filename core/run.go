@@ -91,7 +91,7 @@ func (c *core) serveHTTP(ctx context.Context) error {
 	}
 
 	go func() {
-		<-ctx.Done() // 当上下文被取消时，停止服务器
+		<-ctx.Done() // stop server when context is cancelled
 		server.Close()
 	}()
 
@@ -189,7 +189,7 @@ func (c *core) serveHTTPs(ctx context.Context) error {
 	}
 
 	go func() {
-		<-ctx.Done() // 当上下文被取消时，停止服务器
+		<-ctx.Done() // stop server when context is cancelled
 		server.Close()
 	}()
 

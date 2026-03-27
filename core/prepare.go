@@ -9,12 +9,11 @@ import (
 )
 
 func (c *core) prepare() error {
-	// 补全配置
+	// default config when unset
 	if c.cfg.Cache.TTL == 0 {
 		c.cfg.Cache.TTL = 60
 	}
 
-	// 补全配置
 	c.app.Config.Logger.Middleware.Disabled = true
 
 	// prepare cache

@@ -46,10 +46,19 @@ func (c *core) build() error {
 
 		serviceIns, matchedRule, pathBackend, err := c.match(ctx, hostname, path)
 		if err != nil {
-			logger.Errorf("failed to match rule (host: %s, path: %s): %s", hostname, path, err)
-
-			// service not found
-			return false, false, proxy.NewHTTPError(404, "Not Found")
+			logger.Warnf("no route matched (host: %s, path: %s): %s", hostname, path, err)
+			if c.cfg.ErrorPageExposeDetails {
+				writeIngressErrorPage(ctx, http.StatusNotFound,
+					"Route not found",
+					"No ingress rule matched this request.",
+					true, hostname, path, method, matchErrorReason(err))
+			} else {
+				writeIngressErrorPage(ctx, http.StatusNotFound,
+					"Not Found",
+					"The requested resource could not be found.",
+					false, "", "", "", "")
+			}
+			return false, true, nil
 		}
 
 		// redirect: check path-level redirect first, then host-level redirect
@@ -102,10 +111,12 @@ func (c *core) build() error {
 		}
 
 		if handlerCfg != nil {
+			handlerStart := time.Now()
 			handlerType := handlerCfg.Type
 			if handlerType == "" {
 				handlerType = handlerTypeStaticResponse
 			}
+			handlerStatusCode := http.StatusOK
 
 			switch handlerType {
 			case handlerTypeStaticResponse:
@@ -117,6 +128,7 @@ func (c *core) build() error {
 				if statusCode == 0 {
 					statusCode = http.StatusOK
 				}
+				handlerStatusCode = statusCode
 				ctx.Status(statusCode)
 				ctx.Writer.Write([]byte(handlerCfg.Body))
 			case handlerTypeFileServer:
@@ -143,6 +155,7 @@ func (c *core) build() error {
 				if contentType := mime.TypeByExtension(filepath.Ext(targetFilePath)); contentType != "" {
 					ctx.Writer.Header().Set("Content-Type", contentType)
 				}
+				handlerStatusCode = http.StatusOK
 				ctx.Status(http.StatusOK)
 				ctx.Writer.Write(content)
 			case handlerTypeTemplates:
@@ -162,6 +175,7 @@ func (c *core) build() error {
 				}
 
 				ctx.Status(http.StatusOK)
+				handlerStatusCode = http.StatusOK
 				if err := tpl.Execute(ctx.Writer, map[string]any{
 					"Path":   ctx.Path,
 					"Method": ctx.Method,
@@ -172,10 +186,24 @@ func (c *core) build() error {
 				if err := executeHandlerScript(ctx, handlerCfg); err != nil {
 					return false, false, proxy.NewHTTPError(http.StatusInternalServerError, err.Error())
 				}
-				return false, true, nil
+				handlerStatusCode = int(handlerCfg.StatusCode)
+				if handlerStatusCode == 0 {
+					handlerStatusCode = http.StatusOK
+				}
 			default:
 				return false, false, proxy.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("unsupported handler.type: %s", handlerType))
 			}
+
+			ctx.Logger.Infof(
+				"[host: %s, target: handler/%s] \"%s %s %s\" %d %.3fs",
+				hostname,
+				handlerType,
+				method,
+				path,
+				ctx.Request.Proto,
+				handlerStatusCode,
+				time.Since(handlerStart).Seconds(),
+			)
 
 			return false, true, nil
 		}
@@ -208,15 +236,37 @@ func (c *core) build() error {
 
 		ips, err := serviceIns.CheckDNS()
 		if err != nil {
-			logger.Errorf("check dns error: %s", err)
+			logger.Errorf("check dns error (service=%s host=%s path=%s): %s", serviceIns.Name, hostname, path, err)
 
 			// exact service specify
 			if matchedRule.HostType == "exact" {
-				return false, false, proxy.NewHTTPError(503, "Service Unavailable")
+				if c.cfg.ErrorPageExposeDetails {
+					writeIngressErrorPage(ctx, http.StatusServiceUnavailable,
+						"Service unavailable",
+						"The upstream service could not be resolved or reached.",
+						true, hostname, path, method, err.Error())
+				} else {
+					writeIngressErrorPage(ctx, http.StatusServiceUnavailable,
+						"Service Unavailable",
+						"The service is temporarily unavailable. Please try again later.",
+						false, "", "", "", "")
+				}
+				return false, true, nil
 			}
 
 			// regular expression service specify, maybe the service is not found
-			return false, false, proxy.NewHTTPError(404, "Service Not Found")
+			if c.cfg.ErrorPageExposeDetails {
+				writeIngressErrorPage(ctx, http.StatusNotFound,
+					"Upstream not found",
+					"DNS did not resolve this service.",
+					true, hostname, path, method, fmt.Sprintf("Service: %s · %s", serviceIns.Name, err.Error()))
+			} else {
+				writeIngressErrorPage(ctx, http.StatusNotFound,
+					"Not Found",
+					"The requested resource could not be found.",
+					false, "", "", "", "")
+			}
+			return false, true, nil
 		}
 
 		ctx.Logger.Debugf("[dns] service(%s) is ok (ips: %s)", serviceIns.Name, strings.Join(ips, ", "))
@@ -297,7 +347,16 @@ func (c *core) build() error {
 
 			res.Header.Set("X-Powered-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
 
-			ctx.Logger.Infof("[host: %s, target: %s] \"%s %s %s\" %d 耗时=%v", hostname, serviceIns.Target(), method, path, ctx.Request.Proto, res.StatusCode, time.Since(proxyStart))
+			ctx.Logger.Infof(
+				"[host: %s, target: %s] \"%s %s %s\" %d %.3fs",
+				hostname,
+				serviceIns.Target(),
+				method,
+				path,
+				ctx.Request.Proto,
+				res.StatusCode,
+				time.Since(proxyStart).Seconds(),
+			)
 
 			return nil
 		}
