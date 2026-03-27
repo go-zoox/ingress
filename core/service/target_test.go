@@ -21,4 +21,14 @@ func TestTarget(t *testing.T) {
 	if s.Target() != "https://portainer:80" {
 		t.Fatalf("expected https://portainer:80, got %s", s.Target())
 	}
+
+	s = &Service{Name: "api", Port: 80, Protocol: "http"}
+	if s.Target() != "http://api" {
+		t.Fatalf("expected http://api (default port omitted), got %s", s.Target())
+	}
+
+	s = &Service{Name: "api", Port: 443, Protocol: "https"}
+	if s.Target() != "https://api" {
+		t.Fatalf("expected https://api (default port omitted), got %s", s.Target())
+	}
 }
