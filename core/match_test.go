@@ -218,6 +218,53 @@ func TestMatchHostRewriteName(t *testing.T) {
 	}
 }
 
+func TestMatchHostRewriteNameForPathBackend(t *testing.T) {
+	rules := []rule.Rule{
+		{
+			Host:     "^t-(\\w+).example.work",
+			HostType: "regex",
+			Backend: rule.Backend{
+				Service: service.Service{
+					Protocol: "http",
+					Name:     "task.$1.svc",
+					Port:     8080,
+				},
+			},
+			Paths: []rule.Path{
+				{
+					Path: "/api/v1/[^/]+",
+					Backend: rule.Backend{
+						Service: service.Service{
+							Protocol: "http",
+							Name:     "$1.example.work",
+							Port:     8080,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	idx, err := compileRouterIndex(rules, rule.Backend{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s, matchedPath, err := matchPathWithRouter(idx, rules, 0, "/api/v1/demo", "t-zero.example.work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if matchedPath == nil {
+		t.Fatal("expected matchedPath, got nil")
+	}
+	if s == nil {
+		t.Fatal("expected service, got nil")
+	}
+	if s.Name != "zero.example.work" {
+		t.Fatalf("expected zero.example.work, got %s", s.Name)
+	}
+}
+
 func TestMatchHostWithFallback(t *testing.T) {
 	rules := []rule.Rule{
 		{

@@ -59,7 +59,7 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 
 	// paths
 	if matcher.IsPathsExist && matcher.ruleIndex >= 0 {
-		ps, matchedPath, err := matchPathWithRouter(c.router, c.cfg.Rules, matcher.ruleIndex, path)
+		ps, matchedPath, err := matchPathWithRouter(c.router, c.cfg.Rules, matcher.ruleIndex, path, host)
 		if err != nil {
 			if !errors.Is(err, ErrPathNotFound) {
 				return nil, nil, nil, err
@@ -191,21 +191,26 @@ func hostMatcherFromMatchedRule(rule *rule.Rule, host string, rewriterFrom strin
 	}, nil
 }
 
-func matchPathWithRouter(router *routerIndex, rules []rule.Rule, ruleIdx int, path string) (r *service.Service, matchedPath *rule.Path, err error) {
+func matchPathWithRouter(router *routerIndex, rules []rule.Rule, ruleIdx int, path string, host string) (r *service.Service, matchedPath *rule.Path, err error) {
 	if ruleIdx < 0 || ruleIdx >= len(rules) {
 		return nil, nil, ErrPathNotFound
 	}
+	matchedRule := &rules[ruleIdx]
 	for _, cp := range router.pathsByRule[ruleIdx] {
 		if !cp.re.MatchString(path) {
 			continue
 		}
 		rp := &rules[ruleIdx].Paths[cp.pathIndex]
-		return pathMatchResult(rp)
+		return pathMatchResultWithHost(rp, matchedRule, host)
 	}
 	return nil, nil, ErrPathNotFound
 }
 
 func pathMatchResult(rpath *rule.Path) (*service.Service, *rule.Path, error) {
+	return pathMatchResultWithHost(rpath, nil, "")
+}
+
+func pathMatchResultWithHost(rpath *rule.Path, matchedRule *rule.Rule, host string) (*service.Service, *rule.Path, error) {
 	backendType := getBackendType(rpath.Backend)
 	if backendType == backendTypeHandler {
 		return nil, rpath, nil
@@ -214,9 +219,18 @@ func pathMatchResult(rpath *rule.Path) (*service.Service, *rule.Path, error) {
 		return nil, nil, fmt.Errorf("unsupport backend type: %s", backendType)
 	}
 
+	name := rpath.Backend.Service.Name
+	if matchedRule != nil && matchedRule.HostType == "regex" && host != "" {
+		hostRewriter := rewriter.Rewriter{
+			From: matchedRule.Host,
+			To:   name,
+		}
+		name = hostRewriter.Rewrite(host)
+	}
+
 	return &service.Service{
 		Protocol: rpath.Backend.Service.Protocol,
-		Name:     rpath.Backend.Service.Name,
+		Name:     name,
 		Port:     rpath.Backend.Service.Port,
 		Request:  rpath.Backend.Service.Request,
 		Response: rpath.Backend.Service.Response,

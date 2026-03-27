@@ -70,7 +70,7 @@ func BenchmarkMatchPathWithRouter_lastPath(b *testing.B) {
 	const wantPath = "/p49"
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, _, err := matchPathWithRouter(idx, rules, 0, wantPath); err != nil {
+		if _, _, err := matchPathWithRouter(idx, rules, 0, wantPath, "a.example.com"); err != nil {
 			b.Fatal(err)
 		}
 	}
