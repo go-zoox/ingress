@@ -66,7 +66,7 @@ ____________________________________O/_______
 				}
 			}
 
-			return "", "", fmt.Errorf("certificate or certificate key not found")
+			return "", "", fmt.Errorf("certificate not found for sni(%s)", sni)
 		})
 	}
 
