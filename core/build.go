@@ -195,14 +195,14 @@ func (c *core) build() error {
 			}
 
 			ctx.Logger.Infof(
-				"[host: %s, target: handler/%s] \"%s %s %s\" %d %.3fs",
+				"[host: %s, target: handler/%s] \"%s %s %s\" %d %v",
 				hostname,
 				handlerType,
 				method,
 				path,
 				ctx.Request.Proto,
 				handlerStatusCode,
-				time.Since(handlerStart).Seconds(),
+				time.Since(handlerStart),
 			)
 
 			return false, true, nil
@@ -348,14 +348,14 @@ func (c *core) build() error {
 			res.Header.Set("X-Powered-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
 
 			ctx.Logger.Infof(
-				"[host: %s, target: %s] \"%s %s %s\" %d %.3fs",
+				"[host: %s, target: %s] \"%s %s %s\" %d %v",
 				hostname,
 				serviceIns.Target(),
 				method,
 				path,
 				ctx.Request.Proto,
 				res.StatusCode,
-				time.Since(proxyStart).Seconds(),
+				time.Since(proxyStart),
 			)
 
 			return nil
