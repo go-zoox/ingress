@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,60 @@ import (
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/service"
 )
+
+func TestBuild_AccessLogExtraFields_WithTLS(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "https://example.com/orders?id=1", nil)
+	req.Header.Set("Referer", "https://portal.example.com/list")
+	req.Header.Set("User-Agent", "ingress-test-agent")
+	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
+	req.TLS = &tls.ConnectionState{
+		Version:      tls.VersionTLS13,
+		CipherSuite:  tls.TLS_AES_128_GCM_SHA256,
+		NegotiatedProtocol: "h2",
+	}
+
+	extra := buildAccessLogExtraFields(req, 200, 456, 123*time.Millisecond)
+
+	required := []string{
+		`referer="https://portal.example.com/list"`,
+		`ua="ingress-test-agent"`,
+		`xff="10.0.0.1, 10.0.0.2"`,
+		`tls_protocol="TLS 1.3"`,
+		`tls_cipher="TLS_AES_128_GCM_SHA256"`,
+		`upstream_status=200`,
+		`upstream_response_length=456`,
+		`upstream_response_time=123ms`,
+	}
+
+	for _, item := range required {
+		if !strings.Contains(extra, item) {
+			t.Fatalf("expected extra fields to contain %q, got: %s", item, extra)
+		}
+	}
+}
+
+func TestBuild_AccessLogExtraFields_WithoutTLS(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/health", nil)
+
+	extra := buildAccessLogExtraFields(req, 503, -1, 27*time.Millisecond)
+
+	required := []string{
+		`referer="-"`,
+		`ua="-"`,
+		`xff="-"`,
+		`tls_protocol="-"`,
+		`tls_cipher="-"`,
+		`upstream_status=503`,
+		`upstream_response_length=-1`,
+		`upstream_response_time=27ms`,
+	}
+
+	for _, item := range required {
+		if !strings.Contains(extra, item) {
+			t.Fatalf("expected extra fields to contain %q, got: %s", item, extra)
+		}
+	}
+}
 
 func TestBuild_RequestDelay(t *testing.T) {
 	cfg := &Config{
