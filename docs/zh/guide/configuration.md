@@ -134,7 +134,8 @@ fallback:
 ```yaml
 rules:
   - host: example.com           # 要匹配的主机
-    host_type: exact            # 匹配类型：exact、regex、wildcard
+    # host_type: 可选 — 省略或写 auto 时在编译阶段根据 host 推断 exact / regex / wildcard
+    # 显式取值：exact、regex、wildcard
     backend:
       type: service             # 后端类型：service（默认）或 handler
       service:

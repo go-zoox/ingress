@@ -4,11 +4,47 @@ Ingress 提供灵活的路由功能来匹配请求并将它们路由到相应的
 
 ## 主机匹配
 
-主机匹配是路由请求的主要方式。Ingress 支持三种类型的主机匹配：
+主机匹配是路由请求的主要方式。Ingress 支持三种主机匹配方式：**精确（exact）**、**正则（regex）**、**通配符（wildcard）**。
+
+### 自动 `host_type`（默认）
+
+若**省略** `host_type` 或设为 `host_type: auto`，Ingress 会在**编译路由索引时**（进程启动或配置 Reload）根据 `host` 字符串自动选择匹配类型：
+
+1. 若 `host` 中含正则元字符 `( ) [ ] ^ $ | + ? \` → 按 **regex** 处理  
+2. 否则若含 `*` → 按 **wildcard** 处理  
+3. 否则 → **exact**
+
+会先判断正则再判断 `*`，因此像 `^.*\.example\.com$` 这类完整正则不会被误判为通配符。
+
+解析后的类型会写回规则上的 `host_type`，供后续逻辑使用（如 `service.name` 捕获、错误页分支等）。若必须按**字面量**匹配 `host`（即使看起来像模式），请显式写 **`host_type: exact`**。
+
+省略 `host_type` 的示例：
+
+```yaml
+rules:
+  # 编译为 regex（括号、\w 等）
+  - host: ^([a-z0-9-]+)\.inlets\.example\.com$
+    backend:
+      service:
+        name: inlets
+        port: 8080
+  # 编译为 wildcard
+  - host: '*.api.example.com'
+    backend:
+      service:
+        name: api-gateway
+        port: 8080
+  # 编译为 exact
+  - host: idp.example.com
+    backend:
+      service:
+        name: idp
+        port: 443
+```
 
 ### 精确匹配
 
-精确匹配（默认）完全匹配主机名：
+精确匹配按字面量完全匹配主机名。在自动 `host_type` 下，普通主机名（无正则元字符且无 `*`）会解析为 **exact**：
 
 ```yaml
 rules:
@@ -23,7 +59,7 @@ rules:
 
 ### 正则表达式匹配
 
-正则表达式匹配允许您使用正则表达式来匹配主机名：
+正则表达式匹配允许您使用正则表达式来匹配主机名。可显式写 `host_type: regex`，也可在模式中含正则元字符时省略 `host_type`，由编译阶段自动推断为 regex。
 
 ```yaml
 rules:
@@ -36,6 +72,8 @@ rules:
 ```
 
 在此示例中，`$1` 引用 host 正则中的第一个捕获组。对 `t-myapp.example.work` 的请求将被路由到 `task.myapp.svc`。
+
+**说明：** 在 Go 的 `regexp` 中，`\w` 等价于 `[0-9A-Za-z_]`，**不包含**连字符 `-`。若子域带横线（如 `my-app.example.work`），需使用允许 `-` 的写法，例如 `^t-([a-zA-Z0-9-]+).example.work`，不能仅依赖 `(\w+)`。
 
 ### Service 名称捕获模板
 
@@ -67,7 +105,7 @@ rules:
 
 ### 通配符匹配
 
-通配符匹配使用 `*` 作为通配符：
+通配符匹配使用 `*` 作为通配符。可显式写 `host_type: wildcard`，也可在 `host` 含 `*` 且无正则元字符时省略 `host_type`（见上文「自动 `host_type`」一节）。
 
 ```yaml
 rules:
@@ -355,7 +393,7 @@ rules:
 
 Ingress **不会**在每次请求时再为 host、path 解析正则。
 
-- 进程**启动**或配置 **Reload** 时，`prepare()` 会构建内部**路由索引**（`core/compile.go`）：对每个 `host_type` 为 `regex` / `wildcard` 的 `host`，以及每条 `paths[].path`，使用 Go `regexp` **只编译一次**。
+- 进程**启动**或配置 **Reload** 时，`prepare()` 会构建内部**路由索引**（`core/compile.go`）：对每条规则先解析最终 `host_type`（含省略或 `auto` 时的**自动推断**），再对作为 `regex` / `wildcard` 的 `host` 以及每条 `paths[].path`，使用 Go `regexp` **只编译一次**。
 - **配置里规则的顺序会保留。** 匹配按规则顺序遍历；**先**命中的 host 规则生效；在同一 host 下 **先**命中的 path 生效（与优化前语义一致）。
 - 若存在**非法**模式（例如 `host` 或 `path` 的正则无法编译），**启动或 `Reload` 会直接报错失败**，需先修正配置。这与早期「可能直到第一次匹配请求才暴露错误」的行为不同。
 
@@ -364,7 +402,8 @@ Ingress **不会**在每次请求时再为 host、path 解析正则。
 ## 最佳实践
 
 1. **顺序很重要**：将更具体的规则放在通用规则之前
-2. **尽可能使用精确匹配**：比正则表达式或通配符匹配更快
-3. **测试正则表达式模式**：确保模式符合预期；非法模式会在启动或重载阶段失败
-4. **使用路径路由**：按路径组织路由以提高可维护性
-5. **设置回退**：始终为未匹配的请求配置回退服务
+2. **尽可能使用精确匹配**：普通主机名会推断为 exact，通常比正则或通配符更快
+3. **需要时可省略 `host_type` 或写 `auto`**：看起来像正则或通配符的 `host` 会在编译阶段自动识别；若需覆盖（例如含 `*` 或括号但必须按字面量匹配），请显式写 `host_type`
+4. **测试正则表达式模式**：确保模式符合预期；非法模式会在启动或重载阶段失败
+5. **使用路径路由**：按路径组织路由以提高可维护性
+6. **设置回退**：始终为未匹配的请求配置回退服务

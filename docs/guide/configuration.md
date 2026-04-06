@@ -134,7 +134,8 @@ Rules define how requests are routed to backend services. See the [Routing Guide
 ```yaml
 rules:
   - host: example.com           # Host to match
-    host_type: exact            # Match type: exact, regex, wildcard
+    # host_type: optional — omit or `auto` to infer exact vs regex vs wildcard from `host` at compile time
+    # explicit values: exact | regex | wildcard
     backend:
       type: service             # Backend type: service (default) or handler
       service:
