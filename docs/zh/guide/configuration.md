@@ -195,6 +195,27 @@ rules:
               {"ok": true}
 ```
 
+## 访问日志字段
+
+Ingress 的访问日志为应用侧固定格式（非 Nginx `log_format` 配置项），在保留原有主字段的基础上追加以下扩展字段：
+
+- `referer`：对应请求头 `Referer`，为空时为 `-`
+- `ua`：对应请求头 `User-Agent`，为空时为 `-`
+- `xff`：对应请求头 `X-Forwarded-For`，为空时为 `-`
+- `tls_protocol`：TLS 协议版本（如 `TLS 1.3`），非 TLS 请求为 `-`
+- `tls_cipher`：TLS cipher suite 名称，非 TLS 请求为 `-`
+- `upstream_status`：上游响应状态码（handler 分支使用 handler 状态码）
+- `upstream_response_length`：上游响应长度（未知时可能为 `-1`）
+- `upstream_response_time`：上游响应耗时（Go `time.Duration` 文本格式）
+
+示例：
+
+```text
+[host: example.com, target: http://backend:8080] "GET /api HTTP/1.1" 200 12.3ms referer="https://portal.example.com/" ua="curl/8.7.1" xff="10.0.0.1" tls_protocol="TLS 1.3" tls_cipher="TLS_AES_128_GCM_SHA256" upstream_status=200 upstream_response_length=512 upstream_response_time=12.3ms
+```
+
+说明：当前未提供与 Nginx `$body_bytes_sent` 完全等价的独立字段；如需该指标，建议通过下游日志平台从响应统计补充。
+
 ## 环境变量
 
 您可以使用环境变量覆盖某些配置：

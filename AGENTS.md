@@ -28,11 +28,19 @@ Ingress runs on [github.com/go-zoox/zoox](https://github.com/go-zoox/zoox). Prot
 
 Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HTTP3`, `HTTP3_PORT`, `HTTP3_ALTSVC_MAX_AGE` (see zoox `BuiltInEnv*` in `application.go` / `constants.go`).
 
+## Access logging
+
+- Access logs are emitted in `core/build.go` (handler branch and upstream proxy branch), and now share `buildAccessLogExtraFields`.
+- Keep existing leading fields stable (`host`, `target`, request line, status, duration) for backwards-compatible log parsing; append new fields at the end.
+- Added extra fields map roughly to common Nginx variables: `referer`, `ua`, `xff`, `tls_protocol`, `tls_cipher`, `upstream_status`, `upstream_response_length`, `upstream_response_time`.
+- For missing values, use `-` (or `-1` for unknown upstream content length) to keep logs structurally predictable.
+- TLS names are sourced from Go stdlib (`tls.VersionName`, `tls.CipherSuiteName`), so expected protocol strings are like `TLS 1.3` (not `TLSv1.3`).
+
 ## Docs and tests
 
-- User-facing behavior: `docs/guide/routing.md` (EN), `docs/zh/guide/routing.md` (ZH), TLS and HTTP/2–3 in `docs/guide/ssl-tls.md` / `docs/zh/guide/ssl-tls.md`, and rule snippets in `docs/guide/configuration.md` / `docs/zh/guide/configuration.md`.
+- User-facing behavior: `docs/guide/routing.md` (EN), `docs/zh/guide/routing.md` (ZH), TLS and HTTP/2–3 in `docs/guide/ssl-tls.md` / `docs/zh/guide/ssl-tls.md`, routing/config snippets in `docs/guide/configuration.md` / `docs/zh/guide/configuration.md`, and access-log field notes in those same configuration docs.
 - Inference and compile behavior: `core/compile_test.go`, `core/compile.go` (`effectiveHostType`, `hostLooksLikeRegexp`).
-- Protocol wiring: `core/build.go`, `core/build_test.go` (`TestBuild_HTTP2HTTP3ZooxConfig`).
+- Protocol wiring and logging: `core/build.go`, `core/build_test.go` (`TestBuild_HTTP2HTTP3ZooxConfig`, `TestBuild_AccessLogExtraFields_WithTLS`, `TestBuild_AccessLogExtraFields_WithoutTLS`).
 
 ## Verification
 

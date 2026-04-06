@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"html/template"
 	"mime"
@@ -198,15 +199,17 @@ func (c *core) build() error {
 				return false, false, proxy.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("unsupported handler.type: %s", handlerType))
 			}
 
+			handlerDuration := time.Since(handlerStart)
 			ctx.Logger.Infof(
-				"[host: %s, target: handler/%s] \"%s %s %s\" %d %v",
+				"[host: %s, target: handler/%s] \"%s %s %s\" %d %v %s",
 				hostname,
 				handlerType,
 				method,
 				path,
 				ctx.Request.Proto,
 				handlerStatusCode,
-				time.Since(handlerStart),
+				handlerDuration,
+				buildAccessLogExtraFields(ctx.Request, handlerStatusCode, -1, handlerDuration),
 			)
 
 			return false, true, nil
@@ -351,15 +354,17 @@ func (c *core) build() error {
 
 			res.Header.Set("X-Powered-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
 
+			upstreamDuration := time.Since(proxyStart)
 			ctx.Logger.Infof(
-				"[host: %s, target: %s] \"%s %s %s\" %d %v",
+				"[host: %s, target: %s] \"%s %s %s\" %d %v %s",
 				hostname,
 				serviceIns.Target(),
 				method,
 				path,
 				ctx.Request.Proto,
 				res.StatusCode,
-				time.Since(proxyStart),
+				upstreamDuration,
+				buildAccessLogExtraFields(ctx.Request, res.StatusCode, res.ContentLength, upstreamDuration),
 			)
 
 			return nil
@@ -369,4 +374,46 @@ func (c *core) build() error {
 	}))
 
 	return nil
+}
+
+func buildAccessLogExtraFields(req *http.Request, upstreamStatus int, upstreamResponseLength int64, upstreamResponseTime time.Duration) string {
+	referer := req.Referer()
+	if referer == "" {
+		referer = "-"
+	}
+
+	userAgent := req.UserAgent()
+	if userAgent == "" {
+		userAgent = "-"
+	}
+
+	xForwardedFor := req.Header.Get("X-Forwarded-For")
+	if xForwardedFor == "" {
+		xForwardedFor = "-"
+	}
+
+	tlsProtocol := "-"
+	tlsCipher := "-"
+	if req.TLS != nil {
+		tlsProtocol = tls.VersionName(req.TLS.Version)
+		tlsCipher = tls.CipherSuiteName(req.TLS.CipherSuite)
+		if tlsProtocol == "" {
+			tlsProtocol = "-"
+		}
+		if tlsCipher == "" {
+			tlsCipher = "-"
+		}
+	}
+
+	return fmt.Sprintf(
+		`referer="%s" ua="%s" xff="%s" tls_protocol="%s" tls_cipher="%s" upstream_status=%d upstream_response_length=%d upstream_response_time=%s`,
+		referer,
+		userAgent,
+		xForwardedFor,
+		tlsProtocol,
+		tlsCipher,
+		upstreamStatus,
+		upstreamResponseLength,
+		upstreamResponseTime,
+	)
 }

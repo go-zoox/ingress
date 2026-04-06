@@ -195,6 +195,27 @@ rules:
               {"ok": true}
 ```
 
+## Access Log Fields
+
+Ingress access logs use an application-level fixed format (not Nginx `log_format`). The original core fields are kept, with the following extra fields appended:
+
+- `referer`: value from `Referer`; `-` when empty
+- `ua`: value from `User-Agent`; `-` when empty
+- `xff`: value from `X-Forwarded-For`; `-` when empty
+- `tls_protocol`: TLS version (for example `TLS 1.3`); `-` for non-TLS requests
+- `tls_cipher`: TLS cipher suite name; `-` for non-TLS requests
+- `upstream_status`: upstream response status (handler branch uses handler status)
+- `upstream_response_length`: upstream response length (`-1` when unknown)
+- `upstream_response_time`: upstream response duration in Go `time.Duration` text form
+
+Example:
+
+```text
+[host: example.com, target: http://backend:8080] "GET /api HTTP/1.1" 200 12.3ms referer="https://portal.example.com/" ua="curl/8.7.1" xff="10.0.0.1" tls_protocol="TLS 1.3" tls_cipher="TLS_AES_128_GCM_SHA256" upstream_status=200 upstream_response_length=512 upstream_response_time=12.3ms
+```
+
+Note: there is currently no standalone field exactly equivalent to Nginx `$body_bytes_sent`; if needed, derive it via downstream log/metrics aggregation.
+
 ## Environment Variables
 
 You can override some configuration using environment variables:
