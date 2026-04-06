@@ -23,6 +23,10 @@ func (c *core) build() error {
 	// config
 	c.app.Config.Port = int(c.cfg.Port)
 	c.app.Config.HTTPSPort = int(c.cfg.HTTPS.Port)
+	c.app.Config.EnableH2C = c.cfg.EnableH2C
+	c.app.Config.EnableHTTP3 = c.cfg.HTTPS.EnableHTTP3
+	c.app.Config.HTTP3Port = int(c.cfg.HTTPS.HTTP3Port)
+	c.app.Config.HTTP3AltSvcMaxAge = int(c.cfg.HTTPS.HTTP3AltSvcMaxAge)
 
 	// middlewares
 	c.app.Use(func(ctx *zoox.Context) {
