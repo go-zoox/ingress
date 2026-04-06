@@ -20,6 +20,7 @@ func TestBuild_AccessLogExtraFields_WithTLS(t *testing.T) {
 	req.Header.Set("Referer", "https://portal.example.com/list")
 	req.Header.Set("User-Agent", "ingress-test-agent")
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
+	req.Header.Set("X-Real-IP", "203.0.113.8")
 	req.TLS = &tls.ConnectionState{
 		Version:      tls.VersionTLS13,
 		CipherSuite:  tls.TLS_AES_128_GCM_SHA256,
@@ -29,6 +30,7 @@ func TestBuild_AccessLogExtraFields_WithTLS(t *testing.T) {
 	extra := buildAccessLogExtraFields(req, 200, 456, 123*time.Millisecond)
 
 	required := []string{
+		`real_ip="203.0.113.8"`,
 		`referer="https://portal.example.com/list"`,
 		`ua="ingress-test-agent"`,
 		`xff="10.0.0.1, 10.0.0.2"`,
@@ -48,10 +50,12 @@ func TestBuild_AccessLogExtraFields_WithTLS(t *testing.T) {
 
 func TestBuild_AccessLogExtraFields_WithoutTLS(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/health", nil)
+	req.RemoteAddr = "198.51.100.9:4321"
 
 	extra := buildAccessLogExtraFields(req, 503, -1, 27*time.Millisecond)
 
 	required := []string{
+		`real_ip="198.51.100.9"`,
 		`referer="-"`,
 		`ua="-"`,
 		`xff="-"`,
@@ -66,6 +70,17 @@ func TestBuild_AccessLogExtraFields_WithoutTLS(t *testing.T) {
 		if !strings.Contains(extra, item) {
 			t.Fatalf("expected extra fields to contain %q, got: %s", item, extra)
 		}
+	}
+}
+
+func TestBuild_AccessLogExtraFields_RealIPFromHeader(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/ping", nil)
+	req.RemoteAddr = "198.51.100.77:9000"
+	req.Header.Set("X-Real-IP", "203.0.113.8")
+
+	extra := buildAccessLogExtraFields(req, 200, 10, 5*time.Millisecond)
+	if !strings.Contains(extra, `real_ip="203.0.113.8"`) {
+		t.Fatalf("expected real_ip from X-Real-IP, got: %s", extra)
 	}
 }
 

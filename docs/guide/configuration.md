@@ -202,6 +202,7 @@ Ingress access logs use an application-level fixed format (not Nginx `log_format
 - `referer`: value from `Referer`; `-` when empty
 - `ua`: value from `User-Agent`; `-` when empty
 - `xff`: value from `X-Forwarded-For`; `-` when empty
+- `real_ip`: value from `X-Real-IP`; falls back to request remote address; `-` when unavailable
 - `tls_protocol`: TLS version (for example `TLS 1.3`); `-` for non-TLS requests
 - `tls_cipher`: TLS cipher suite name; `-` for non-TLS requests
 - `upstream_status`: upstream response status (handler branch uses handler status)
@@ -211,7 +212,7 @@ Ingress access logs use an application-level fixed format (not Nginx `log_format
 Example:
 
 ```text
-[host: example.com, target: http://backend:8080] "GET /api HTTP/1.1" 200 12.3ms referer="https://portal.example.com/" ua="curl/8.7.1" xff="10.0.0.1" tls_protocol="TLS 1.3" tls_cipher="TLS_AES_128_GCM_SHA256" upstream_status=200 upstream_response_length=512 upstream_response_time=12.3ms
+[host: example.com, target: http://backend:8080] "GET /api HTTP/1.1" 200 12.3ms real_ip="10.0.0.9" referer="https://portal.example.com/" ua="curl/8.7.1" xff="10.0.0.1" tls_protocol="TLS 1.3" tls_cipher="TLS_AES_128_GCM_SHA256" upstream_status=200 upstream_response_length=512 upstream_response_time=12.3ms
 ```
 
 Note: there is currently no standalone field exactly equivalent to Nginx `$body_bytes_sent`; if needed, derive it via downstream log/metrics aggregation.

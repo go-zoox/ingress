@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"mime"
+	"net"
 	"net/http"
 	"os"
 	pathlib "path"
@@ -377,6 +378,17 @@ func (c *core) build() error {
 }
 
 func buildAccessLogExtraFields(req *http.Request, upstreamStatus int, upstreamResponseLength int64, upstreamResponseTime time.Duration) string {
+	realIP := req.Header.Get("X-Real-IP")
+	if realIP == "" {
+		if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil && host != "" {
+			realIP = host
+		} else if req.RemoteAddr != "" {
+			realIP = req.RemoteAddr
+		} else {
+			realIP = "-"
+		}
+	}
+
 	referer := req.Referer()
 	if referer == "" {
 		referer = "-"
@@ -406,7 +418,8 @@ func buildAccessLogExtraFields(req *http.Request, upstreamStatus int, upstreamRe
 	}
 
 	return fmt.Sprintf(
-		`referer="%s" ua="%s" xff="%s" tls_protocol="%s" tls_cipher="%s" upstream_status=%d upstream_response_length=%d upstream_response_time=%s`,
+		`real_ip="%s" referer="%s" ua="%s" xff="%s" tls_protocol="%s" tls_cipher="%s" upstream_status=%d upstream_response_length=%d upstream_response_time=%s`,
+		realIP,
 		referer,
 		userAgent,
 		xForwardedFor,

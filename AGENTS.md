@@ -32,7 +32,7 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 
 - Access logs are emitted in `core/build.go` (handler branch and upstream proxy branch), and now share `buildAccessLogExtraFields`.
 - Keep existing leading fields stable (`host`, `target`, request line, status, duration) for backwards-compatible log parsing; append new fields at the end.
-- Added extra fields map roughly to common Nginx variables: `referer`, `ua`, `xff`, `tls_protocol`, `tls_cipher`, `upstream_status`, `upstream_response_length`, `upstream_response_time`.
+- Added extra fields map roughly to common Nginx variables: `real_ip`, `referer`, `ua`, `xff`, `tls_protocol`, `tls_cipher`, `upstream_status`, `upstream_response_length`, `upstream_response_time`.
 - For missing values, use `-` (or `-1` for unknown upstream content length) to keep logs structurally predictable.
 - TLS names are sourced from Go stdlib (`tls.VersionName`, `tls.CipherSuiteName`), so expected protocol strings are like `TLS 1.3` (not `TLSv1.3`).
 
