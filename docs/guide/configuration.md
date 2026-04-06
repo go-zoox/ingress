@@ -7,6 +7,7 @@ Ingress uses YAML configuration files to define routing rules, authentication, S
 ```yaml
 version: v1                    # Configuration version
 port: 8080                     # HTTP port (default: 8080)
+# enable_h2c: false            # Optional: cleartext HTTP/2 (h2c) on port; unsafe on public networks
 
 # Cache configuration
 cache:
@@ -20,6 +21,9 @@ cache:
 # HTTPS configuration
 https:
   port: 8443                   # HTTPS port
+  # enable_http3: false        # Optional: HTTP/3 (QUIC) on UDP; needs TLS
+  # http3_port: 8443           # Optional: UDP port (default: same as https.port)
+  # http3_altsvc_max_age: 86400 # Optional: Alt-Svc ma= (seconds); negative disables header
   ssl:
     - domain: example.com
       cert:
@@ -62,6 +66,7 @@ rules:
 |-------|------|-------------|---------|
 | `version` | string | Configuration version | `v1` |
 | `port` | int | HTTP port to listen on | `8080` |
+| `enable_h2c` | bool | Cleartext HTTP/2 (h2c) on the HTTP port | `false` |
 | `cache` | object | Cache configuration | - |
 | `https` | object | HTTPS configuration | - |
 | `healthcheck` | object | Health check configuration | - |
@@ -84,7 +89,12 @@ rules:
 | Field | Type | Description |
 |-------|------|-------------|
 | `port` | int | HTTPS port to listen on |
+| `enable_http3` | bool | Enable HTTP/3 (QUIC) on UDP when TLS is configured |
+| `http3_port` | int | UDP port for HTTP/3; `0` means same as `https.port` |
+| `http3_altsvc_max_age` | int | `Alt-Svc` `ma=` in seconds; `0` uses server default; negative disables `Alt-Svc` |
 | `ssl` | array | SSL certificate configurations |
+
+HTTP/2 over TLS is negotiated automatically when HTTPS is enabled (no extra field).
 
 #### SSL Certificate
 

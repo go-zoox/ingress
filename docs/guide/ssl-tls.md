@@ -28,6 +28,9 @@ https:
 | Field | Type | Description |
 |-------|------|-------------|
 | `port` | int | HTTPS port to listen on (default: 8443) |
+| `enable_http3` | bool | Enable HTTP/3 (QUIC) on UDP when TLS is configured |
+| `http3_port` | int | UDP port for HTTP/3; omit or `0` to use the same port as HTTPS (TCP and UDP) |
+| `http3_altsvc_max_age` | int | `Alt-Svc` response header `ma=` in seconds; `0` uses a server default; negative omits `Alt-Svc` |
 | `ssl` | array | Array of SSL certificate configurations |
 
 ### SSL Certificate Configuration
@@ -39,6 +42,31 @@ Each SSL entry requires:
 | `domain` | string | Domain name for the certificate |
 | `cert.certificate` | string | Path to the certificate file (PEM format) |
 | `cert.certificate_key` | string | Path to the private key file (PEM format) |
+
+## HTTP/2 and HTTP/3
+
+- **HTTP/2 over TLS**: When HTTPS is enabled, the server negotiates HTTP/2 via ALPN (`h2`) where the client supports it. No extra YAML is required.
+- **Cleartext HTTP/2 (h2c)**: Set top-level `enable_h2c: true` to serve HTTP/2 without TLS on the plain HTTP `port`. Use only on trusted networks (for example behind a terminating proxy that speaks h2c to the backend).
+- **HTTP/3**: Set `https.enable_http3: true`. The process listens for QUIC on UDP (same port as HTTPS by default, or `https.http3_port`). HTTPS responses can include an `Alt-Svc` header so clients upgrade to HTTP/3; tune or disable with `https.http3_altsvc_max_age`. Ensure firewalls allow UDP to the chosen port.
+
+Example with HTTP/3:
+
+```yaml
+port: 8080
+
+https:
+  port: 443
+  enable_http3: true
+  # http3_port: 443
+  # http3_altsvc_max_age: 86400
+  ssl:
+    - domain: example.com
+      cert:
+        certificate: /path/to/fullchain.pem
+        certificate_key: /path/to/privkey.pem
+```
+
+Zoox may also apply `ENABLE_H2C`, `ENABLE_HTTP3`, `HTTP3_PORT`, and `HTTP3_ALTSVC_MAX_AGE` from the environment when the corresponding config fields are unset.
 
 ## Certificate Formats
 

@@ -28,6 +28,9 @@ https:
 | 字段 | 类型 | 描述 |
 |------|------|------|
 | `port` | int | 监听的 HTTPS 端口（默认：8443） |
+| `enable_http3` | bool | 在已配置 TLS 时启用 HTTP/3（QUIC，UDP） |
+| `http3_port` | int | HTTP/3 的 UDP 端口；省略或 `0` 时与 HTTPS 端口相同（TCP 与 UDP 可同时监听同端口号） |
+| `http3_altsvc_max_age` | int | HTTPS 响应中 `Alt-Svc` 的 `ma=`（秒）；`0` 使用服务端默认；负数为不发送 `Alt-Svc` |
 | `ssl` | array | SSL 证书配置数组 |
 
 ### SSL 证书配置
@@ -39,6 +42,31 @@ https:
 | `domain` | string | 证书的域名 |
 | `cert.certificate` | string | 证书文件路径（PEM 格式） |
 | `cert.certificate_key` | string | 私钥文件路径（PEM 格式） |
+
+## HTTP/2 与 HTTP/3
+
+- **TLS 上的 HTTP/2**：启用 HTTPS 后，服务端通过 ALPN（`h2`）与支持的客户端协商 HTTP/2，无需额外配置项。
+- **明文 HTTP/2（h2c）**：在顶层设置 `enable_h2c: true`，可在明文 HTTP 的 `port` 上提供 h2c。仅适用于可信网络（例如终止 TLS 的上游反向代理与 Ingress 之间使用 h2c）。
+- **HTTP/3**：设置 `https.enable_http3: true`。进程在 UDP 上监听 QUIC（默认与 `https.port` 相同，或通过 `https.http3_port` 指定）。HTTPS 响应可携带 `Alt-Svc` 以便客户端升级到 HTTP/3；用 `https.http3_altsvc_max_age` 调整或关闭。请在防火墙中放行对应 UDP 端口。
+
+HTTP/3 示例：
+
+```yaml
+port: 8080
+
+https:
+  port: 443
+  enable_http3: true
+  # http3_port: 443
+  # http3_altsvc_max_age: 86400
+  ssl:
+    - domain: example.com
+      cert:
+        certificate: /path/to/fullchain.pem
+        certificate_key: /path/to/privkey.pem
+```
+
+若配置项未设置，zoox 也可能从环境变量读取 `ENABLE_H2C`、`ENABLE_HTTP3`、`HTTP3_PORT`、`HTTP3_ALTSVC_MAX_AGE`。
 
 ## 证书格式
 
