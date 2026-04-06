@@ -4,11 +4,47 @@ Ingress provides flexible routing capabilities to match requests and route them 
 
 ## Host Matching
 
-Host matching is the primary way to route requests. Ingress supports three types of host matching:
+Host matching is the primary way to route requests. Ingress supports three types of host matching: **exact**, **regex**, and **wildcard**.
+
+### Automatic `host_type` (default)
+
+If you **omit** `host_type` or set `host_type: auto`, Ingress picks the matcher at **compile time** (when the process starts or config reloads) from the `host` string:
+
+1. If `host` contains regexp metacharacters `( ) [ ] ^ $ | + ? \` → treat as **regex**
+2. Else if `host` contains `*` → treat as **wildcard**
+3. Else → **exact**
+
+Regex is detected before `*`, so full-regex hosts such as `^.*\.example\.com$` are not treated as wildcards.
+
+The resolved type is stored on the rule as `host_type` for the rest of the runtime (service name captures, error handling, etc.). Use **`host_type: exact`** when you must match `host` as a literal string even if it contains characters that look like a pattern.
+
+Examples without explicit `host_type`:
+
+```yaml
+rules:
+  # Compiled as regex (parentheses, \w, etc.)
+  - host: ^([a-z0-9-]+)\.inlets\.example\.com$
+    backend:
+      service:
+        name: inlets
+        port: 8080
+  # Compiled as wildcard
+  - host: '*.api.example.com'
+    backend:
+      service:
+        name: api-gateway
+        port: 8080
+  # Compiled as exact
+  - host: idp.example.com
+    backend:
+      service:
+        name: idp
+        port: 443
+```
 
 ### Exact Matching
 
-Exact matching (default) matches the hostname exactly:
+Exact matching matches the hostname literally. With automatic `host_type`, a plain hostname (no regexp metacharacters and no `*`) is treated as exact:
 
 ```yaml
 rules:
@@ -23,7 +59,7 @@ This will match requests with `Host: example.com` exactly.
 
 ### Regex Matching
 
-Regex matching allows you to use regular expressions to match hostnames:
+Regex matching allows you to use regular expressions to match hostnames. You can set `host_type: regex` explicitly, or omit `host_type` when the pattern contains regexp metacharacters so it is inferred automatically.
 
 ```yaml
 rules:
@@ -36,6 +72,8 @@ rules:
 ```
 
 In this example, `$1` refers to the first capture group in the host regex pattern. A request to `t-myapp.example.work` will be routed to `task.myapp.svc`.
+
+**Note:** In Go’s regexp engine, `\w` is `[0-9A-Za-z_]` and does **not** include `-`. Subdomains with hyphens (e.g. `my-app.example.work`) need a pattern that allows hyphens, such as `^t-([a-zA-Z0-9-]+).example.work`, not only `(\w+)`.
 
 ### Service Name Capture Templates
 
@@ -67,7 +105,7 @@ Compatibility notes:
 
 ### Wildcard Matching
 
-Wildcard matching uses `*` as a wildcard character:
+Wildcard matching uses `*` as a wildcard character. You can set `host_type: wildcard` explicitly, or omit `host_type` when the host contains `*` and no regexp metacharacters (see [Automatic `host_type`](#automatic-host_type-default)).
 
 ```yaml
 rules:
@@ -355,7 +393,7 @@ This matches any subdomain of `example.work` and routes to the same backend serv
 
 Ingress does **not** compile regular expressions on every request for host and path rules.
 
-- When the process **starts** or when configuration is **reloaded**, `prepare()` builds an internal **router index** (`core/compile.go`): each `host` pattern (for `host_type: regex` or `wildcard`) and each `paths[].path` pattern is compiled once with Go’s `regexp` package.
+- When the process **starts** or when configuration is **reloaded**, `prepare()` builds an internal **router index** (`core/compile.go`): for each rule, the effective `host_type` is resolved (including **automatic** inference when omitted or `auto`), then each `host` that is regex or wildcard and each `paths[].path` pattern is compiled once with Go’s `regexp` package.
 - **Rule order in your config is preserved.** Matching walks rules in order; the **first** matching host rule wins, and within a host the **first** matching path wins (same semantics as before this optimization).
 - If any pattern is **invalid** (e.g. bad regex in `host` or `path`), **startup or `Reload` fails** with an error. You must fix the configuration before Ingress accepts traffic. This replaces the older behavior where some invalid patterns might only surface on the first matching request.
 
@@ -364,7 +402,8 @@ The per-request proxy path still uses the precompiled index. Separately, if cach
 ## Best Practices
 
 1. **Order matters**: Place more specific rules before general ones
-2. **Use exact matching when possible**: It's faster than regex or wildcard matching
-3. **Test regex patterns**: Ensure your regex patterns match as expected; invalid patterns fail at startup or reload
-4. **Use path routing**: Organize routes by path for better maintainability
-5. **Set up fallback**: Always configure a fallback service for unmatched requests
+2. **Use exact matching when possible**: Plain hostnames infer as exact and are faster than regex or wildcard matching
+3. **Omit or set `auto` for `host_type` when convenient**: Regex- or wildcard-looking `host` values are inferred at compile time; use explicit `host_type` when you need to override (for example `exact` for a literal host that contains `*` or parentheses)
+4. **Test regex patterns**: Ensure your regex patterns match as expected; invalid patterns fail at startup or reload
+5. **Use path routing**: Organize routes by path for better maintainability
+6. **Set up fallback**: Always configure a fallback service for unmatched requests

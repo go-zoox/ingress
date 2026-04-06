@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/go-zoox/ingress/core/rule"
 )
@@ -27,17 +28,49 @@ type compiledPath struct {
 	pathIndex int
 }
 
+// effectiveHostType resolves the matcher kind used at runtime. When declared is empty
+// or "auto", regex is preferred over wildcard if host contains regexp metacharacters
+// (so patterns like ^.*\.example\.com$ are not treated as wildcards).
+func effectiveHostType(declared, host string) string {
+	switch declared {
+	case "regex", "wildcard", "exact":
+		return declared
+	case "", "auto":
+		if hostLooksLikeRegexp(host) {
+			return "regex"
+		}
+		if strings.Contains(host, "*") {
+			return "wildcard"
+		}
+		return "exact"
+	default:
+		return declared
+	}
+}
+
+func hostLooksLikeRegexp(host string) bool {
+	for _, r := range host {
+		switch r {
+		case '(', ')', '[', ']', '^', '$', '|', '+', '?', '\\':
+			return true
+		}
+	}
+	return false
+}
+
 func compileRouterIndex(rules []rule.Rule, fallback rule.Backend) (*routerIndex, error) {
 	idx := &routerIndex{
-		entries:     make([]compiledRuleEntry, 0, len(rules)),
-		pathsByRule: make([][]compiledPath, len(rules)),
+		entries:       make([]compiledRuleEntry, 0, len(rules)),
+		pathsByRule:   make([][]compiledPath, len(rules)),
 		fallbackValid: fallback.Service.Name != "",
 	}
 
 	for i := range rules {
 		r := &rules[i]
-		switch r.HostType {
-		case "exact", "":
+		ht := effectiveHostType(r.HostType, r.Host)
+		r.HostType = ht
+		switch ht {
+		case "exact":
 			idx.entries = append(idx.entries, compiledRuleEntry{
 				hostType:  "exact",
 				ruleIndex: i,
@@ -66,7 +99,7 @@ func compileRouterIndex(rules []rule.Rule, fallback rule.Backend) (*routerIndex,
 				wildcardRewriterFrom: pat,
 			})
 		default:
-			return nil, fmt.Errorf("unsupport host type: %s", r.HostType)
+			return nil, fmt.Errorf("unsupport host type: %s", ht)
 		}
 
 		for j := range r.Paths {
