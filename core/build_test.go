@@ -713,3 +713,50 @@ ctx.body = "ok"
 		t.Fatalf("expected X-From-Ctx header")
 	}
 }
+
+func TestBuild_HTTP2HTTP3ZooxConfig(t *testing.T) {
+	cfg := &Config{
+		Port:      8080,
+		EnableH2C: true,
+		HTTPS: HTTPS{
+			Port:              8443,
+			EnableHTTP3:       true,
+			HTTP3Port:         8443,
+			HTTP3AltSvcMaxAge: 3600,
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "h.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{
+						Name:     "svc",
+						Port:     80,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	if !ins.app.Config.EnableH2C {
+		t.Error("expected EnableH2C propagated to zoox")
+	}
+	if !ins.app.Config.EnableHTTP3 {
+		t.Error("expected EnableHTTP3 propagated to zoox")
+	}
+	if ins.app.Config.HTTP3Port != 8443 {
+		t.Errorf("HTTP3Port: got %d want 8443", ins.app.Config.HTTP3Port)
+	}
+	if ins.app.Config.HTTP3AltSvcMaxAge != 3600 {
+		t.Errorf("HTTP3AltSvcMaxAge: got %d want 3600", ins.app.Config.HTTP3AltSvcMaxAge)
+	}
+}

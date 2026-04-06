@@ -6,6 +6,8 @@ import (
 
 type Config struct {
 	Port int64 `config:"port"`
+	// EnableH2C enables cleartext HTTP/2 (h2c) on the plaintext HTTP port. Unsafe on public networks; use behind a trusted load balancer or for local testing.
+	EnableH2C bool `config:"enable_h2c"`
 	//
 	Rules []rule.Rule `config:"rules"`
 	//
@@ -28,6 +30,12 @@ type Config struct {
 type HTTPS struct {
 	Port int64 `config:"port"`
 	SSL  []SSL `config:"ssl"`
+	// EnableHTTP3 starts an HTTP/3 (QUIC) listener on UDP when https.port is set and TLS is available. Clients discover it via Alt-Svc on HTTPS responses unless http3_altsvc_max_age is negative.
+	EnableHTTP3 bool `config:"enable_http3"`
+	// HTTP3Port is the UDP port for HTTP/3. Zero means the same port as https.port.
+	HTTP3Port int64 `config:"http3_port"`
+	// HTTP3AltSvcMaxAge is the ma= value (seconds) for the Alt-Svc header. Zero lets the framework default apply; negative disables Alt-Svc.
+	HTTP3AltSvcMaxAge int64 `config:"http3_altsvc_max_age"`
 }
 
 type HealthCheck struct {
