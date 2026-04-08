@@ -18,6 +18,7 @@ func main() {
 
 	app.Register("run", Run())
 	app.Register("reload", Reload())
+	app.Register("validate", Validate())
 
 	if err := app.RunWithError(); err != nil {
 		logger.Fatal("%s", err.Error())
