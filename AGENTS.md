@@ -28,6 +28,15 @@ Ingress runs on [github.com/go-zoox/zoox](https://github.com/go-zoox/zoox). Prot
 
 Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HTTP3`, `HTTP3_PORT`, `HTTP3_ALTSVC_MAX_AGE` (see zoox `BuiltInEnv*` in `application.go` / `constants.go`).
 
+## HTTP -> HTTPS redirect behavior
+
+- Global redirect is configured under `https.redirect_from_http` in `core/config.go`.
+- **Default behavior**: when `https.port` is set, forced HTTP -> HTTPS redirect is enabled unless `https.redirect_from_http.disabled: true`.
+- `permanent: true` returns 301; `permanent: false` returns 302.
+- `exclude_paths` uses exact path matching and skips forced redirect for matched paths.
+- Redirect is decided before route matching in `core/build.go` (`shouldRedirectFromHTTP`), while route-level redirect (`rules[].backend.redirect`) still applies in normal route flow.
+- HTTPS detection checks both TLS and `X-Forwarded-Proto: https` to avoid redirect loops behind trusted proxies/LBs.
+
 ## Access logging
 
 - Access logs are emitted in `core/build.go` (handler branch and upstream proxy branch), and now share `buildAccessLogExtraFields`.
@@ -40,6 +49,7 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 
 - User-facing behavior: `docs/guide/routing.md` (EN), `docs/zh/guide/routing.md` (ZH), TLS and HTTP/2–3 in `docs/guide/ssl-tls.md` / `docs/zh/guide/ssl-tls.md`, routing/config snippets in `docs/guide/configuration.md` / `docs/zh/guide/configuration.md`, and access-log field notes in those same configuration docs.
 - Inference and compile behavior: `core/compile_test.go`, `core/compile.go` (`effectiveHostType`, `hostLooksLikeRegexp`).
+- Redirect and auth/header constants behavior: `core/build.go`, `core/constants.go`, `core/build_test.go`.
 - Protocol wiring and logging: `core/build.go`, `core/build_test.go` (`TestBuild_HTTP2HTTP3ZooxConfig`, `TestBuild_AccessLogExtraFields_WithTLS`, `TestBuild_AccessLogExtraFields_WithoutTLS`).
 
 ## Verification
