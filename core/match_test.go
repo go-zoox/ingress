@@ -457,7 +457,7 @@ func TestMatchHostWithHandlerBackend(t *testing.T) {
 		{
 			Host: "handler.example.work",
 			Backend: rule.Backend{
-				Type: "handler",
+				Type: backendTypeHandler,
 				Handler: rule.Handler{
 					Body: "Hello World!",
 				},
@@ -482,7 +482,7 @@ func TestMatchPathWithHandlerBackend(t *testing.T) {
 		{
 			Path: "/custom/handler/string",
 			Backend: rule.Backend{
-				Type: "handler",
+				Type: backendTypeHandler,
 				Handler: rule.Handler{
 					Body: "Hello World!",
 				},
@@ -500,7 +500,7 @@ func TestMatchPathWithHandlerBackend(t *testing.T) {
 	if matchedPath == nil {
 		t.Fatal("expected matchedPath, got nil")
 	}
-	if matchedPath.Backend.Type != "handler" {
+	if matchedPath.Backend.Type != backendTypeHandler {
 		t.Fatalf("expected handler backend type, got %s", matchedPath.Backend.Type)
 	}
 }

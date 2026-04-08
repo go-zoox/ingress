@@ -830,3 +830,140 @@ func TestBuild_HTTP2HTTP3ZooxConfig(t *testing.T) {
 		t.Errorf("HTTP3AltSvcMaxAge: got %d want 3600", ins.app.Config.HTTP3AltSvcMaxAge)
 	}
 }
+
+func TestBuild_RedirectFromHTTP_Permanent(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		HTTPS: HTTPS{
+			Port: 443,
+			RedirectFromHTTP: RedirectFromHTTP{
+				Permanent: true,
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Body: "ok",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/orders?id=1", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("expected status code 301, got %d", rec.Code)
+	}
+
+	if location := rec.Header().Get("Location"); location != "https://example.com/orders?id=1" {
+		t.Fatalf("expected https redirect location, got %q", location)
+	}
+}
+
+func TestBuild_RedirectFromHTTP_WithCustomHTTPSPortAndExcludePath(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		HTTPS: HTTPS{
+			Port: 8443,
+			RedirectFromHTTP: RedirectFromHTTP{
+				Permanent:    false,
+				ExcludePaths: []string{"/healthz"},
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Body: "ok",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	reqRedirect := httptest.NewRequest(http.MethodGet, "http://example.com/api", nil)
+	recRedirect := httptest.NewRecorder()
+	ins.app.ServeHTTP(recRedirect, reqRedirect)
+	if recRedirect.Code != http.StatusFound {
+		t.Fatalf("expected status code 302, got %d", recRedirect.Code)
+	}
+	if location := recRedirect.Header().Get("Location"); location != "https://example.com:8443/api" {
+		t.Fatalf("expected redirect location with https port, got %q", location)
+	}
+
+	reqExcluded := httptest.NewRequest(http.MethodGet, "http://example.com/healthz", nil)
+	recExcluded := httptest.NewRecorder()
+	ins.app.ServeHTTP(recExcluded, reqExcluded)
+	if recExcluded.Code != http.StatusOK {
+		t.Fatalf("expected excluded path to skip redirect and return 200, got %d", recExcluded.Code)
+	}
+}
+
+func TestBuild_RedirectFromHTTP_Disabled(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		HTTPS: HTTPS{
+			Port: 443,
+			RedirectFromHTTP: RedirectFromHTTP{
+				Disabled: true,
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Body: "ok",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status code 200 when disabled, got %d", rec.Code)
+	}
+}

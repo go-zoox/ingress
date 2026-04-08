@@ -24,6 +24,11 @@ https:
   # enable_http3: false        # 可选：启用 HTTP/3（QUIC，UDP）；需已配置 TLS
   # http3_port: 8443           # 可选：UDP 端口（默认与 https.port 相同）
   # http3_altsvc_max_age: 86400 # 可选：Alt-Svc 的 ma=（秒）；负数表示不发送该头
+  # redirect_from_http:
+  #   disabled: false          # 可选：默认 false；当 https.port 已配置时 false 表示全局强制 HTTP -> HTTPS
+  #   permanent: true          # 可选：true=301，false=302
+  #   exclude_paths:           # 可选：跳过重定向的精确路径
+  #     - /healthz
   ssl:
     - domain: example.com
       cert:
@@ -92,6 +97,9 @@ rules:
 | `enable_http3` | bool | 在已配置 TLS 时启用 HTTP/3（QUIC，UDP） |
 | `http3_port` | int | HTTP/3 的 UDP 端口；`0` 表示与 `https.port` 相同 |
 | `http3_altsvc_max_age` | int | `Alt-Svc` 的 `ma=`（秒）；`0` 使用服务端默认；负数为不发送 `Alt-Svc` |
+| `redirect_from_http.disabled` | bool | 禁用全局 HTTP -> HTTPS 强制重定向（默认 `false`，即在设置 `https.port` 时默认开启） |
+| `redirect_from_http.permanent` | bool | 为 `true` 时使用 `301`，否则使用 `302` |
+| `redirect_from_http.exclude_paths` | array | 跳过强制重定向的精确路径 |
 | `ssl` | array | SSL 证书配置 |
 
 启用 HTTPS 后，TLS 上的 HTTP/2 由运行时自动协商（ALPN），无需单独配置项。

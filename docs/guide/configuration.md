@@ -24,6 +24,11 @@ https:
   # enable_http3: false        # Optional: HTTP/3 (QUIC) on UDP; needs TLS
   # http3_port: 8443           # Optional: UDP port (default: same as https.port)
   # http3_altsvc_max_age: 86400 # Optional: Alt-Svc ma= (seconds); negative disables header
+  # redirect_from_http:
+  #   disabled: false          # Optional: false by default; when false and https.port is set, force HTTP -> HTTPS
+  #   permanent: true          # Optional: true=301, false=302
+  #   exclude_paths:           # Optional: exact paths to skip redirect
+  #     - /healthz
   ssl:
     - domain: example.com
       cert:
@@ -92,6 +97,9 @@ rules:
 | `enable_http3` | bool | Enable HTTP/3 (QUIC) on UDP when TLS is configured |
 | `http3_port` | int | UDP port for HTTP/3; `0` means same as `https.port` |
 | `http3_altsvc_max_age` | int | `Alt-Svc` `ma=` in seconds; `0` uses server default; negative disables `Alt-Svc` |
+| `redirect_from_http.disabled` | bool | Disable forced HTTP -> HTTPS redirect (`false` by default, which means enabled when `https.port` is set) |
+| `redirect_from_http.permanent` | bool | Use `301` when true, `302` when false |
+| `redirect_from_http.exclude_paths` | array | Exact request paths that skip forced redirect |
 | `ssl` | array | SSL certificate configurations |
 
 HTTP/2 over TLS is negotiated automatically when HTTPS is enabled (no extra field).

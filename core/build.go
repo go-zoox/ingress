@@ -49,6 +49,18 @@ func (c *core) build() error {
 		hostname := ctx.Hostname()
 		method := ctx.Method
 		path := ctx.Path
+		rawQuery := ctx.Request.URL.RawQuery
+
+		if shouldRedirectFromHTTP(ctx.Request, path, c.cfg) {
+			redirectURL := buildHTTPSRedirectURL(hostname, path, rawQuery, c.cfg.HTTPS.Port)
+			if c.cfg.HTTPS.RedirectFromHTTP.Permanent {
+				ctx.RedirectPermanent(redirectURL)
+			} else {
+				ctx.RedirectTemporary(redirectURL)
+			}
+
+			return false, true, nil
+		}
 
 		serviceIns, matchedRule, pathBackend, err := c.match(ctx, hostname, path)
 		if err != nil {
@@ -87,9 +99,9 @@ func (c *core) build() error {
 			// construct the full URL by keeping the original path and query parameters
 			if !strings.HasPrefix(redirectURL, "http://") && !strings.HasPrefix(redirectURL, "https://") {
 				// Use the same scheme as the original request
-				scheme := "http"
-				if ctx.Request.TLS != nil || ctx.Request.Header.Get("X-Forwarded-Proto") == "https" {
-					scheme = "https"
+				scheme := schemeHTTP
+				if ctx.Request.TLS != nil || strings.EqualFold(ctx.Request.Header.Get(headerXForwardedProto), schemeHTTPS) {
+					scheme = schemeHTTPS
 				}
 
 				// Build the redirect URL with original path and query
@@ -227,10 +239,10 @@ func (c *core) build() error {
 			logger.Warnf("authentication failed for host: %s, path: %s: %s", hostname, path, err)
 
 			// Set WWW-Authenticate header based on auth type
-			if serviceIns.Auth.Type == "basic" {
-				ctx.Writer.Header().Set("WWW-Authenticate", "Basic realm=\"Restricted\"")
-			} else if serviceIns.Auth.Type == "bearer" {
-				ctx.Writer.Header().Set("WWW-Authenticate", "Bearer")
+			if serviceIns.Auth.Type == authTypeBasic {
+				ctx.Writer.Header().Set(headerWWWAuthenticate, authChallengeBasic)
+			} else if serviceIns.Auth.Type == authTypeBearer {
+				ctx.Writer.Header().Set(headerWWWAuthenticate, authChallengeBearer)
 			}
 
 			ctx.Status(http.StatusUnauthorized)
@@ -247,7 +259,7 @@ func (c *core) build() error {
 			logger.Errorf("check dns error (service=%s host=%s path=%s): %s", serviceIns.Name, hostname, path, err)
 
 			// exact service specify
-			if matchedRule.HostType == "exact" {
+			if matchedRule.HostType == hostTypeExact {
 				if c.cfg.ErrorPageExposeDetails {
 					writeIngressErrorPage(ctx, http.StatusServiceUnavailable,
 						"Service unavailable",
@@ -375,6 +387,47 @@ func (c *core) build() error {
 	}))
 
 	return nil
+}
+
+func shouldRedirectFromHTTP(req *http.Request, path string, cfg *Config) bool {
+	// Only enable forced redirect when HTTPS listener is configured.
+	if cfg.HTTPS.Port == 0 {
+		return false
+	}
+
+	if cfg.HTTPS.RedirectFromHTTP.Disabled {
+		return false
+	}
+
+	if req.TLS != nil {
+		return false
+	}
+
+	if strings.EqualFold(req.Header.Get(headerXForwardedProto), schemeHTTPS) {
+		return false
+	}
+
+	for _, excludedPath := range cfg.HTTPS.RedirectFromHTTP.ExcludePaths {
+		if path == excludedPath {
+			return false
+		}
+	}
+
+	return true
+}
+
+func buildHTTPSRedirectURL(hostname, path, rawQuery string, httpsPort int64) string {
+	host := hostname
+	if httpsPort != 0 && httpsPort != 443 {
+		host = fmt.Sprintf("%s:%d", host, httpsPort)
+	}
+
+	redirectURL := fmt.Sprintf("https://%s%s", host, path)
+	if rawQuery != "" {
+		redirectURL = fmt.Sprintf("%s?%s", redirectURL, rawQuery)
+	}
+
+	return redirectURL
 }
 
 func buildAccessLogExtraFields(req *http.Request, upstreamStatus int, upstreamResponseLength int64, upstreamResponseTime time.Duration) string {

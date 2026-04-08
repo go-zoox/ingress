@@ -18,12 +18,27 @@ func Reload() *cli.Command {
 		Usage: "Reload the ingress server",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
+				Name:    "config",
+				Usage:   "The path to the configuration file",
+				Aliases: []string{"c"},
+				EnvVars: []string{"CONFIG"},
+			},
+			&cli.StringFlag{
 				Name:  "pid-file",
 				Usage: "The path to the pid file",
 				Value: "/tmp/gozoox.ingress.pid",
 			},
 		},
 		Action: func(c *cli.Context) error {
+			configFilePath := c.String("config")
+			if configFilePath == "" {
+				configFilePath = "/etc/ingress/ingress.yaml"
+			}
+
+			if err := validateConfigFile(configFilePath); err != nil {
+				return fmt.Errorf("failed to validate config before reload: %s", err)
+			}
+
 			// @TODO
 			if c.String("pid-file") != "" {
 				pidFilePath = c.String("pid-file")

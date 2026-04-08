@@ -31,6 +31,9 @@ https:
 | `enable_http3` | bool | 在已配置 TLS 时启用 HTTP/3（QUIC，UDP） |
 | `http3_port` | int | HTTP/3 的 UDP 端口；省略或 `0` 时与 HTTPS 端口相同（TCP 与 UDP 可同时监听同端口号） |
 | `http3_altsvc_max_age` | int | HTTPS 响应中 `Alt-Svc` 的 `ma=`（秒）；`0` 使用服务端默认；负数为不发送 `Alt-Svc` |
+| `redirect_from_http.disabled` | bool | 禁用全局 HTTP -> HTTPS 强制重定向（默认 `false`，即在配置 HTTPS 时默认开启） |
+| `redirect_from_http.permanent` | bool | 为 `true` 时使用 `301`，否则使用 `302` |
+| `redirect_from_http.exclude_paths` | array | 需要跳过强制重定向的精确路径 |
 | `ssl` | array | SSL 证书配置数组 |
 
 ### SSL 证书配置
@@ -145,18 +148,33 @@ Ingress 将从配置的路径重新加载证书。
 
 ## HTTP 到 HTTPS 重定向
 
-要将 HTTP 流量重定向到 HTTPS，您可以配置重定向规则：
+如需全局强制 HTTP -> HTTPS，请配置 `https.redirect_from_http`：
 
 ```yaml
-rules:
-  - host: example.com
-    backend:
-      redirect:
-        url: https://example.com
-        permanent: true
+https:
+  port: 443
+  redirect_from_http:
+    # disabled: false
+    permanent: true
+    # exclude_paths:
+    #   - /healthz
+  ssl:
+    - domain: example.com
+      cert:
+        certificate: /path/to/fullchain.pem
+        certificate_key: /path/to/privkey.pem
 ```
 
-或在应用程序级别通过检查 `X-Forwarded-Proto` 头来处理。
+行为说明：
+
+- 重定向在路由匹配前执行。
+- 当配置了 `https.port` 时，默认开启强制重定向（除非设置 `redirect_from_http.disabled: true`）。
+- 默认保留原始 host/path/query。
+- 当 `https.port` 不是 `443` 时，重定向 URL 会带上端口。
+- 已判定为 HTTPS 的请求（`TLS` 或 `X-Forwarded-Proto: https`）不会被重定向。
+- `exclude_paths` 按精确路径匹配，命中则跳过强制重定向。
+
+如需按规则单独重定向，继续使用 `rules[].backend.redirect`。
 
 ## SNI（服务器名称指示）
 
