@@ -33,16 +33,16 @@ type compiledPath struct {
 // (so patterns like ^.*\.example\.com$ are not treated as wildcards).
 func effectiveHostType(declared, host string) string {
 	switch declared {
-	case "regex", "wildcard", "exact":
+	case hostTypeRegex, hostTypeWildcard, hostTypeExact:
 		return declared
-	case "", "auto":
+	case "", hostTypeAuto:
 		if hostLooksLikeRegexp(host) {
-			return "regex"
+			return hostTypeRegex
 		}
 		if strings.Contains(host, "*") {
-			return "wildcard"
+			return hostTypeWildcard
 		}
-		return "exact"
+		return hostTypeExact
 	default:
 		return declared
 	}
@@ -70,30 +70,30 @@ func compileRouterIndex(rules []rule.Rule, fallback rule.Backend) (*routerIndex,
 		ht := effectiveHostType(r.HostType, r.Host)
 		r.HostType = ht
 		switch ht {
-		case "exact":
+		case hostTypeExact:
 			idx.entries = append(idx.entries, compiledRuleEntry{
-				hostType:  "exact",
+				hostType:  hostTypeExact,
 				ruleIndex: i,
 				exactHost: r.Host,
 			})
-		case "regex":
+		case hostTypeRegex:
 			re, err := regexp.Compile(r.Host)
 			if err != nil {
 				return nil, fmt.Errorf("rules[%d].host regex: %w", i, err)
 			}
 			idx.entries = append(idx.entries, compiledRuleEntry{
-				hostType:  "regex",
+				hostType:  hostTypeRegex,
 				ruleIndex: i,
 				re:        re,
 			})
-		case "wildcard":
+		case hostTypeWildcard:
 			pat := wildCardToRegexp(r.Host)
 			re, err := regexp.Compile(pat)
 			if err != nil {
 				return nil, fmt.Errorf("rules[%d].host wildcard: %w", i, err)
 			}
 			idx.entries = append(idx.entries, compiledRuleEntry{
-				hostType:             "wildcard",
+				hostType:             hostTypeWildcard,
 				ruleIndex:            i,
 				re:                   re,
 				wildcardRewriterFrom: pat,

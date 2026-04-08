@@ -20,6 +20,11 @@ database:
 
 https:
   port: 8443
+  # redirect_from_http:
+  #   disabled: false
+  #   permanent: true
+  #   exclude_paths:
+  #     - /healthz
   ssl:
     - domain: example.com
       cert:

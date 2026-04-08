@@ -31,6 +31,9 @@ https:
 | `enable_http3` | bool | Enable HTTP/3 (QUIC) on UDP when TLS is configured |
 | `http3_port` | int | UDP port for HTTP/3; omit or `0` to use the same port as HTTPS (TCP and UDP) |
 | `http3_altsvc_max_age` | int | `Alt-Svc` response header `ma=` in seconds; `0` uses a server default; negative omits `Alt-Svc` |
+| `redirect_from_http.disabled` | bool | Disable forced HTTP -> HTTPS redirect (`false` by default, which means enabled when HTTPS is configured) |
+| `redirect_from_http.permanent` | bool | Use `301` when true, `302` when false |
+| `redirect_from_http.exclude_paths` | array | Exact request paths that should skip forced redirect |
 | `ssl` | array | Array of SSL certificate configurations |
 
 ### SSL Certificate Configuration
@@ -145,18 +148,33 @@ Ingress will reload the certificates from the configured paths.
 
 ## HTTP to HTTPS Redirect
 
-To redirect HTTP traffic to HTTPS, you can configure a redirect rule:
+To force global HTTP -> HTTPS redirects, configure `https.redirect_from_http`:
 
 ```yaml
-rules:
-  - host: example.com
-    backend:
-      redirect:
-        url: https://example.com
-        permanent: true
+https:
+  port: 443
+  redirect_from_http:
+    # disabled: false
+    permanent: true
+    # exclude_paths:
+    #   - /healthz
+  ssl:
+    - domain: example.com
+      cert:
+        certificate: /path/to/fullchain.pem
+        certificate_key: /path/to/privkey.pem
 ```
 
-Or handle it at the application level by checking the `X-Forwarded-Proto` header.
+Behavior:
+
+- Redirect applies before route matching.
+- Redirect is enabled by default when `https.port` is configured (unless `redirect_from_http.disabled: true`).
+- The redirect keeps original host/path/query by default.
+- When `https.port` is not `443`, the redirect URL includes that port.
+- Requests already identified as HTTPS (`TLS` or `X-Forwarded-Proto: https`) are not redirected.
+- Paths listed in `exclude_paths` are matched exactly and skip forced redirect.
+
+For route-specific redirects, continue using `rules[].backend.redirect`.
 
 ## SNI (Server Name Indication)
 

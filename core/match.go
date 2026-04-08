@@ -87,7 +87,7 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (s *service.Se
 		s.Request.Host.Rewrite = true
 		// @TODO
 		t = &rule.Rule{}
-		t.HostType = "exact"
+		t.HostType = hostTypeExact
 	}
 
 	return s, t, matchedPathBackend, nil
@@ -107,18 +107,18 @@ func matchHostIndex(router *routerIndex, rules []rule.Rule, fallback rule.Backen
 	for _, e := range router.entries {
 		r := &rules[e.ruleIndex]
 		switch e.hostType {
-		case "exact":
+		case hostTypeExact:
 			if e.exactHost != host {
 				continue
 			}
 			return hostMatcherFromMatchedRule(r, host, "", nil, e.ruleIndex)
-		case "regex":
+		case hostTypeRegex:
 			submatches := e.re.FindStringSubmatch(host)
 			if submatches == nil {
 				continue
 			}
 			return hostMatcherFromMatchedRule(r, host, r.Host, submatches, e.ruleIndex)
-		case "wildcard":
+		case hostTypeWildcard:
 			if !e.re.MatchString(host) {
 				continue
 			}
@@ -138,7 +138,7 @@ func matchHostIndex(router *routerIndex, rules []rule.Rule, fallback rule.Backen
 			IsPathsExist: false,
 			Rule: &rule.Rule{
 				Host:     "@@fallback",
-				HostType: "exact",
+				HostType: hostTypeExact,
 			},
 			ruleIndex: -1,
 		}, nil
@@ -236,7 +236,7 @@ func pathMatchResultWithHost(rpath *rule.Path, matchedRule *rule.Rule, host stri
 
 	name := rpath.Backend.Service.Name
 	rewriterFrom := ""
-	if matchedRule != nil && matchedRule.HostType == "regex" {
+	if matchedRule != nil && matchedRule.HostType == hostTypeRegex {
 		rewriterFrom = matchedRule.Host
 		if len(hostSubmatches) == 0 && host != "" {
 			re, err := regexp.Compile(matchedRule.Host)

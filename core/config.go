@@ -30,12 +30,23 @@ type Config struct {
 type HTTPS struct {
 	Port int64 `config:"port"`
 	SSL  []SSL `config:"ssl"`
+	// RedirectFromHTTP enforces global HTTP -> HTTPS redirects before route handling.
+	RedirectFromHTTP RedirectFromHTTP `config:"redirect_from_http"`
 	// EnableHTTP3 starts an HTTP/3 (QUIC) listener on UDP when https.port is set and TLS is available. Clients discover it via Alt-Svc on HTTPS responses unless http3_altsvc_max_age is negative.
 	EnableHTTP3 bool `config:"enable_http3"`
 	// HTTP3Port is the UDP port for HTTP/3. Zero means the same port as https.port.
 	HTTP3Port int64 `config:"http3_port"`
 	// HTTP3AltSvcMaxAge is the ma= value (seconds) for the Alt-Svc header. Zero lets the framework default apply; negative disables Alt-Svc.
 	HTTP3AltSvcMaxAge int64 `config:"http3_altsvc_max_age"`
+}
+
+type RedirectFromHTTP struct {
+	// Disabled controls forced HTTP -> HTTPS redirects. Default false means enabled.
+	Disabled bool `config:"disabled"`
+	// Permanent uses 301 when true; 302 when false.
+	Permanent bool `config:"permanent"`
+	// ExcludePaths skips redirect for exact path matches.
+	ExcludePaths []string `config:"exclude_paths"`
 }
 
 type HealthCheck struct {
