@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/go-zoox/ingress/core/rule"
 )
@@ -30,12 +31,18 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	for i := range cfg.Rules {
-		if err := validateBackend(cfg.Rules[i].Backend, fmt.Sprintf("rules[%d].backend", i)); err != nil {
+		r := cfg.Rules[i]
+		if err := validateBackend(r.Backend, i, r.Host, "/"); err != nil {
 			return err
 		}
 
-		for j := range cfg.Rules[i].Paths {
-			if err := validateBackend(cfg.Rules[i].Paths[j].Backend, fmt.Sprintf("rules[%d].paths[%d].backend", i, j)); err != nil {
+		for j := range r.Paths {
+			p := r.Paths[j]
+			pathPattern := p.Path
+			if pathPattern == "" {
+				pathPattern = "paths[" + strconv.Itoa(j) + "]"
+			}
+			if err := validateBackend(p.Backend, i, r.Host, pathPattern); err != nil {
 				return err
 			}
 		}
@@ -44,7 +51,10 @@ func ValidateConfig(cfg *Config) error {
 	return nil
 }
 
-func validateBackend(backend rule.Backend, path string) error {
+// validateBackend checks one backend under a rule.
+// host is the rule's host pattern; pathPattern is paths[].path from config for path backends,
+// "/" for the rule-level backend. If paths[].path is empty, messages use paths[index] as fallback.
+func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string) error {
 	backendType := backend.Type
 	if backendType == "" {
 		backendType = backendTypeService
@@ -52,21 +62,37 @@ func validateBackend(backend rule.Backend, path string) error {
 
 	switch backendType {
 	case backendTypeService:
+		if backend.Redirect.URL != "" && backend.Service.Name != "" {
+			return fmt.Errorf("%s: backend.redirect and backend.service are mutually exclusive",
+				ruleBackendLoc(ruleIdx, host, pathPattern))
+		}
+		if backend.Redirect.URL != "" {
+			return nil
+		}
 		if err := backend.Service.Validate(); err != nil {
-			return fmt.Errorf("%s.service: %w", path, err)
+			return fmt.Errorf("%s.service: %w", ruleBackendLoc(ruleIdx, host, pathPattern), err)
 		}
 	case backendTypeHandler:
-		if err := validateHandler(backend.Handler, path+".handler"); err != nil {
+		if err := validateHandler(backend.Handler, ruleIdx, host, pathPattern); err != nil {
 			return err
 		}
 	default:
-		return fmt.Errorf("%s.type: unsupported backend type: %s", path, backendType)
+		return fmt.Errorf("%s.type: unsupported backend type: %s",
+			ruleBackendLoc(ruleIdx, host, pathPattern), backendType)
 	}
 
 	return nil
 }
 
-func validateHandler(handler rule.Handler, path string) error {
+func ruleBackendLoc(ruleIdx int, host, pathPattern string) string {
+	return fmt.Sprintf("rules[%d] host=%q path=%q", ruleIdx, host, pathPattern)
+}
+
+func handlerLoc(ruleIdx int, host, pathPattern string) string {
+	return ruleBackendLoc(ruleIdx, host, pathPattern) + " handler"
+}
+
+func validateHandler(handler rule.Handler, ruleIdx int, host, pathPattern string) error {
 	handlerType := handler.Type
 	if handlerType == "" {
 		handlerType = handlerTypeStaticResponse
@@ -77,7 +103,8 @@ func validateHandler(handler rule.Handler, path string) error {
 		return nil
 	case handlerTypeFileServer, handlerTypeTemplates:
 		if handler.RootDir == "" {
-			return fmt.Errorf("%s.root_dir is required for %s", path, handlerType)
+			return fmt.Errorf("%s.root_dir is required for %s",
+				handlerLoc(ruleIdx, host, pathPattern), handlerType)
 		}
 		return nil
 	case handlerTypeScript:
@@ -90,9 +117,11 @@ func validateHandler(handler rule.Handler, path string) error {
 		case scriptEngineJavaScript, scriptEngineGo:
 			return nil
 		default:
-			return fmt.Errorf("%s.engine: unsupported script engine: %s", path, engine)
+			return fmt.Errorf("%s.engine: unsupported script engine: %s",
+				handlerLoc(ruleIdx, host, pathPattern), engine)
 		}
 	default:
-		return fmt.Errorf("%s.type: unsupported handler type: %s", path, handlerType)
+		return fmt.Errorf("%s.type: unsupported handler type: %s",
+			handlerLoc(ruleIdx, host, pathPattern), handlerType)
 	}
 }

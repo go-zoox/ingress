@@ -33,6 +33,7 @@ https:
 | `http3_altsvc_max_age` | int | HTTPS 响应中 `Alt-Svc` 的 `ma=`（秒）；`0` 使用服务端默认；负数为不发送 `Alt-Svc` |
 | `redirect_from_http.disabled` | bool | 禁用全局 HTTP -> HTTPS 强制重定向（默认 `false`，即在配置 HTTPS 时默认开启） |
 | `redirect_from_http.permanent` | bool | 为 `true` 时使用 `301`，否则使用 `302` |
+| `redirect_from_http.with_origin_method_and_body` | bool | 为 `true` 时使用 `308`/`307` 以保留方法与请求体（默认 `false`，否则为 `301`/`302`） |
 | `redirect_from_http.exclude_paths` | array | 需要跳过强制重定向的精确路径 |
 | `ssl` | array | SSL 证书配置数组 |
 
@@ -173,6 +174,7 @@ https:
 - 当 `https.port` 不是 `443` 时，重定向 URL 会带上端口。
 - 已判定为 HTTPS 的请求（`TLS` 或 `X-Forwarded-Proto: https`）不会被重定向。
 - `exclude_paths` 按精确路径匹配，命中则跳过强制重定向。
+- 可选配置 `with_origin_method_and_body: true`，使用 **308**/**307** 替代 **301**/**302**，使非 GET 跳转保留方法与请求体（语义与 `rules[].backend.redirect` 一致）。
 
 如需按规则单独重定向，继续使用 `rules[].backend.redirect`。
 

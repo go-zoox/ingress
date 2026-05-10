@@ -227,7 +227,7 @@ rules:
 
 ## Redirects
 
-Instead of proxying to a backend service, you can redirect requests:
+Use `backend.redirect` to send a redirect instead of proxying. Under the same **`backend`**, **`service` and `redirect` are mutually exclusive**—only one is applied at runtime (`ingress validate` rejects both together). A redirect-only backend **does not require** a `service` block.
 
 ```yaml
 rules:
@@ -238,8 +238,24 @@ rules:
         permanent: true
 ```
 
-- `url`: The redirect target URL
-- `permanent`: If `true`, returns a 301 redirect; if `false`, returns a 302 redirect
+Fields:
+
+- **`url`**: Target URL. If it does not start with `http://` or `https://`, Ingress treats the value as a host (optional port) and builds the full URL with the incoming request’s scheme, original path, and query string.
+- **`permanent`**: When `false`, uses **302**; when `true`, uses **301**—unless `with_origin_method_and_body` is enabled (below).
+- **`with_origin_method_and_body`** (default `false`): When `true`, uses **307** / **308** so clients keep the original HTTP method and body (temporary vs permanent follows `permanent`). When `false`, uses **302** / **301** as above.
+
+**Capture templates** in `url` follow the same rules as `service.name`: `${host.N}` and `${path.N}` from regex captures; for regex/wildcard hosts you can also use legacy **`$1`-style** substitution from the host pattern. Path captures apply when the redirect is chosen from a matched `paths[].path` entry.
+
+```yaml
+rules:
+  - host: '^bigscreen-([^.]+)\.ys\.example\.com$'
+    host_type: regex
+    backend:
+      redirect:
+        url: https://bigscreen-$1.other.example.com
+```
+
+Forced HTTP→HTTPS uses `https.redirect_from_http` (including optional `with_origin_method_and_body`); see the [SSL/TLS guide](/guide/ssl-tls).
 
 ## Handler Backend
 

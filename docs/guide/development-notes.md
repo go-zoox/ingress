@@ -53,6 +53,7 @@ Expected benefits:
   - `yaml syntax error ...`
   - `invalid config format ...`
   - `unsupported configuration ...`
+- Router/backend validation messages include **`rules[N] host="..." path="..."`** (rule-level backends use `path="/"`; path backends use the configured path pattern).
 - `ingress reload` validates config first and sends `SIGHUP` only when validation passes.
 
 This keeps reload behavior consistent with startup safety and prevents applying broken config during runtime.

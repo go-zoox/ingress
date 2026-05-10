@@ -58,7 +58,7 @@ func (c *core) build() error {
 			return false, true, nil
 		}
 
-		serviceIns, matchedRule, pathBackend, err := c.match(ctx, hostname, path)
+		serviceIns, matchedRule, pathBackend, hostSm, pathSm, err := c.match(ctx, hostname, path)
 		if err != nil {
 			logger.Warnf("no route matched (host: %s, path: %s): %s", hostname, path, err)
 			if c.cfg.ErrorPageExposeDetails {
@@ -94,6 +94,7 @@ func (c *core) build() error {
 		}
 
 		if hasRedirect {
+			redirectURL = expandRedirectURL(matchedRule, hostname, redirectURL, hostSm, pathSm)
 			// If redirect URL is not a full URL (doesn't start with http:// or https://),
 			// construct the full URL by keeping the original path and query parameters
 			if !strings.HasPrefix(redirectURL, "http://") && !strings.HasPrefix(redirectURL, "https://") {

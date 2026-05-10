@@ -78,7 +78,9 @@ rules:
         protocol: http  # Backend uses HTTP, TLS terminated at Ingress
 ```
 
-## HTTP to HTTPS Redirect
+## Global HTTP to HTTPS redirect
+
+When `https.port` is set, Ingress can force cleartext HTTP clients to HTTPS **before** route matching. Configure `https.redirect_from_http` (not `rules[].backend.redirect`):
 
 ```yaml
 version: v1
@@ -86,6 +88,11 @@ port: 8080
 
 https:
   port: 8443
+  redirect_from_http:
+    permanent: true
+    # with_origin_method_and_body: false   # true -> 308/307, false -> 301/302
+    # exclude_paths:
+    #   - /healthz
   ssl:
     - domain: example.com
       cert:
@@ -95,9 +102,24 @@ https:
 rules:
   - host: example.com
     backend:
+      service:
+        name: backend-service
+        port: 8080
+        protocol: http
+```
+
+## Route-level redirect (`rules[].backend.redirect`)
+
+Use `backend.redirect` when a **specific host or path** should issue a redirect instead of proxying. **`service` and `redirect` are mutually exclusive** on the same backend; you may omit `service` when using redirect only.
+
+```yaml
+rules:
+  - host: old.example.com
+    backend:
       redirect:
-        url: https://example.com
+        url: https://new.example.com
         permanent: true
+        # with_origin_method_and_body: false
 ```
 
 ## Testing

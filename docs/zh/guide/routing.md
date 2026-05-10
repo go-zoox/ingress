@@ -227,7 +227,7 @@ rules:
 
 ## 重定向
 
-除了代理到后端服务，您还可以重定向请求：
+使用 `backend.redirect` 直接返回重定向而不走反向代理。同一个 **`backend`** 下 **`service` 与 `redirect` 互斥**（运行时只会生效其一，`ingress validate` 会拒绝二者同时配置）。仅配置重定向时 **可以不写** `service` 块。
 
 ```yaml
 rules:
@@ -238,8 +238,24 @@ rules:
         permanent: true
 ```
 
-- `url`: 重定向目标 URL
-- `permanent`: 如果为 `true`，返回 301 重定向；如果为 `false`，返回 302 重定向
+字段说明：
+
+- **`url`**：跳转地址。若非 `http://` / `https://` 开头，则视为主机（可含端口），Ingress 会用当前请求的协议，并保留原始 path 与 query 拼出完整 URL。
+- **`permanent`**：为 `false` 时使用 **302**，为 `true` 时使用 **301**；若开启下面的 `with_origin_method_and_body`，则状态码见该项说明。
+- **`with_origin_method_and_body`**（默认 `false`）：为 `true` 时使用 **307** / **308**，客户端会保留原 HTTP 方法与请求体（临时/永久仍由 `permanent` 决定）；为 `false` 时仍为 **302** / **301**。
+
+可在 **`url` 中写捕获占位**，规则与 `service.name` 一致：`${host.N}`、`${path.N}`；对正则或通配 host 还可使用基于 host 模式的 **`$1` 风格** 替换。若重定向来自某条已匹配的 `paths[].path`，可使用 path 捕获。
+
+```yaml
+rules:
+  - host: '^bigscreen-([^.]+)\.ys\.example\.com$'
+    host_type: regex
+    backend:
+      redirect:
+        url: https://bigscreen-$1.other.example.com
+```
+
+全局 HTTP→HTTPS 强跳使用 `https.redirect_from_http`（同样支持 `with_origin_method_and_body`），详见 [SSL/TLS 指南](/zh/guide/ssl-tls)。
 
 ## Handler 后端
 

@@ -206,3 +206,56 @@ rules:
                 tokens:
                   - api-token-123
 ```
+
+## 后端重定向（进阶）
+
+同一 **`backend`** 上 **`redirect` 与 `service` 不能同时配置**。仅重定向时可不写 `service`。
+
+### 正则 host：`redirect.url` 中使用捕获
+
+与 `service.name` 相同的占位规则：`$1`、`${host.1}` 等。
+
+```yaml
+rules:
+  - host: '^bigscreen-([^.]+)\.example\.com$'
+    host_type: regex
+    backend:
+      redirect:
+        url: https://bigscreen-$1.other.example.com
+```
+
+### Host 级兜底重定向 + path 反代
+
+未命中任何 path 时使用 host 上的 `redirect`；命中 path 则走对应 `service`。
+
+```yaml
+rules:
+  - host: app.example.com
+    backend:
+      redirect:
+        url: https://www.example.com/landing
+    paths:
+      - path: ^/api/
+        backend:
+          service:
+            name: api-svc
+            port: 8080
+            protocol: http
+```
+
+### Path 级重定向与 `${path.N}`
+
+```yaml
+rules:
+  - host: api.example.com
+    backend:
+      service:
+        name: default-upstream
+        port: 8080
+        protocol: http
+    paths:
+      - path: ^/go/([^/]+)$
+        backend:
+          redirect:
+            url: https://seg.${path.1}.example.com/resource
+```
