@@ -47,7 +47,7 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 
 ## Redirect and config validation
 
-- Route redirect (`rules[].backend.redirect` and path backends): evaluated before proxy/handler in `core/build.go`. **`backend.service` and `backend.redirect` are mutually exclusive** on the same backend; **`ingress validate`** (`core/validate.go`) rejects `service.name` plus `redirect.url` together. Errors look like **`rules[N] host="..." path="..."`** (`path="/"` for rule-level backends; otherwise the configured `paths[].path` pattern). Redirect-only backends need no `service`. **`expandRedirectURL`** (`core/match.go`) applies `${host.N}`/`${path.N}`/`$1`-style templates in redirect URLs (aligned with service naming). Route **`redirect.with_origin_method_and_body`** mirrors global semantics (**307**/**308** vs **302**/**301**).
+- Route redirect (`rules[].backend.redirect` and path backends): evaluated before proxy/handler in `core/build.go`. **`backend.type`** is **`service`**, **`handler`**, or **`redirect`** (`core/constants.go`). **`inferBackendTypes` / `inferRuleBackends`** (`core/backend_type.go`) run during **`prepare`** and **`ingress validate`**, inferring the type when `type` is omitted and exactly one of service/handler/redirect blocks looks configured; otherwise validation demands an explicit `backend.type`. Each typed backend permits only its matching block (`core/validate.go`). **`expandRedirectURL`** (`core/match.go`) applies `${host.N}`/`${path.N}`/`$1`-style templates in redirect URLs (aligned with service naming). Route **`redirect.with_origin_method_and_body`** mirrors global semantics (**307**/**308** vs **302**/**301**).
 
 ## Docs and tests
 

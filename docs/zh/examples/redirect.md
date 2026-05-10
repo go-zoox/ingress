@@ -1,6 +1,6 @@
 # 重定向示例
 
-同一 **`backend`** 上 **`redirect` 与 `service` 不能同时配置**。仅重定向时可不写 `service`。
+通常 **省略 `backend.type`**：仅在配置了 **`backend.redirect`** 时会推断为 **`redirect`**。**`examples/ssl-tls/route-redirect.yaml`** 用两个 host 分别演示 **`type: redirect`** 与省略。**`examples/redirect/capture-and-mixed.yaml`** 在同一文件里混用「部分 backend 显式写 **`backend.type`**、部分省略」。若 **`ingress validate`** 提示歧义再显式写 **`backend.type: redirect`**。不要在**同一个** `backend` 上同时配置 **`backend.service`** / **`backend.handler`** 与 **`backend.redirect`**——同一 host 需要反代与跳转时请拆到不同 **`paths`**（见下例）。
 
 全局 HTTP→HTTPS（在路由之前）请用 `https.redirect_from_http`，见 [SSL/TLS](./ssl)。
 

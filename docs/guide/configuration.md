@@ -56,8 +56,8 @@ fallback:
 rules:
   - host: example.com
     backend:
-      # type defaults to service, options: service | handler
-      # type: service
+      # Omit backend.type when only one of service | handler | redirect applies — runnable twin spelling:
+      # examples/basic/ingress.yaml (explicit type: service vs omission).
       service:
         name: backend-service
         port: 8080
@@ -150,13 +150,15 @@ fallback:
 
 Rules define how requests are routed to backend services. See the [Routing Guide](/guide/routing) for detailed information.
 
+For **`backend.type`**, this snippet **mixes styles**: the rule `backend` sets **`type: service`** explicitly, while **`paths[].backend`** blocks omit **`type`** (they infer **`service`** or **`handler`** from their nested blocks).
+
 ```yaml
 rules:
   - host: example.com           # Host to match
     # host_type: optional — omit or `auto` to infer exact vs regex vs wildcard from `host` at compile time
     # explicit values: exact | regex | wildcard
     backend:
-      type: service             # Backend type: service (default) or handler
+      type: service             # optional — omit when only service applies (see examples/basic/ingress.yaml)
       service:
         name: backend-service
         port: 8080
@@ -184,7 +186,7 @@ rules:
             key: value
           delay: 0              # Delay in milliseconds
           timeout: 30           # Timeout in seconds
-      # redirect: ...           # Mutually exclusive with service — see Routing guide
+      # redirect: ...           # Only redirect block — see Routing guide (backend.type optional when unique)
     paths:                      # Path-based routing (optional)
       - path: /api
         backend:
@@ -193,7 +195,6 @@ rules:
             port: 8080
       - path: /healthz
         backend:
-          type: handler
           handler:
             status_code: 200
             headers:
@@ -235,10 +236,10 @@ You can override some configuration using environment variables:
 
 Ingress validates configuration when the process starts and when you run **`ingress validate`**. Errors prevent startup or a successful reload.
 
-Static checks include router compilation (host/path regex), HTTPS/TLS shape, and **per-backend** rules for `type: service`:
+Static checks include router compilation (host/path regex), HTTPS/TLS shape, and **per-backend** consistency (**`backend.type`** is usually omitted and inferred as **`service`**, **`handler`**, or **`redirect`**):
 
-- **`service` and `redirect`** cannot both be set on the same backend (`service.name` non-empty together with `redirect.url`).
-- A **`redirect`-only** backend may omit `service`.
+- **`backend.type` is optional.** With **`type` omitted**, Ingress **infers** the mode when exactly one of `service`, `handler`, or `redirect` looks configured; otherwise validation fails and asks for an explicit **`backend.type`**.
+- With an explicit type, only the matching block is allowed (for example **`type: redirect`** requires **`redirect.url`** and forbids populated **`service`** / **`handler`** fields).
 
 Validation errors cite the rule index, configured host pattern, and routing path: **`rules[N] host="..." path="..."`**. Rule-level backends use **`path="/"`**; path backends use the configured **`paths[].path`** pattern (if that pattern string is empty, the message falls back to `paths[index]`).
 

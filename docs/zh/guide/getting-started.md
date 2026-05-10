@@ -53,6 +53,20 @@ rules:
         port: 8080
 ```
 
+下面写法等价——显式指定 **`backend.type`**（同一仓库 **`examples/basic/ingress.yaml`** 把两种方式并排写在两条 host 里）：
+
+```yaml
+rules:
+  - host: example.com
+    backend:
+      type: service
+      service:
+        name: backend-service
+        port: 8080
+```
+
+Ingress 会在仅有 **`backend.service`** / **`backend.handler`** / **`backend.redirect`** 之一生效时自动推断 **`backend.type`**，常规用法下**不必写 `type`**；仅当 **`ingress validate`** 提示 backend 模糊时再显式指定。详见 [路由指南](/zh/guide/routing)。
+
 ### 2. 启动服务器
 
 使用您的配置启动 Ingress：

@@ -9,6 +9,9 @@ import (
 )
 
 func (c *core) prepare() error {
+	if err := inferBackendTypes(c.cfg); err != nil {
+		return err
+	}
 	// default config when unset
 	if c.cfg.Cache.TTL == 0 {
 		c.cfg.Cache.TTL = 60

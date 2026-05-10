@@ -20,13 +20,13 @@ go install github.com/go-zoox/ingress@latest
 # start ingress, cached in memory, default udp port: 80
 ingress run
 
-# start ingress with config (see conf/ingress.yaml for a large reference)
+# start ingress with a repo example config
 ingress run -c examples/basic/ingress.yaml
 ```
 
 ## Configuration
 
-See [`conf/ingress.yaml`](conf/ingress.yaml) for a broad reference layout and [`examples/`](examples/) for smaller, topic-focused configs (`ingress validate -c examples/basic/ingress.yaml`).
+Runnable samples live under [`examples/`](examples/) (validate with `ingress validate -c examples/<topic>/...`). Several YAML files pair explicit **`backend.type`** with omission side by side—see **`examples/basic/ingress.yaml`**, **`examples/ssl-tls/route-redirect.yaml`**, **`examples/redirect/capture-and-mixed.yaml`**. Field-level reference: [`docs/guide/configuration.md`](docs/guide/configuration.md) (and Chinese [`docs/zh/guide/configuration.md`](docs/zh/guide/configuration.md)).
 
 ## Features
 
@@ -38,7 +38,7 @@ See [`conf/ingress.yaml`](conf/ingress.yaml) for a broad reference layout and [`
 - **SSL/TLS**: HTTPS and SSL certificate configuration
 - **Health Checks**: Outer and inner service health monitoring
 - **Caching**: In-memory and Redis caching support
-- **Redirects**: Global HTTP→HTTPS (`https.redirect_from_http`), per-route `backend.redirect`, optional **307/308** (`with_origin_method_and_body`) and URL capture templates; **`service` and `redirect` are mutually exclusive** on the same backend
+- **Redirects**: Global HTTP→HTTPS (`https.redirect_from_http`), per-route **`backend.redirect`** with optional **307/308** (`with_origin_method_and_body`) and URL capture templates; **`backend.type`** (**`service`**, **`handler`**, **`redirect`**) is optional and inferred when unambiguous—set it explicitly only when validation reports ambiguity.
 - **Timeout Control**: Request timeout and delay configuration
 - **Fallback Service**: Default backend for unmatched requests
 

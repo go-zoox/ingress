@@ -33,7 +33,7 @@ Optional fields (comment in your own file as needed):
 
 ## Route-level redirect (`rules[].backend.redirect`)
 
-Use `backend.redirect` when a **specific host or path** should issue a redirect instead of proxying. **`service` and `redirect` are mutually exclusive** on the same backend; you may omit `service` when using redirect only.
+Use `backend.redirect` when a **specific host or path** should issue a redirect instead of proxying. **Usually omit `backend.type`**—Ingress infers **`redirect`** when only **`redirect`** is configured. **Runnable comparison:** **`examples/ssl-tls/route-redirect.yaml`** uses two hosts (`type: redirect` vs omission). Set **`backend.type: redirect`** explicitly only when validation reports ambiguity. See [routing](/guide/routing#redirects) for how **`service`**, **`handler`**, and **`redirect`** blocks relate to each backend.
 
 <<< @/../examples/ssl-tls/route-redirect.yaml yaml
 

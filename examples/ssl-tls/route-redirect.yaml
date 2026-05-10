@@ -2,7 +2,13 @@ version: v1
 port: 8080
 
 rules:
-  - host: old.example.com
+  - host: old-explicit.example.com
+    backend:
+      type: redirect
+      redirect:
+        url: https://new.example.com
+        permanent: true
+  - host: old-inferred.example.com
     backend:
       redirect:
         url: https://new.example.com

@@ -5,6 +5,7 @@ rules:
   - host: '^bigscreen-([^.]+)\.example\.com$'
     host_type: regex
     backend:
+      type: redirect
       redirect:
         url: https://bigscreen-$1.other.example.com
   - host: app.example.com
@@ -14,6 +15,7 @@ rules:
     paths:
       - path: ^/api/
         backend:
+          type: service
           service:
             name: api-svc
             port: 8080

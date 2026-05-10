@@ -94,10 +94,10 @@ func TestValidateConfig_RedirectWithNamedServiceRejected(t *testing.T) {
 
 	err := ValidateConfig(cfg)
 	if err == nil {
-		t.Fatal("expected error when backend.redirect and backend.service are both set")
+		t.Fatal("expected error when backend.redirect and backend.service are both set without explicit type")
 	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Fatalf("expected mutually exclusive error, got: %v", err)
+	if !strings.Contains(err.Error(), "ambiguous backend") {
+		t.Fatalf("expected ambiguous backend error, got: %v", err)
 	}
 	if !strings.Contains(err.Error(), `path="/"`) {
 		t.Fatalf("expected rule-level backend path=/ in error, got: %v", err)
@@ -136,9 +136,62 @@ func TestValidateConfig_RedirectWithNamedServiceRejected_ShowsPathPattern(t *tes
 
 	err := ValidateConfig(cfg)
 	if err == nil {
-		t.Fatal("expected error for path-level mutually exclusive backend")
+		t.Fatal("expected error for path-level ambiguous backend")
+	}
+	if !strings.Contains(err.Error(), "ambiguous backend") {
+		t.Fatalf("expected ambiguous backend error, got: %v", err)
 	}
 	if !strings.Contains(err.Error(), `path="^/api/v1/"`) {
 		t.Fatalf("expected configured path pattern in error, got: %v", err)
+	}
+}
+
+func TestValidateConfig_ExplicitServiceWithRedirectRejected(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "x.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "upstream-svc",
+						Port:     8080,
+						Protocol: "http",
+					},
+					Redirect: rule.Redirect{
+						URL: "https://else.example.com/",
+					},
+				},
+			},
+		},
+	}
+
+	err := ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error when type service combined with redirect block")
+	}
+	if !strings.Contains(err.Error(), `backend.type is "service" but backend.redirect`) {
+		t.Fatalf("expected service+redirect conflict error, got: %v", err)
+	}
+}
+
+func TestValidateConfig_InfersRedirectType(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "r.example.com",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{URL: "https://z.example/"},
+				},
+			},
+		},
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Rules[0].Backend.Type != backendTypeRedirect {
+		t.Fatalf("expected inferred type redirect, got %q", cfg.Rules[0].Backend.Type)
 	}
 }

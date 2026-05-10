@@ -37,7 +37,7 @@ During refactors, avoid inline string literals for protocol/type/header selector
 Examples already extracted in `core/constants.go`:
 
 - Host type selectors: `hostTypeExact`, `hostTypeRegex`, `hostTypeWildcard`, `hostTypeAuto`
-- Backend type selectors: `backendTypeService`, `backendTypeHandler`
+- Backend type selectors: `backendTypeService`, `backendTypeHandler`, `backendTypeRedirect`
 - Auth selectors/challenges: `authTypeBasic`, `authTypeBearer`, `authChallengeBasic`, `authChallengeBearer`
 - Header and scheme: `headerXForwardedProto`, `headerWWWAuthenticate`, `schemeHTTP`, `schemeHTTPS`
 

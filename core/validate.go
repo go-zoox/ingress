@@ -10,6 +10,10 @@ import (
 // ValidateConfig performs static configuration checks without starting servers
 // or touching external systems.
 func ValidateConfig(cfg *Config) error {
+	if err := inferBackendTypes(cfg); err != nil {
+		return err
+	}
+
 	if _, err := compileRouterIndex(cfg.Rules, cfg.Fallback); err != nil {
 		return fmt.Errorf("router rules: %w", err)
 	}
@@ -54,25 +58,53 @@ func ValidateConfig(cfg *Config) error {
 // validateBackend checks one backend under a rule.
 // host is the rule's host pattern; pathPattern is paths[].path from config for path backends,
 // "/" for the rule-level backend. If paths[].path is empty, messages use paths[index] as fallback.
+//
+// Expected backend.Type values (after inferBackendTypes): "service", "handler", or "redirect".
 func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string) error {
 	backendType := backend.Type
 	if backendType == "" {
 		backendType = backendTypeService
 	}
 
+	hr := hasRedirectBackend(backend)
+	hs := servicePopulated(backend.Service)
+	hh := handlerPopulated(backend.Handler)
+
 	switch backendType {
 	case backendTypeService:
-		if backend.Redirect.URL != "" && backend.Service.Name != "" {
-			return fmt.Errorf("%s: backend.redirect and backend.service are mutually exclusive",
+		if hr {
+			return fmt.Errorf("%s: backend.type is \"service\" but backend.redirect is set; use type \"redirect\" or remove redirect",
 				ruleBackendLoc(ruleIdx, host, pathPattern))
 		}
-		if backend.Redirect.URL != "" {
-			return nil
+		if hh {
+			return fmt.Errorf("%s: backend.type is \"service\" but backend.handler is configured; use type \"handler\" or remove handler",
+				ruleBackendLoc(ruleIdx, host, pathPattern))
 		}
 		if err := backend.Service.Validate(); err != nil {
 			return fmt.Errorf("%s.service: %w", ruleBackendLoc(ruleIdx, host, pathPattern), err)
 		}
+	case backendTypeRedirect:
+		if !hr {
+			return fmt.Errorf("%s: backend.type \"redirect\" requires backend.redirect.url",
+				ruleBackendLoc(ruleIdx, host, pathPattern))
+		}
+		if hs {
+			return fmt.Errorf("%s: backend.type \"redirect\" must not configure backend.service",
+				ruleBackendLoc(ruleIdx, host, pathPattern))
+		}
+		if hh {
+			return fmt.Errorf("%s: backend.type \"redirect\" must not configure backend.handler",
+				ruleBackendLoc(ruleIdx, host, pathPattern))
+		}
 	case backendTypeHandler:
+		if hr {
+			return fmt.Errorf("%s: backend.type is \"handler\" but backend.redirect is set; use type \"redirect\" or remove redirect",
+				ruleBackendLoc(ruleIdx, host, pathPattern))
+		}
+		if hs {
+			return fmt.Errorf("%s: backend.type is \"handler\" but backend.service is configured; use type \"service\" or remove service",
+				ruleBackendLoc(ruleIdx, host, pathPattern))
+		}
 		if err := validateHandler(backend.Handler, ruleIdx, host, pathPattern); err != nil {
 			return err
 		}
