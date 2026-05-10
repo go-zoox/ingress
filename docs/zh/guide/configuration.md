@@ -76,6 +76,23 @@ rules:
 | `healthcheck` | object | 健康检查配置 | - |
 | `fallback` | object | 回退后端 | - |
 | `rules` | array | 路由规则 | `[]` |
+| `waf` | object | WAF 基线；路由级补丁为 **`rules[].waf`** 映射（参见 [WAF](waf.md)） | 省略或 `enabled: false` 时不启用 |
+
+### WAF（`waf` / `rules[].waf`）
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| `enabled` | bool | 总开关 |
+| `trust_proxy` | bool | 是否从 `X-Forwarded-For` 解析客户端 IP |
+| `xff_index` | int | 选第几段（`0`=最左；负数从右数） |
+| `log_only` | bool | 全局仅审计不打断请求 |
+| `block_status_code` | int | 拦截时 HTTP 状态码（默认 403，`0` 表示默认） |
+| `block_content_type` | string | 拦截响应 `Content-Type` |
+| `block_body` | string | 拦截响应体 |
+| `disable_builtin` | bool | `true` 时关闭内置 starter 规则（清单见 [WAF](waf.md)） |
+| `deny` | string 数组 | 拒绝的 IP/CIDR（先匹配） |
+| `allow` | string 数组 | 非空时仅允许表中网段通过 IP 阶段 |
+| `rules` | array | 自定义特征（`id`、`pattern`、`type`、`targets`、`log_only`）；同 `id` 在路由上覆盖全局 |
 
 ### 缓存配置
 

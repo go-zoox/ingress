@@ -18,6 +18,7 @@ Several files **mix explicit `backend.type` and omission on purpose** (for examp
 | `ssl-tls/` | HTTPS, certs, global redirect |
 | `advanced/` | Regex hosts, rewrites, health, cache |
 | `redirect/` | Backend redirects and capture templates |
+| `waf/` | IP lists, custom signatures, `rules[].waf` overlays |
 
 Compose production configs by merging patterns from these files; there is no longer a single monolithic sample in-repo.
 

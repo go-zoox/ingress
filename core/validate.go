@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/go-zoox/ingress/core/rule"
+	"github.com/go-zoox/ingress/core/waf"
 )
 
 // ValidateConfig performs static configuration checks without starting servers
@@ -16,6 +17,10 @@ func ValidateConfig(cfg *Config) error {
 
 	if _, err := compileRouterIndex(cfg.Rules, cfg.Fallback); err != nil {
 		return fmt.Errorf("router rules: %w", err)
+	}
+
+	if _, _, err := waf.CompileIngress(cfg.WAF, cfg.Rules); err != nil {
+		return fmt.Errorf("waf: %w", err)
 	}
 
 	if cfg.HTTPS.Port != 0 && len(cfg.HTTPS.SSL) == 0 {

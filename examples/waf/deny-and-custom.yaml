@@ -1,0 +1,24 @@
+version: v1
+port: 8080
+
+# Block a TEST-NET /24 from reaching the virtual host; disable embedded starters and add a custom path rule.
+waf:
+  enabled: true
+  disable_builtin: true
+  deny:
+    - 203.0.113.0/24
+  rules:
+    - id: block-secret-path
+      name: block literal /internal path prefix
+      type: contains
+      pattern: /internal
+      targets:
+        - path
+
+rules:
+  - host: waf-ip.example.com
+    backend:
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

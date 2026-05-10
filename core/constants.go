@@ -33,6 +33,7 @@ const (
 
 	// common proxy request headers
 	headerXForwardedProto = "X-Forwarded-Proto"
+	headerXForwardedFor   = "X-Forwarded-For"
 	headerWWWAuthenticate = "WWW-Authenticate"
 
 	// common URL schemes

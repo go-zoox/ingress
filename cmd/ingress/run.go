@@ -11,6 +11,7 @@ import (
 	"github.com/go-zoox/fs"
 	"github.com/go-zoox/ingress"
 	"github.com/go-zoox/ingress/core"
+	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/logger"
 )
 
@@ -61,6 +62,9 @@ func Run() *cli.Command {
 				}); err != nil {
 					return fmt.Errorf("failed to read config file: %s", err)
 				}
+				if err := waf.ApplyRulePatchesFromFile(configFilePath, cfg.Rules); err != nil {
+					return fmt.Errorf("failed to apply rules[].waf patches: %w", err)
+				}
 			}
 
 			if c.Int64("port") != 0 {
@@ -95,6 +99,10 @@ func Run() *cli.Command {
 							FilePath: configFilePath,
 						}); err != nil {
 							logger.Errorf("failed to read config file: %s", err)
+							return
+						}
+						if err := waf.ApplyRulePatchesFromFile(configFilePath, cfg.Rules); err != nil {
+							logger.Errorf("failed to apply rules[].waf patches: %s", err)
 							return
 						}
 

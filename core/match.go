@@ -41,17 +41,17 @@ func backendNeedsNoUpstream(b rule.Backend) bool {
 	return bt == backendTypeHandler || bt == backendTypeRedirect
 }
 
-func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Service, *rule.Rule, *rule.Backend, []string, []string, error) {
+func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Service, *rule.Rule, *rule.Backend, []string, []string, int, error) {
 	key := "match.host:v2:" + host
 	matcher := &HostMatcher{}
 	if err := ctx.Cache().Get(key, matcher); err != nil {
 		matcher, err = matchHostIndex(c.router, c.cfg.Rules, c.cfg.Fallback, host)
 		if err != nil {
 			if !errors.Is(err, ErrHostNotFound) {
-				return nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, 0, err
 			}
 
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, 0, err
 		}
 
 		ctx.Cache().Set(key, matcher, time.Duration(c.cfg.Cache.TTL)*time.Second)
@@ -68,7 +68,7 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Serv
 		ps, matchedPath, psm, err := matchPathWithRouter(c.router, c.cfg.Rules, matcher.ruleIndex, path, host, matcher.hostSubmatches)
 		if err != nil {
 			if !errors.Is(err, ErrPathNotFound) {
-				return nil, nil, nil, nil, nil, err
+				return nil, nil, nil, nil, nil, matcher.ruleIndex, err
 			}
 		} else {
 			pathSubmatches = psm
@@ -82,11 +82,11 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Serv
 	hostNP := backendNeedsNoUpstream(t.Backend)
 	pathNP := matchedPathBackend != nil && backendNeedsNoUpstream(*matchedPathBackend)
 	if s == nil && !hostNP && !pathNP {
-		return nil, nil, nil, nil, nil, fmt.Errorf("service not found at matcher")
+		return nil, nil, nil, nil, nil, matcher.ruleIndex, fmt.Errorf("service not found at matcher")
 	}
 
 	if s == nil && (pathNP || hostNP) {
-		return nil, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, nil
+		return nil, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, matcher.ruleIndex, nil
 	}
 
 	if s == nil {
@@ -96,9 +96,10 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Serv
 		// @TODO
 		t = &rule.Rule{}
 		t.HostType = hostTypeExact
+		return s, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, matcher.ruleIndex, nil
 	}
 
-	return s, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, nil
+	return s, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, matcher.ruleIndex, nil
 }
 
 // MatchHost matches host against rules using a precompiled index when available.
