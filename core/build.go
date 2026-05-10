@@ -53,12 +53,8 @@ func (c *core) build() error {
 
 		if shouldRedirectFromHTTP(ctx.Request, path, c.cfg) {
 			redirectURL := buildHTTPSRedirectURL(hostname, path, rawQuery, c.cfg.HTTPS.Port)
-			if c.cfg.HTTPS.RedirectFromHTTP.Permanent {
-				ctx.RedirectPermanent(redirectURL)
-			} else {
-				ctx.RedirectTemporary(redirectURL)
-			}
-
+			rf := c.cfg.HTTPS.RedirectFromHTTP
+			applyRedirect(ctx, redirectURL, rf.Permanent, rf.WithOriginMethodAndBody)
 			return false, true, nil
 		}
 
@@ -82,15 +78,18 @@ func (c *core) build() error {
 		// redirect: check path-level redirect first, then host-level redirect
 		var redirectURL string
 		var permanent bool
+		var withOriginMethodAndBody bool
 		var hasRedirect bool
 
 		if pathBackend != nil && pathBackend.Redirect.URL != "" {
 			redirectURL = pathBackend.Redirect.URL
 			permanent = pathBackend.Redirect.Permanent
+			withOriginMethodAndBody = pathBackend.Redirect.WithOriginMethodAndBody
 			hasRedirect = true
 		} else if matchedRule.Backend.Redirect.URL != "" {
 			redirectURL = matchedRule.Backend.Redirect.URL
 			permanent = matchedRule.Backend.Redirect.Permanent
+			withOriginMethodAndBody = matchedRule.Backend.Redirect.WithOriginMethodAndBody
 			hasRedirect = true
 		}
 
@@ -111,11 +110,7 @@ func (c *core) build() error {
 				}
 			}
 
-			if permanent {
-				ctx.RedirectPermanent(redirectURL)
-			} else {
-				ctx.RedirectTemporary(redirectURL)
-			}
+			applyRedirect(ctx, redirectURL, permanent, withOriginMethodAndBody)
 
 			return false, true, nil
 		}
@@ -387,6 +382,22 @@ func (c *core) build() error {
 	}))
 
 	return nil
+}
+
+func applyRedirect(ctx *zoox.Context, url string, permanent, withOriginMethodAndBody bool) {
+	if withOriginMethodAndBody {
+		if permanent {
+			ctx.RedirectPermanentWithOriginMethodAndBody(url)
+		} else {
+			ctx.RedirectTemporaryWithOriginMethodAndBody(url)
+		}
+		return
+	}
+	if permanent {
+		ctx.RedirectPermanent(url)
+	} else {
+		ctx.RedirectTemporary(url)
+	}
 }
 
 func shouldRedirectFromHTTP(req *http.Request, path string, cfg *Config) bool {

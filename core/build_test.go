@@ -876,6 +876,137 @@ func TestBuild_RedirectFromHTTP_Permanent(t *testing.T) {
 	}
 }
 
+func TestBuild_RedirectFromHTTP_WithOriginMethodAndBody_Temporary(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		HTTPS: HTTPS{
+			Port: 443,
+			RedirectFromHTTP: RedirectFromHTTP{
+				Permanent:               false,
+				WithOriginMethodAndBody: true,
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Body: "ok",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/submit", strings.NewReader("payload"))
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("expected status code 307, got %d", rec.Code)
+	}
+
+	if location := rec.Header().Get("Location"); location != "https://example.com/submit" {
+		t.Fatalf("expected https redirect location, got %q", location)
+	}
+}
+
+func TestBuild_RedirectFromHTTP_WithOriginMethodAndBody_Permanent(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		HTTPS: HTTPS{
+			Port: 443,
+			RedirectFromHTTP: RedirectFromHTTP{
+				Permanent:               true,
+				WithOriginMethodAndBody: true,
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Body: "ok",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "http://example.com/res", strings.NewReader("data"))
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusPermanentRedirect {
+		t.Fatalf("expected status code 308, got %d", rec.Code)
+	}
+
+	if location := rec.Header().Get("Location"); location != "https://example.com/res" {
+		t.Fatalf("expected https redirect location, got %q", location)
+	}
+}
+
+func TestBuild_BackendRedirect_WithOriginMethodAndBody(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "redir.example.com",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{
+						URL:                     "https://target.example/over",
+						Permanent:               true,
+						WithOriginMethodAndBody: true,
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://redir.example.com/old?q=1", strings.NewReader("payload"))
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusPermanentRedirect {
+		t.Fatalf("expected status code 308, got %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "https://target.example/over" {
+		t.Fatalf("expected Location header, got %q", location)
+	}
+}
+
 func TestBuild_RedirectFromHTTP_WithCustomHTTPSPortAndExcludePath(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
