@@ -6,7 +6,7 @@
 
 ## 正则主机与路径重写
 
-<<< @/../examples/advanced/regex-host-path.yaml yaml
+<<< @/../examples/advanced/regex-host-path.yaml
 
 此示例：
 
@@ -16,24 +16,24 @@
 
 ## 通配符主机
 
-<<< @/../examples/advanced/wildcard.yaml yaml
+<<< @/../examples/advanced/wildcard.yaml
 
 匹配 `example.work` 的任意子域。
 
 ## 复杂路径重写
 
-<<< @/../examples/advanced/complex-path-rewrite.yaml yaml
+<<< @/../examples/advanced/complex-path-rewrite.yaml
 
 ## 多服务与健康检查
 
-<<< @/../examples/advanced/health-checks.yaml yaml
+<<< @/../examples/advanced/health-checks.yaml
 
 ## Redis 缓存
 
-<<< @/../examples/advanced/redis-cache.yaml yaml
+<<< @/../examples/advanced/redis-cache.yaml
 
 ## 综合示例
 
 包含 HTTPS、缓存、健康检查、fallback、认证与路径规则的合成示例：
 
-<<< @/../examples/advanced/full-stack.yaml yaml
+<<< @/../examples/advanced/full-stack.yaml

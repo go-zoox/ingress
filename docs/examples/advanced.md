@@ -6,7 +6,7 @@ Sources: [`examples/advanced/`](https://github.com/go-zoox/ingress/tree/master/e
 
 ## Regex host matching with path rewriting
 
-<<< @/../examples/advanced/regex-host-path.yaml yaml
+<<< @/../examples/advanced/regex-host-path.yaml
 
 This example:
 
@@ -16,24 +16,24 @@ This example:
 
 ## Wildcard host matching
 
-<<< @/../examples/advanced/wildcard.yaml yaml
+<<< @/../examples/advanced/wildcard.yaml
 
 This matches any subdomain of `example.work`.
 
 ## Complex path rewriting
 
-<<< @/../examples/advanced/complex-path-rewrite.yaml yaml
+<<< @/../examples/advanced/complex-path-rewrite.yaml
 
 ## Health checks with multiple services
 
-<<< @/../examples/advanced/health-checks.yaml yaml
+<<< @/../examples/advanced/health-checks.yaml
 
 ## Redis caching
 
-<<< @/../examples/advanced/redis-cache.yaml yaml
+<<< @/../examples/advanced/redis-cache.yaml
 
 ## Complete configuration
 
 A composite example with HTTPS, cache, health checks, fallback, auth, and path rules:
 
-<<< @/../examples/advanced/full-stack.yaml yaml
+<<< @/../examples/advanced/full-stack.yaml

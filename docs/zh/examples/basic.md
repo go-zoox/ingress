@@ -6,7 +6,7 @@
 
 ## 最小配置
 
-<<< @/../examples/basic/ingress.yaml yaml
+<<< @/../examples/basic/ingress.yaml
 
 ## 说明
 
@@ -27,4 +27,4 @@ curl -H "Host: example.com" http://localhost:8080
 
 ## 多服务
 
-<<< @/../examples/basic/multi-host.yaml yaml
+<<< @/../examples/basic/multi-host.yaml

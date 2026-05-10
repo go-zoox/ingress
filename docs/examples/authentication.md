@@ -8,27 +8,27 @@ Sources: [`examples/authentication/`](https://github.com/go-zoox/ingress/tree/ma
 
 ### Single user
 
-<<< @/../examples/authentication/basic-single-user.yaml yaml
+<<< @/../examples/authentication/basic-single-user.yaml
 
 ### Multiple users
 
-<<< @/../examples/authentication/basic-multi-user.yaml yaml
+<<< @/../examples/authentication/basic-multi-user.yaml
 
 ## Bearer token authentication
 
 ### Single token
 
-<<< @/../examples/authentication/bearer-single.yaml yaml
+<<< @/../examples/authentication/bearer-single.yaml
 
 ### Multiple tokens
 
-<<< @/../examples/authentication/bearer-multi.yaml yaml
+<<< @/../examples/authentication/bearer-multi.yaml
 
 ## Path-level authentication
 
 Different authentication for different paths:
 
-<<< @/../examples/authentication/path-level-mixed.yaml yaml
+<<< @/../examples/authentication/path-level-mixed.yaml
 
 ## Testing
 

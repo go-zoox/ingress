@@ -12,7 +12,7 @@
 
 下例同时演示：正则 host 重定向、host 默认重定向 + 路径反代、以及路径捕获 `${path.N}`：
 
-<<< @/../examples/redirect/capture-and-mixed.yaml yaml
+<<< @/../examples/redirect/capture-and-mixed.yaml
 
 ### 每条规则在演示什么
 

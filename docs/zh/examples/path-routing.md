@@ -6,7 +6,7 @@
 
 ## 基本路径路由
 
-<<< @/../examples/path-routing/basic-paths.yaml yaml
+<<< @/../examples/path-routing/basic-paths.yaml
 
 ## 说明
 
@@ -16,11 +16,11 @@
 
 ## 复杂路径路由
 
-<<< @/../examples/path-routing/complex-paths.yaml yaml
+<<< @/../examples/path-routing/complex-paths.yaml
 
 ## Docker Registry 示例
 
-<<< @/../examples/path-routing/docker-registry.yaml yaml
+<<< @/../examples/path-routing/docker-registry.yaml
 
 ## 测试
 

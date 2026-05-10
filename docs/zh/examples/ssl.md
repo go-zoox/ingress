@@ -6,25 +6,25 @@ SSL/TLS 相关配置示例。
 
 ## 基本 HTTPS
 
-<<< @/../examples/ssl-tls/https-basic.yaml yaml
+<<< @/../examples/ssl-tls/https-basic.yaml
 
 ## 多域名
 
-<<< @/../examples/ssl-tls/https-multi-domain.yaml yaml
+<<< @/../examples/ssl-tls/https-multi-domain.yaml
 
 ## Let's Encrypt
 
-<<< @/../examples/ssl-tls/https-letsencrypt.yaml yaml
+<<< @/../examples/ssl-tls/https-letsencrypt.yaml
 
 ## 带后端服务的 HTTPS
 
-<<< @/../examples/ssl-tls/https-with-backends.yaml yaml
+<<< @/../examples/ssl-tls/https-with-backends.yaml
 
 ## 全局 HTTP → HTTPS 强跳
 
 配置了 `https.port` 时，可在**路由匹配之前**把明文 HTTP 强制跳到 HTTPS。使用 **`https.redirect_from_http`**（不要用 `rules[].backend.redirect` 代替全局强跳）：
 
-<<< @/../examples/ssl-tls/https-global-redirect.yaml yaml
+<<< @/../examples/ssl-tls/https-global-redirect.yaml
 
 可选字段（在自有配置里按需写上注释即可）：
 
@@ -35,7 +35,7 @@ SSL/TLS 相关配置示例。
 
 当某个 **host 或 path** 需要直接返回跳转而不是反代时，使用 `backend.redirect`。**通常省略 `backend.type`**——仅在配置了 `redirect` 时会推断。**可运行对照：** **`examples/ssl-tls/route-redirect.yaml`** 用两个 host 分别演示 **`type: redirect`** 与省略；校验报告歧义时再显式写 **`backend.type: redirect`**。详见 [路由](/zh/guide/routing) 中 **`service`、`handler`、`redirect`** 与各配置块的对应关系。
 
-<<< @/../examples/ssl-tls/route-redirect.yaml yaml
+<<< @/../examples/ssl-tls/route-redirect.yaml
 
 在 `redirect.url` 中使用正则捕获占位（如 `$1`、`${path.1}`）的示例见 [重定向](./redirect)。
 
