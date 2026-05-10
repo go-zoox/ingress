@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/go-zoox/ingress/core/rule"
+	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/zoox"
@@ -58,7 +59,7 @@ func (c *core) build() error {
 			return false, true, nil
 		}
 
-		serviceIns, matchedRule, pathBackend, hostSm, pathSm, err := c.match(ctx, hostname, path)
+		serviceIns, matchedRule, pathBackend, hostSm, pathSm, ruleIdx, err := c.match(ctx, hostname, path)
 		if err != nil {
 			logger.Warnf("no route matched (host: %s, path: %s): %s", hostname, path, err)
 			if c.cfg.ErrorPageExposeDetails {
@@ -72,6 +73,16 @@ func (c *core) build() error {
 					"The requested resource could not be found.",
 					false, "", "", "", "")
 			}
+			return false, true, nil
+		}
+
+		wafProf := c.wafFallback
+		if ruleIdx >= 0 && ruleIdx < len(c.wafByRuleIdx) {
+			wafProf = c.wafByRuleIdx[ruleIdx]
+		}
+		if wafProf != nil && waf.CheckRequest(wafProf, ctx.Request, hostname, path, method) {
+			ctx.SetHeader("Content-Type", wafProf.BlockContentType)
+			ctx.String(wafProf.BlockStatus, wafProf.BlockBody)
 			return false, true, nil
 		}
 

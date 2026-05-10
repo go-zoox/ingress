@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/service"
+	"github.com/go-zoox/ingress/core/waf"
 )
 
 func TestValidateConfig_RedirectWithoutService(t *testing.T) {
@@ -193,5 +194,55 @@ func TestValidateConfig_InfersRedirectType(t *testing.T) {
 	}
 	if cfg.Rules[0].Backend.Type != backendTypeRedirect {
 		t.Fatalf("expected inferred type redirect, got %q", cfg.Rules[0].Backend.Type)
+	}
+}
+
+func TestValidateConfig_WAFInvalidCIDRError(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		WAF: rule.WAF{
+			Enabled:        true,
+			DisableBuiltin: true,
+			Deny:           []string{"not-an-ip-address"},
+			Rules:          []rule.WAFRule{},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "waf.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{Name: "svc", Port: 8080, Protocol: "http"},
+				},
+			},
+		},
+	}
+	if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "waf") {
+		t.Fatalf("expected waf deny error, got %v", err)
+	}
+}
+
+func TestValidateConfig_WAFPasses(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		WAF: rule.WAF{
+			Enabled:        true,
+			DisableBuiltin: true,
+			Rules: []rule.WAFRule{{
+				ID:      "r1",
+				Pattern: `BAD`,
+				Type:    waf.PatternTypeContains,
+				Targets: []string{waf.TargetPath},
+			}},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "ok.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{Name: "svc", Port: 8080, Protocol: "http"},
+				},
+			},
+		},
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatal(err)
 	}
 }

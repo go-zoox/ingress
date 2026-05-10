@@ -77,6 +77,23 @@ rules:
 | `healthcheck` | object | Health check configuration | - |
 | `fallback` | object | Fallback backend | - |
 | `rules` | array | Routing rules | `[]` |
+| `waf` | object | Optional WAF baseline; route patches use **`rules[].waf`** YAML maps ([WAF guide](waf.md)) | _(inactive when omitted or `enabled: false`)_ |
+
+### WAF (`waf` / `rules[].waf`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | bool | Master switch (`false` or omitted baseline keeps WAF off unless a route sets `enabled: true`). |
+| `trust_proxy` | bool | Use `X-Forwarded-For` for client IP (default direct `RemoteAddr`). |
+| `xff_index` | int | Segment index (`0` = leftmost IP; negatives count from the right). |
+| `log_only` | bool | Global audit — `[waf audit]` logs, no blocking. |
+| `block_status_code` | int | Status on block (unset/`0` → `403`). |
+| `block_content_type` | string | Response header when blocking (`text/plain; charset=utf-8` default). |
+| `block_body` | string | Response body when blocking. |
+| `disable_builtin` | bool | Omit embedded starters when `true` (see [built-in rules](waf.md#built-in-starter-rules)). |
+| `deny` | string array | IPs / CIDRs (deny first). |
+| `allow` | string array | Non-empty ⇒ only listed nets survive IP phase. |
+| `rules` | array | Custom signatures (`id`, `pattern`, `type`, `targets`, optional per-rule `log_only`). Same `id` in a route map replaces inherited rule metadata. |
 
 ### Cache Configuration
 

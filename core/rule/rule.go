@@ -5,8 +5,10 @@ import (
 )
 
 type Rule struct {
-	Host    string  `config:"host"`
-	Backend Backend `config:"backend"`
+	Host string `config:"host"`
+	// WAFPatch is filled from rules[].waf by waf.ApplyRulePatchesFromYAML (the tag loader skips this field).
+	WAFPatch map[string]any `config:"-"`
+	Backend  Backend        `config:"backend"`
 	//
 	Paths []Path `config:"paths"`
 	// HostType is the host match type: exact, regex, wildcard, or auto (empty).

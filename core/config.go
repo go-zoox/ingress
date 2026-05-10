@@ -10,6 +10,8 @@ type Config struct {
 	EnableH2C bool `config:"enable_h2c"`
 	//
 	Rules []rule.Rule `config:"rules"`
+	// WAF is optional global baseline; rules[].waf patches this map-wise (see docs/guide/waf.md).
+	WAF rule.WAF `config:"waf"`
 	//
 	Cache Cache `config:"cache"`
 	//
