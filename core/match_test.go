@@ -448,11 +448,11 @@ func TestMatchHost_RedirectOnlyBackendNoService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if hm.Service == nil {
-		t.Fatal("expected matcher service placeholder for redirect-only backend")
+	if hm.Service != nil {
+		t.Fatal("expected nil matcher Service for redirect backend")
 	}
-	if hm.Service.Name != "" {
-		t.Fatalf("redirect-only backend should leave service name empty, got %q", hm.Service.Name)
+	if getBackendType(hm.Rule.Backend) != backendTypeRedirect {
+		t.Fatalf("expected redirect backend type, got %q", hm.Rule.Backend.Type)
 	}
 }
 

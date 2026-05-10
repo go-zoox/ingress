@@ -75,7 +75,9 @@ func (c *core) build() error {
 			return false, true, nil
 		}
 
-		// redirect: check path-level redirect first, then host-level redirect
+		// After route resolution: apply backend.redirect when Redirect.URL is set (path backend overrides rule backend).
+		// Redirect-only configs keep Backend.Type as default "service" with backend.redirect only; otherwise matched upstream proxy continues below.
+		// Next block handles Backend.Type "handler".
 		var redirectURL string
 		var permanent bool
 		var withOriginMethodAndBody bool

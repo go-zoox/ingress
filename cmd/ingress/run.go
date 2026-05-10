@@ -21,7 +21,7 @@ func Run() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name: "config",
-				// Value:   "conf/ingress.yaml",
+				// Example dev config: ingress run -c examples/basic/ingress.yaml
 				Usage:   "The path to the configuration file",
 				Aliases: []string{"c"},
 				EnvVars: []string{"CONFIG"},

@@ -22,8 +22,8 @@ func TestBuild_AccessLogExtraFields_WithTLS(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
 	req.Header.Set("X-Real-IP", "203.0.113.8")
 	req.TLS = &tls.ConnectionState{
-		Version:      tls.VersionTLS13,
-		CipherSuite:  tls.TLS_AES_128_GCM_SHA256,
+		Version:            tls.VersionTLS13,
+		CipherSuite:        tls.TLS_AES_128_GCM_SHA256,
 		NegotiatedProtocol: "h2",
 	}
 

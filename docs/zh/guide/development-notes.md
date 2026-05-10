@@ -37,7 +37,7 @@ https:
 目前已提取到 `core/constants.go` 的典型常量：
 
 - HostType：`hostTypeExact`、`hostTypeRegex`、`hostTypeWildcard`、`hostTypeAuto`
-- Backend.Type：`backendTypeService`、`backendTypeHandler`
+- Backend.Type：`backendTypeService`、`backendTypeHandler`、`backendTypeRedirect`
 - 认证类型与挑战头：`authTypeBasic`、`authTypeBearer`、`authChallengeBasic`、`authChallengeBearer`
 - Header 与 scheme：`headerXForwardedProto`、`headerWWWAuthenticate`、`schemeHTTP`、`schemeHTTPS`
 

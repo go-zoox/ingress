@@ -33,7 +33,7 @@ SSL/TLS 相关配置示例。
 
 ## 按路由重定向（`rules[].backend.redirect`）
 
-当某个 **host 或 path** 需要直接返回跳转而不是反代时，使用 `backend.redirect`。同一 **`backend` 下 `service` 与 `redirect` 互斥**；仅重定向时可不写 `service`。
+当某个 **host 或 path** 需要直接返回跳转而不是反代时，使用 `backend.redirect`。**通常省略 `backend.type`**——仅在配置了 `redirect` 时会推断。**可运行对照：** **`examples/ssl-tls/route-redirect.yaml`** 用两个 host 分别演示 **`type: redirect`** 与省略；校验报告歧义时再显式写 **`backend.type: redirect`**。详见 [路由](/zh/guide/routing) 中 **`service`、`handler`、`redirect`** 与各配置块的对应关系。
 
 <<< @/../examples/ssl-tls/route-redirect.yaml yaml
 
