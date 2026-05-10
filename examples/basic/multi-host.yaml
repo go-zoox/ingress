@@ -1,0 +1,14 @@
+version: v1
+port: 8080
+
+rules:
+  - host: web.example.com
+    backend:
+      service:
+        name: web-service
+        port: 8080
+  - host: api.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8081

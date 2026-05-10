@@ -1,0 +1,41 @@
+version: v1
+port: 8080
+
+rules:
+  - host: mixed-auth.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+        auth:
+          type: basic
+          basic:
+            users:
+              - username: default
+                password: default123
+    paths:
+      - path: /admin
+        backend:
+          service:
+            name: admin-service
+            port: 8080
+            auth:
+              type: basic
+              basic:
+                users:
+                  - username: admin
+                    password: admin123
+                  - username: superadmin
+                    password: super123
+      - path: /api
+        backend:
+          service:
+            name: api-service
+            port: 8080
+            auth:
+              type: bearer
+              bearer:
+                tokens:
+                  - api-token-1
+                  - api-token-2
+                  - api-token-3

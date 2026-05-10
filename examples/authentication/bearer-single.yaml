@@ -1,0 +1,14 @@
+version: v1
+port: 8080
+
+rules:
+  - host: bearer-auth.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+        auth:
+          type: bearer
+          bearer:
+            tokens:
+              - my-secret-token-123

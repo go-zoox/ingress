@@ -1,0 +1,15 @@
+version: v1
+port: 8080
+
+rules:
+  - host: docker-registry.example.com
+    backend:
+      service:
+        name: docker-registry
+        port: 80
+    paths:
+      - path: /v2
+        backend:
+          service:
+            name: docker-registry-v2
+            port: 80

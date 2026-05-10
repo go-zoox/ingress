@@ -1,0 +1,18 @@
+version: v1
+port: 8080
+
+cache:
+  ttl: 60
+  engine: redis
+  host: redis.example.com
+  port: 6379
+  password: your-password
+  db: 0
+  prefix: "ingress:"
+
+rules:
+  - host: example.com
+    backend:
+      service:
+        name: backend-service
+        port: 8080
