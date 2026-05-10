@@ -1,0 +1,21 @@
+# 重定向示例
+
+同一 **`backend`** 上 **`redirect` 与 `service` 不能同时配置**。仅重定向时可不写 `service`。
+
+全局 HTTP→HTTPS（在路由之前）请用 `https.redirect_from_http`，见 [SSL/TLS](./ssl)。
+
+配置文件：[examples/redirect/](https://github.com/go-zoox/ingress/tree/master/examples/redirect)；最简单的 host 级跳转见 [route-redirect.yaml](https://github.com/go-zoox/ingress/blob/master/examples/ssl-tls/route-redirect.yaml)。
+
+## 正则 host：`redirect.url` 中的捕获
+
+与 `service.name` 相同的占位规则：`$1`、`${host.1}` 等。
+
+下例同时演示：正则 host 重定向、host 默认重定向 + 路径反代、以及路径捕获 `${path.N}`：
+
+<<< @/../examples/redirect/capture-and-mixed.yaml yaml
+
+### 每条规则在演示什么
+
+1. **正则 host**：`^bigscreen-([^.]+)\.example\.com$`，在 `redirect.url` 里使用 `$1`。
+2. **Host 默认重定向 + 路径服务**：未匹配的 path 走跳转；匹配 `^/api/` 的走后端。
+3. **`${path.N}`**：路径正则捕获填入 `redirect.url`。

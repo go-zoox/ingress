@@ -1,0 +1,9 @@
+version: v1
+port: 8080
+
+rules:
+  - host: example.com
+    backend:
+      service:
+        name: backend-service
+        port: 8080

@@ -54,6 +54,7 @@ export default defineConfig({
                 { text: 'Path Routing', link: '/examples/path-routing' },
                 { text: 'Authentication', link: '/examples/authentication' },
                 { text: 'SSL/TLS', link: '/examples/ssl' },
+                { text: 'Redirects', link: '/examples/redirect' },
                 { text: 'Advanced', link: '/examples/advanced' }
               ]
             }
@@ -106,6 +107,7 @@ export default defineConfig({
                 { text: '路径路由', link: '/zh/examples/path-routing' },
                 { text: '认证', link: '/zh/examples/authentication' },
                 { text: 'SSL/TLS', link: '/zh/examples/ssl' },
+                { text: '重定向', link: '/zh/examples/redirect' },
                 { text: '高级用法', link: '/zh/examples/advanced' }
               ]
             }

@@ -1,261 +1,39 @@
 # 高级示例
 
-此页面提供高级配置示例。
+进阶路由、重写与健康检查等示例。
 
-## 带路径重写的正则主机匹配
+配置文件：[examples/advanced/](https://github.com/go-zoox/ingress/tree/master/examples/advanced)。
 
-```yaml
-version: v1
-port: 8080
+## 正则主机与路径重写
 
-rules:
-  - host: ^t-(\w+).example.work
-    host_type: regex
-    backend:
-      service:
-        name: task.${host.1}.svc
-        port: 8080
-    paths:
-      - path: /api/v1/([^/]+)
-        backend:
-          service:
-            name: ${path.1}.${host.1}.example.work
-            port: 8080
-            request:
-              path:
-                rewrites:
-                  - ^/api/v1/([^/]+):/api/v1/task/$1
-```
+<<< @/../examples/advanced/regex-host-path.yaml yaml
 
 此示例：
-- 使用正则表达式匹配像 `t-myapp.example.work` 这样的主机
-- 在 `service.name` 中使用带作用域捕获（`${host.<索引>}` 与 `${path.<索引>}`）进行路由
-- 为特定 API 路由重写路径
 
-## 通配符主机匹配
+- 用正则匹配如 `t-myapp.example.work` 的主机
+- 在 `service.name` 中使用 `${host.<索引>}`、`${path.<索引>}` 等作用域捕获
+- 对特定 API 路径做重写
 
-```yaml
-version: v1
-port: 8080
+## 通配符主机
 
-rules:
-  - host: '*.example.work'
-    host_type: wildcard
-    backend:
-      service:
-        name: wildcard-service
-        port: 8080
-```
+<<< @/../examples/advanced/wildcard.yaml yaml
 
-这匹配 `example.work` 的任何子域。
+匹配 `example.work` 的任意子域。
 
 ## 复杂路径重写
 
-```yaml
-version: v1
-port: 8080
+<<< @/../examples/advanced/complex-path-rewrite.yaml yaml
 
-rules:
-  - host: httpbin.example.work
-    backend:
-      service:
-        name: httpbin.zcorky.com
-        port: 443
-        protocol: https
-        request:
-          host:
-            rewrite: true
-          path:
-            rewrites:
-              - ^/ip3/(.*):/$1
-              - ^/ip2:/ip
-    paths:
-      - path: /httpbin.org
-        backend:
-          service:
-            name: httpbin.org
-            port: 443
-            protocol: https
-            request:
-              path:
-                rewrites:
-                  - ^/httpbin.org/(.*):/$1
-```
+## 多服务与健康检查
 
-## 带多个服务的健康检查
-
-```yaml
-version: v1
-port: 8080
-
-healthcheck:
-  outer:
-    enable: true
-    path: /healthz
-    ok: true
-  inner:
-    enable: true
-    interval: 30
-    timeout: 5
-
-rules:
-  - host: example.com
-    backend:
-      service:
-        name: backend-service
-        port: 8080
-        healthcheck:
-          enable: true
-          method: GET
-          path: /health
-          status: [200]
-```
+<<< @/../examples/advanced/health-checks.yaml yaml
 
 ## Redis 缓存
 
-```yaml
-version: v1
-port: 8080
+<<< @/../examples/advanced/redis-cache.yaml yaml
 
-cache:
-  ttl: 60
-  engine: redis
-  host: redis.example.com
-  port: 6379
-  password: your-password
-  db: 0
-  prefix: ingress:
+## 综合示例
 
-rules:
-  - host: example.com
-    backend:
-      service:
-        name: backend-service
-        port: 8080
-```
+包含 HTTPS、缓存、健康检查、fallback、认证与路径规则的合成示例：
 
-## 完整配置
-
-包含所有功能的完整示例：
-
-```yaml
-version: v1
-port: 8080
-
-cache:
-  ttl: 30
-
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/ssl/example.com/fullchain.pem
-        certificate_key: /etc/ssl/example.com/privkey.pem
-
-healthcheck:
-  outer:
-    enable: true
-    path: /healthz
-    ok: true
-  inner:
-    enable: true
-    interval: 30
-    timeout: 5
-
-fallback:
-  service:
-    name: httpbin.org
-    port: 443
-
-rules:
-  - host: example.com
-    backend:
-      service:
-        name: backend-service
-        port: 8080
-        auth:
-          type: basic
-          basic:
-            users:
-              - username: admin
-                password: admin123
-        healthcheck:
-          enable: true
-          method: GET
-          path: /health
-          status: [200]
-        request:
-          host:
-            rewrite: true
-          path:
-            rewrites:
-              - ^/api/v1/(.*):/api/v2/$1
-          headers:
-            X-Forwarded-Proto: https
-          timeout: 30
-    paths:
-      - path: /api
-        backend:
-          service:
-            name: api-service
-            port: 8080
-            auth:
-              type: bearer
-              bearer:
-                tokens:
-                  - api-token-123
-```
-
-## 后端重定向（进阶）
-
-同一 **`backend`** 上 **`redirect` 与 `service` 不能同时配置**。仅重定向时可不写 `service`。
-
-### 正则 host：`redirect.url` 中使用捕获
-
-与 `service.name` 相同的占位规则：`$1`、`${host.1}` 等。
-
-```yaml
-rules:
-  - host: '^bigscreen-([^.]+)\.example\.com$'
-    host_type: regex
-    backend:
-      redirect:
-        url: https://bigscreen-$1.other.example.com
-```
-
-### Host 级兜底重定向 + path 反代
-
-未命中任何 path 时使用 host 上的 `redirect`；命中 path 则走对应 `service`。
-
-```yaml
-rules:
-  - host: app.example.com
-    backend:
-      redirect:
-        url: https://www.example.com/landing
-    paths:
-      - path: ^/api/
-        backend:
-          service:
-            name: api-svc
-            port: 8080
-            protocol: http
-```
-
-### Path 级重定向与 `${path.N}`
-
-```yaml
-rules:
-  - host: api.example.com
-    backend:
-      service:
-        name: default-upstream
-        port: 8080
-        protocol: http
-    paths:
-      - path: ^/go/([^/]+)$
-        backend:
-          redirect:
-            url: https://seg.${path.1}.example.com/resource
-```
+<<< @/../examples/advanced/full-stack.yaml yaml

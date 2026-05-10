@@ -23,8 +23,8 @@ https:
   # Optional global HTTP -> HTTPS (runs before route matching).
   # redirect_from_http:
   #   disabled: false
-  #   permanent: true              # 301 vs 302 when false
-  #   with_origin_method_and_body: false   # true -> 308/307 (preserve method/body), false -> 301/302
+  #   permanent: true              # permanent vs temporary redirect family
+  #   with_origin_method_and_body: false   # true -> 308/307 (preserve method/body); false -> 301/302
   #   exclude_paths:
   #     - /healthz
   ssl:

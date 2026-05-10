@@ -20,12 +20,13 @@ go install github.com/go-zoox/ingress@latest
 # start ingress, cached in memory, default udp port: 80
 ingress run
 
-# start ingress with config (see conf/ingress.yaml for more options)
-ingress run -c ingress.yaml
+# start ingress with config (see conf/ingress.yaml for a large reference)
+ingress run -c examples/basic/ingress.yaml
 ```
 
 ## Configuration
-See the [configuration file](conf/ingress.yaml).
+
+See [`conf/ingress.yaml`](conf/ingress.yaml) for a broad reference layout and [`examples/`](examples/) for smaller, topic-focused configs (`ingress validate -c examples/basic/ingress.yaml`).
 
 ## Features
 
