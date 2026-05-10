@@ -59,7 +59,7 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 
 ## Docs and tests
 
-- Runnable YAML samples live under repo-root `examples/` (topic subdirs); `docs/examples/` and `docs/zh/examples/` embed them via VitePress snippets (`<<< @/../examples/...`).
+- Runnable YAML samples live under repo-root `examples/` (topic subdirs); `docs/examples/` and `docs/zh/examples/` embed them via VitePress 1 snippet lines `<<< @/../examples/...` (path only; optional `{yaml}` in braces—do not add a trailing space + `yaml`, it is parsed as part of the filename).
 - User-facing behavior: `docs/guide/routing.md` (EN), `docs/zh/guide/routing.md` (ZH), WAF in `docs/guide/waf.md` / `docs/zh/guide/waf.md`, TLS and HTTP/2–3 in `docs/guide/ssl-tls.md` / `docs/zh/guide/ssl-tls.md`, routing/config snippets in `docs/guide/configuration.md` / `docs/zh/guide/configuration.md`, and access-log field notes in those same configuration docs.
 - Inference and compile behavior: `core/compile_test.go`, `core/compile.go` (`effectiveHostType`, `hostLooksLikeRegexp`).
 - Config validation (`ingress validate`): `core/validate.go`, `core/validate_test.go`.

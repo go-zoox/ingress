@@ -6,25 +6,25 @@ Sources: [`examples/ssl-tls/`](https://github.com/go-zoox/ingress/tree/master/ex
 
 ## Basic HTTPS configuration
 
-<<< @/../examples/ssl-tls/https-basic.yaml yaml
+<<< @/../examples/ssl-tls/https-basic.yaml
 
 ## Multiple domains
 
-<<< @/../examples/ssl-tls/https-multi-domain.yaml yaml
+<<< @/../examples/ssl-tls/https-multi-domain.yaml
 
 ## Let's Encrypt certificates
 
-<<< @/../examples/ssl-tls/https-letsencrypt.yaml yaml
+<<< @/../examples/ssl-tls/https-letsencrypt.yaml
 
 ## HTTPS with backend services
 
-<<< @/../examples/ssl-tls/https-with-backends.yaml yaml
+<<< @/../examples/ssl-tls/https-with-backends.yaml
 
 ## Global HTTP to HTTPS redirect
 
 When `https.port` is set, Ingress can force cleartext HTTP clients to HTTPS **before** route matching. Configure `https.redirect_from_http` (not `rules[].backend.redirect`):
 
-<<< @/../examples/ssl-tls/https-global-redirect.yaml yaml
+<<< @/../examples/ssl-tls/https-global-redirect.yaml
 
 Optional fields (comment in your own file as needed):
 
@@ -35,7 +35,7 @@ Optional fields (comment in your own file as needed):
 
 Use `backend.redirect` when a **specific host or path** should issue a redirect instead of proxying. **Usually omit `backend.type`**—Ingress infers **`redirect`** when only **`redirect`** is configured. **Runnable comparison:** **`examples/ssl-tls/route-redirect.yaml`** uses two hosts (`type: redirect` vs omission). Set **`backend.type: redirect`** explicitly only when validation reports ambiguity. See [routing](/guide/routing#redirects) for how **`service`**, **`handler`**, and **`redirect`** blocks relate to each backend.
 
-<<< @/../examples/ssl-tls/route-redirect.yaml yaml
+<<< @/../examples/ssl-tls/route-redirect.yaml
 
 For regex capture templating in `redirect.url`, see [Redirects](./redirect).
 

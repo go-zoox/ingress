@@ -4,15 +4,15 @@
 
 ## 仅审计（不拦截）
 
-<<< @/../examples/waf/log-only-audit.yaml yaml
+<<< @/../examples/waf/log-only-audit.yaml
 
 ## IP 拒绝 + 自定义路径规则
 
-<<< @/../examples/waf/deny-and-custom.yaml yaml
+<<< @/../examples/waf/deny-and-custom.yaml
 
 ## 路由级 `rules[].waf` 按规则 id 覆盖
 
-<<< @/../examples/waf/rule-merge-by-id.yaml yaml
+<<< @/../examples/waf/rule-merge-by-id.yaml
 
 ## 校验
 

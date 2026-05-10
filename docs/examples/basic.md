@@ -6,7 +6,7 @@ Source files live under [`examples/basic/`](https://github.com/go-zoox/ingress/t
 
 ## Minimal configuration
 
-<<< @/../examples/basic/ingress.yaml yaml
+<<< @/../examples/basic/ingress.yaml
 
 ## Explanation
 
@@ -27,4 +27,4 @@ curl -H "Host: example.com" http://localhost:8080
 
 ## Multiple services
 
-<<< @/../examples/basic/multi-host.yaml yaml
+<<< @/../examples/basic/multi-host.yaml

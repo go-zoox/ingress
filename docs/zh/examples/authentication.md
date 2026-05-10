@@ -6,23 +6,23 @@
 
 ## HTTP Basic（单个用户）
 
-<<< @/../examples/authentication/basic-single-user.yaml yaml
+<<< @/../examples/authentication/basic-single-user.yaml
 
 ## HTTP Basic（多个用户）
 
-<<< @/../examples/authentication/basic-multi-user.yaml yaml
+<<< @/../examples/authentication/basic-multi-user.yaml
 
 ## Bearer token（单个）
 
-<<< @/../examples/authentication/bearer-single.yaml yaml
+<<< @/../examples/authentication/bearer-single.yaml
 
 ## Bearer token（多个）
 
-<<< @/../examples/authentication/bearer-multi.yaml yaml
+<<< @/../examples/authentication/bearer-multi.yaml
 
 ## 路径级认证
 
-<<< @/../examples/authentication/path-level-mixed.yaml yaml
+<<< @/../examples/authentication/path-level-mixed.yaml
 
 ## 测试
 

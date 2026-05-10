@@ -12,7 +12,7 @@ Same templating as `service.name`: `$1`, `${host.1}`, etc.
 
 The sample below also shows host-level redirect with path backends, and path-only redirect using `${path.N}`:
 
-<<< @/../examples/redirect/capture-and-mixed.yaml yaml
+<<< @/../examples/redirect/capture-and-mixed.yaml
 
 ### What each rule demonstrates
 

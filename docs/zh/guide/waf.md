@@ -37,4 +37,4 @@ builtin:xss-lite
 
 内置规则可能对正常流量误报，可先用 **`log_only`** 观察，或 **`disable_builtin: true`** 后仅靠自定义规则。
 
-可运行样例：`examples/waf/`。字段表格见 **[配置参考](./configuration.md)**；完整英文说明：[English WAF](/ingress/guide/waf)。
+可运行样例：`examples/waf/`。字段表格见 **[配置参考](./configuration.md)**；英文版说明：**[English WAF](../../guide/waf.md)**。

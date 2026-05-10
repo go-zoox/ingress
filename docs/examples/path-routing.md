@@ -6,7 +6,7 @@ Sources: [`examples/path-routing/`](https://github.com/go-zoox/ingress/tree/mast
 
 ## Basic path routing
 
-<<< @/../examples/path-routing/basic-paths.yaml yaml
+<<< @/../examples/path-routing/basic-paths.yaml
 
 ## Explanation
 
@@ -16,11 +16,11 @@ Sources: [`examples/path-routing/`](https://github.com/go-zoox/ingress/tree/mast
 
 ## Complex path routing
 
-<<< @/../examples/path-routing/complex-paths.yaml yaml
+<<< @/../examples/path-routing/complex-paths.yaml
 
 ## Docker registry example
 
-<<< @/../examples/path-routing/docker-registry.yaml yaml
+<<< @/../examples/path-routing/docker-registry.yaml
 
 ## Testing
 
