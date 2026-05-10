@@ -99,6 +99,7 @@ rules:
 | `http3_altsvc_max_age` | int | `Alt-Svc` `ma=` in seconds; `0` uses server default; negative disables `Alt-Svc` |
 | `redirect_from_http.disabled` | bool | Disable forced HTTP -> HTTPS redirect (`false` by default, which means enabled when `https.port` is set) |
 | `redirect_from_http.permanent` | bool | Use `301` when true, `302` when false |
+| `redirect_from_http.with_origin_method_and_body` | bool | When true, use `308`/`307` instead of `301`/`302` so method and body are preserved (default `false`) |
 | `redirect_from_http.exclude_paths` | array | Exact request paths that skip forced redirect |
 | `ssl` | array | SSL certificate configurations |
 
@@ -183,9 +184,7 @@ rules:
             key: value
           delay: 0              # Delay in milliseconds
           timeout: 30           # Timeout in seconds
-      redirect:                 # Redirect configuration (alternative to service)
-        url: https://example.com
-        permanent: false
+      # redirect: ...           # Mutually exclusive with service — see Routing guide
     paths:                      # Path-based routing (optional)
       - path: /api
         backend:
@@ -234,7 +233,14 @@ You can override some configuration using environment variables:
 
 ## Configuration Validation
 
-Ingress validates the configuration file when it starts. If there are any errors, the server will not start and display the error message.
+Ingress validates configuration when the process starts and when you run **`ingress validate`**. Errors prevent startup or a successful reload.
+
+Static checks include router compilation (host/path regex), HTTPS/TLS shape, and **per-backend** rules for `type: service`:
+
+- **`service` and `redirect`** cannot both be set on the same backend (`service.name` non-empty together with `redirect.url`).
+- A **`redirect`-only** backend may omit `service`.
+
+Validation errors cite the rule index, configured host pattern, and routing path: **`rules[N] host="..." path="..."`**. Rule-level backends use **`path="/"`**; path backends use the configured **`paths[].path`** pattern (if that pattern string is empty, the message falls back to `paths[index]`).
 
 ## Reloading Configuration
 

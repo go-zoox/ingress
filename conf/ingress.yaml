@@ -20,9 +20,11 @@ database:
 
 https:
   port: 8443
+  # Optional global HTTP -> HTTPS (runs before route matching).
   # redirect_from_http:
   #   disabled: false
-  #   permanent: true
+  #   permanent: true              # 301 vs 302 when false
+  #   with_origin_method_and_body: false   # true -> 308/307 (preserve method/body), false -> 301/302
   #   exclude_paths:
   #     - /healthz
   ssl:
@@ -208,10 +210,33 @@ rules:
               ctx.SetHeader("X-Handler-Engine", "go")
               ctx.String(200, "%s %s", ctx.Method, ctx.Path)
 
+  # Redirect-only backend (no service block). backend.redirect and backend.service are mutually exclusive.
   - host: 't-120.example.work'
     backend:
       redirect:
         url: https://www.example.com
+        permanent: false
+        # with_origin_method_and_body: true   # optional: 307/308 instead of 302/301
+
+  # Regex host: redirect URL may use $N / ${host.N} captures (same rules as service.name templates).
+  - host: '^bigscreen-([^.]+)\.example\.work$'
+    host_type: regex
+    backend:
+      redirect:
+        url: https://bigscreen-$1.stage.example.work
+
+  # Host-level redirect as fallback; paths still proxy to services when matched first.
+  - host: redirect-mixed.example.work
+    backend:
+      redirect:
+        url: https://fallback.example.com/welcome
+    paths:
+      - path: ^/api/
+        backend:
+          service:
+            name: api-service
+            port: 8080
+            protocol: http
 
   - host: ^t-(\w+).example.work
     host_type: regex

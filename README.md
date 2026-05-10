@@ -20,12 +20,12 @@ go install github.com/go-zoox/ingress@latest
 # start ingress, cached in memory, default udp port: 80
 ingress run
 
-# start ingress with config (see conf/ingress.yml for more options)
-ingress run -c ingress.yml
+# start ingress with config (see conf/ingress.yaml for more options)
+ingress run -c ingress.yaml
 ```
 
 ## Configuration
-See the [configuration file](conf/ingress.yml).
+See the [configuration file](conf/ingress.yaml).
 
 ## Features
 
@@ -37,7 +37,7 @@ See the [configuration file](conf/ingress.yml).
 - **SSL/TLS**: HTTPS and SSL certificate configuration
 - **Health Checks**: Outer and inner service health monitoring
 - **Caching**: In-memory and Redis caching support
-- **Redirects**: URL redirection with permanent/temporary options
+- **Redirects**: Global HTTP→HTTPS (`https.redirect_from_http`), per-route `backend.redirect`, optional **307/308** (`with_origin_method_and_body`) and URL capture templates; **`service` and `redirect` are mutually exclusive** on the same backend
 - **Timeout Control**: Request timeout and delay configuration
 - **Fallback Service**: Default backend for unmatched requests
 

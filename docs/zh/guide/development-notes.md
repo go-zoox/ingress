@@ -53,6 +53,7 @@ https:
   - `yaml syntax error ...`
   - `invalid config format ...`
   - `unsupported configuration ...`
+- 路由/backend 校验报错中会包含 **`rules[N] host="..." path="..."`**（规则级 backend 为 `path="/"`；子路径为配置的 path 模式）。
 - `ingress reload` 会先校验配置，只有通过后才发送 `SIGHUP`。
 
 这样可以避免运行中加载损坏配置，保证启动和热重载的一致性。

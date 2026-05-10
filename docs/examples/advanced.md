@@ -206,3 +206,56 @@ rules:
                 tokens:
                   - api-token-123
 ```
+
+## Backend redirect (advanced)
+
+`backend.redirect` and `backend.service` cannot both be set on the **same** backend. Redirect-only backends need no `service` block.
+
+### Regex host with captures in `redirect.url`
+
+Same templating as `service.name`: `$1`, `${host.1}`, etc.
+
+```yaml
+rules:
+  - host: '^bigscreen-([^.]+)\.example\.com$'
+    host_type: regex
+    backend:
+      redirect:
+        url: https://bigscreen-$1.other.example.com
+```
+
+### Host fallback redirect + path services
+
+Unmatched paths use the host-level `redirect`; matched paths use `service`.
+
+```yaml
+rules:
+  - host: app.example.com
+    backend:
+      redirect:
+        url: https://www.example.com/landing
+    paths:
+      - path: ^/api/
+        backend:
+          service:
+            name: api-svc
+            port: 8080
+            protocol: http
+```
+
+### Path-only redirect with `${path.N}`
+
+```yaml
+rules:
+  - host: api.example.com
+    backend:
+      service:
+        name: default-upstream
+        port: 8080
+        protocol: http
+    paths:
+      - path: ^/go/([^/]+)$
+        backend:
+          redirect:
+            url: https://seg.${path.1}.example.com/resource
+```
