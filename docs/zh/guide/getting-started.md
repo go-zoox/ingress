@@ -103,7 +103,6 @@ rules:
       service:
         protocol: https
         name: upstream.example.org
-        port: 443
 ```
 
 ## 命令行选项

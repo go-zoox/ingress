@@ -96,7 +96,7 @@ rules:
       service:
         protocol: https
         name: upstream.example.org
-        port: 443
+        # port optional for https — defaults to 443
 ```
 
 A larger runnable sample with **`internal`** upstreams, **`mode: external`** HTTPS proxies, and **handler** paths is **`examples/advanced/backend-mode-external-mixed.yaml`**.
@@ -257,12 +257,11 @@ This captures two groups and reorders them.
 rules:
   - host: httpbin.example.work
     backend:
+      mode: external
       service:
+        protocol: https
         name: httpbin.zcorky.com
-        port: 443
         request:
-          host:
-            rewrite: true
           path:
             rewrites:
               - ^/ip3/(.*):/$1
@@ -270,9 +269,10 @@ rules:
     paths:
       - path: /httpbin.org
         backend:
+          mode: external
           service:
+            protocol: https
             name: httpbin.org
-            port: 443
             request:
               path:
                 rewrites:

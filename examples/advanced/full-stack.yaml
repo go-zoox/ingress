@@ -24,8 +24,8 @@ healthcheck:
 
 fallback:
   service:
+    protocol: https
     name: httpbin.org
-    port: 443
 
 rules:
   - host: example.com

@@ -3,6 +3,7 @@ package service
 type Service struct {
 	Name     string `config:"name"`
 	Port     int64  `config:"port"`
+	// Protocol is http or https; omit for http (config default=http).
 	Protocol string `config:"protocol,default=http"`
 	//
 	Request  Request  `config:"request"`
