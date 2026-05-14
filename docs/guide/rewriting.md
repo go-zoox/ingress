@@ -61,7 +61,18 @@ Rewrites are applied in order. The first matching rewrite is used.
 
 ### Host Header Rewriting
 
-Rewrite the Host header sent to the backend:
+`backend.mode` is documented in the [Configuration](/guide/configuration) reference (rules · `backend` fields).
+
+The upstream `Host` header is controlled in two layers:
+
+1. **`service.request.host.rewrite`**: Optional. When set to `true` or `false`, it **always** wins over `backend.mode`.
+2. **`backend.mode`** (when `rewrite` is **omitted**):
+   - **`internal`** (default): keep the client `Host` header.
+   - **`external`**: set `Host` to the upstream service host (`service` name, plus port when non-default for the protocol). Use for third-party or off-cluster origins that validate `Host`.
+
+Global **fallback**: when no rule matches, if `rewrite` is omitted, `Host` is still aligned to the fallback upstream (same practical need as many `external` rules). Set `fallback.service.request.host.rewrite: false` only if you must preserve the client `Host`.
+
+Explicit `rewrite` example:
 
 ```yaml
 rules:
@@ -75,13 +86,22 @@ rules:
             rewrite: true
 ```
 
-When `rewrite: true`:
-- The Host header is set to `{service-name}:{port}`
-- Useful when backend services expect a specific hostname
+Preferred when mirroring a public HTTPS origin:
 
-When `rewrite: false` (default):
-- The original Host header is preserved
-- Backend receives the original hostname from the client
+```yaml
+rules:
+  - host: mirror.example.com
+    backend:
+      mode: external
+      service:
+        protocol: https
+        name: upstream.example.org
+        port: 443
+```
+
+A larger runnable sample with **`internal`** upstreams, **`mode: external`** HTTPS proxies, and **handler** paths is **`examples/advanced/backend-mode-external-mixed.yaml`**.
+
+When `rewrite: true`, the Host header matches what `service.Host()` uses for the upstream connection (including port formatting).
 
 ### Header Modification
 

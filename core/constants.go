@@ -15,6 +15,13 @@ const (
 	backendTypeHandler  = "handler"
 	backendTypeRedirect = "redirect"
 
+	// backend.mode: Host header toward upstream when service.request.host.rewrite is unset.
+	backendModeInternal = "internal"
+	backendModeExternal = "external"
+
+	// Synthetic rule host when routing uses global fallback (matchHostIndex).
+	fallbackRuleHost = "@@fallback"
+
 	// host type selector
 	hostTypeExact    = "exact"
 	hostTypeRegex    = "regex"

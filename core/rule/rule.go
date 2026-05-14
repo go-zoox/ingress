@@ -36,6 +36,9 @@ type Rule struct {
 // "handler" tolerates backend.handler only; "redirect" tolerates backend.redirect only.
 type Backend struct {
 	Type string `config:"type"`
+	// Mode is internal (default) or external. External defaults the upstream Host header to the
+	// service address unless service.request.host.rewrite is set. Ignored for handler/redirect.
+	Mode string `config:"mode,default=internal"`
 	//
 	Service service.Service `config:"service"`
 	//

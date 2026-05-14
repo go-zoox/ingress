@@ -30,7 +30,7 @@ func servicePopulated(s service.Service) bool {
 	if s.HealthCheck.Enable || s.HealthCheck.Ok {
 		return true
 	}
-	if s.Request.Host.Rewrite {
+	if s.Request.Host.Rewrite != nil {
 		return true
 	}
 	if len(s.Request.Path.Rewrites) > 0 || len(s.Request.Headers) > 0 || len(s.Request.Query) > 0 {
@@ -131,7 +131,10 @@ func inferOneBackend(b *rule.Backend, ruleIdx int, host, pathPattern string) err
 }
 
 func inferBackendTypes(cfg *Config) error {
-	return inferRuleBackends(cfg.Rules)
+	if err := inferRuleBackends(cfg.Rules); err != nil {
+		return err
+	}
+	return inferOneBackend(&cfg.Fallback, -1, "<fallback>", "/")
 }
 
 // inferPathSliceBackends applies the same inference rules to path-backend slices (e.g. MatchPath tests).

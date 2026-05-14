@@ -91,6 +91,21 @@ Once Ingress is running, you can test it by making a request:
 curl -H "Host: example.com" http://localhost:8080
 ```
 
+## Proxying external HTTPS origins
+
+For third-party or off-cluster HTTPS upstreams, set **`backend.mode: external`** so the origin receives its own hostname in **`Host`** (see [Rewriting](/guide/rewriting)).
+
+```yaml
+rules:
+  - host: mirror.example.com
+    backend:
+      mode: external
+      service:
+        protocol: https
+        name: upstream.example.org
+        port: 443
+```
+
 ## Command Line Options
 
 ### Run Command
@@ -130,5 +145,6 @@ Ingress looks for configuration files in the following order:
 
 - Learn about [Configuration](/guide/configuration) options
 - Explore [Routing](/guide/routing) capabilities
+- [Request and Response Rewriting](/guide/rewriting): **`backend.mode`** and **`Host`** defaults
 - Set up [Authentication](/guide/authentication)
 - Configure [SSL/TLS](/guide/ssl-tls)

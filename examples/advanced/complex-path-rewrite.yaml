@@ -4,13 +4,12 @@ port: 8080
 rules:
   - host: httpbin.example.work
     backend:
+      mode: external
       service:
         name: httpbin.zcorky.com
         port: 443
         protocol: https
         request:
-          host:
-            rewrite: true
           path:
             rewrites:
               - ^/ip3/(.*):/$1
@@ -18,6 +17,7 @@ rules:
     paths:
       - path: /httpbin.org
         backend:
+          mode: external
           service:
             name: httpbin.org
             port: 443
