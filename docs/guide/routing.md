@@ -175,7 +175,9 @@ The rewrite format is `pattern:replacement`, where `pattern` is a regex and `rep
 
 ### Host Header Rewriting
 
-Rewrite the Host header sent to the backend:
+The outbound `Host` header is controlled by **`service.request.host.rewrite`** (optional override) and **`backend.mode`** when `rewrite` is omitted. See **[Request and Response Rewriting](./rewriting.md)** for full detail and **fallback** behavior.
+
+Example with explicit `rewrite`:
 
 ```yaml
 rules:
@@ -189,7 +191,18 @@ rules:
             rewrite: true
 ```
 
-When `rewrite: true`, the Host header will be set to the backend service name and port.
+Preferred for a third-party HTTPS origin:
+
+```yaml
+rules:
+  - host: mirror.example.com
+    backend:
+      mode: external
+      service:
+        protocol: https
+        name: upstream.example.org
+        port: 443
+```
 
 ### Header Modification
 
@@ -331,6 +344,7 @@ rules:
 ```
 
 - `backend.type`: optional—Ingress infers **`service`**, **`handler`**, or **`redirect`** from which block is configured when unambiguous; set **`backend.type` explicitly** only when **`ingress validate`** reports ambiguity
+- `backend.mode`: `internal` (default) or `external`—default **`Host`** toward the upstream when **`service.request.host.rewrite`** is omitted (**`external`** aligns **`Host`** to **`service.name`**; see [Rewriting](./rewriting.md))
 - `handler.type`: `static_response` (default), `file_server`, `templates`, or `script`
 - when `handler.type=static_response`: `status_code`, `headers`, `body`
 - when `handler.type=file_server`: `root_dir`, `index_file`
@@ -354,7 +368,7 @@ fallback:
     port: 8080
 ```
 
-The fallback service is useful for handling unmatched requests or providing a default backend.
+The fallback service is useful for handling unmatched requests or providing a default backend. Unless you set **`fallback.service.request.host.rewrite`**, the upstream **`Host`** aligns to the fallback service (see [Rewriting](./rewriting.md)).
 
 ## Routing Examples
 

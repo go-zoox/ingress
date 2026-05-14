@@ -24,6 +24,8 @@ This matches any subdomain of `example.work`.
 
 <<< @/../examples/advanced/complex-path-rewrite.yaml
 
+Third-party HTTPS upstreams use **`backend.mode: external`** so **`Host`** matches each **`service.name`** without **`request.host.rewrite`**.
+
 ## Health checks with multiple services
 
 <<< @/../examples/advanced/health-checks.yaml

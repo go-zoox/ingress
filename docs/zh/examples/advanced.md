@@ -24,6 +24,8 @@
 
 <<< @/../examples/advanced/complex-path-rewrite.yaml
 
+对第三方 HTTPS 上游使用 **`backend.mode: external`**，无需再写 **`request.host.rewrite`** 即可让 **`Host`** 与各自 **`service.name`** 一致。
+
 ## 多服务与健康检查
 
 <<< @/../examples/advanced/health-checks.yaml

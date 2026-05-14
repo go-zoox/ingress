@@ -37,7 +37,8 @@ type HealthCheck struct {
 }
 
 type RequestHost struct {
-	Rewrite bool `config:"rewrite"`
+	// Rewrite, when non-nil, forces Host rewrite on or off. When nil, backend.mode supplies defaults.
+	Rewrite *bool `config:"rewrite"`
 }
 
 type RequestPath struct {

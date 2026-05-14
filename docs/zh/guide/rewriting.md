@@ -61,7 +61,18 @@ request:
 
 ### Host 头重写
 
-重写发送到后端的 Host 头：
+`backend.mode` 的字段说明见 [配置参考](/zh/guide/configuration) 中的规则 · `backend` 字段表。
+
+发往上游的 `Host` 由两层决定：
+
+1. **`service.request.host.rewrite`**：可选。显式设为 `true` 或 `false` 时**始终**优先于 `backend.mode`。
+2. **未写 `rewrite` 时由 `backend.mode` 决定**：
+   - **`internal`**（默认）：保留客户端 `Host`。
+   - **`external`**：将 `Host` 设为上联 `service` 的主机名（非标准端口时含端口）。适用于反代第三方、公网源站等依赖正确 `Host` 的场景。
+
+全局 **fallback**：无规则匹配时，若未配置 `rewrite`，仍会将对 fallback 的 `Host` 对齐到回退服务；仅在需要保留客户端 `Host` 时设置 `fallback.service.request.host.rewrite: false`。
+
+显式 `rewrite` 示例：
 
 ```yaml
 rules:
@@ -75,13 +86,22 @@ rules:
             rewrite: true
 ```
 
-当 `rewrite: true` 时：
-- Host 头设置为 `{service-name}:{port}`
-- 当后端服务期望特定主机名时很有用
+反代公网 HTTPS 源站时更推荐写 `mode`：
 
-当 `rewrite: false`（默认）时：
-- 保留原始 Host 头
-- 后端接收来自客户端的原始主机名
+```yaml
+rules:
+  - host: mirror.example.com
+    backend:
+      mode: external
+      service:
+        protocol: https
+        name: upstream.example.org
+        port: 443
+```
+
+更完整的可运行示例（**`internal`** 上联、**`external`** HTTPS 反代与 **handler** 路径）见 **`examples/advanced/backend-mode-external-mixed.yaml`**。
+
+`rewrite: true` 时的 `Host` 与用于连接上游的 `service.Host()` 一致（含端口省略规则）。
 
 ### 头修改
 

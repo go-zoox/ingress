@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/waf"
@@ -57,6 +58,12 @@ func ValidateConfig(cfg *Config) error {
 		}
 	}
 
+	if strings.TrimSpace(cfg.Fallback.Service.Name) != "" {
+		if err := validateBackend(cfg.Fallback, -1, "", "/"); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -66,6 +73,15 @@ func ValidateConfig(cfg *Config) error {
 //
 // Expected backend.Type values (after inferBackendTypes): "service", "handler", or "redirect".
 func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string) error {
+	mode := strings.TrimSpace(backend.Mode)
+	if mode == "" {
+		mode = backendModeInternal
+	}
+	if mode != backendModeInternal && mode != backendModeExternal {
+		return fmt.Errorf("%s: unsupported backend.mode %q (use internal or external)",
+			ruleBackendLoc(ruleIdx, host, pathPattern), backend.Mode)
+	}
+
 	backendType := backend.Type
 	if backendType == "" {
 		backendType = backendTypeService
@@ -122,6 +138,9 @@ func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string
 }
 
 func ruleBackendLoc(ruleIdx int, host, pathPattern string) string {
+	if ruleIdx < 0 {
+		return fmt.Sprintf("fallback path=%q", pathPattern)
+	}
 	return fmt.Sprintf("rules[%d] host=%q path=%q", ruleIdx, host, pathPattern)
 }
 

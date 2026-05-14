@@ -152,15 +152,18 @@ HTTP/2 over TLS is negotiated automatically when HTTPS is enabled (no extra fiel
 
 The fallback backend is used when no routing rule matches the request.
 
+If `service.request.host.rewrite` is **omitted**, `Host` is still aligned to the fallback upstream. Set `service.request.host.rewrite: false` only when you must preserve the client `Host`. Optional `mode: external` documents the same default Host behavior.
+
 ```yaml
 fallback:
+  # mode: internal            # optional — internal (default) | external
   service:
     name: fallback-service
     port: 8080
     protocol: http              # http or https
-    request:
-      host:
-        rewrite: true           # Rewrite Host header
+    # request:
+    #   host:
+    #     rewrite: false        # optional: preserve client Host
 ```
 
 ### Rules Configuration
@@ -176,6 +179,7 @@ rules:
     # explicit values: exact | regex | wildcard
     backend:
       type: service             # optional — omit when only service applies (see examples/basic/ingress.yaml)
+      mode: internal            # optional — internal (default) | external (default Host to upstream when rewrite omitted)
       service:
         name: backend-service
         port: 8080
@@ -193,7 +197,7 @@ rules:
           status: [200]
         request:
           host:
-            rewrite: true       # Rewrite Host header
+            rewrite: true       # optional explicit override; often omit when mode: external
           path:
             rewrites:          # Path rewrite rules
               - ^/api/v1:/api/v2
@@ -207,6 +211,7 @@ rules:
     paths:                      # Path-based routing (optional)
       - path: /api
         backend:
+          mode: internal          # optional on path backends
           service:
             name: api-service
             port: 8080
@@ -219,6 +224,18 @@ rules:
             body: |
               {"ok": true}
 ```
+
+### `rules[].backend` and `paths[].backend` fields
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `type` | string | `service`, `handler`, or `redirect` (often **omitted** and inferred) | inferred |
+| `mode` | string | `internal` keeps client `Host` unless `service.request.host.rewrite` is set; `external` defaults `Host` to the upstream | `internal` |
+| `service` | object | Upstream when type is `service` | - |
+| `handler` | object | Handler when type is `handler` | - |
+| `redirect` | object | Redirect when type is `redirect` | - |
+
+`mode` applies per backend block (host-level or path-level). It affects **proxy** backends only; **`handler`** / **`redirect`** ignore it for behavior, but **`ingress validate`** still accepts `internal` / `external`.
 
 ## Access Log Fields
 
@@ -253,12 +270,12 @@ You can override some configuration using environment variables:
 
 Ingress validates configuration when the process starts and when you run **`ingress validate`**. Errors prevent startup or a successful reload.
 
-Static checks include router compilation (host/path regex), HTTPS/TLS shape, and **per-backend** consistency (**`backend.type`** is usually omitted and inferred as **`service`**, **`handler`**, or **`redirect`**):
+Static checks include router compilation (host/path regex), HTTPS/TLS shape, **per-backend `mode` (`internal` / `external`)**, and **per-backend** consistency (**`backend.type`** is usually omitted and inferred as **`service`**, **`handler`**, or **`redirect`**):
 
 - **`backend.type` is optional.** With **`type` omitted**, Ingress **infers** the mode when exactly one of `service`, `handler`, or `redirect` looks configured; otherwise validation fails and asks for an explicit **`backend.type`**.
 - With an explicit type, only the matching block is allowed (for example **`type: redirect`** requires **`redirect.url`** and forbids populated **`service`** / **`handler`** fields).
 
-Validation errors cite the rule index, configured host pattern, and routing path: **`rules[N] host="..." path="..."`**. Rule-level backends use **`path="/"`**; path backends use the configured **`paths[].path`** pattern (if that pattern string is empty, the message falls back to `paths[index]`).
+Validation errors cite the rule index, configured host pattern, and routing path: **`rules[N] host="..." path="..."`**. Rule-level backends use **`path="/"`**; path backends use the configured **`paths[].path`** pattern (if that pattern string is empty, the message falls back to `paths[index]`). **Fallback** backends use **`fallback path="/"`**.
 
 ## Reloading Configuration
 

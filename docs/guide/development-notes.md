@@ -38,6 +38,8 @@ Examples already extracted in `core/constants.go`:
 
 - Host type selectors: `hostTypeExact`, `hostTypeRegex`, `hostTypeWildcard`, `hostTypeAuto`
 - Backend type selectors: `backendTypeService`, `backendTypeHandler`, `backendTypeRedirect`
+- Backend mode selectors (`request.host.rewrite` unset): `backendModeInternal`, `backendModeExternal`
+- Synthetic fallback route host: `fallbackRuleHost` (`@@fallback`)
 - Auth selectors/challenges: `authTypeBasic`, `authTypeBearer`, `authChallengeBasic`, `authChallengeBearer`
 - Header and scheme: `headerXForwardedProto`, `headerWWWAuthenticate`, `schemeHTTP`, `schemeHTTPS`
 
@@ -53,7 +55,7 @@ Expected benefits:
   - `yaml syntax error ...`
   - `invalid config format ...`
   - `unsupported configuration ...`
-- Router/backend validation messages include **`rules[N] host="..." path="..."`** (rule-level backends use `path="/"`; path backends use the configured path pattern).
+- Router/backend 校验报错中会包含 **`rules[N] host="..." path="..."`**（规则级 backend 为 `path="/"`；子路径为配置的 path 模式）。**回退（fallback）** 使用 **`fallback path="/"`**。
 - `ingress reload` validates config first and sends `SIGHUP` only when validation passes.
 
 This keeps reload behavior consistent with startup safety and prevents applying broken config during runtime.

@@ -175,7 +175,9 @@ rules:
 
 ### Host 头重写
 
-重写发送到后端的 Host 头：
+上游 **`Host`** 由可选的 **`service.request.host.rewrite`** 与省略 **`rewrite`** 时的 **`backend.mode`** 共同决定。完整说明与 **fallback** 行为见 **[请求和响应重写](./rewriting.md)**。
+
+显式 `rewrite` 示例：
 
 ```yaml
 rules:
@@ -189,7 +191,18 @@ rules:
             rewrite: true
 ```
 
-当 `rewrite: true` 时，Host 头将设置为后端服务名称和端口。
+反代公网 HTTPS 源站时推荐 `mode`：
+
+```yaml
+rules:
+  - host: mirror.example.com
+    backend:
+      mode: external
+      service:
+        protocol: https
+        name: upstream.example.org
+        port: 443
+```
 
 ### 头修改
 
@@ -331,6 +344,7 @@ rules:
 ```
 
 - `backend.type`：可选——在无歧义时由已配置块推断 **`service`** / **`handler`** / **`redirect`**；仅当 **`ingress validate`** 提示歧义时再显式写出
+- `backend.mode`：`internal`（默认）或 `external`——未设置 **`service.request.host.rewrite`** 时发往上游的 **`Host`** 默认行为（**`external`** 将 **`Host`** 对齐到 **`service.name`**；见[重写](./rewriting.md)）
 - `handler.type`: `static_response`（默认）、`file_server`、`templates`、`script`
 - 当 `handler.type=static_response`：支持 `status_code`、`headers`、`body`
 - 当 `handler.type=file_server`：支持 `root_dir`、`index_file`
@@ -354,7 +368,7 @@ fallback:
     port: 8080
 ```
 
-回退服务对于处理未匹配的请求或提供默认后端很有用。
+回退服务对于处理未匹配的请求或提供默认后端很有用。若未设置 **`fallback.service.request.host.rewrite`**，发往 fallback 的 **`Host`** 会对齐到该回退服务（见[重写](./rewriting.md)）。
 
 ## 路由示例
 

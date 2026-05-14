@@ -30,6 +30,7 @@ fallback:
 rules:
   - host: example.com
     backend:
+      mode: external
       service:
         name: backend-service
         port: 8080
@@ -45,8 +46,6 @@ rules:
           path: /health
           status: [200]
         request:
-          host:
-            rewrite: true
           path:
             rewrites:
               - ^/api/v1/(.*):/api/v2/$1

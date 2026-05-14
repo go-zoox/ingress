@@ -91,11 +91,11 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Serv
 
 	if s == nil {
 		s = &c.cfg.Fallback.Service
-		// force rewrite host
-		s.Request.Host.Rewrite = true
-		// @TODO
-		t = &rule.Rule{}
-		t.HostType = hostTypeExact
+		t = &rule.Rule{
+			Host:     fallbackRuleHost,
+			HostType: hostTypeExact,
+			Backend:  c.cfg.Fallback,
+		}
 		return s, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, matcher.ruleIndex, nil
 	}
 
@@ -149,8 +149,9 @@ func matchHostIndex(router *routerIndex, rules []rule.Rule, fallback rule.Backen
 			},
 			IsPathsExist: false,
 			Rule: &rule.Rule{
-				Host:     "@@fallback",
+				Host:     fallbackRuleHost,
 				HostType: hostTypeExact,
+				Backend:  fallback,
 			},
 			ruleIndex: -1,
 		}, nil

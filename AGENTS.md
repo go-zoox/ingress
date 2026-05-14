@@ -12,6 +12,7 @@ Context for humans and coding agents working on this repository.
   3. Else → **exact**
 - Regex is checked before `*` so patterns like `^.*\.example\.com$` are not misclassified as wildcard.
 - **Explicit `host_type: exact`**: Disables inference; `host` is matched as a literal string even if it looks like a pattern (rare).
+- **`backend.mode`**: `internal` (default) keeps the client `Host` unless `service.request.host.rewrite` is set. `external` defaults `Host` to the upstream (`service.Host()`). Explicit `request.host.rewrite` wins. Synthetic fallback rules use `host: @@fallback` and default Host alignment when `rewrite` is omitted (`core/host_rewrite.go`).
 
 ## Common pitfalls
 

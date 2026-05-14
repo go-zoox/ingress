@@ -91,6 +91,21 @@ Ingress 运行后，您可以通过发送请求来测试：
 curl -H "Host: example.com" http://localhost:8080
 ```
 
+## 反代集群外 HTTPS 源
+
+反代第三方或集群外 HTTPS 上游时，设置 **`backend.mode: external`**，使源站收到正确的 **`Host`**（见 [重写](/zh/guide/rewriting)）。
+
+```yaml
+rules:
+  - host: mirror.example.com
+    backend:
+      mode: external
+      service:
+        protocol: https
+        name: upstream.example.org
+        port: 443
+```
+
 ## 命令行选项
 
 ### Run 命令
@@ -130,5 +145,6 @@ Ingress 按以下顺序查找配置文件：
 
 - 了解[配置](/zh/guide/configuration)选项
 - 探索[路由](/zh/guide/routing)功能
+- [请求和响应重写](/zh/guide/rewriting)：**`backend.mode`** 与 **`Host`** 默认行为
 - 设置[认证](/zh/guide/authentication)
 - 配置 [SSL/TLS](/zh/guide/ssl-tls)

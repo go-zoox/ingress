@@ -318,12 +318,14 @@ func (c *core) build() error {
 
 		proxyStart := time.Now()
 
+		hostRewrite := effectiveHostRewrite(serviceIns, pathBackend, matchedRule)
+
 		cfg.OnRequest = func(req, inReq *http.Request) error {
 			req.URL.Scheme = serviceIns.Protocol
 			req.URL.Host = serviceIns.Host()
 
 			// apply host
-			if serviceIns.Request.Host.Rewrite {
+			if hostRewrite {
 				req.Host = serviceIns.Host()
 			}
 
