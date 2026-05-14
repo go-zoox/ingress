@@ -67,7 +67,7 @@ Or use the default configuration path:
 ingress run
 ```
 
-The default configuration path is `/etc/ingress/ingress.yaml` if no config file is specified.
+The default configuration path is `/etc/ingress/config.yaml` if no config file is specified.
 
 ### 3. Test the Setup
 
@@ -110,7 +110,7 @@ Ingress looks for configuration files in the following order:
 
 1. Path specified by `-c` or `--config` flag
 2. Environment variable `CONFIG`
-3. Default path: `/etc/ingress/ingress.yaml`
+3. Default path: `/etc/ingress/config.yaml`
 
 ## Next Steps
 

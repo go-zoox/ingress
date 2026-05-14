@@ -67,7 +67,7 @@ ingress run -c ingress.yaml
 ingress run
 ```
 
-如果未指定配置文件，默认配置路径为 `/etc/ingress/ingress.yaml`。
+如果未指定配置文件，默认配置路径为 `/etc/ingress/config.yaml`。
 
 ### 3. 测试设置
 
@@ -110,7 +110,7 @@ Ingress 按以下顺序查找配置文件：
 
 1. 由 `-c` 或 `--config` 标志指定的路径
 2. 环境变量 `CONFIG`
-3. 默认路径：`/etc/ingress/ingress.yaml`
+3. 默认路径：`/etc/ingress/config.yaml`
 
 ## 下一步
 

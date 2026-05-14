@@ -27,7 +27,7 @@ func Validate() *cli.Command {
 		Action: func(c *cli.Context) error {
 			configFilePath := c.String("config")
 			if configFilePath == "" {
-				configFilePath = "/etc/ingress/ingress.yaml"
+				configFilePath = "/etc/ingress/config.yaml"
 			}
 
 			if err := validateConfigFile(configFilePath); err != nil {
