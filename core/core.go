@@ -8,6 +8,7 @@ package core
 import (
 	"fmt"
 
+	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/zoox"
 	"github.com/go-zoox/zoox/defaults"
 )
@@ -26,6 +27,9 @@ type core struct {
 	cfg     *Config
 
 	router *routerIndex
+
+	wafByRuleIdx []*waf.Profile
+	wafFallback  *waf.Profile
 
 	plugins []Plugin
 }

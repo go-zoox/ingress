@@ -1,0 +1,33 @@
+version: v1
+port: 8080
+
+rules:
+  - host: '^bigscreen-([^.]+)\.example\.com$'
+    host_type: regex
+    backend:
+      type: redirect
+      redirect:
+        url: https://bigscreen-$1.other.example.com
+  - host: app.example.com
+    backend:
+      redirect:
+        url: https://www.example.com/landing
+    paths:
+      - path: ^/api/
+        backend:
+          type: service
+          service:
+            name: api-svc
+            port: 8080
+            protocol: http
+  - host: api.example.com
+    backend:
+      service:
+        name: default-upstream
+        port: 8080
+        protocol: http
+    paths:
+      - path: ^/go/([^/]+)$
+        backend:
+          redirect:
+            url: https://seg.${path.1}.example.com/resource

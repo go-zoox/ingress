@@ -67,4 +67,8 @@ rules:
         port: 8080
 ```
 
+不写 **`backend.type`** 与写 **`type: service`** 可等价——并排示例见 **`examples/basic/ingress.yaml`**。
+
+`backend.type` 可选：当恰好配置 **`service`**、**`handler`**、**`redirect`** 中的一种时，Ingress 会自动推断类型。
+
 更多详情，请参阅[快速开始指南](/zh/guide/getting-started)。

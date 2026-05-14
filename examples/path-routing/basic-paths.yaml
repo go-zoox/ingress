@@ -1,0 +1,20 @@
+version: v1
+port: 8080
+
+rules:
+  - host: example.com
+    backend:
+      service:
+        name: default-service
+        port: 8080
+    paths:
+      - path: /api
+        backend:
+          service:
+            name: api-service
+            port: 8080
+      - path: /admin
+        backend:
+          service:
+            name: admin-service
+            port: 8080

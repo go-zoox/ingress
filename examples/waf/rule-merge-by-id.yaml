@@ -1,0 +1,34 @@
+version: v1
+port: 8080
+
+# Global custom rule "app-token" is overridden for one host (same id, different pattern).
+waf:
+  enabled: true
+  disable_builtin: true
+  rules:
+    - id: app-token
+      type: contains
+      pattern: GLOBAL-SECRET
+      targets:
+        - query
+
+rules:
+  - host: app-a.example.com
+    backend:
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https
+  - host: app-b.example.com
+    waf:
+      rules:
+        - id: app-token
+          type: contains
+          pattern: APPB-SECRET
+          targets:
+            - query
+    backend:
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

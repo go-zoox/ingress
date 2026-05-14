@@ -1,0 +1,66 @@
+version: v1
+port: 8080
+
+cache:
+  ttl: 30
+
+https:
+  port: 8443
+  ssl:
+    - domain: example.com
+      cert:
+        certificate: /etc/ssl/example.com/fullchain.pem
+        certificate_key: /etc/ssl/example.com/privkey.pem
+
+healthcheck:
+  outer:
+    enable: true
+    path: /healthz
+    ok: true
+  inner:
+    enable: true
+    interval: 30
+    timeout: 5
+
+fallback:
+  service:
+    name: httpbin.org
+    port: 443
+
+rules:
+  - host: example.com
+    backend:
+      service:
+        name: backend-service
+        port: 8080
+        auth:
+          type: basic
+          basic:
+            users:
+              - username: admin
+                password: admin123
+        healthcheck:
+          enable: true
+          method: GET
+          path: /health
+          status: [200]
+        request:
+          host:
+            rewrite: true
+          path:
+            rewrites:
+              - ^/api/v1/(.*):/api/v2/$1
+          headers:
+            X-Forwarded-Proto: https
+          timeout: 30
+    paths:
+      - path: /api
+        backend:
+          service:
+            name: api-service
+            port: 8080
+            auth:
+              type: bearer
+              bearer:
+                tokens:
+                  - api-token-123

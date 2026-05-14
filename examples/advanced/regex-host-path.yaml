@@ -1,0 +1,20 @@
+version: v1
+port: 8080
+
+rules:
+  - host: ^t-(\w+).example.work
+    host_type: regex
+    backend:
+      service:
+        name: task.${host.1}.svc
+        port: 8080
+    paths:
+      - path: /api/v1/([^/]+)
+        backend:
+          service:
+            name: ${path.1}.${host.1}.example.work
+            port: 8080
+            request:
+              path:
+                rewrites:
+                  - ^/api/v1/([^/]+):/api/v1/task/$1

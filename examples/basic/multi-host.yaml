@@ -1,0 +1,16 @@
+version: v1
+port: 8080
+
+# Explicit type on one host, inferred on the other — equivalent once validated.
+rules:
+  - host: web.example.com
+    backend:
+      type: service
+      service:
+        name: web-service
+        port: 8080
+  - host: api.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8081

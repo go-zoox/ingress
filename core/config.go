@@ -10,6 +10,8 @@ type Config struct {
 	EnableH2C bool `config:"enable_h2c"`
 	//
 	Rules []rule.Rule `config:"rules"`
+	// WAF is optional global baseline; rules[].waf patches this map-wise (see docs/guide/waf.md).
+	WAF rule.WAF `config:"waf"`
 	//
 	Cache Cache `config:"cache"`
 	//
@@ -43,8 +45,11 @@ type HTTPS struct {
 type RedirectFromHTTP struct {
 	// Disabled controls forced HTTP -> HTTPS redirects. Default false means enabled.
 	Disabled bool `config:"disabled"`
-	// Permanent uses 301 when true; 302 when false.
+	// Permanent uses 301 when true; 302 when false (or 308/307 when WithOriginMethodAndBody is true).
 	Permanent bool `config:"permanent"`
+	// WithOriginMethodAndBody uses HTTP 307/308 so clients preserve method and body on redirect.
+	// Default false uses 302/301.
+	WithOriginMethodAndBody bool `config:"with_origin_method_and_body"`
 	// ExcludePaths skips redirect for exact path matches.
 	ExcludePaths []string `config:"exclude_paths"`
 }

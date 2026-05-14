@@ -67,4 +67,8 @@ rules:
         port: 8080
 ```
 
+Same routing outcome **without** `backend.type`, or **with** `type: service` — runnable comparisons live in **`examples/basic/ingress.yaml`**.
+
+`backend.type` is optional: Ingress infers **`service`**, **`handler`**, or **`redirect`** when exactly one of those blocks is configured.
+
 For more details, see the [Getting Started Guide](/guide/getting-started).

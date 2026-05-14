@@ -33,6 +33,7 @@ https:
 | `http3_altsvc_max_age` | int | `Alt-Svc` response header `ma=` in seconds; `0` uses a server default; negative omits `Alt-Svc` |
 | `redirect_from_http.disabled` | bool | Disable forced HTTP -> HTTPS redirect (`false` by default, which means enabled when HTTPS is configured) |
 | `redirect_from_http.permanent` | bool | Use `301` when true, `302` when false |
+| `redirect_from_http.with_origin_method_and_body` | bool | When true, use `308`/`307` instead of `301`/`302` so method and body are preserved (default `false`) |
 | `redirect_from_http.exclude_paths` | array | Exact request paths that should skip forced redirect |
 | `ssl` | array | Array of SSL certificate configurations |
 
@@ -173,6 +174,7 @@ Behavior:
 - When `https.port` is not `443`, the redirect URL includes that port.
 - Requests already identified as HTTPS (`TLS` or `X-Forwarded-Proto: https`) are not redirected.
 - Paths listed in `exclude_paths` are matched exactly and skip forced redirect.
+- Optional `with_origin_method_and_body: true` uses **308**/**307** instead of **301**/**302** so non-GET redirects preserve method and body (same semantics as `rules[].backend.redirect`).
 
 For route-specific redirects, continue using `rules[].backend.redirect`.
 

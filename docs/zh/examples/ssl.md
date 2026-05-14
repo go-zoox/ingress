@@ -1,104 +1,43 @@
 # SSL/TLS 示例
 
-此页面提供 SSL/TLS 配置的示例。
+SSL/TLS 相关配置示例。
 
-## 基本 HTTPS 配置
+配置文件：[examples/ssl-tls/](https://github.com/go-zoox/ingress/tree/master/examples/ssl-tls)。
 
-```yaml
-version: v1
-port: 8080
+## 基本 HTTPS
 
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/ssl/example.com/fullchain.pem
-        certificate_key: /etc/ssl/example.com/privkey.pem
-```
+<<< @/../examples/ssl-tls/https-basic.yaml
 
 ## 多域名
 
-```yaml
-version: v1
-port: 8080
+<<< @/../examples/ssl-tls/https-multi-domain.yaml
 
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/ssl/example.com/fullchain.pem
-        certificate_key: /etc/ssl/example.com/privkey.pem
-    - domain: api.example.com
-      cert:
-        certificate: /etc/ssl/api.example.com/fullchain.pem
-        certificate_key: /etc/ssl/api.example.com/privkey.pem
-    - domain: admin.example.com
-      cert:
-        certificate: /etc/ssl/admin.example.com/fullchain.pem
-        certificate_key: /etc/ssl/admin.example.com/privkey.pem
-```
+## Let's Encrypt
 
-## Let's Encrypt 证书
-
-```yaml
-version: v1
-port: 8080
-
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/letsencrypt/live/example.com/fullchain.pem
-        certificate_key: /etc/letsencrypt/live/example.com/privkey.pem
-```
+<<< @/../examples/ssl-tls/https-letsencrypt.yaml
 
 ## 带后端服务的 HTTPS
 
-```yaml
-version: v1
-port: 8080
+<<< @/../examples/ssl-tls/https-with-backends.yaml
 
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/ssl/example.com/fullchain.pem
-        certificate_key: /etc/ssl/example.com/privkey.pem
+## 全局 HTTP → HTTPS 强跳
 
-rules:
-  - host: example.com
-    backend:
-      service:
-        name: backend-service
-        port: 8080
-        protocol: http  # 后端使用 HTTP，TLS 在 Ingress 终止
-```
+配置了 `https.port` 时，可在**路由匹配之前**把明文 HTTP 强制跳到 HTTPS。使用 **`https.redirect_from_http`**（不要用 `rules[].backend.redirect` 代替全局强跳）：
 
-## HTTP 到 HTTPS 重定向
+<<< @/../examples/ssl-tls/https-global-redirect.yaml
 
-```yaml
-version: v1
-port: 8080
+可选字段（在自有配置里按需写上注释即可）：
 
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/ssl/example.com/fullchain.pem
-        certificate_key: /etc/ssl/example.com/privkey.pem
+- `with_origin_method_and_body`：`false` → 301/302 系列；`true` → 307/308
+- `exclude_paths`：跳过强跳的精确路径列表
 
-rules:
-  - host: example.com
-    backend:
-      redirect:
-        url: https://example.com
-        permanent: true
-```
+## 按路由重定向（`rules[].backend.redirect`）
+
+当某个 **host 或 path** 需要直接返回跳转而不是反代时，使用 `backend.redirect`。**通常省略 `backend.type`**——仅在配置了 `redirect` 时会推断。**可运行对照：** **`examples/ssl-tls/route-redirect.yaml`** 用两个 host 分别演示 **`type: redirect`** 与省略；校验报告歧义时再显式写 **`backend.type: redirect`**。详见 [路由](/zh/guide/routing) 中 **`service`、`handler`、`redirect`** 与各配置块的对应关系。
+
+<<< @/../examples/ssl-tls/route-redirect.yaml
+
+在 `redirect.url` 中使用正则捕获占位（如 `$1`、`${path.1}`）的示例见 [重定向](./redirect)。
 
 ## 测试
 
@@ -114,9 +53,7 @@ curl https://example.com:8443/api
 openssl s_client -connect example.com:8443 -servername example.com
 ```
 
-### 证书重新加载
-
-更新证书后，重新加载配置：
+### 证书热加载
 
 ```bash
 kill -HUP $(cat /tmp/gozoox.ingress.pid)

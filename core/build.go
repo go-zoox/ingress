@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/go-zoox/ingress/core/rule"
+	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/zoox"
@@ -53,16 +54,12 @@ func (c *core) build() error {
 
 		if shouldRedirectFromHTTP(ctx.Request, path, c.cfg) {
 			redirectURL := buildHTTPSRedirectURL(hostname, path, rawQuery, c.cfg.HTTPS.Port)
-			if c.cfg.HTTPS.RedirectFromHTTP.Permanent {
-				ctx.RedirectPermanent(redirectURL)
-			} else {
-				ctx.RedirectTemporary(redirectURL)
-			}
-
+			rf := c.cfg.HTTPS.RedirectFromHTTP
+			applyRedirect(ctx, redirectURL, rf.Permanent, rf.WithOriginMethodAndBody)
 			return false, true, nil
 		}
 
-		serviceIns, matchedRule, pathBackend, err := c.match(ctx, hostname, path)
+		serviceIns, matchedRule, pathBackend, hostSm, pathSm, ruleIdx, err := c.match(ctx, hostname, path)
 		if err != nil {
 			logger.Warnf("no route matched (host: %s, path: %s): %s", hostname, path, err)
 			if c.cfg.ErrorPageExposeDetails {
@@ -79,22 +76,38 @@ func (c *core) build() error {
 			return false, true, nil
 		}
 
-		// redirect: check path-level redirect first, then host-level redirect
+		wafProf := c.wafFallback
+		if ruleIdx >= 0 && ruleIdx < len(c.wafByRuleIdx) {
+			wafProf = c.wafByRuleIdx[ruleIdx]
+		}
+		if wafProf != nil && waf.CheckRequest(wafProf, ctx.Request, hostname, path, method) {
+			ctx.SetHeader("Content-Type", wafProf.BlockContentType)
+			ctx.String(wafProf.BlockStatus, wafProf.BlockBody)
+			return false, true, nil
+		}
+
+		// After route resolution: apply backend.redirect when Redirect.URL is set (path backend overrides rule backend).
+		// Redirect-only configs keep Backend.Type as default "service" with backend.redirect only; otherwise matched upstream proxy continues below.
+		// Next block handles Backend.Type "handler".
 		var redirectURL string
 		var permanent bool
+		var withOriginMethodAndBody bool
 		var hasRedirect bool
 
 		if pathBackend != nil && pathBackend.Redirect.URL != "" {
 			redirectURL = pathBackend.Redirect.URL
 			permanent = pathBackend.Redirect.Permanent
+			withOriginMethodAndBody = pathBackend.Redirect.WithOriginMethodAndBody
 			hasRedirect = true
 		} else if matchedRule.Backend.Redirect.URL != "" {
 			redirectURL = matchedRule.Backend.Redirect.URL
 			permanent = matchedRule.Backend.Redirect.Permanent
+			withOriginMethodAndBody = matchedRule.Backend.Redirect.WithOriginMethodAndBody
 			hasRedirect = true
 		}
 
 		if hasRedirect {
+			redirectURL = expandRedirectURL(matchedRule, hostname, redirectURL, hostSm, pathSm)
 			// If redirect URL is not a full URL (doesn't start with http:// or https://),
 			// construct the full URL by keeping the original path and query parameters
 			if !strings.HasPrefix(redirectURL, "http://") && !strings.HasPrefix(redirectURL, "https://") {
@@ -111,11 +124,7 @@ func (c *core) build() error {
 				}
 			}
 
-			if permanent {
-				ctx.RedirectPermanent(redirectURL)
-			} else {
-				ctx.RedirectTemporary(redirectURL)
-			}
+			applyRedirect(ctx, redirectURL, permanent, withOriginMethodAndBody)
 
 			return false, true, nil
 		}
@@ -387,6 +396,22 @@ func (c *core) build() error {
 	}))
 
 	return nil
+}
+
+func applyRedirect(ctx *zoox.Context, url string, permanent, withOriginMethodAndBody bool) {
+	if withOriginMethodAndBody {
+		if permanent {
+			ctx.RedirectPermanentWithOriginMethodAndBody(url)
+		} else {
+			ctx.RedirectTemporaryWithOriginMethodAndBody(url)
+		}
+		return
+	}
+	if permanent {
+		ctx.RedirectPermanent(url)
+	} else {
+		ctx.RedirectTemporary(url)
+	}
 }
 
 func shouldRedirectFromHTTP(req *http.Request, path string, cfg *Config) bool {

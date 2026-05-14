@@ -37,7 +37,7 @@ https:
 目前已提取到 `core/constants.go` 的典型常量：
 
 - HostType：`hostTypeExact`、`hostTypeRegex`、`hostTypeWildcard`、`hostTypeAuto`
-- Backend.Type：`backendTypeService`、`backendTypeHandler`
+- Backend.Type：`backendTypeService`、`backendTypeHandler`、`backendTypeRedirect`
 - 认证类型与挑战头：`authTypeBasic`、`authTypeBearer`、`authChallengeBasic`、`authChallengeBearer`
 - Header 与 scheme：`headerXForwardedProto`、`headerWWWAuthenticate`、`schemeHTTP`、`schemeHTTPS`
 
@@ -53,6 +53,7 @@ https:
   - `yaml syntax error ...`
   - `invalid config format ...`
   - `unsupported configuration ...`
+- 路由/backend 校验报错中会包含 **`rules[N] host="..." path="..."`**（规则级 backend 为 `path="/"`；子路径为配置的 path 模式）。
 - `ingress reload` 会先校验配置，只有通过后才发送 `SIGHUP`。
 
 这样可以避免运行中加载损坏配置，保证启动和热重载的一致性。

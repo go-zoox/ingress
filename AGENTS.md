@@ -32,7 +32,7 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 
 - Global redirect is configured under `https.redirect_from_http` in `core/config.go`.
 - **Default behavior**: when `https.port` is set, forced HTTP -> HTTPS redirect is enabled unless `https.redirect_from_http.disabled: true`.
-- `permanent: true` returns 301; `permanent: false` returns 302.
+- `permanent: true` returns 301; `permanent: false` returns 302, unless **`with_origin_method_and_body: true`** uses **308**/**307** instead (**302**/**301** when false).
 - `exclude_paths` uses exact path matching and skips forced redirect for matched paths.
 - Redirect is decided before route matching in `core/build.go` (`shouldRedirectFromHTTP`), while route-level redirect (`rules[].backend.redirect`) still applies in normal route flow.
 - HTTPS detection checks both TLS and `X-Forwarded-Proto: https` to avoid redirect loops behind trusted proxies/LBs.
@@ -45,10 +45,24 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 - For missing values, use `-` (or `-1` for unknown upstream content length) to keep logs structurally predictable.
 - TLS names are sourced from Go stdlib (`tls.VersionName`, `tls.CipherSuiteName`), so expected protocol strings are like `TLS 1.3` (not `TLSv1.3`).
 
+## WAF (layer-7 guard, v1)
+
+- **When**: After a route match in `core/build.go`, before `backend.redirect`, handler, or upstream proxy (`waf.CheckRequest` + `*waf.Profile`).
+- **Package**: `core/waf/` — `CompileIngress`, `CheckRequest`, `MergePatch` / `MergeRules`, `StarterRules`, `ApplyRulePatchesFromFile` / `ApplyRulePatchesFromYAML`.
+- **Config**: Typed global `waf` on `core.Config` (`rule.WAF` — no nested pointers; `go-zoox/config` cannot decode them). Per-route **`rules[].waf`** maps merge over the baseline via **`waf.ApplyRulePatchesFromFile`** (called from `cmd/ingress/run.go` and `validate.go` right after `config.Load`). In-memory `cfg` uses **`rule.Rule.WAFPatch`** (`config:"-"`).
+- **Semantics**: IP deny list, optional allow gate, then regex/contains signatures (optional starters from `StarterRules()`; disable via `disable_builtin`). Global/per-rule **`log_only`** audits without blocking (`[waf audit]` vs `[waf block]` in logs). No HTTP body scanning in v1.
+- **Tests / examples**: `core/waf/compile_test.go`, `eval_test.go`, `patch_test.go`, `yaml_test.go`; `examples/waf/`.
+
+## Redirect and config validation
+
+- Route redirect (`rules[].backend.redirect` and path backends): evaluated before proxy/handler in `core/build.go`. **`backend.type`** is **`service`**, **`handler`**, or **`redirect`** (`core/constants.go`). **`inferBackendTypes` / `inferRuleBackends`** (`core/backend_type.go`) run during **`prepare`** and **`ingress validate`**, inferring the type when `type` is omitted and exactly one of service/handler/redirect blocks looks configured; otherwise validation demands an explicit `backend.type`. Each typed backend permits only its matching block (`core/validate.go`). **`expandRedirectURL`** (`core/match.go`) applies `${host.N}`/`${path.N}`/`$1`-style templates in redirect URLs (aligned with service naming). Route **`redirect.with_origin_method_and_body`** mirrors global semantics (**307**/**308** vs **302**/**301**).
+
 ## Docs and tests
 
-- User-facing behavior: `docs/guide/routing.md` (EN), `docs/zh/guide/routing.md` (ZH), TLS and HTTP/2–3 in `docs/guide/ssl-tls.md` / `docs/zh/guide/ssl-tls.md`, routing/config snippets in `docs/guide/configuration.md` / `docs/zh/guide/configuration.md`, and access-log field notes in those same configuration docs.
+- Runnable YAML samples live under repo-root `examples/` (topic subdirs); `docs/examples/` and `docs/zh/examples/` embed them via VitePress 1 snippet lines `<<< @/../examples/...` (path only; optional `{yaml}` in braces—do not add a trailing space + `yaml`, it is parsed as part of the filename).
+- User-facing behavior: `docs/guide/routing.md` (EN), `docs/zh/guide/routing.md` (ZH), WAF in `docs/guide/waf.md` / `docs/zh/guide/waf.md`, TLS and HTTP/2–3 in `docs/guide/ssl-tls.md` / `docs/zh/guide/ssl-tls.md`, routing/config snippets in `docs/guide/configuration.md` / `docs/zh/guide/configuration.md`, and access-log field notes in those same configuration docs.
 - Inference and compile behavior: `core/compile_test.go`, `core/compile.go` (`effectiveHostType`, `hostLooksLikeRegexp`).
+- Config validation (`ingress validate`): `core/validate.go`, `core/validate_test.go`.
 - Redirect and auth/header constants behavior: `core/build.go`, `core/constants.go`, `core/build_test.go`.
 - Protocol wiring and logging: `core/build.go`, `core/build_test.go` (`TestBuild_HTTP2HTTP3ZooxConfig`, `TestBuild_AccessLogExtraFields_WithTLS`, `TestBuild_AccessLogExtraFields_WithoutTLS`).
 

@@ -1,0 +1,16 @@
+version: v1
+port: 8080
+
+# Safe demo: WAF runs in audit mode (log_only) so traffic is not blocked.
+waf:
+  enabled: true
+  log_only: true
+  builtin: true
+
+rules:
+  - host: waf-demo.example.com
+    backend:
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

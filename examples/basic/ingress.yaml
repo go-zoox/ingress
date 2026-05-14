@@ -1,0 +1,16 @@
+version: v1
+port: 8080
+
+# Same inferred mode (service); compare spelling explicit backend.type vs omission.
+rules:
+  - host: app-with-type.example.com
+    backend:
+      type: service
+      service:
+        name: backend-service
+        port: 8080
+  - host: app-inferred.example.com
+    backend:
+      service:
+        name: backend-service
+        port: 8080

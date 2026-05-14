@@ -3,12 +3,16 @@ package core
 import (
 	"fmt"
 
+	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/kv"
 	"github.com/go-zoox/kv/redis"
 	"github.com/go-zoox/logger"
 )
 
 func (c *core) prepare() error {
+	if err := inferBackendTypes(c.cfg); err != nil {
+		return err
+	}
 	// default config when unset
 	if c.cfg.Cache.TTL == 0 {
 		c.cfg.Cache.TTL = 60
@@ -29,6 +33,11 @@ func (c *core) prepare() error {
 	c.router, err = compileRouterIndex(c.cfg.Rules, c.cfg.Fallback)
 	if err != nil {
 		return fmt.Errorf("compile router: %w", err)
+	}
+
+	c.wafByRuleIdx, c.wafFallback, err = waf.CompileIngress(c.cfg.WAF, c.cfg.Rules)
+	if err != nil {
+		return fmt.Errorf("compile waf: %w", err)
 	}
 
 	return nil
