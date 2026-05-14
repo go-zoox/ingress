@@ -201,7 +201,6 @@ rules:
       service:
         protocol: https
         name: upstream.example.org
-        port: 443
 ```
 
 ### Header Modification

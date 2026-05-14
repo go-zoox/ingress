@@ -13,6 +13,8 @@ Context for humans and coding agents working on this repository.
 - Regex is checked before `*` so patterns like `^.*\.example\.com$` are not misclassified as wildcard.
 - **Explicit `host_type: exact`**: Disables inference; `host` is matched as a literal string even if it looks like a pattern (rare).
 - **`backend.mode`**: `internal` (default) keeps the client `Host` unless `service.request.host.rewrite` is set. `external` defaults `Host` to the upstream (`service.Host()`). Explicit `request.host.rewrite` wins. Synthetic fallback rules use `host: @@fallback` and default Host alignment when `rewrite` is omitted (`core/host_rewrite.go`).
+- **Default upstream port**: `backend.service.port` may be omitted (`0`). `core/service/host.go` then uses **443** when `protocol` is **`https`** and **80** when **`http`** (or default/empty). First `Host()` / `Target()` call may write the chosen port back onto the loaded `Service` value.
+- **`service.protocol` omission**: Unset or empty defaults to **`http`** (`protocol,default=http` on `core/service.Service` and the same default in `Host()` / `Target()`).
 
 ## Common pitfalls
 

@@ -46,11 +46,11 @@ healthcheck:
     interval: 30               # 检查间隔（秒）
     timeout: 5                 # 检查超时（秒）
 
-# 回退服务（当没有规则匹配时使用）
+# 无规则匹配时使用的 fallback
 fallback:
   service:
+    protocol: https
     name: httpbin.org
-    port: 443
 
 # 路由规则
 rules:
@@ -159,7 +159,8 @@ fallback:
   service:
     name: fallback-service
     port: 8080
-    protocol: http              # http 或 https
+    # protocol: 可选，默认 http
+    protocol: http
     # request:
     #   host:
     #     rewrite: false        # 可选：保留客户端 Host
@@ -168,6 +169,8 @@ fallback:
 ### 规则配置
 
 规则定义如何将请求路由到后端服务。详细信息请参阅[路由指南](/zh/guide/routing)。
+
+每个 **`backend.service`**：**省略 `protocol` 时默认为 `http`**（`core/service/service.go` 的配置默认值，与 `core/service/host.go` 一致）。**`protocol: https`** 且省略 **`port`**（或为 `0`）时上联端口默认为 **443**；**`http`**（显式或默认）时省略 **`port`** 默认为 **80**。影响出站 URL 与默认 **`Host`** 头。
 
 下面 **`backend.type` 写法混排**：规则级 `backend` **显式写 `type: service`**；各 **`paths[].backend`** **省略 `type`**，由各自的配置块推断 **`service`** 或 **`handler`**。
 
@@ -182,7 +185,8 @@ rules:
       service:
         name: backend-service
         port: 8080
-        protocol: http          # http 或 https
+        # protocol: 可选，默认 http；上联为 TLS 时写 https
+        protocol: http
         auth:                   # 认证（可选）
           type: basic
           basic:

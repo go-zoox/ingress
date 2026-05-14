@@ -96,7 +96,7 @@ rules:
       service:
         protocol: https
         name: upstream.example.org
-        port: 443
+        # https 可省略 port，默认为 443
 ```
 
 更完整的可运行示例（**`internal`** 上联、**`external`** HTTPS 反代与 **handler** 路径）见 **`examples/advanced/backend-mode-external-mixed.yaml`**。
@@ -257,12 +257,11 @@ request:
 rules:
   - host: httpbin.example.work
     backend:
+      mode: external
       service:
+        protocol: https
         name: httpbin.zcorky.com
-        port: 443
         request:
-          host:
-            rewrite: true
           path:
             rewrites:
               - ^/ip3/(.*):/$1
@@ -270,9 +269,10 @@ rules:
     paths:
       - path: /httpbin.org
         backend:
+          mode: external
           service:
+            protocol: https
             name: httpbin.org
-            port: 443
             request:
               path:
                 rewrites:

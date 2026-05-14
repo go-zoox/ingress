@@ -7,7 +7,6 @@ rules:
       mode: external
       service:
         name: httpbin.zcorky.com
-        port: 443
         protocol: https
         request:
           path:
@@ -20,7 +19,6 @@ rules:
           mode: external
           service:
             name: httpbin.org
-            port: 443
             protocol: https
             request:
               path:

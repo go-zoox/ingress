@@ -49,8 +49,8 @@ healthcheck:
 # Fallback service (used when no rule matches)
 fallback:
   service:
+    protocol: https
     name: httpbin.org
-    port: 443
 
 # Routing rules
 rules:
@@ -160,7 +160,8 @@ fallback:
   service:
     name: fallback-service
     port: 8080
-    protocol: http              # http or https
+    # protocol: optional — default http
+    protocol: http
     # request:
     #   host:
     #     rewrite: false        # optional: preserve client Host
@@ -169,6 +170,8 @@ fallback:
 ### Rules Configuration
 
 Rules define how requests are routed to backend services. See the [Routing Guide](/guide/routing) for detailed information.
+
+For each **`backend.service`**, **`protocol` is optional** and defaults to **`http`** (YAML `default` in `core/service/service.go` and `core/service/host.go`). With **`protocol: https`**, an omitted **`port`** (or `0`) defaults to **443**; with **`http`** (explicit or default), omitted **`port`** defaults to **80**. This affects the outbound URL and default **`Host`** header.
 
 For **`backend.type`**, this snippet **mixes styles**: the rule `backend` sets **`type: service`** explicitly, while **`paths[].backend`** blocks omit **`type`** (they infer **`service`** or **`handler`** from their nested blocks).
 
@@ -183,7 +186,8 @@ rules:
       service:
         name: backend-service
         port: 8080
-        protocol: http          # http or https
+        # protocol: optional — default http; use https for TLS upstreams
+        protocol: http
         auth:                   # Authentication (optional)
           type: basic
           basic:
