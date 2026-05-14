@@ -56,8 +56,8 @@ fallback:
 rules:
   - host: example.com
     backend:
-      # type defaults to service, options: service | handler
-      # type: service
+      # Omit backend.type when only one of service | handler | redirect applies — runnable twin spelling:
+      # examples/basic/ingress.yaml (explicit type: service vs omission).
       service:
         name: backend-service
         port: 8080
@@ -77,6 +77,23 @@ rules:
 | `healthcheck` | object | Health check configuration | - |
 | `fallback` | object | Fallback backend | - |
 | `rules` | array | Routing rules | `[]` |
+| `waf` | object | Optional WAF baseline; route patches use **`rules[].waf`** YAML maps ([WAF guide](waf.md)) | _(inactive when omitted or `enabled: false`)_ |
+
+### WAF (`waf` / `rules[].waf`)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enabled` | bool | Master switch (`false` or omitted baseline keeps WAF off unless a route sets `enabled: true`). |
+| `trust_proxy` | bool | Use `X-Forwarded-For` for client IP (default direct `RemoteAddr`). |
+| `xff_index` | int | Segment index (`0` = leftmost IP; negatives count from the right). |
+| `log_only` | bool | Global audit — `[waf audit]` logs, no blocking. |
+| `block_status_code` | int | Status on block (unset/`0` → `403`). |
+| `block_content_type` | string | Response header when blocking (`text/plain; charset=utf-8` default). |
+| `block_body` | string | Response body when blocking. |
+| `disable_builtin` | bool | Omit embedded starters when `true` (see [built-in rules](waf.md#built-in-starter-rules)). |
+| `deny` | string array | IPs / CIDRs (deny first). |
+| `allow` | string array | Non-empty ⇒ only listed nets survive IP phase. |
+| `rules` | array | Custom signatures (`id`, `pattern`, `type`, `targets`, optional per-rule `log_only`). Same `id` in a route map replaces inherited rule metadata. |
 
 ### Cache Configuration
 
@@ -99,6 +116,7 @@ rules:
 | `http3_altsvc_max_age` | int | `Alt-Svc` `ma=` in seconds; `0` uses server default; negative disables `Alt-Svc` |
 | `redirect_from_http.disabled` | bool | Disable forced HTTP -> HTTPS redirect (`false` by default, which means enabled when `https.port` is set) |
 | `redirect_from_http.permanent` | bool | Use `301` when true, `302` when false |
+| `redirect_from_http.with_origin_method_and_body` | bool | When true, use `308`/`307` instead of `301`/`302` so method and body are preserved (default `false`) |
 | `redirect_from_http.exclude_paths` | array | Exact request paths that skip forced redirect |
 | `ssl` | array | SSL certificate configurations |
 
@@ -149,13 +167,15 @@ fallback:
 
 Rules define how requests are routed to backend services. See the [Routing Guide](/guide/routing) for detailed information.
 
+For **`backend.type`**, this snippet **mixes styles**: the rule `backend` sets **`type: service`** explicitly, while **`paths[].backend`** blocks omit **`type`** (they infer **`service`** or **`handler`** from their nested blocks).
+
 ```yaml
 rules:
   - host: example.com           # Host to match
     # host_type: optional — omit or `auto` to infer exact vs regex vs wildcard from `host` at compile time
     # explicit values: exact | regex | wildcard
     backend:
-      type: service             # Backend type: service (default) or handler
+      type: service             # optional — omit when only service applies (see examples/basic/ingress.yaml)
       service:
         name: backend-service
         port: 8080
@@ -183,9 +203,7 @@ rules:
             key: value
           delay: 0              # Delay in milliseconds
           timeout: 30           # Timeout in seconds
-      redirect:                 # Redirect configuration (alternative to service)
-        url: https://example.com
-        permanent: false
+      # redirect: ...           # Only redirect block — see Routing guide (backend.type optional when unique)
     paths:                      # Path-based routing (optional)
       - path: /api
         backend:
@@ -194,7 +212,6 @@ rules:
             port: 8080
       - path: /healthz
         backend:
-          type: handler
           handler:
             status_code: 200
             headers:
@@ -234,7 +251,14 @@ You can override some configuration using environment variables:
 
 ## Configuration Validation
 
-Ingress validates the configuration file when it starts. If there are any errors, the server will not start and display the error message.
+Ingress validates configuration when the process starts and when you run **`ingress validate`**. Errors prevent startup or a successful reload.
+
+Static checks include router compilation (host/path regex), HTTPS/TLS shape, and **per-backend** consistency (**`backend.type`** is usually omitted and inferred as **`service`**, **`handler`**, or **`redirect`**):
+
+- **`backend.type` is optional.** With **`type` omitted**, Ingress **infers** the mode when exactly one of `service`, `handler`, or `redirect` looks configured; otherwise validation fails and asks for an explicit **`backend.type`**.
+- With an explicit type, only the matching block is allowed (for example **`type: redirect`** requires **`redirect.url`** and forbids populated **`service`** / **`handler`** fields).
+
+Validation errors cite the rule index, configured host pattern, and routing path: **`rules[N] host="..." path="..."`**. Rule-level backends use **`path="/"`**; path backends use the configured **`paths[].path`** pattern (if that pattern string is empty, the message falls back to `paths[index]`).
 
 ## Reloading Configuration
 

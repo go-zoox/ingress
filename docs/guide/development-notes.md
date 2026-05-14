@@ -37,7 +37,7 @@ During refactors, avoid inline string literals for protocol/type/header selector
 Examples already extracted in `core/constants.go`:
 
 - Host type selectors: `hostTypeExact`, `hostTypeRegex`, `hostTypeWildcard`, `hostTypeAuto`
-- Backend type selectors: `backendTypeService`, `backendTypeHandler`
+- Backend type selectors: `backendTypeService`, `backendTypeHandler`, `backendTypeRedirect`
 - Auth selectors/challenges: `authTypeBasic`, `authTypeBearer`, `authChallengeBasic`, `authChallengeBearer`
 - Header and scheme: `headerXForwardedProto`, `headerWWWAuthenticate`, `schemeHTTP`, `schemeHTTPS`
 
@@ -53,6 +53,7 @@ Expected benefits:
   - `yaml syntax error ...`
   - `invalid config format ...`
   - `unsupported configuration ...`
+- Router/backend validation messages include **`rules[N] host="..." path="..."`** (rule-level backends use `path="/"`; path backends use the configured path pattern).
 - `ingress reload` validates config first and sends `SIGHUP` only when validation passes.
 
 This keeps reload behavior consistent with startup safety and prevents applying broken config during runtime.

@@ -1,0 +1,16 @@
+version: v1
+port: 8080
+
+rules:
+  - host: bearer-auth-multi.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+        auth:
+          type: bearer
+          bearer:
+            tokens:
+              - token1-abc123xyz
+              - token2-def456uvw
+              - token3-ghi789rst

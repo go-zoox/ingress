@@ -2,119 +2,58 @@
 
 This page provides examples of SSL/TLS configuration.
 
-## Basic HTTPS Configuration
+Sources: [`examples/ssl-tls/`](https://github.com/go-zoox/ingress/tree/master/examples/ssl-tls).
 
-```yaml
-version: v1
-port: 8080
+## Basic HTTPS configuration
 
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/ssl/example.com/fullchain.pem
-        certificate_key: /etc/ssl/example.com/privkey.pem
-```
+<<< @/../examples/ssl-tls/https-basic.yaml
 
-## Multiple Domains
+## Multiple domains
 
-```yaml
-version: v1
-port: 8080
+<<< @/../examples/ssl-tls/https-multi-domain.yaml
 
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/ssl/example.com/fullchain.pem
-        certificate_key: /etc/ssl/example.com/privkey.pem
-    - domain: api.example.com
-      cert:
-        certificate: /etc/ssl/api.example.com/fullchain.pem
-        certificate_key: /etc/ssl/api.example.com/privkey.pem
-    - domain: admin.example.com
-      cert:
-        certificate: /etc/ssl/admin.example.com/fullchain.pem
-        certificate_key: /etc/ssl/admin.example.com/privkey.pem
-```
+## Let's Encrypt certificates
 
-## Let's Encrypt Certificates
+<<< @/../examples/ssl-tls/https-letsencrypt.yaml
 
-```yaml
-version: v1
-port: 8080
+## HTTPS with backend services
 
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/letsencrypt/live/example.com/fullchain.pem
-        certificate_key: /etc/letsencrypt/live/example.com/privkey.pem
-```
+<<< @/../examples/ssl-tls/https-with-backends.yaml
 
-## HTTPS with Backend Services
+## Global HTTP to HTTPS redirect
 
-```yaml
-version: v1
-port: 8080
+When `https.port` is set, Ingress can force cleartext HTTP clients to HTTPS **before** route matching. Configure `https.redirect_from_http` (not `rules[].backend.redirect`):
 
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/ssl/example.com/fullchain.pem
-        certificate_key: /etc/ssl/example.com/privkey.pem
+<<< @/../examples/ssl-tls/https-global-redirect.yaml
 
-rules:
-  - host: example.com
-    backend:
-      service:
-        name: backend-service
-        port: 8080
-        protocol: http  # Backend uses HTTP, TLS terminated at Ingress
-```
+Optional fields (comment in your own file as needed):
 
-## HTTP to HTTPS Redirect
+- `with_origin_method_and_body`: `false` → 301/302 family; `true` → 307/308
+- `exclude_paths`: exact paths that skip the forced redirect
 
-```yaml
-version: v1
-port: 8080
+## Route-level redirect (`rules[].backend.redirect`)
 
-https:
-  port: 8443
-  ssl:
-    - domain: example.com
-      cert:
-        certificate: /etc/ssl/example.com/fullchain.pem
-        certificate_key: /etc/ssl/example.com/privkey.pem
+Use `backend.redirect` when a **specific host or path** should issue a redirect instead of proxying. **Usually omit `backend.type`**—Ingress infers **`redirect`** when only **`redirect`** is configured. **Runnable comparison:** **`examples/ssl-tls/route-redirect.yaml`** uses two hosts (`type: redirect` vs omission). Set **`backend.type: redirect`** explicitly only when validation reports ambiguity. See [routing](/guide/routing#redirects) for how **`service`**, **`handler`**, and **`redirect`** blocks relate to each backend.
 
-rules:
-  - host: example.com
-    backend:
-      redirect:
-        url: https://example.com
-        permanent: true
-```
+<<< @/../examples/ssl-tls/route-redirect.yaml
+
+For regex capture templating in `redirect.url`, see [Redirects](./redirect).
 
 ## Testing
 
-### HTTPS Request
+### HTTPS request
 
 ```bash
 curl https://example.com:8443/api
 ```
 
-### Verify Certificate
+### Verify certificate
 
 ```bash
 openssl s_client -connect example.com:8443 -servername example.com
 ```
 
-### Certificate Reload
+### Certificate reload
 
 After updating certificates, reload the configuration:
 

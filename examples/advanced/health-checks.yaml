@@ -1,0 +1,24 @@
+version: v1
+port: 8080
+
+healthcheck:
+  outer:
+    enable: true
+    path: /healthz
+    ok: true
+  inner:
+    enable: true
+    interval: 30
+    timeout: 5
+
+rules:
+  - host: example.com
+    backend:
+      service:
+        name: backend-service
+        port: 8080
+        healthcheck:
+          enable: true
+          method: GET
+          path: /health
+          status: [200]

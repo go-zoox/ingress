@@ -227,23 +227,54 @@ rules:
 
 ## Redirects
 
-Instead of proxying to a backend service, you can redirect requests:
+Use **`backend.redirect`** instead of proxying. **`backend.type` is optional**: when only **`redirect`** is configured on that backend, Ingress infers **`redirect`** automatically—you normally omit **`backend.type`**. Valid explicit values are **`service`**, **`handler`**, and **`redirect`**; only the matching block may be populated. If **`service`**, **`handler`**, and **`redirect`** blocks **together look ambiguous** while **`type` is omitted**, **`ingress validate`** fails until you set **`backend.type`** explicitly.
+
+These two rules behave the same after inference—compare **`type: redirect`** with omission:
 
 ```yaml
 rules:
-  - host: old.example.com
+  - host: old-explicit.example.com
+    backend:
+      type: redirect
+      redirect:
+        url: https://new.example.com
+        permanent: true
+  - host: old-inferred.example.com
     backend:
       redirect:
         url: https://new.example.com
         permanent: true
 ```
 
-- `url`: The redirect target URL
-- `permanent`: If `true`, returns a 301 redirect; if `false`, returns a 302 redirect
+Runnable twin-host sample: **`examples/ssl-tls/route-redirect.yaml`**.
+
+Fields:
+
+- **`url`**: Target URL. If it does not start with `http://` or `https://`, Ingress treats the value as a host (optional port) and builds the full URL with the incoming request’s scheme, original path, and query string.
+- **`permanent`**: When `false`, uses **302**; when `true`, uses **301**—unless `with_origin_method_and_body` is enabled (below).
+- **`with_origin_method_and_body`** (default `false`): When `true`, uses **307** / **308** so clients keep the original HTTP method and body (temporary vs permanent follows `permanent`). When `false`, uses **302** / **301** as above.
+
+**Capture templates** in `url` follow the same rules as `service.name`: `${host.N}` and `${path.N}` from regex captures; for regex/wildcard hosts you can also use legacy **`$1`-style** substitution from the host pattern. Path captures apply when the redirect is chosen from a matched `paths[].path` entry.
+
+```yaml
+rules:
+  - host: '^bigscreen-([^.]+)\.ys\.example\.com$'
+    host_type: regex
+    backend:
+      type: redirect
+      redirect:
+        url: https://bigscreen-$1.other.example.com
+```
+
+For host-level redirect combined with path-specific proxies or path-only redirects, **`examples/redirect/capture-and-mixed.yaml`** mixes **explicit `backend.type`** on some backends with **omission** on others so you can compare styles in one file.
+
+Forced HTTP→HTTPS uses `https.redirect_from_http` (including optional `with_origin_method_and_body`); see the [SSL/TLS guide](/guide/ssl-tls).
 
 ## Handler Backend
 
-In addition to proxying to a service, you can set `backend.type: handler` and use `handler.type` to choose one of:
+Path backends can answer from **`backend.handler`** instead of proxying. **`backend.type` is optional**: when only **`handler`** is configured, Ingress infers **`handler`**. The snippet below keeps **`type: handler`** on the first path only so it contrasts with the paths that omit **`backend.type`**.
+
+Use **`handler.type`** to choose one of:
 
 - `static_response` (default)
 - `file_server`
@@ -270,20 +301,17 @@ rules:
               {"message":"Hello, World!"}
       - path: /custom/handler/files
         backend:
-          type: handler
           handler:
             type: file_server
             root_dir: /app/public
             index_file: index.html
       - path: /custom/handler/templates
         backend:
-          type: handler
           handler:
             type: templates
             root_dir: /app/templates
       - path: /custom/handler/script/js
         backend:
-          type: handler
           handler:
             type: script
             engine: javascript
@@ -294,7 +322,6 @@ rules:
               ctx.setHeader("X-Handler-Engine", "javascript")
       - path: /custom/handler/script/go
         backend:
-          type: handler
           handler:
             type: script
             engine: go
@@ -303,7 +330,7 @@ rules:
               ctx.String(200, "%s %s", ctx.Method, ctx.Path)
 ```
 
-- `backend.type`: `service` (default) or `handler`
+- `backend.type`: optional—Ingress infers **`service`**, **`handler`**, or **`redirect`** from which block is configured when unambiguous; set **`backend.type` explicitly** only when **`ingress validate`** reports ambiguity
 - `handler.type`: `static_response` (default), `file_server`, `templates`, or `script`
 - when `handler.type=static_response`: `status_code`, `headers`, `body`
 - when `handler.type=file_server`: `root_dir`, `index_file`

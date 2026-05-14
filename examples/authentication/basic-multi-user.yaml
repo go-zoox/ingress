@@ -1,0 +1,19 @@
+version: v1
+port: 8080
+
+rules:
+  - host: basic-auth-multi.example.com
+    backend:
+      service:
+        name: api-service
+        port: 8080
+        auth:
+          type: basic
+          basic:
+            users:
+              - username: admin
+                password: admin123
+              - username: user1
+                password: user123
+              - username: user2
+                password: user456

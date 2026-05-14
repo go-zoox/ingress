@@ -1,0 +1,18 @@
+version: v1
+port: 8080
+
+https:
+  port: 8443
+  ssl:
+    - domain: example.com
+      cert:
+        certificate: /etc/ssl/example.com/fullchain.pem
+        certificate_key: /etc/ssl/example.com/privkey.pem
+
+rules:
+  - host: example.com
+    backend:
+      service:
+        name: backend-service
+        port: 8080
+        protocol: http

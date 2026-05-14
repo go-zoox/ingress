@@ -5,8 +5,10 @@ import (
 )
 
 type Rule struct {
-	Host    string  `config:"host"`
-	Backend Backend `config:"backend"`
+	Host string `config:"host"`
+	// WAFPatch is filled from rules[].waf by waf.ApplyRulePatchesFromYAML (the tag loader skips this field).
+	WAFPatch map[string]any `config:"-"`
+	Backend  Backend        `config:"backend"`
 	//
 	Paths []Path `config:"paths"`
 	// HostType is the host match type: exact, regex, wildcard, or auto (empty).
@@ -15,8 +17,25 @@ type Rule struct {
 	HostType string `config:"host_type"`
 }
 
+// Backend describes what to do for a matched host or path (rules[].backend or paths[].backend;
+// fallback uses the same shape).
+//
+// YAML backend.type must be one of: "service", "handler", or "redirect". When omitted, ingress
+// infers the type if exactly one mode is clearly configured:
+//
+//   - backend.redirect.url present → "redirect"
+//
+//   - non-empty backend.handler fields → "handler"
+//
+//   - otherwise → "service" (upstream via backend.service)
+//
+// If two or more modes look configured at once with type omitted, validation fails and requires an
+// explicit backend.type.
+//
+// Each explicit type allows only its own block: "service" tolerates backend.service only;
+// "handler" tolerates backend.handler only; "redirect" tolerates backend.redirect only.
 type Backend struct {
-	Type string `config:"type,default=service"`
+	Type string `config:"type"`
 	//
 	Service service.Service `config:"service"`
 	//
@@ -31,10 +50,18 @@ type Path struct {
 }
 
 type Redirect struct {
-	URL       string `config:"url"`
-	Permanent bool   `config:"permanent"`
+	URL string `config:"url"`
+	// Permanent selects 301/308 vs 302/307 depending on WithOriginMethodAndBody.
+	Permanent bool `config:"permanent"`
+	// WithOriginMethodAndBody uses HTTP 307/308 so clients preserve method and body on redirect.
+	// Default false uses 302/301 via RedirectTemporary / RedirectPermanent.
+	WithOriginMethodAndBody bool `config:"with_origin_method_and_body"`
 }
 
+// Handler is used only when Backend.Type == "handler".
+//
+// Handler.Type (YAML handler.type) selects the implementation: static_response, file_server,
+// templates, or script — see core/constants.go handlerType* and core/build.go switch.
 type Handler struct {
 	Type       string            `config:"type,default=static_response"`
 	Engine     string            `config:"engine,default=javascript"`

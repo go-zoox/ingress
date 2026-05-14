@@ -53,6 +53,20 @@ rules:
         port: 8080
 ```
 
+Same routing outcome if you spell **`backend.type`** explicitly (see **`examples/basic/ingress.yaml`** for both hosts in one file):
+
+```yaml
+rules:
+  - host: example.com
+    backend:
+      type: service
+      service:
+        name: backend-service
+        port: 8080
+```
+
+Ingress infers **`backend.type`** when only **`backend.service`**, **`backend.handler`**, or **`backend.redirect`** applies—you normally **omit `type`**. Set **`backend.type` explicitly** only if **`ingress validate`** reports an ambiguous backend. See the [Routing guide](/guide/routing).
+
 ### 2. Start the Server
 
 Start Ingress with your configuration:

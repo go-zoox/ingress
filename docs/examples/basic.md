@@ -2,19 +2,11 @@
 
 This example shows a basic Ingress configuration for a simple reverse proxy setup.
 
-## Configuration
+Source files live under [`examples/basic/`](https://github.com/go-zoox/ingress/tree/master/examples/basic).
 
-```yaml
-version: v1
-port: 8080
+## Minimal configuration
 
-rules:
-  - host: example.com
-    backend:
-      service:
-        name: backend-service
-        port: 8080
-```
+<<< @/../examples/basic/ingress.yaml
 
 ## Explanation
 
@@ -25,35 +17,14 @@ rules:
 
 ## Testing
 
-Start Ingress:
-
 ```bash
-ingress run -c ingress.yaml
+ingress run -c examples/basic/ingress.yaml
 ```
-
-Test the setup:
 
 ```bash
 curl -H "Host: example.com" http://localhost:8080
 ```
 
-## Multiple Services
+## Multiple services
 
-You can configure multiple services:
-
-```yaml
-version: v1
-port: 8080
-
-rules:
-  - host: web.example.com
-    backend:
-      service:
-        name: web-service
-        port: 8080
-  - host: api.example.com
-    backend:
-      service:
-        name: api-service
-        port: 8081
-```
+<<< @/../examples/basic/multi-host.yaml

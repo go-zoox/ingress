@@ -1,0 +1,18 @@
+version: v1
+port: 8080
+
+https:
+  port: 8443
+  ssl:
+    - domain: example.com
+      cert:
+        certificate: /etc/ssl/example.com/fullchain.pem
+        certificate_key: /etc/ssl/example.com/privkey.pem
+    - domain: api.example.com
+      cert:
+        certificate: /etc/ssl/api.example.com/fullchain.pem
+        certificate_key: /etc/ssl/api.example.com/privkey.pem
+    - domain: admin.example.com
+      cert:
+        certificate: /etc/ssl/admin.example.com/fullchain.pem
+        certificate_key: /etc/ssl/admin.example.com/privkey.pem

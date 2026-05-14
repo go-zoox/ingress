@@ -1,0 +1,28 @@
+version: v1
+port: 8080
+
+rules:
+  - host: httpbin.example.work
+    backend:
+      service:
+        name: httpbin.zcorky.com
+        port: 443
+        protocol: https
+        request:
+          host:
+            rewrite: true
+          path:
+            rewrites:
+              - ^/ip3/(.*):/$1
+              - ^/ip2:/ip
+    paths:
+      - path: /httpbin.org
+        backend:
+          service:
+            name: httpbin.org
+            port: 443
+            protocol: https
+            request:
+              path:
+                rewrites:
+                  - ^/httpbin.org/(.*):/$1

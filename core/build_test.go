@@ -22,8 +22,8 @@ func TestBuild_AccessLogExtraFields_WithTLS(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
 	req.Header.Set("X-Real-IP", "203.0.113.8")
 	req.TLS = &tls.ConnectionState{
-		Version:      tls.VersionTLS13,
-		CipherSuite:  tls.TLS_AES_128_GCM_SHA256,
+		Version:            tls.VersionTLS13,
+		CipherSuite:        tls.TLS_AES_128_GCM_SHA256,
 		NegotiatedProtocol: "h2",
 	}
 
@@ -873,6 +873,261 @@ func TestBuild_RedirectFromHTTP_Permanent(t *testing.T) {
 
 	if location := rec.Header().Get("Location"); location != "https://example.com/orders?id=1" {
 		t.Fatalf("expected https redirect location, got %q", location)
+	}
+}
+
+func TestBuild_RedirectFromHTTP_WithOriginMethodAndBody_Temporary(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		HTTPS: HTTPS{
+			Port: 443,
+			RedirectFromHTTP: RedirectFromHTTP{
+				Permanent:               false,
+				WithOriginMethodAndBody: true,
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Body: "ok",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/submit", strings.NewReader("payload"))
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("expected status code 307, got %d", rec.Code)
+	}
+
+	if location := rec.Header().Get("Location"); location != "https://example.com/submit" {
+		t.Fatalf("expected https redirect location, got %q", location)
+	}
+}
+
+func TestBuild_RedirectFromHTTP_WithOriginMethodAndBody_Permanent(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		HTTPS: HTTPS{
+			Port: 443,
+			RedirectFromHTTP: RedirectFromHTTP{
+				Permanent:               true,
+				WithOriginMethodAndBody: true,
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Body: "ok",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "http://example.com/res", strings.NewReader("data"))
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusPermanentRedirect {
+		t.Fatalf("expected status code 308, got %d", rec.Code)
+	}
+
+	if location := rec.Header().Get("Location"); location != "https://example.com/res" {
+		t.Fatalf("expected https redirect location, got %q", location)
+	}
+}
+
+func TestBuild_BackendRedirect_WithOriginMethodAndBody(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "redir.example.com",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{
+						URL:                     "https://target.example/over",
+						Permanent:               true,
+						WithOriginMethodAndBody: true,
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "http://redir.example.com/old?q=1", strings.NewReader("payload"))
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusPermanentRedirect {
+		t.Fatalf("expected status code 308, got %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "https://target.example/over" {
+		t.Fatalf("expected Location header, got %q", location)
+	}
+}
+
+func TestBuild_RedirectOnlyHost_OmitsService(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "only-redirect.example.com",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{
+						URL: "https://www.example.com/welcome",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://only-redirect.example.com/any/path", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status code 302, got %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "https://www.example.com/welcome" {
+		t.Fatalf("expected Location header, got %q", location)
+	}
+}
+
+func TestBuild_BackendRedirect_RegexHost_CaptureInURL(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host:     `^bigscreen-([^.]+)\.ys\.example\.com$`,
+				HostType: "regex",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{
+						URL: "https://bigscreen-$1.yss.example.com",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://bigscreen-acme.ys.example.com/dashboard", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status code 302, got %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "https://bigscreen-acme.yss.example.com" {
+		t.Fatalf("expected expanded Location, got %q", location)
+	}
+}
+
+func TestBuild_PathRedirect_WithPathCaptureInURL(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "api.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{
+						Protocol: "http",
+						Name:     "upstream",
+						Port:     8080,
+					},
+				},
+				Paths: []rule.Path{
+					{
+						Path: `^/r/([^/]+)$`,
+						Backend: rule.Backend{
+							Redirect: rule.Redirect{
+								URL: "https://seg.${path.1}.example.com/pipeline",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.example.com/r/zone99", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status code 302, got %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "https://seg.zone99.example.com/pipeline" {
+		t.Fatalf("expected expanded Location, got %q", location)
 	}
 }
 

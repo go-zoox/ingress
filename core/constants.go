@@ -1,9 +1,19 @@
 package core
 
 const (
-	// backend type selector
-	backendTypeService = "service"
-	backendTypeHandler = "handler"
+	// backend.type YAML strings (rules[].backend.type, paths[].backend.type, fallback.type).
+	//
+	// backendTypeService ("service", default when inferred): reverse-proxy via backend.service only.
+	//
+	// backendTypeHandler ("handler"): serve via backend.handler (handler.type selects behavior).
+	//
+	// backendTypeRedirect ("redirect"): HTTP redirect via backend.redirect only (no upstream).
+	//
+	// With backend.type omitted, ingress infers from configured blocks when exactly one of service,
+	// handler, or redirect applies; otherwise validation fails asking for an explicit type.
+	backendTypeService  = "service"
+	backendTypeHandler  = "handler"
+	backendTypeRedirect = "redirect"
 
 	// host type selector
 	hostTypeExact    = "exact"
@@ -23,6 +33,7 @@ const (
 
 	// common proxy request headers
 	headerXForwardedProto = "X-Forwarded-Proto"
+	headerXForwardedFor   = "X-Forwarded-For"
 	headerWWWAuthenticate = "WWW-Authenticate"
 
 	// common URL schemes
