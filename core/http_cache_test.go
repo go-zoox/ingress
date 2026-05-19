@@ -45,6 +45,58 @@ func TestNormalizeHTTPCacheDisabled(t *testing.T) {
 	}
 }
 
+func TestHTTPCacheShouldStore_RejectsVaryByDefault(t *testing.T) {
+	pc := normalizeHTTPCache(rule.BackendCache{Enabled: true})
+	res := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}}
+	res.Header.Set(headerVary, "Origin")
+	if httpCacheShouldStore(res, 1, pc) {
+		t.Fatal("expected no store with Vary")
+	}
+}
+
+func TestHTTPCacheShouldStore_SkipVaryAllowsStore(t *testing.T) {
+	pc := normalizeHTTPCache(rule.BackendCache{Enabled: true, SkipVary: true})
+	res := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}}
+	res.Header.Set(headerVary, "Origin")
+	if !httpCacheShouldStore(res, 1, pc) {
+		t.Fatal("expected store when skip_vary")
+	}
+}
+
+func TestCloneHeadersForCache_OmitVary(t *testing.T) {
+	h := http.Header{}
+	h.Set("Content-Type", "text/plain")
+	h.Set(headerVary, "Origin")
+	m := cloneHeadersForCache(h, true)
+	if _, ok := m[headerVary]; ok {
+		t.Fatalf("Vary should be omitted: %+v", m)
+	}
+	if m["Content-Type"][0] != "text/plain" {
+		t.Fatal(m)
+	}
+}
+
+func TestWriteHTTPCacheHit_StripsVaryWhenSkipVary(t *testing.T) {
+	app := zoox.New()
+	pc := normalizeHTTPCache(rule.BackendCache{Enabled: true, SkipVary: true})
+	entry := &httpCacheEntry{
+		StatusCode: 200,
+		Header: map[string][]string{
+			headerVary:      {"Origin"},
+			"Content-Type": {"text/plain"},
+		},
+		Body: []byte("x"),
+	}
+	rec := httptest.NewRecorder()
+	app.Use(func(ctx *zoox.Context) {
+		writeHTTPCacheHit(ctx, entry, pc)
+	})
+	app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Header().Get(headerVary) != "" {
+		t.Fatalf("Vary should be stripped, got %q", rec.Header().Get(headerVary))
+	}
+}
+
 func TestHTTPCacheRequestBypassesNoCache(t *testing.T) {
 	bc := rule.BackendCache{Enabled: true}
 	pc := normalizeHTTPCache(bc)

@@ -38,9 +38,9 @@ type Backend struct {
 	Type string `config:"type"`
 	// Cache enables optional HTTP response caching for service, handler, and redirect backends; see rule.BackendCache.Enabled.
 	Cache BackendCache `config:"cache"`
-	// Mode is internal (default) or external. External defaults the upstream Host header to the
-	// service address unless service.request.host.rewrite is set. Ignored for handler/redirect.
-	Mode string `config:"mode,default=internal"`
+	// Mode is internal (default) or external for service upstreams. Prefer backend.service.mode;
+	// this field is a legacy alias when service.mode is empty. Empty means "inherit from service.mode only".
+	Mode string `config:"mode"`
 	//
 	Service service.Service `config:"service"`
 	//

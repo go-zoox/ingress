@@ -1,8 +1,9 @@
-# Runnable sample: internal upstreams, path routing, backend.mode: external, and handler paths.
+# Runnable sample: internal upstreams, path routing, service.mode: external, and handler paths.
+# Prefer **`backend.service.mode`** (not **`backend.mode`**) for proxy Host defaults.
 # Mirrors the “simple” Docker-style demo (portainer, registry, httpbin) in a single file.
 #
 # Validate:
-#   ingress validate -c examples/advanced/backend-mode-external-mixed.yaml
+#   ingress validate -c examples/advanced/service-mode-external-mixed.yaml
 #
 # HTTPS upstreams: port optional (defaults to 443 when omitted).
 
@@ -30,22 +31,22 @@ rules:
 
   - host: httpbin.example.work
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: httpbin.zcorky.com
 
   - host: httpbin2.example.work
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: httpbin.org
 
   - host: handler.example.work
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: httpbin.org
     paths:

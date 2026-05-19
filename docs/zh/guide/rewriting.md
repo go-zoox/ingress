@@ -61,12 +61,12 @@ request:
 
 ### Host 头重写
 
-`backend.mode` 的字段说明见 [配置参考](/zh/guide/configuration) 中的规则 · `backend` 字段表。
+**`backend.service.mode`**（及兼容的 **`backend.mode`**）见 [配置参考](/zh/guide/configuration) 中的规则 · `backend` 字段表。
 
 发往上游的 `Host` 由两层决定：
 
-1. **`service.request.host.rewrite`**：可选。显式设为 `true` 或 `false` 时**始终**优先于 `backend.mode`。
-2. **未写 `rewrite` 时由 `backend.mode` 决定**：
+1. **`service.request.host.rewrite`**：可选。显式设为 `true` 或 `false` 时**始终**优先于 **`service.mode`** / **`backend.mode`**。
+2. **未写 `rewrite` 时由 `service.mode` 决定**（`service.mode` 为空时回退 **`backend.mode`**）：
    - **`internal`**（默认）：保留客户端 `Host`。
    - **`external`**：将 `Host` 设为上联 `service` 的主机名（非标准端口时含端口）。适用于反代第三方、公网源站等依赖正确 `Host` 的场景。
 
@@ -86,20 +86,20 @@ rules:
             rewrite: true
 ```
 
-反代公网 HTTPS 源站时更推荐写 `mode`：
+反代公网 HTTPS 源站时在 **`service`** 下写 **`mode: external`**：
 
 ```yaml
 rules:
   - host: mirror.example.com
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: upstream.example.org
         # https 可省略 port，默认为 443
 ```
 
-更完整的可运行示例（**`internal`** 上联、**`external`** HTTPS 反代与 **handler** 路径）见 **`examples/advanced/backend-mode-external-mixed.yaml`**。
+更完整的可运行示例（**`internal`** 上联、**`service.mode: external`** HTTPS 反代与 **handler** 路径）见 **`examples/advanced/service-mode-external-mixed.yaml`**。
 
 `rewrite: true` 时的 `Host` 与用于连接上游的 `service.Host()` 一致（含端口省略规则）。
 
@@ -257,8 +257,8 @@ request:
 rules:
   - host: httpbin.example.work
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: httpbin.zcorky.com
         request:
@@ -269,8 +269,8 @@ rules:
     paths:
       - path: /httpbin.org
         backend:
-          mode: external
           service:
+            mode: external
             protocol: https
             name: httpbin.org
             request:

@@ -73,13 +73,22 @@ func ValidateConfig(cfg *Config) error {
 //
 // Expected backend.Type values (after inferBackendTypes): "service", "handler", or "redirect".
 func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string) error {
-	mode := strings.TrimSpace(backend.Mode)
+	svcMode := strings.TrimSpace(backend.Service.Mode)
+	bkMode := strings.TrimSpace(backend.Mode)
+	if svcMode != "" && bkMode != "" && svcMode != bkMode {
+		return fmt.Errorf("%s: service.mode %q conflicts with backend.mode %q (use one field or matching values)",
+			ruleBackendLoc(ruleIdx, host, pathPattern), backend.Service.Mode, backend.Mode)
+	}
+	mode := svcMode
+	if mode == "" {
+		mode = bkMode
+	}
 	if mode == "" {
 		mode = backendModeInternal
 	}
 	if mode != backendModeInternal && mode != backendModeExternal {
-		return fmt.Errorf("%s: unsupported backend.mode %q (use internal or external)",
-			ruleBackendLoc(ruleIdx, host, pathPattern), backend.Mode)
+		return fmt.Errorf("%s: unsupported mode %q (use internal or external); set backend.service.mode or legacy backend.mode",
+			ruleBackendLoc(ruleIdx, host, pathPattern), mode)
 	}
 
 	// backend.cache shape is shared by service / handler / redirect; validate as soon as enabled is true.
@@ -92,6 +101,11 @@ func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string
 	backendType := backend.Type
 	if backendType == "" {
 		backendType = backendTypeService
+	}
+
+	if backendType != backendTypeService && strings.TrimSpace(backend.Service.Mode) != "" {
+		return fmt.Errorf("%s: backend.service.mode applies only to service upstreams",
+			ruleBackendLoc(ruleIdx, host, pathPattern))
 	}
 
 	hr := hasRedirectBackend(backend)

@@ -24,7 +24,11 @@ This matches any subdomain of `example.work`.
 
 <<< @/../examples/advanced/complex-path-rewrite.yaml
 
-Third-party HTTPS upstreams use **`backend.mode: external`** so **`Host`** matches each **`service.name`** without **`request.host.rewrite`**.
+Third-party HTTPS upstreams use **`service.mode: external`** under **`backend.service`** so **`Host`** matches each **`service.name`** without **`request.host.rewrite`**.
+
+Runnable sample for **`service.mode`** (internal vs external) and handler paths:
+
+<<< @/../examples/advanced/service-mode-external-mixed.yaml
 
 ## Health checks with multiple services
 
@@ -32,7 +36,7 @@ Third-party HTTPS upstreams use **`backend.mode: external`** so **`Host`** match
 
 ## HTTP response cache (`backend.cache`)
 
-Per-backend response caching (proxy, handler, **and** redirect) uses the same `ctx.Cache()` engine as top-level **`cache`**. See the [Caching guide](/guide/caching#http-response-cache-backendcache) for semantics.
+Per-backend response caching (proxy, handler, **and** redirect) uses the same `ctx.Cache()` engine as top-level **`cache`**. See the [Caching guide](/guide/caching#http-response-cache-backendcache) for semantics, **`skip_vary`**, and httpbin-style **`Vary: Origin`** notes.
 
 <<< @/../examples/advanced/http-response-cache.yaml
 

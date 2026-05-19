@@ -24,7 +24,11 @@
 
 <<< @/../examples/advanced/complex-path-rewrite.yaml
 
-对第三方 HTTPS 上游使用 **`backend.mode: external`**，无需再写 **`request.host.rewrite`** 即可让 **`Host`** 与各自 **`service.name`** 一致。
+对第三方 HTTPS 上游在 **`backend.service`** 下使用 **`mode: external`**，无需再写 **`request.host.rewrite`** 即可让 **`Host`** 与各自 **`service.name`** 一致。
+
+**`service.mode`**（internal / external）与 handler 路径示例：
+
+<<< @/../examples/advanced/service-mode-external-mixed.yaml
 
 ## 多服务与健康检查
 
@@ -32,7 +36,7 @@
 
 ## HTTP 响应缓存（`backend.cache`）
 
-按 backend 缓存 **service / handler / redirect** 的响应，与顶层 **`cache`** 共用 `ctx.Cache()`。语义见[缓存指南](/zh/guide/caching#http-响应缓存-backendcache)。
+按 backend 缓存 **service / handler / redirect** 的响应，与顶层 **`cache`** 共用 `ctx.Cache()`。语义、**`skip_vary`** 与 httpbin **`Vary`** 说明见[缓存指南](/zh/guide/caching#http-响应缓存-backendcache)。
 
 <<< @/../examples/advanced/http-response-cache.yaml
 

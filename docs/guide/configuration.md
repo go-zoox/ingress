@@ -155,12 +155,12 @@ HTTP/2 over TLS is negotiated automatically when HTTPS is enabled (no extra fiel
 
 The fallback backend is used when no routing rule matches the request.
 
-If `service.request.host.rewrite` is **omitted**, `Host` is still aligned to the fallback upstream. Set `service.request.host.rewrite: false` only when you must preserve the client `Host`. Optional `mode: external` documents the same default Host behavior.
+If `service.request.host.rewrite` is **omitted**, `Host` is still aligned to the fallback upstream. Set `service.request.host.rewrite: false` only when you must preserve the client `Host`. Optional **`service.mode: external`** documents the same default Host behavior.
 
 ```yaml
 fallback:
-  # mode: internal            # optional — internal (default) | external
   service:
+    # mode: internal            # optional — prefer service.mode; internal (default) | external
     name: fallback-service
     port: 8080
     # protocol: optional — default http
@@ -176,6 +176,8 @@ Rules define how requests are routed to backend services. See the [Routing Guide
 
 For each **`backend.service`**, **`protocol` is optional** and defaults to **`http`** (YAML `default` in `core/service/service.go` and `core/service/host.go`). With **`protocol: https`**, an omitted **`port`** (or `0`) defaults to **443**; with **`http`** (explicit or default), omitted **`port`** defaults to **80**. This affects the outbound URL and default **`Host`** header.
 
+**`service.mode`** (`internal` default, `external` for third-party origins) controls upstream **`Host`** when **`request.host.rewrite`** is omitted; see [Rewriting](rewriting.md). Legacy **`backend.mode`** is accepted when it matches **`service.mode`**.
+
 For **`backend.type`**, this snippet **mixes styles**: the rule `backend` sets **`type: service`** explicitly, while **`paths[].backend`** blocks omit **`type`** (they infer **`service`** or **`handler`** from their nested blocks).
 
 ```yaml
@@ -185,10 +187,10 @@ rules:
     # explicit values: exact | regex | wildcard
     backend:
       type: service             # optional — omit when only service applies (see examples/basic/ingress.yaml)
-      mode: internal            # optional — internal (default) | external (default Host to upstream when rewrite omitted)
       service:
         name: backend-service
         port: 8080
+        # mode: internal        # optional — internal (default) | external; prefer service.mode over backend.mode
         # protocol: optional — default http; use https for TLS upstreams
         protocol: http
         auth:                   # Authentication (optional)
@@ -204,7 +206,7 @@ rules:
           status: [200]
         request:
           host:
-            rewrite: true       # optional explicit override; often omit when mode: external
+            rewrite: true       # optional explicit override; often omit when service.mode: external
           path:
             rewrites:          # Path rewrite rules
               - ^/api/v1:/api/v2
@@ -218,10 +220,10 @@ rules:
     paths:                      # Path-based routing (optional)
       - path: /api
         backend:
-          mode: internal          # optional on path backends
           service:
             name: api-service
             port: 8080
+            # mode: internal      # optional on path backends — prefer under service
       - path: /healthz
         backend:
           handler:
@@ -237,13 +239,13 @@ rules:
 | Field | Type | Description | Default |
 |-------|------|-------------|---------|
 | `type` | string | `service`, `handler`, or `redirect` (often **omitted** and inferred) | inferred |
-| `mode` | string | `internal` keeps client `Host` unless `service.request.host.rewrite` is set; `external` defaults `Host` to the upstream | `internal` |
+| `mode` | string | Legacy: `internal` / `external` for **service** upstream `Host` defaults. Prefer **`service.mode`**; if **`backend.service.mode`** is set, it wins when both match or when **`backend.mode`** is empty | `internal` |
 | `service` | object | Upstream when type is `service` | - |
 | `handler` | object | Handler when type is `handler` | - |
 | `redirect` | object | Redirect when type is `redirect` | - |
 | `cache` | object | Optional HTTP response cache for **service**, **handler**, and **redirect** backends; see below | off |
 
-`mode` applies per backend block (host-level or path-level). It affects **proxy** backends only; **`handler`** / **`redirect`** ignore it for behavior, but **`ingress validate`** still accepts `internal` / `external`.
+Effective **`internal` / `external`** for **`Host`** rewrite is **`backend.service.mode`** if set, else legacy **`backend.mode`**. They must not disagree if both are non-empty. Applies per backend block (host-level or path-level) for **proxy** backends only; **`handler`** / **`redirect`** must not set **`service.mode`**.
 
 #### `backend.cache` (HTTP response cache)
 
@@ -251,7 +253,7 @@ rules:
 - **Storage** uses the same Zoox application cache as matcher caching (`ctx.Cache()`): the top-level `cache` block configures Redis/memory (`core/prepare.go`). Entries use key prefix `httpcache:v1:` plus an MD5 or SHA-256 fingerprint of a canonical request line (method, scheme, host, path, sorted query, and configured request headers with values hashed).
 - **HEAD** shares the same cache key as **GET** for the same URL; **GET** round-trips populate the cache for **service** (proxy), **handler** (response capture), and **redirect** (final `Location` after template expansion). Avoids replacing a full GET entry with an empty HEAD body.
 - **Client bypass** (no cache read/write): `Cache-Control` containing `no-cache`, `no-store`, or `max-age=0` (configurable), `Pragma: no-cache` when `honor_pragma_no_cache` is true (default), or any **`Range`** request header.
-- **Not stored** (service / handler bodies): non-200; **any non-empty `Vary`** on the response (Ingress does not yet split cache keys by `Vary`—see [Caching](caching.md)); `Cache-Control: no-store`; `Cache-Control: private` (unless `ignore_response_private: true`); **`Set-Cookie`** on the response when `skip_when_set_cookie` is true (default); body larger than `max_body_bytes`. **Redirect** entries store 301/302/303/307/308 with a `Location` header (no body; same header rules where applicable). Many public httpbin mirrors send `Vary: Origin` on common paths (e.g. `/ip`), so those responses are **not** written to the cache even with `enabled: true`.
+- **Not stored** (service / handler bodies): non-200; **non-empty `Vary`** blocks storage unless **`cache.skip_vary: true`** (then **`Vary` is not stored** and **not sent** on hits; you still serve a single variant—see [Caching](caching.md)); `Cache-Control: no-store`; `Cache-Control: private` (unless `ignore_response_private: true`); **`Set-Cookie`** on the response when `skip_when_set_cookie` is true (default); body larger than `max_body_bytes`. **Redirect** entries store 301/302/303/307/308 with a `Location` header (no body; same header rules where applicable). Many public httpbin mirrors send `Vary: Origin` on common paths (e.g. `/ip`); use **`skip_vary: true`** only if you accept treating that path as one shared variant.
 - **Verifying hits**: send the same **GET** twice without bypass headers; the second response should be served from cache. Access log lines from cached responses append **`cache_hit=1`** (service proxy, handler, redirect).
 
 | Field | Type | Description | Default |
@@ -266,6 +268,7 @@ rules:
 | `honor_pragma_no_cache` | bool | Treat `Pragma: no-cache` like `Cache-Control: no-cache` for bypass | `true` |
 | `ignore_response_private` | bool | Allow storing `Cache-Control: private` responses | `false` |
 | `skip_when_set_cookie` | bool | When **true** (default), do not store responses that include **`Set-Cookie`**; set **`false`** only in advanced cases (risk of caching personalized/session responses). | `true` |
+| `skip_vary` | bool | When **true**, allow storing responses with **`Vary`** (unsafe unless the origin is single-variant for this URL); **`Vary` is omitted** from stored entries and **not sent** on cache hits | `false` |
 
 Examples: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml) (in-memory `ctx.Cache()`), [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml) (Redis + `backend.cache`).
 

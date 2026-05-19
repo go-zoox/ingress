@@ -61,12 +61,12 @@ Rewrites are applied in order. The first matching rewrite is used.
 
 ### Host Header Rewriting
 
-`backend.mode` is documented in the [Configuration](/guide/configuration) reference (rules · `backend` fields).
+**`backend.service.mode`** (and legacy **`backend.mode`**) are documented in the [Configuration](/guide/configuration) reference (rules · `backend` fields).
 
 The upstream `Host` header is controlled in two layers:
 
-1. **`service.request.host.rewrite`**: Optional. When set to `true` or `false`, it **always** wins over `backend.mode`.
-2. **`backend.mode`** (when `rewrite` is **omitted**):
+1. **`service.request.host.rewrite`**: Optional. When set to `true` or `false`, it **always** wins over **`service.mode`** / **`backend.mode`**.
+2. **`service.mode`** (when `rewrite` is **omitted**; falls back to **`backend.mode`** if `service.mode` is empty):
    - **`internal`** (default): keep the client `Host` header.
    - **`external`**: set `Host` to the upstream service host (`service` name, plus port when non-default for the protocol). Use for third-party or off-cluster origins that validate `Host`.
 
@@ -92,14 +92,14 @@ Preferred when mirroring a public HTTPS origin:
 rules:
   - host: mirror.example.com
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: upstream.example.org
         # port optional for https — defaults to 443
 ```
 
-A larger runnable sample with **`internal`** upstreams, **`mode: external`** HTTPS proxies, and **handler** paths is **`examples/advanced/backend-mode-external-mixed.yaml`**.
+A larger runnable sample with **`internal`** upstreams, **`service.mode: external`** HTTPS proxies, and **handler** paths is **`examples/advanced/service-mode-external-mixed.yaml`**.
 
 When `rewrite: true`, the Host header matches what `service.Host()` uses for the upstream connection (including port formatting).
 
@@ -257,8 +257,8 @@ This captures two groups and reorders them.
 rules:
   - host: httpbin.example.work
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: httpbin.zcorky.com
         request:
@@ -269,8 +269,8 @@ rules:
     paths:
       - path: /httpbin.org
         backend:
-          mode: external
           service:
+            mode: external
             protocol: https
             name: httpbin.org
             request:

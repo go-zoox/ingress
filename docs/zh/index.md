@@ -31,7 +31,7 @@ features:
     details: 内置健康检查支持，用于外部和内部服务监控。
   - icon: 🔄
     title: 请求重写
-    details: 路径、请求头、查询参数重写；backend.mode（internal / external）控制反代外网源时上游 Host 的默认行为。
+    details: 路径、请求头、查询参数重写；service.mode（internal / external）控制反代外网源时上游 Host 的默认行为。
 
 ---
 

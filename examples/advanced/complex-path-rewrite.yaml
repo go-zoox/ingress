@@ -4,8 +4,8 @@ port: 8080
 rules:
   - host: httpbin.example.work
     backend:
-      mode: external
       service:
+        mode: external
         name: httpbin.zcorky.com
         protocol: https
         request:
@@ -16,8 +16,8 @@ rules:
     paths:
       - path: /httpbin.org
         backend:
-          mode: external
           service:
+            mode: external
             name: httpbin.org
             protocol: https
             request:

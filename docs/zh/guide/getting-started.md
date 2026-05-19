@@ -93,14 +93,14 @@ curl -H "Host: example.com" http://localhost:8080
 
 ## 反代集群外 HTTPS 源
 
-反代第三方或集群外 HTTPS 上游时，设置 **`backend.mode: external`**，使源站收到正确的 **`Host`**（见 [重写](/zh/guide/rewriting)）。
+反代第三方或集群外 HTTPS 上游时，在 **`service`** 下设置 **`mode: external`**，使源站收到正确的 **`Host`**（见 [重写](/zh/guide/rewriting)）。仍可使用与之一致的 **`backend.mode`**。
 
 ```yaml
 rules:
   - host: mirror.example.com
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: upstream.example.org
 ```
@@ -144,6 +144,6 @@ Ingress 按以下顺序查找配置文件：
 
 - 了解[配置](/zh/guide/configuration)选项
 - 探索[路由](/zh/guide/routing)功能
-- [请求和响应重写](/zh/guide/rewriting)：**`backend.mode`** 与 **`Host`** 默认行为
+- [请求和响应重写](/zh/guide/rewriting)：**`service.mode`** 与 **`Host`** 默认行为
 - 设置[认证](/zh/guide/authentication)
 - 配置 [SSL/TLS](/zh/guide/ssl-tls)

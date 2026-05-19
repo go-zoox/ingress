@@ -31,7 +31,7 @@ features:
     details: Built-in health check support for both outer and inner service monitoring.
   - icon: 🔄
     title: Request Rewriting
-    details: Path, header, and query rewriting; backend.mode (internal vs external) for upstream Host when proxying external origins.
+    details: Path, header, and query rewriting; service.mode (internal vs external) for upstream Host when proxying external origins.
 
 ---
 

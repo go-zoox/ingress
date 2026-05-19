@@ -5,6 +5,9 @@ type Service struct {
 	Port     int64  `config:"port"`
 	// Protocol is http or https; omit for http (config default=http).
 	Protocol string `config:"protocol,default=http"`
+	// Mode is internal (default) or external (upstream Host defaults to service.name). Preferred
+	// over backend.mode when using backend.service; ignored when read from a non-service backend.
+	Mode string `config:"mode"`
 	//
 	Request  Request  `config:"request"`
 	Response Response `config:"response"`
@@ -38,7 +41,8 @@ type HealthCheck struct {
 }
 
 type RequestHost struct {
-	// Rewrite, when non-nil, forces Host rewrite on or off. When nil, backend.mode supplies defaults.
+	// Rewrite, when non-nil, forces Host rewrite on or off. When nil, effective mode
+	// (service.mode or backend.mode) supplies defaults.
 	Rewrite *bool `config:"rewrite"`
 }
 

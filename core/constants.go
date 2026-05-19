@@ -15,7 +15,8 @@ const (
 	backendTypeHandler  = "handler"
 	backendTypeRedirect = "redirect"
 
-	// backend.mode: Host header toward upstream when service.request.host.rewrite is unset.
+	// Host header toward upstream when service.request.host.rewrite is unset; use backend.service.mode
+	// (preferred) or legacy backend.mode. Resolved via effectiveBackendMode().
 	backendModeInternal = "internal"
 	backendModeExternal = "external"
 
