@@ -21,3 +21,9 @@ rules:
             name: httpbin.org
             protocol: https
             strip_prefix: true
+            # same as
+            #
+            # request:
+            #   path:
+            #     rewrites:
+            #       - ^/httpbin.org/(.*):/$1

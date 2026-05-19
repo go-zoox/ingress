@@ -12,7 +12,15 @@ rules:
         backend:
           service:
             mode: external
-            name: ew2api.yestargroup.com
+            name: ew2api.example.com
             protocol: https
             port: 443
+            #
             strip_prefix: true
+            #
+            # strip_prefix is the same as request.path.rewrites
+            #
+            # request:
+            #   path:
+            #     rewrites:
+            #       - ^/api/dashboard/(.*):/$1
