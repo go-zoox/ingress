@@ -1,0 +1,18 @@
+version: v1
+port: 8080
+
+rules:
+  - host: example.com
+    backend:
+      service:
+        name: web-service
+        port: 8080
+    paths:
+      - path: /api/dashboard
+        backend:
+          service:
+            mode: external
+            name: ew2api.yestargroup.com
+            protocol: https
+            port: 443
+            strip_prefix: true

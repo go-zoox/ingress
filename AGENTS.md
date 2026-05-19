@@ -13,6 +13,7 @@ Context for humans and coding agents working on this repository.
 - Regex is checked before `*` so patterns like `^.*\.example\.com$` are not misclassified as wildcard.
 - **Explicit `host_type: exact`**: Disables inference; `host` is matched as a literal string even if it looks like a pattern (rare).
 - **Upstream Host mode**: Prefer **`backend.service.mode`** (`internal` / `external`). Legacy **`backend.mode`** is an alias when `service.mode` is empty; both must not disagree. `internal` (default) keeps the client `Host` unless `service.request.host.rewrite` is set. `external` sets `Host` to the upstream (`service.Host()`). Explicit `request.host.rewrite` wins. Fallback uses `host: @@fallback` (`core/host_rewrite.go`).
+- **Path strip prefix**: On **`paths[].backend.service` only**, `strip_prefix: true` expands at load time to `request.path.rewrites` using that path’s `paths[].path` (see `core/strip_prefix.go`). Cannot combine with explicit `request.path.rewrites` on the same backend.
 - **Default upstream port**: `backend.service.port` may be omitted (`0`). `core/service/host.go` then uses **443** when `protocol` is **`https`** and **80** when **`http`** (or default/empty). First `Host()` / `Target()` call may write the chosen port back onto the loaded `Service` value.
 - **`service.protocol` omission**: Unset or empty defaults to **`http`** (`protocol,default=http` on `core/service.Service` and the same default in `Host()` / `Target()`).
 
