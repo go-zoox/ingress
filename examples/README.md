@@ -18,10 +18,12 @@ Several files **mix explicit `backend.type` and omission on purpose** (for examp
 | `path-routing/` | Path-based backends |
 | `authentication/` | Basic and bearer auth |
 | `ssl-tls/` | HTTPS, certs, global redirect |
-| `advanced/` | Regex hosts, rewrites, health, cache, **`backend.mode`** mixed demo |
+| `advanced/` | Regex hosts, rewrites, health, top-level **`cache`** / Redis, **`backend.cache`** (HTTP responses), **`backend.mode`** mixed demo |
 | `redirect/` | Backend redirects and capture templates |
 | `waf/` | IP lists, custom signatures, `rules[].waf` overlays |
 
 Compose production configs by merging patterns from these files; there is no longer a single monolithic sample in-repo.
+
+**HTTP response cache** (`backend.cache`): `examples/advanced/http-response-cache.yaml` (in-memory `ctx.Cache()` + service/handler/redirect). **`cache` engine + Redis** with per-route response caching: `examples/advanced/redis-cache.yaml`.
 
 The documentation site (`docs/examples/`) embeds these files via VitePress code snippets so examples stay in one place.

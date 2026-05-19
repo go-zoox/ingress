@@ -30,7 +30,15 @@ Third-party HTTPS upstreams use **`backend.mode: external`** so **`Host`** match
 
 <<< @/../examples/advanced/health-checks.yaml
 
-## Redis caching
+## HTTP response cache (`backend.cache`)
+
+Per-backend response caching (proxy, handler, **and** redirect) uses the same `ctx.Cache()` engine as top-level **`cache`**. See the [Caching guide](/guide/caching#http-response-cache-backendcache) for semantics.
+
+<<< @/../examples/advanced/http-response-cache.yaml
+
+## Application cache engine (memory / Redis)
+
+Top-level **`cache`** selects Redis or in-memory storage for matcher data **and** HTTP cache entries. The sample below adds **`backend.cache`** on a **service** backend so response bodies can be shared across instances when Redis is enabled.
 
 <<< @/../examples/advanced/redis-cache.yaml
 
