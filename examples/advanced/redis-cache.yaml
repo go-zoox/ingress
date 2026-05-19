@@ -1,3 +1,11 @@
+# Top-level `cache`: Redis-backed **application** cache (matcher, DNS hints, etc.) and the same
+# `ctx.Cache()` store used for **`backend.cache`** HTTP response entries (`prefix` applies to keys).
+#
+# Enable **`backend.cache`** per route when you want distributed **response** caching across instances.
+#
+# Validate:
+#   ingress validate -c examples/advanced/redis-cache.yaml
+
 version: v1
 port: 8080
 
@@ -16,3 +24,8 @@ rules:
       service:
         name: backend-service
         port: 8080
+      cache:
+        enabled: true
+        ttl: 120
+        max_body_bytes: 2097152
+        key_hash: sha256

@@ -2,6 +2,8 @@
 
 Ingress 支持缓存以提高性能并减少后端服务的负载。您可以使用内存缓存或 Redis 进行分布式缓存。
 
+**两层含义：** 顶层 **`cache`** 配置共享的 **`ctx.Cache()`** 引擎（匹配器、DNS 等）。可选的每条 **`backend.cache`** 在开启时把 **HTTP 响应**写入同一引擎——详见[下文](#http-响应缓存-backendcache)。
+
 ## 缓存配置
 
 ### 内存缓存
@@ -114,7 +116,7 @@ Ingress 在启动时连接到 Redis。如果 Redis 不可用：
 {prefix}{key}
 ```
 
-例如，使用 `prefix: ingress:`，主机路由缓存键 `match.host:v2:example.com` 变为 `ingress:match.host:v2:example.com`。其中 `v2` 表示缓存值结构版本，后续版本可能调整。
+例如，使用 `prefix: ingress:`，主机路由键 `match.host:v2:example.com` 变为 `ingress:match.host:v2:example.com`。HTTP 响应缓存键形如 `ingress:httpcache:v1:<摘要>`。其中 `v2` 表示匹配器缓存值结构版本，后续版本可能调整。
 
 ## 缓存内容
 
@@ -123,11 +125,26 @@ Ingress 缓存：
 1. **路由决策**：主机和路径匹配结果
 2. **服务配置**：解析的服务配置
 3. **DNS 解析**：解析的后端服务地址
+4. **HTTP 响应**（可选）：某条 **`backend.cache.enabled: true`** 时，满足条件的 **GET**/**HEAD** 下 **service** / **handler** / **redirect** 响应可写入同一 `ctx.Cache()` 后端——见 [HTTP 响应缓存（`backend.cache`）](#http-响应缓存-backendcache)。
 
 缓存路由决策在以下情况下特别有益：
 - 您有复杂的路由规则
 - DNS 解析很慢
 - 后端服务发现成本很高
+
+## HTTP 响应缓存（`backend.cache`）
+
+与顶层 **`cache`** 不同：根 **`cache`** 只选择 **`ctx.Cache()`** 用 **Redis 还是内存** 及连接参数。**`backend.cache`** 写在 `rules[].backend` 或 `paths[].backend` 下，**按路由**生效。
+
+**`cache.enabled: true`** 时：
+
+- **service**：在缓冲完整上游响应后，可对 **客户端 GET** 填充共享缓存键；**HEAD** 可命中同一条目。
+- **handler**：静态响应在通过存储规则（无 `Vary`、体量上限等）时可缓存。
+- **redirect**：URL 模板展开后，可缓存最终状态码与 `Location`（GET 存储路径）。
+
+**为何不存某些响应：** Ingress **不缓存**带非空 **`Vary`** 的响应（尚未按 `Vary` 拆分子键——见 [配置说明](configuration.md#backendcache-http-响应缓存)）。在 **`skip_when_set_cookie: true`**（默认）时也会跳过含 **`Set-Cookie`** 的响应，以免把带会话的页面塞进共享缓存。许多公开 httpbin 接口返回 **`Vary: Origin`**，因此即使用 `enabled: true` 也可能**始终未写入**缓存。
+
+字段、绕过规则与默认值见 [配置参考 — `backend.cache`](configuration.md#backendcache-http-响应缓存)。可运行示例：[`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml)、Redis 存储：[`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml)。
 
 ## 缓存失效
 

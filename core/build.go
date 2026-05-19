@@ -1,10 +1,12 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
 	"html/template"
+	"io"
 	"mime"
 	"net"
 	"net/http"
@@ -107,6 +109,31 @@ func (c *core) build() error {
 		}
 
 		if hasRedirect {
+			// Optional HTTP cache: same fingerprint as handler/service; store GET redirects after URL expansion (see http_cache.go).
+			rb := effectiveRouteBackend(matchedRule, pathBackend)
+			policyRedirect := normalizeHTTPCache(rb.Cache)
+			var redirectCacheKey string
+			redirectCacheStart := time.Now()
+			var mayStoreRedirect bool
+			if policyRedirect != nil && httpCacheMethodAllowed(method, policyRedirect) && !httpCacheRequestBypasses(ctx.Request, policyRedirect) {
+				redirectCacheKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, policyRedirect)
+				if hit, code, ulen := tryServeHTTPCache(ctx, policyRedirect, redirectCacheKey); hit {
+					rdDur := time.Since(redirectCacheStart)
+					ctx.Logger.Infof(
+						"[host: %s, target: redirect] \"%s %s %s\" %d %v %s cache_hit=1",
+						hostname,
+						method,
+						path,
+						ctx.Request.Proto,
+						code,
+						rdDur,
+						buildAccessLogExtraFields(ctx.Request, code, ulen, rdDur),
+					)
+					return false, true, nil
+				}
+				mayStoreRedirect = method == http.MethodGet
+			}
+
 			redirectURL = expandRedirectURL(matchedRule, hostname, redirectURL, hostSm, pathSm)
 			// If redirect URL is not a full URL (doesn't start with http:// or https://),
 			// construct the full URL by keeping the original path and query parameters
@@ -124,6 +151,21 @@ func (c *core) build() error {
 				}
 			}
 
+			if mayStoreRedirect && policyRedirect != nil && redirectCacheKey != "" {
+				code := redirectStatusFromFlags(permanent, withOriginMethodAndBody)
+				if httpCacheShouldStoreRedirect(code, redirectURL) {
+					h := http.Header{}
+					h.Set("Location", redirectURL)
+					ttl := httpCacheTTLFromResponseHeader(h, policyRedirect.TTL)
+					ent := &httpCacheEntry{
+						StatusCode: code,
+						Header:     map[string][]string{"Location": {redirectURL}},
+						Body:       nil,
+					}
+					_ = ctx.Cache().Set(redirectCacheKey, ent, ttl)
+				}
+			}
+
 			applyRedirect(ctx, redirectURL, permanent, withOriginMethodAndBody)
 
 			return false, true, nil
@@ -138,12 +180,47 @@ func (c *core) build() error {
 		}
 
 		if handlerCfg != nil {
-			handlerStart := time.Now()
+			// Optional HTTP cache for handler backends: try GET/HEAD read; on GET miss capture body via zooxHTTPCacheCaptureRW for later Set.
+			origWriter := ctx.Writer
 			handlerType := handlerCfg.Type
 			if handlerType == "" {
 				handlerType = handlerTypeStaticResponse
 			}
-			handlerStatusCode := http.StatusOK
+
+			rb := effectiveRouteBackend(matchedRule, pathBackend)
+			policyHandler := normalizeHTTPCache(rb.Cache)
+			var handlerCacheKey string
+			var captureBuf *bytes.Buffer
+			handlerCacheStart := time.Now()
+			if policyHandler != nil && httpCacheMethodAllowed(method, policyHandler) && !httpCacheRequestBypasses(ctx.Request, policyHandler) {
+				handlerCacheKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, policyHandler)
+				if hit, code, ulen := tryServeHTTPCache(ctx, policyHandler, handlerCacheKey); hit {
+					hDur := time.Since(handlerCacheStart)
+					ctx.Logger.Infof(
+						"[host: %s, target: handler/%s] \"%s %s %s\" %d %v %s cache_hit=1",
+						hostname,
+						handlerType,
+						method,
+						path,
+						ctx.Request.Proto,
+						code,
+						hDur,
+						buildAccessLogExtraFields(ctx.Request, code, ulen, hDur),
+					)
+					return false, true, nil
+				}
+				if method == http.MethodGet {
+					captureBuf = &bytes.Buffer{}
+					ctx.Writer = &zooxHTTPCacheCaptureRW{ResponseWriter: origWriter, buf: captureBuf}
+				}
+			}
+			defer func() {
+				if captureBuf != nil {
+					ctx.Writer = origWriter
+				}
+			}()
+
+			handlerStart := time.Now()
 
 			switch handlerType {
 			case handlerTypeStaticResponse:
@@ -155,7 +232,6 @@ func (c *core) build() error {
 				if statusCode == 0 {
 					statusCode = http.StatusOK
 				}
-				handlerStatusCode = statusCode
 				ctx.Status(statusCode)
 				ctx.Writer.Write([]byte(handlerCfg.Body))
 			case handlerTypeFileServer:
@@ -182,7 +258,6 @@ func (c *core) build() error {
 				if contentType := mime.TypeByExtension(filepath.Ext(targetFilePath)); contentType != "" {
 					ctx.Writer.Header().Set("Content-Type", contentType)
 				}
-				handlerStatusCode = http.StatusOK
 				ctx.Status(http.StatusOK)
 				ctx.Writer.Write(content)
 			case handlerTypeTemplates:
@@ -202,7 +277,6 @@ func (c *core) build() error {
 				}
 
 				ctx.Status(http.StatusOK)
-				handlerStatusCode = http.StatusOK
 				if err := tpl.Execute(ctx.Writer, map[string]any{
 					"Path":   ctx.Path,
 					"Method": ctx.Method,
@@ -213,15 +287,31 @@ func (c *core) build() error {
 				if err := executeHandlerScript(ctx, handlerCfg); err != nil {
 					return false, false, proxy.NewHTTPError(http.StatusInternalServerError, err.Error())
 				}
-				handlerStatusCode = int(handlerCfg.StatusCode)
-				if handlerStatusCode == 0 {
-					handlerStatusCode = http.StatusOK
-				}
 			default:
 				return false, false, proxy.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("unsupported handler.type: %s", handlerType))
 			}
 
+			if captureBuf != nil && policyHandler != nil && handlerCacheKey != "" {
+				// Persist handler output only when policy and response headers allow (200, no Vary / no-store / Set-Cookie, size cap).
+				st := ctx.Writer.Status()
+				hdr := ctx.Writer.Header()
+				ttl := httpCacheTTLFromResponseHeader(hdr, policyHandler.TTL)
+				if httpCacheShouldStoreHandler(st, hdr, captureBuf.Len(), policyHandler) {
+					ent := &httpCacheEntry{
+						StatusCode: st,
+						Header:     cloneHeadersForCache(hdr),
+						Body:       append([]byte(nil), captureBuf.Bytes()...),
+					}
+					_ = ctx.Cache().Set(handlerCacheKey, ent, ttl)
+				}
+			}
+
+			handlerStatusCode := ctx.Writer.Status()
 			handlerDuration := time.Since(handlerStart)
+			var respLen int64 = -1
+			if captureBuf != nil {
+				respLen = int64(captureBuf.Len())
+			}
 			ctx.Logger.Infof(
 				"[host: %s, target: handler/%s] \"%s %s %s\" %d %v %s",
 				hostname,
@@ -231,7 +321,7 @@ func (c *core) build() error {
 				ctx.Request.Proto,
 				handlerStatusCode,
 				handlerDuration,
-				buildAccessLogExtraFields(ctx.Request, handlerStatusCode, -1, handlerDuration),
+				buildAccessLogExtraFields(ctx.Request, handlerStatusCode, respLen, handlerDuration),
 			)
 
 			return false, true, nil
@@ -318,6 +408,33 @@ func (c *core) build() error {
 
 		proxyStart := time.Now()
 
+		// Service HTTP cache: read before RoundTrip; write in OnResponse after buffering (GET upstream responses only for populate).
+		routeBackend := effectiveRouteBackend(matchedRule, pathBackend)
+		pc := normalizeHTTPCache(routeBackend.Cache)
+		var httpCacheStoreKey string
+		var httpCacheMayStore bool
+		if pc != nil {
+			if httpCacheMethodAllowed(method, pc) && !httpCacheRequestBypasses(ctx.Request, pc) {
+				httpCacheStoreKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, pc)
+				if hit, code, ulen := tryServeHTTPCache(ctx, pc, httpCacheStoreKey); hit {
+					hitDur := time.Since(proxyStart)
+					ctx.Logger.Infof(
+						"[host: %s, target: %s] \"%s %s %s\" %d %v %s cache_hit=1",
+						hostname,
+						serviceIns.Target(),
+						method,
+						path,
+						ctx.Request.Proto,
+						code,
+						hitDur,
+						buildAccessLogExtraFields(ctx.Request, code, ulen, hitDur),
+					)
+					return false, true, nil
+				}
+				httpCacheMayStore = true
+			}
+		}
+
 		hostRewrite := effectiveHostRewrite(serviceIns, pathBackend, matchedRule)
 
 		cfg.OnRequest = func(req, inReq *http.Request) error {
@@ -377,6 +494,25 @@ func (c *core) build() error {
 			}
 
 			res.Header.Set("X-Powered-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
+
+			// Service HTTP cache write: headers are final after plugins; only client GET may extend the shared ctx.Cache.
+			if pc != nil && httpCacheMayStore && httpCacheStoreKey != "" && inReq.Method == http.MethodGet {
+				body, err := io.ReadAll(res.Body)
+				_ = res.Body.Close()
+				if err != nil {
+					return err
+				}
+				if httpCacheShouldStore(res, len(body), pc) {
+					ttl := httpCacheResponseTTL(res, pc.TTL)
+					ent := &httpCacheEntry{
+						StatusCode: res.StatusCode,
+						Header:     cloneHeadersForCache(res.Header),
+						Body:       append([]byte(nil), body...),
+					}
+					_ = ctx.Cache().Set(httpCacheStoreKey, ent, ttl)
+				}
+				res.Body = io.NopCloser(bytes.NewReader(body))
+			}
 
 			upstreamDuration := time.Since(proxyStart)
 			ctx.Logger.Infof(

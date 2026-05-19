@@ -2,6 +2,8 @@
 
 Ingress supports caching to improve performance and reduce load on backend services. You can use in-memory caching or Redis for distributed caching.
 
+**Two layers:** top-level **`cache`** configures the shared **`ctx.Cache()`** engine (matcher/DNS, and so on). Optional per-backend **`backend.cache`** stores **HTTP responses** in that same engine when enabled—see [below](#http-response-cache-backendcache).
+
 ## Cache Configuration
 
 ### In-Memory Caching
@@ -114,7 +116,7 @@ With a prefix, cache keys are formatted as:
 {prefix}{key}
 ```
 
-For example, with `prefix: ingress:`, a host routing cache key `match.host:v2:example.com` becomes `ingress:match.host:v2:example.com`. The `v2` segment denotes the cached value shape; it may change in future releases.
+For example, with `prefix: ingress:`, a host routing cache key `match.host:v2:example.com` becomes `ingress:match.host:v2:example.com`. HTTP response cache keys look like `ingress:httpcache:v1:<digest>`. The `v2` segment denotes the matcher cache value shape; it may change in future releases.
 
 ## What Gets Cached
 
@@ -123,11 +125,26 @@ Ingress caches:
 1. **Routing Decisions**: Host and path matching results
 2. **Service Configurations**: Parsed service configurations
 3. **DNS Resolutions**: Resolved backend service addresses
+4. **HTTP responses** (optional): When **`backend.cache.enabled: true`** on a backend, eligible **GET**/**HEAD** responses for **service**, **handler**, and **redirect** can be stored in the same `ctx.Cache()` backend—see [HTTP response cache (`backend.cache`)](#http-response-cache-backendcache).
 
 Caching routing decisions is particularly beneficial when:
 - You have complex routing rules
 - DNS resolution is slow
 - Backend service discovery is expensive
+
+## HTTP response cache (`backend.cache`)
+
+**Different from** top-level `cache`: the root `cache` block only chooses **Redis vs memory** and connection defaults for **`ctx.Cache()`**. **`backend.cache`** is **per route** under `rules[].backend` or `paths[].backend`.
+
+When **`cache.enabled: true`**:
+
+- **Service** backends cache successful upstream bodies (after buffering) for **client GET** requests that populate the shared cache key; **HEAD** can **hit** the same entry.
+- **Handler** backends cache static responses when storage rules pass (no `Vary`, size limits, and so on).
+- **Redirect** backends cache the final status and `Location` after template expansion (`GET` population path).
+
+**Rationale for skipping some responses:** Ingress does **not** store responses with a non-empty **`Vary`** header (it does not yet compute separate cache keys per `Vary`—see the [Configuration](configuration.md#backendcache-http-response-cache) note). It also skips responses that include **`Set-Cookie`** when **`skip_when_set_cookie`** is **true** (default), to avoid caching session-specific payloads. Many public httpbin endpoints return **`Vary: Origin`**, so they will not populate the cache.
+
+Details, bypass rules, and field reference: [Configuration — `backend.cache`](configuration.md#backendcache-http-response-cache). Runnable YAML: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml), Redis-backed storage: [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml).
 
 ## Cache Invalidation
 

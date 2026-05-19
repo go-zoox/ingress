@@ -48,6 +48,16 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 - For missing values, use `-` (or `-1` for unknown upstream content length) to keep logs structurally predictable.
 - TLS names are sourced from Go stdlib (`tls.VersionName`, `tls.CipherSuiteName`), so expected protocol strings are like `TLS 1.3` (not `TLSv1.3`).
 
+## HTTP response cache (`backend.cache`)
+
+- **Where**: `core/build.go` — **service** after auth/DNS (cache hit short-circuits before `go-zoox/proxy`); **handler** wraps `ctx.Writer` with `zooxHTTPCacheCaptureRW` when storing; **redirect** tries cache before `applyRedirect` and stores the final `Location` after expansion (GET only). Validate accepts `cache.enabled` for **service**, **handler**, and **redirect** (`core/validate.go`).
+- **Defaults**: off without `cache.enabled: true`. Applied in `normalizeHTTPCache` (`core/http_cache.go`): TTL 300s, max body 2MiB, fingerprint `md5`, methods `GET`+`HEAD`, key headers `Authorization` + `Cookie` + `Accept-Encoding`, client bypass tokens `no-cache` / `no-store` / `max-age=0`, `Pragma: no-cache` honored by default, skip responses with **`Set-Cookie`** by default (`skip_when_set_cookie`). **Non-empty `Vary`** on the origin response ⇒ do not store (no `Vary`-aware keys yet).
+- **Keys**: prefix `httpcache:v1:` (under the global `cache.prefix` when using Redis). Canonical string treats **HEAD method as GET** for fingerprinting so both can share an entry.
+- **Store**: **GET** only for population: proxy upstream in `OnResponse`; handler after executing handler; redirect after final URL is known. Handler uses an optional body capture buffer; other methods may still **hit** cache (e.g. HEAD shares GET key).
+- **Logs**: hits append `cache_hit=1` to the access log line (service proxy, handler, and redirect).
+
+Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cache()` backend (`core/prepare.go`, `core/match.go` uses `match.host:v2:` keys).
+
 ## WAF (layer-7 guard, v1)
 
 - **When**: After a route match in `core/build.go`, before `backend.redirect`, handler, or upstream proxy (`waf.CheckRequest` + `*waf.Profile`).

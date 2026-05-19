@@ -82,6 +82,13 @@ func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string
 			ruleBackendLoc(ruleIdx, host, pathPattern), backend.Mode)
 	}
 
+	// backend.cache shape is shared by service / handler / redirect; validate as soon as enabled is true.
+	if backend.Cache.Enabled {
+		if err := validateBackendCache(backend.Cache, ruleIdx, host, pathPattern); err != nil {
+			return err
+		}
+	}
+
 	backendType := backend.Type
 	if backendType == "" {
 		backendType = backendTypeService
@@ -134,6 +141,38 @@ func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string
 			ruleBackendLoc(ruleIdx, host, pathPattern), backendType)
 	}
 
+	return nil
+}
+
+// validateBackendCache checks backend.cache field constraints (any backend type when enabled).
+func validateBackendCache(cache rule.BackendCache, ruleIdx int, host, pathPattern string) error {
+	loc := ruleBackendLoc(ruleIdx, host, pathPattern)
+	switch strings.ToLower(strings.TrimSpace(cache.KeyHash)) {
+	case "", httpCacheKeyHashMD5, httpCacheKeyHashSHA256:
+	default:
+		return fmt.Errorf("%s: backend.cache.key_hash must be md5 or sha256", loc)
+	}
+	if cache.TTL < 0 {
+		return fmt.Errorf("%s: backend.cache.ttl must be >= 0", loc)
+	}
+	if cache.MaxBodyBytes < 0 {
+		return fmt.Errorf("%s: backend.cache.max_body_bytes must be >= 0", loc)
+	}
+	for _, m := range cache.Methods {
+		if strings.TrimSpace(m) == "" {
+			return fmt.Errorf("%s: backend.cache.methods entries must be non-empty", loc)
+		}
+	}
+	for _, h := range cache.KeyHeaders {
+		if strings.TrimSpace(h) == "" {
+			return fmt.Errorf("%s: backend.cache.key_headers entries must be non-empty", loc)
+		}
+	}
+	for _, d := range cache.BypassRequestDirectives {
+		if strings.TrimSpace(d) == "" {
+			return fmt.Errorf("%s: backend.cache.bypass_request_directives entries must be non-empty", loc)
+		}
+	}
 	return nil
 }
 

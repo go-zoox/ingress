@@ -72,7 +72,7 @@ rules:
 | `version` | string | Configuration version | `v1` |
 | `port` | int | HTTP port to listen on | `8080` |
 | `enable_h2c` | bool | Cleartext HTTP/2 (h2c) on the HTTP port | `false` |
-| `cache` | object | Cache configuration | - |
+| `cache` | object | Application `ctx.Cache()` engine (memory or Redis); backs matcher data and optional **`backend.cache`** entries | - |
 | `https` | object | HTTPS configuration | - |
 | `healthcheck` | object | Health check configuration | - |
 | `fallback` | object | Fallback backend | - |
@@ -97,14 +97,17 @@ rules:
 
 ### Cache Configuration
 
+**Top-level `cache`** configures the shared Zoox **`ctx.Cache()`** backend (in-memory or Redis). It stores **matcher / routing** data and any **HTTP response** entries when per-backend **`backend.cache`** is enabled—see [`backend.cache`](#backendcache-http-response-cache) below and the [Caching guide](caching.md).
+
 | Field | Type | Description | Default |
 |-------|------|-------------|---------|
-| `ttl` | int | Cache TTL in seconds | `60` |
-| `host` | string | Redis host (if using Redis) | - |
+| `engine` | string | `memory` or `redis` | `memory` |
+| `ttl` | int | Default TTL in seconds (matcher keys and general use) | `60` |
+| `host` | string | Redis host (when `engine: redis`) | - |
 | `port` | int | Redis port | `6379` |
 | `password` | string | Redis password | - |
 | `db` | int | Redis database number | `0` |
-| `prefix` | string | Cache key prefix | - |
+| `prefix` | string | Prefix for all keys in `ctx.Cache()` (matcher **and** `httpcache:v1:` HTTP entries) | - |
 
 ### HTTPS Configuration
 
@@ -238,8 +241,35 @@ rules:
 | `service` | object | Upstream when type is `service` | - |
 | `handler` | object | Handler when type is `handler` | - |
 | `redirect` | object | Redirect when type is `redirect` | - |
+| `cache` | object | Optional HTTP response cache for **service**, **handler**, and **redirect** backends; see below | off |
 
 `mode` applies per backend block (host-level or path-level). It affects **proxy** backends only; **`handler`** / **`redirect`** ignore it for behavior, but **`ingress validate`** still accepts `internal` / `external`.
+
+#### `backend.cache` (HTTP response cache)
+
+- **Default off** unless `cache.enabled: true`.
+- **Storage** uses the same Zoox application cache as matcher caching (`ctx.Cache()`): the top-level `cache` block configures Redis/memory (`core/prepare.go`). Entries use key prefix `httpcache:v1:` plus an MD5 or SHA-256 fingerprint of a canonical request line (method, scheme, host, path, sorted query, and configured request headers with values hashed).
+- **HEAD** shares the same cache key as **GET** for the same URL; **GET** round-trips populate the cache for **service** (proxy), **handler** (response capture), and **redirect** (final `Location` after template expansion). Avoids replacing a full GET entry with an empty HEAD body.
+- **Client bypass** (no cache read/write): `Cache-Control` containing `no-cache`, `no-store`, or `max-age=0` (configurable), `Pragma: no-cache` when `honor_pragma_no_cache` is true (default), or any **`Range`** request header.
+- **Not stored** (service / handler bodies): non-200; **any non-empty `Vary`** on the response (Ingress does not yet split cache keys by `Vary`—see [Caching](caching.md)); `Cache-Control: no-store`; `Cache-Control: private` (unless `ignore_response_private: true`); **`Set-Cookie`** on the response when `skip_when_set_cookie` is true (default); body larger than `max_body_bytes`. **Redirect** entries store 301/302/303/307/308 with a `Location` header (no body; same header rules where applicable). Many public httpbin mirrors send `Vary: Origin` on common paths (e.g. `/ip`), so those responses are **not** written to the cache even with `enabled: true`.
+- **Verifying hits**: send the same **GET** twice without bypass headers; the second response should be served from cache. Access log lines from cached responses append **`cache_hit=1`** (service proxy, handler, redirect).
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `enabled` | bool | Turn on HTTP response cache for this backend | `false` |
+| `ttl` | int | Max freshness in **seconds** when the origin omits a stricter `max-age` / `s-maxage` | `300` |
+| `max_body_bytes` | int | Do not store bodies larger than this (0 or unset → **2MiB** in code) | `2097152` |
+| `key_hash` | string | Fingerprint algorithm: `md5` or `sha256` | `md5` |
+| `methods` | string array | Cacheable methods (normalized to uppercase) | `GET`, `HEAD` |
+| `key_headers` | string array | Request header names in the fingerprint (values are hashed, not stored raw) | `Authorization`, `Cookie`, `Accept-Encoding` |
+| `bypass_request_directives` | string array | `Cache-Control` tokens that force origin/handling (token match; see code for `max-age=0`) | `no-cache`, `no-store`, `max-age=0` |
+| `honor_pragma_no_cache` | bool | Treat `Pragma: no-cache` like `Cache-Control: no-cache` for bypass | `true` |
+| `ignore_response_private` | bool | Allow storing `Cache-Control: private` responses | `false` |
+| `skip_when_set_cookie` | bool | When **true** (default), do not store responses that include **`Set-Cookie`**; set **`false`** only in advanced cases (risk of caching personalized/session responses). | `true` |
+
+Examples: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml) (in-memory `ctx.Cache()`), [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml) (Redis + `backend.cache`).
+
+See `core/rule/backend_cache.go`, `core/http_cache.go`, and `core/build.go`.
 
 ## Access Log Fields
 
@@ -254,6 +284,7 @@ Ingress access logs use an application-level fixed format (not Nginx `log_format
 - `upstream_status`: upstream response status (handler branch uses handler status)
 - `upstream_response_length`: upstream response length (`-1` when unknown)
 - `upstream_response_time`: upstream response duration in Go `time.Duration` text form
+- `cache_hit`: present as **`cache_hit=1`** when the response was served from **`backend.cache`** (service proxy, handler, or redirect); omitted on miss / uncached routes
 
 Example:
 
@@ -268,7 +299,7 @@ Note: there is currently no standalone field exactly equivalent to Nginx `$body_
 You can override some configuration using environment variables:
 
 - `CONFIG`: Path to configuration file
-- `PORT`: HTTP port number
+- `PORT`: HTTP listen port; **overrides** the top-level **`port`** field in the YAML when set
 
 ## Configuration Validation
 

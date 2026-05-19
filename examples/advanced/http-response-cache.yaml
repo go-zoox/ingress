@@ -1,0 +1,96 @@
+# Per-backend HTTP response cache (`backend.cache`): caches eligible GET/HEAD responses for
+# **service** (upstream proxy), **handler** (static response), and **redirect** (final Location).
+#
+# This is separate from top-level `cache`, which only configures the shared Zoox `ctx.Cache()`
+# engine (memory or Redis) used for matcher data *and* as the storage for HTTP cache entries.
+#
+# Validate:
+#   ingress validate -c examples/advanced/http-response-cache.yaml
+
+version: v1
+# Listen port: use `port` here or override at runtime (`PORT=9999`). `curl` must use the same port.
+port: 8080
+
+cache:
+  ttl: 300
+
+rules:
+  - host: api-cached.example.com
+    backend:
+      service:
+        name: backend-api
+        port: 8080
+      cache:
+        enabled: true
+        ttl: 600
+        max_body_bytes: 1048576
+        key_hash: sha256
+
+  - host: static-snippet.example.com
+    backend:
+      type: handler
+      handler:
+        headers:
+          Content-Type: text/plain; charset=utf-8
+        body: |
+          Short static text — handler responses are cacheable when they meet storage rules.
+      cache:
+        enabled: true
+        ttl: 60
+
+  - host: redirect-cached.example.com
+    backend:
+      redirect:
+        url: https://www.example.com/landing
+      cache:
+        enabled: true
+        ttl: 120
+
+  - host: mixed.example.com
+    backend:
+      service:
+        name: default-upstream
+        port: 8080
+    paths:
+      - path: /status
+        backend:
+          handler:
+            status_code: 200
+            headers:
+              Content-Type: application/json
+            body: '{"ready":true}'
+          cache:
+            enabled: true
+            ttl: 30
+
+  # Live httpbin upstream: `cache.enabled: true` is on the **backend** block (same as other rules).
+  #
+  # **Why `/ip` never fills the cache:** mirrors such as httpbin.zcorky.com often return
+  # `Vary: Origin`. Ingress **does not store** proxied responses with any non-empty `Vary`
+  # header (`httpCacheShouldStore`). So repeated `curl http://api-cached.httpbin.work:<port>/ip`
+  # stay misses—check access logs: no `cache_hit=1`.
+  #
+  # To **verify** HTTP cache on this host, call **`/demo-cached`** twice (handler below);
+  # the second request should log `cache_hit=1`. Or use an origin that returns 200 without
+  # `Vary` / `Cache-Control: no-store` / `private` / `Set-Cookie`.
+  - host: api-cached.httpbin.work
+    backend:
+      mode: external
+      service:
+        protocol: http
+        name: 127.0.0.1
+        port: 9998
+      cache:
+        enabled: true
+        ttl: 10
+    paths:
+      - path: /demo-cached
+        backend:
+          type: handler
+          handler:
+            headers:
+              Content-Type: application/json; charset=utf-8
+            body: '{"demo":"This response is cacheable (no Vary). Repeat GET to see cache_hit=1 in logs."}'
+          cache:
+            enabled: true
+            ttl: 60

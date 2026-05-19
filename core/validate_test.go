@@ -246,3 +246,72 @@ func TestValidateConfig_WAFPasses(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestValidateConfig_HandlerBackendCacheOK(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "h.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Cache: rule.BackendCache{
+						Enabled: true,
+					},
+					Handler: rule.Handler{
+						Type: handlerTypeStaticResponse,
+						Body: "x",
+					},
+				},
+			},
+		},
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestValidateConfig_RedirectBackendCacheOK(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "r.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeRedirect,
+					Cache: rule.BackendCache{
+						Enabled: true,
+					},
+					Redirect: rule.Redirect{
+						URL: "https://example.com/",
+					},
+				},
+			},
+		},
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestValidateConfig_ServiceBackendCacheOK(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "ok.example.com",
+				Backend: rule.Backend{
+					Cache: rule.BackendCache{Enabled: true},
+					Service: service.Service{
+						Name:     "api",
+						Port:     8080,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -30,7 +30,15 @@
 
 <<< @/../examples/advanced/health-checks.yaml
 
-## Redis 缓存
+## HTTP 响应缓存（`backend.cache`）
+
+按 backend 缓存 **service / handler / redirect** 的响应，与顶层 **`cache`** 共用 `ctx.Cache()`。语义见[缓存指南](/zh/guide/caching#http-响应缓存-backendcache)。
+
+<<< @/../examples/advanced/http-response-cache.yaml
+
+## 应用缓存引擎（内存 / Redis）
+
+顶层 **`cache`** 决定匹配器等数据用 Redis 还是内存；**HTTP 响应**条目在开启 **`backend.cache`** 时也写入同一后端。下例在 **service** 上启用 **`backend.cache`**，多实例时可共享缓存。
 
 <<< @/../examples/advanced/redis-cache.yaml
 
