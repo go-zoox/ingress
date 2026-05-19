@@ -1,0 +1,14 @@
+port: 8080
+
+# Explicit type on one host, inferred on the other — equivalent once validated.
+rules:
+  - host: web.example.com
+    backend:
+      type: service
+      service:
+        protocol: https
+        name: httpbin.org
+        port: 443
+        request:
+          host:
+            rewrite: true
