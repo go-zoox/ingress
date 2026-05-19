@@ -30,8 +30,8 @@ fallback:
 rules:
   - host: example.com
     backend:
-      mode: external
       service:
+        mode: external
         name: backend-service
         port: 8080
         auth:

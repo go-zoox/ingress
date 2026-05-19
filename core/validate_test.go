@@ -315,3 +315,44 @@ func TestValidateConfig_ServiceBackendCacheOK(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestValidateConfig_ServiceModeOnServiceOK(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{{
+			Host: "m.example.com",
+			Backend: rule.Backend{
+				Service: service.Service{
+					Name:     "api",
+					Port:     8080,
+					Protocol: "http",
+					Mode:     backendModeExternal,
+				},
+			},
+		}},
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestValidateConfig_ModeConflict(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{{
+			Host: "c.example.com",
+			Backend: rule.Backend{
+				Mode: backendModeInternal,
+				Service: service.Service{
+					Name:     "api",
+					Port:     8080,
+					Protocol: "http",
+					Mode:     backendModeExternal,
+				},
+			},
+		}},
+	}
+	if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "conflicts") {
+		t.Fatalf("expected conflict error, got %v", err)
+	}
+}

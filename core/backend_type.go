@@ -39,6 +39,9 @@ func servicePopulated(s service.Service) bool {
 	if s.Request.Delay != 0 || s.Request.Timeout != 0 {
 		return true
 	}
+	if strings.TrimSpace(s.Mode) != "" {
+		return true
+	}
 	if len(s.Response.Headers) > 0 {
 		return true
 	}

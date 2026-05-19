@@ -1,9 +1,25 @@
 package core
 
 import (
+	"strings"
+
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/service"
 )
+
+// effectiveBackendMode returns internal or external for Host rewrite. Prefer
+// backend.service.mode; if empty, use legacy backend.mode.
+func effectiveBackendMode(bk rule.Backend) string {
+	svc := strings.TrimSpace(bk.Service.Mode)
+	bkM := strings.TrimSpace(bk.Mode)
+	if svc != "" {
+		return svc
+	}
+	if bkM != "" {
+		return bkM
+	}
+	return backendModeInternal
+}
 
 func effectiveBackendForHostRewrite(pathBackend *rule.Backend, matchedRule *rule.Rule) rule.Backend {
 	if pathBackend != nil && getBackendType(*pathBackend) == backendTypeService {
@@ -21,10 +37,7 @@ func effectiveHostRewrite(s *service.Service, pathBackend *rule.Backend, matched
 		return *s.Request.Host.Rewrite
 	}
 	bk := effectiveBackendForHostRewrite(pathBackend, matchedRule)
-	mode := bk.Mode
-	if mode == "" {
-		mode = backendModeInternal
-	}
+	mode := effectiveBackendMode(bk)
 	if mode == backendModeExternal {
 		return true
 	}

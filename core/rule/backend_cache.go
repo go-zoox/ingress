@@ -27,4 +27,7 @@ type BackendCache struct {
 	IgnoreResponsePrivate bool `config:"ignore_response_private"`
 	// SkipWhenSetCookie skips storing responses that include Set-Cookie (default true).
 	SkipWhenSetCookie *bool `config:"skip_when_set_cookie"`
+	// SkipVary allows storing responses that include Vary (default false). When true, the Vary
+	// header is not persisted and is not sent on cache hits—clients see a single variant only.
+	SkipVary bool `config:"skip_vary"`
 }

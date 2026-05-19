@@ -154,12 +154,12 @@ rules:
 
 当没有路由规则匹配请求时，使用回退后端。
 
-若 **未** 设置 `service.request.host.rewrite`，发往 fallback 的 `Host` 仍会对齐到该回退上游。若需保留客户端 `Host`，请显式设置 `service.request.host.rewrite: false`。也可写 `mode: external` 表达「对齐上游 Host」（与省略 `rewrite` 时一致）。
+若 **未** 设置 `service.request.host.rewrite`，发往 fallback 的 `Host` 仍会对齐到该回退上游。若需保留客户端 `Host`，请显式设置 `service.request.host.rewrite: false`。也可在 **`service.mode: external`** 表达「对齐上游 Host」（与省略 `rewrite` 时一致）。
 
 ```yaml
 fallback:
-  # mode: internal            # 可选 — internal（默认）| external
   service:
+    # mode: internal            # 可选 — 推荐写在 service 下；internal（默认）| external
     name: fallback-service
     port: 8080
     # protocol: 可选，默认 http
@@ -175,6 +175,8 @@ fallback:
 
 每个 **`backend.service`**：**省略 `protocol` 时默认为 `http`**（`core/service/service.go` 的配置默认值，与 `core/service/host.go` 一致）。**`protocol: https`** 且省略 **`port`**（或为 `0`）时上联端口默认为 **443**；**`http`**（显式或默认）时省略 **`port`** 默认为 **80**。影响出站 URL 与默认 **`Host`** 头。
 
+**`service.mode`**（`internal` 默认，`external` 用于第三方源站）在省略 **`request.host.rewrite`** 时控制发往上游的 **`Host`**，见[重写](rewriting.md)。**`backend.mode`** 仍可用，但须与 **`service.mode`** 一致。
+
 下面 **`backend.type` 写法混排**：规则级 `backend` **显式写 `type: service`**；各 **`paths[].backend`** **省略 `type`**，由各自的配置块推断 **`service`** 或 **`handler`**。
 
 ```yaml
@@ -184,10 +186,10 @@ rules:
     # 显式取值：exact、regex、wildcard
     backend:
       type: service             # 可选 — 仅配 service 时可省略（见 examples/basic/ingress.yaml）
-      mode: internal            # 可选 — internal（默认）| external（省略 rewrite 时默认将 Host 指向上游）
       service:
         name: backend-service
         port: 8080
+        # mode: internal        # 可选 — internal（默认）| external；优先写在 service 下
         # protocol: 可选，默认 http；上联为 TLS 时写 https
         protocol: http
         auth:                   # 认证（可选）
@@ -203,7 +205,7 @@ rules:
           status: [200]
         request:
           host:
-            rewrite: true       # 可选显式覆盖；若已设 mode: external 常可省略
+            rewrite: true       # 可选显式覆盖；若已设 service.mode: external 常可省略
           path:
             rewrites:          # 路径重写规则
               - ^/api/v1:/api/v2
@@ -217,10 +219,10 @@ rules:
     paths:                      # 基于路径的路由（可选）
       - path: /api
         backend:
-          mode: internal          # 路径级 backend 也可选
           service:
             name: api-service
             port: 8080
+            # mode: internal      # 路径级可选 — 写在 service 下
       - path: /healthz
         backend:
           handler:
@@ -236,13 +238,13 @@ rules:
 | 字段 | 类型 | 描述 | 默认值 |
 |------|------|------|--------|
 | `type` | string | `service`、`handler` 或 `redirect`（常**省略**由配置块推断） | 推断 |
-| `mode` | string | `internal`：除非设置了 `service.request.host.rewrite`，否则保留客户端 `Host`；`external`：默认将 `Host` 指向上游 | `internal` |
+| `mode` | string | 兼容字段：与 **`backend.service.mode`** 相同语义；优先读 **`service.mode`**；两者非空时必须一致 | `internal` |
 | `service` | object | `service` 型时的上联配置 | - |
 | `handler` | object | `handler` 型 | - |
 | `redirect` | object | `redirect` 型 | - |
 | `cache` | object | 可选 HTTP 响应缓存，适用于 **service** / **handler** / **redirect**；见下文 | 关闭 |
 
-`mode` 可按 host 级或 path 级分别设置。仅影响**反代**；**handler** / **redirect** 行为不读 `mode`，但校验仍只允许 `internal` / `external`。
+**Host 上游** 的 **`internal` / `external`** 以 **`backend.service.mode`** 为准（若未设置则回退 **`backend.mode`**）；两者不能设为不同值。**handler** / **redirect** 不得写 **`service.mode`**。
 
 #### `backend.cache`（HTTP 响应缓存）
 
@@ -250,7 +252,7 @@ rules:
 - **存储**与路由匹配器共用 Zoox 应用缓存（`ctx.Cache()`）：由顶层 `cache` 配置 Redis 或内存（`core/prepare.go`）。键为前缀 `httpcache:v1:` 加上规范请求串的 MD5 或 SHA-256 指纹（方法、scheme、host、path、排序后的 query，以及参与键的请求头——头值经哈希）。
 - **HEAD** 与 **GET** 共用同一缓存键；**GET** 才会写入缓存：**反代**在 `OnResponse` 落盘；**handler** 通过包装 `ctx.Writer` 捕获 body；**redirect** 在 URL 展开后写入 `Location` 与状态码（避免空 HEAD 覆盖完整 GET）。
 - **客户端绕过**（不读不写缓存）：请求 `Cache-Control` 含 `no-cache`、`no-store` 或 `max-age=0`（可配置）、在默认开启 `honor_pragma_no_cache` 时含 `Pragma: no-cache`、或请求带 **`Range`**。
-- **不写入**（service / handler 带 body）：非 200；响应带**任意非空 `Vary`**（当前实现不按 `Vary` 拆分子键，为安全起见一律不落盘，见[缓存指南](caching.md)）；`no-store`；`private`（除非 `ignore_response_private: true`）；**响应含 `Set-Cookie`** 且 `skip_when_set_cookie` 为 **true**（默认）时；body 大于 `max_body_bytes`。**redirect** 可缓存 301/302/303/307/308 及 `Location`（无 body；适用相同的 Cache-Control / `Set-Cookie` 等规则）。许多公开 httpbin 镜像在常见路径（如 `/ip`）上返回 `Vary: Origin`，因此即使用 `enabled: true` 也**不会**写入缓存。
+- **不写入**（service / handler 带 body）：非 200；**非空 `Vary`** 默认阻止落盘（可按 `Vary` 拆键未实现，见[缓存指南](caching.md)）；若 **`cache.skip_vary: true`**，则**不保存、不下发** `Vary`（仍以单一变体对外，需自担语义风险）；`no-store`；`private`（除非 `ignore_response_private: true`）；**响应含 `Set-Cookie`** 且 `skip_when_set_cookie` 为 **true**（默认）时；body 大于 `max_body_bytes`。**redirect** 可缓存 301/302/303/307/308 及 `Location`（无 body；适用相同的 Cache-Control / `Set-Cookie` 等规则）。许多 httpbin 路径带 `Vary: Origin`；需共享缓存时可设 **`skip_vary: true`**（仅限你可接受「一剂到底」的场景）。
 - **验证命中**：对同一 URL 连续发两次不带绕过条件的 **GET**；第二次应走缓存。命中时访问日志行尾附加 **`cache_hit=1`**（含 handler、redirect 分支）。
 
 | 字段 | 类型 | 描述 | 默认值 |
@@ -265,6 +267,7 @@ rules:
 | `honor_pragma_no_cache` | bool | 将 `Pragma: no-cache` 视为与 `Cache-Control: no-cache` 等同以绕过缓存 | `true` |
 | `ignore_response_private` | bool | 是否允许缓存标为 `Cache-Control: private` 的响应 | `false` |
 | `skip_when_set_cookie` | bool | 为 **true**（默认）时，**不缓存**含 **`Set-Cookie`** 的响应；仅在高阶场景下可设为 `false`（可能缓存到带会话的个性化内容，需谨慎）。 | `true` |
+| `skip_vary` | bool | 为 **true** 时允许缓存带 **`Vary`** 的响应（**不写入**也**不返回** `Vary` 头）；仅当上游对该 URL 实际可视为单变体时使用 | `false` |
 
 示例：[`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml)（内存 `ctx.Cache()`）、[`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml)（Redis + `backend.cache`）。
 

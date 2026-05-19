@@ -299,7 +299,7 @@ func (c *core) build() error {
 				if httpCacheShouldStoreHandler(st, hdr, captureBuf.Len(), policyHandler) {
 					ent := &httpCacheEntry{
 						StatusCode: st,
-						Header:     cloneHeadersForCache(hdr),
+						Header:     cloneHeadersForCache(hdr, policyHandler.SkipVary),
 						Body:       append([]byte(nil), captureBuf.Bytes()...),
 					}
 					_ = ctx.Cache().Set(handlerCacheKey, ent, ttl)
@@ -506,7 +506,7 @@ func (c *core) build() error {
 					ttl := httpCacheResponseTTL(res, pc.TTL)
 					ent := &httpCacheEntry{
 						StatusCode: res.StatusCode,
-						Header:     cloneHeadersForCache(res.Header),
+						Header:     cloneHeadersForCache(res.Header, pc.SkipVary),
 						Body:       append([]byte(nil), body...),
 					}
 					_ = ctx.Cache().Set(httpCacheStoreKey, ent, ttl)

@@ -92,6 +92,7 @@ type httpCacheRuntime struct {
 	HonorPragma   bool
 	IgnorePrivate bool
 	SkipSetCookie bool
+	SkipVary      bool
 }
 
 // effectiveRouteBackend returns the backend block that applies: path-level overrides host-level when present.
@@ -167,6 +168,7 @@ func normalizeHTTPCache(bc rule.BackendCache) *httpCacheRuntime {
 		HonorPragma:   honorPragma,
 		IgnorePrivate: bc.IgnoreResponsePrivate,
 		SkipSetCookie: skipCookie,
+		SkipVary:      bc.SkipVary,
 	}
 }
 
@@ -397,7 +399,7 @@ func httpCacheShouldStoreHandler(status int, h http.Header, bodyLen int, pc *htt
 	if status != http.StatusOK {
 		return false
 	}
-	if h.Get(headerVary) != "" {
+	if h.Get(headerVary) != "" && !pc.SkipVary {
 		return false
 	}
 	cc := strings.Join(h.Values(headerCacheControl), ",")
@@ -458,7 +460,7 @@ func httpCacheShouldStore(res *http.Response, bodyLen int, pc *httpCacheRuntime)
 	if res.StatusCode != http.StatusOK {
 		return false
 	}
-	if res.Header.Get(headerVary) != "" {
+	if res.Header.Get(headerVary) != "" && !pc.SkipVary {
 		return false
 	}
 	if httpCacheResponseNoStore(res) {
@@ -490,10 +492,14 @@ var httpCacheHopByHop = map[string]struct{}{
 }
 
 // cloneHeadersForCache copies replay-safe headers into the JSON-friendly map stored in httpCacheEntry.
-func cloneHeadersForCache(h http.Header) map[string][]string {
+// When omitVary is true (backend.cache.skip_vary), the Vary header is dropped so hits never advertise variants.
+func cloneHeadersForCache(h http.Header, omitVary bool) map[string][]string {
 	out := make(map[string][]string)
 	for k, vs := range h {
 		kcanon := http.CanonicalHeaderKey(k)
+		if omitVary && strings.EqualFold(kcanon, headerVary) {
+			continue
+		}
 		if _, skip := httpCacheHopByHop[strings.ToLower(kcanon)]; skip {
 			continue
 		}
@@ -516,18 +522,22 @@ func tryServeHTTPCache(ctx *zoox.Context, pc *httpCacheRuntime, cacheKey string)
 	if err := ctx.Cache().Get(cacheKey, &entry); err != nil {
 		return false, 0, 0
 	}
-	writeHTTPCacheHit(ctx, &entry)
+	writeHTTPCacheHit(ctx, &entry, pc)
 	return true, entry.StatusCode, int64(len(entry.Body))
 }
 
 // writeHTTPCacheHit replays Status, headers, and body. HEAD gets the same metadata as GET but no body bytes (Content-Length from entry).
-func writeHTTPCacheHit(ctx *zoox.Context, entry *httpCacheEntry) {
+// When pc.SkipVary is true, any stored Vary header is stripped on output (safety for older entries).
+func writeHTTPCacheHit(ctx *zoox.Context, entry *httpCacheEntry, pc *httpCacheRuntime) {
 	h := http.Header(entry.Header)
 	dst := ctx.Writer.Header()
 	for k, vs := range h {
 		for _, v := range vs {
 			dst.Add(k, v)
 		}
+	}
+	if pc != nil && pc.SkipVary {
+		dst.Del(headerVary)
 	}
 	status := entry.StatusCode
 	if ctx.Method == http.MethodHead {

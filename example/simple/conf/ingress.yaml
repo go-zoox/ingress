@@ -1,4 +1,4 @@
-# Demo for Docker/local. Canonical sample (validated, with notes): examples/advanced/backend-mode-external-mixed.yaml
+# Demo for Docker/local. Canonical sample (validated, with notes): examples/advanced/service-mode-external-mixed.yaml
 port: 80
 
 # https_port: 443
@@ -32,20 +32,20 @@ rules:
             port: 80
   - host: httpbin.example.work
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: httpbin.zcorky.com
   - host: httpbin2.example.work
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: httpbin.org
   - host: handler.example.work
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: httpbin.org
     paths:

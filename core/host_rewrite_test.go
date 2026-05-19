@@ -52,3 +52,14 @@ func TestEffectiveHostRewrite_pathBackendExternal(t *testing.T) {
 		t.Fatal("expected path backend mode to win")
 	}
 }
+
+func TestEffectiveHostRewrite_serviceModeOnPathBackend(t *testing.T) {
+	s := &service.Service{}
+	pathBk := &rule.Backend{
+		Service: service.Service{Mode: backendModeExternal},
+	}
+	hostBk := rule.Backend{Mode: backendModeInternal}
+	if !effectiveHostRewrite(s, pathBk, &rule.Rule{Backend: hostBk}) {
+		t.Fatal("expected backend.service.mode external on path backend")
+	}
+}

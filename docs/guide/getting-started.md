@@ -93,14 +93,14 @@ curl -H "Host: example.com" http://localhost:8080
 
 ## Proxying external HTTPS origins
 
-For third-party or off-cluster HTTPS upstreams, set **`backend.mode: external`** so the origin receives its own hostname in **`Host`** (see [Rewriting](/guide/rewriting)).
+For third-party or off-cluster HTTPS upstreams, set **`backend.service.mode: external`** so the origin receives its own hostname in **`Host`** (see [Rewriting](/guide/rewriting)). Legacy **`backend.mode`** works when it matches.
 
 ```yaml
 rules:
   - host: mirror.example.com
     backend:
-      mode: external
       service:
+        mode: external
         protocol: https
         name: upstream.example.org
 ```
@@ -144,6 +144,6 @@ Ingress looks for configuration files in the following order:
 
 - Learn about [Configuration](/guide/configuration) options
 - Explore [Routing](/guide/routing) capabilities
-- [Request and Response Rewriting](/guide/rewriting): **`backend.mode`** and **`Host`** defaults
+- [Request and Response Rewriting](/guide/rewriting): **`service.mode`** and **`Host`** defaults
 - Set up [Authentication](/guide/authentication)
 - Configure [SSL/TLS](/guide/ssl-tls)

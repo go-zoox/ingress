@@ -142,7 +142,7 @@ Ingress 缓存：
 - **handler**：静态响应在通过存储规则（无 `Vary`、体量上限等）时可缓存。
 - **redirect**：URL 模板展开后，可缓存最终状态码与 `Location`（GET 存储路径）。
 
-**为何不存某些响应：** Ingress **不缓存**带非空 **`Vary`** 的响应（尚未按 `Vary` 拆分子键——见 [配置说明](configuration.md#backendcache-http-响应缓存)）。在 **`skip_when_set_cookie: true`**（默认）时也会跳过含 **`Set-Cookie`** 的响应，以免把带会话的页面塞进共享缓存。许多公开 httpbin 接口返回 **`Vary: Origin`**，因此即使用 `enabled: true` 也可能**始终未写入**缓存。
+**为何不存某些响应：** 默认 **不缓存**带非空 **`Vary`** 的响应（未按 `Vary` 拆子键）。若 **`cache.skip_vary: true`**，则写入/命中时**不保留**、**不下发** `Vary`。另：在 **`skip_when_set_cookie: true`**（默认）时会跳过含 **`Set-Cookie`** 的响应。许多 httpbin 接口带 **`Vary: Origin`**；若可接受「单变体」共享缓存，可显式开启 **`skip_vary`**（见 [配置说明](configuration.md#backendcache-http-响应缓存)）。
 
 字段、绕过规则与默认值见 [配置参考 — `backend.cache`](configuration.md#backendcache-http-响应缓存)。可运行示例：[`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml)、Redis 存储：[`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml)。
 
