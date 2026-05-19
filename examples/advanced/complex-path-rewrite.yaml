@@ -20,7 +20,4 @@ rules:
             mode: external
             name: httpbin.org
             protocol: https
-            request:
-              path:
-                rewrites:
-                  - ^/httpbin.org/(.*):/$1
+            strip_prefix: true

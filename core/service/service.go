@@ -8,6 +8,10 @@ type Service struct {
 	// Mode is internal (default) or external (upstream Host defaults to service.name). Preferred
 	// over backend.mode when using backend.service; ignored when read from a non-service backend.
 	Mode string `config:"mode"`
+	// StripPrefix, when true on paths[].backend.service, removes the matched paths[].path prefix
+	// before forwarding (expanded to request.path.rewrites at load time). Not valid on rule-level
+	// or fallback backends.
+	StripPrefix bool `config:"strip_prefix"`
 	//
 	Request  Request  `config:"request"`
 	Response Response `config:"response"`

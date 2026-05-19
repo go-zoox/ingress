@@ -15,7 +15,7 @@ Several files **mix explicit `backend.type` and omission on purpose** (for examp
 | Directory | Topic |
 |-----------|--------|
 | `basic/` | Minimal host routing |
-| `path-routing/` | Path-based backends |
+| `path-routing/` | Path-based backends, **`strip_prefix: true`** |
 | `authentication/` | Basic and bearer auth |
 | `ssl-tls/` | HTTPS, certs, global redirect |
 | `advanced/` | Regex hosts, rewrites, health, **`service.mode`**, **`backend.cache`** (+ optional **`skip_vary`**), Redis |
