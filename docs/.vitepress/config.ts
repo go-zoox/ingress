@@ -56,6 +56,7 @@ export default defineConfig({
                 { text: 'Authentication', link: '/examples/authentication' },
                 { text: 'SSL/TLS', link: '/examples/ssl' },
                 { text: 'Redirects', link: '/examples/redirect' },
+                { text: 'Handler Backends', link: '/examples/handler' },
                 { text: 'WAF', link: '/examples/waf' },
                 { text: 'Advanced', link: '/examples/advanced' }
               ]
@@ -111,6 +112,7 @@ export default defineConfig({
                 { text: '认证', link: '/zh/examples/authentication' },
                 { text: 'SSL/TLS', link: '/zh/examples/ssl' },
                 { text: '重定向', link: '/zh/examples/redirect' },
+                { text: 'Handler 后端', link: '/zh/examples/handler' },
                 { text: 'WAF', link: '/zh/examples/waf' },
                 { text: '高级用法', link: '/zh/examples/advanced' }
               ]

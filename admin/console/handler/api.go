@@ -8,9 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-zoox/gormx"
 	"github.com/go-zoox/ingress/admin/console/config"
-	"github.com/go-zoox/ingress/admin/console/model"
 	"github.com/go-zoox/ingress/admin/console/service"
 	ingcore "github.com/go-zoox/ingress/core"
 	"github.com/go-zoox/zoox"
@@ -18,28 +16,31 @@ import (
 
 // API bundles admin HTTP handlers.
 type API struct {
-	cfg     *config.Config
-	ingress *service.Ingress
-	logs    *service.Logs
-	metrics *service.Metrics
-	audit   *service.Audit
-	tls     *service.TLS
-	cache   *service.Cache
+	cfg      *config.Config
+	ingress  *service.Ingress
+	logs     *service.Logs
+	metrics  *service.Metrics
+	audit    *service.Audit
+	tls      *service.TLS
+	cache    *service.Cache
 	settings *service.Settings
+	config   *service.Config
 }
 
 func NewAPI(cfg *config.Config) *API {
 	logs := service.NewLogs(cfg)
 	ingress := service.NewIngress(cfg)
+	audit := service.NewAudit()
 	return &API{
-		cfg:     cfg,
-		ingress: ingress,
-		logs:    logs,
-		metrics: service.NewMetrics(logs),
-		audit:   service.NewAudit(),
-		tls:     service.NewTLS(ingress),
-		cache:   service.NewCache(ingress, logs),
+		cfg:      cfg,
+		ingress:  ingress,
+		logs:     logs,
+		metrics:  service.NewMetrics(logs),
+		audit:    audit,
+		tls:      service.NewTLS(ingress),
+		cache:    service.NewCache(ingress, logs),
 		settings: service.NewSettings(cfg, ingress, logs),
+		config:   service.NewConfig(ingress, audit),
 	}
 }
 
@@ -54,6 +55,12 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/config", a.GetConfig)
 	g.Put("/config", a.PutConfig)
 	g.Post("/config/validate", a.ValidateConfig)
+	g.Post("/config/preview", a.PreviewConfig)
+	g.Post("/config/publish", a.PublishConfig)
+	g.Post("/config/modules", a.ConfigModules)
+	g.Post("/config/modules/merge", a.MergeConfigModule)
+	g.Get("/config/revisions", a.ConfigRevisions)
+	g.Get("/config/revisions/:id", a.ConfigRevision)
 	g.Post("/reload", a.Reload)
 	g.Get("/logs", a.Logs)
 	g.Get("/metrics/overview", a.OverviewMetrics)
@@ -192,28 +199,17 @@ func (a *API) GetConfig(ctx *zoox.Context) {
 func (a *API) PutConfig(ctx *zoox.Context) {
 	var body struct {
 		Content string `json:"content"`
+		Note    string `json:"note"`
 	}
 	if err := ctx.BindJSON(&body); err != nil {
 		fail(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := a.ingress.ValidateYAML(body.Content); err != nil {
+	hash, err := a.config.Save(body.Content, body.Note)
+	if err != nil {
 		fail(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := a.ingress.WriteYAML(body.Content); err != nil {
-		fail(ctx, http.StatusInternalServerError, err.Error())
-		return
-	}
-	sum := sha256.Sum256([]byte(body.Content))
-	hash := hex.EncodeToString(sum[:8])
-	_ = gormx.GetDB().Create(&model.ConfigRevision{
-		Hash:      hash,
-		Content:   body.Content,
-		Note:      "save",
-		CreatedAt: time.Now(),
-	}).Error
-	_ = a.audit.Record("config.save", hash, "admin")
 	ok(ctx, zoox.H{"hash": hash})
 }
 
@@ -239,6 +235,105 @@ func (a *API) ValidateConfig(ctx *zoox.Context) {
 		return
 	}
 	ok(ctx, zoox.H{"valid": true})
+}
+
+func (a *API) PreviewConfig(ctx *zoox.Context) {
+	var body struct {
+		Content string `json:"content"`
+	}
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	out, err := a.config.Preview(body.Content)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	ok(ctx, out)
+}
+
+func (a *API) PublishConfig(ctx *zoox.Context) {
+	var body struct {
+		Content string `json:"content"`
+		Note    string `json:"note"`
+	}
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	hash, err := a.config.Publish(body.Content, body.Note)
+	if err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	ok(ctx, zoox.H{"hash": hash, "ok": true})
+}
+
+func (a *API) ConfigModules(ctx *zoox.Context) {
+	var body struct {
+		Content string `json:"content"`
+	}
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	modules, err := a.config.Modules(body.Content)
+	if err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	ok(ctx, modules)
+}
+
+func (a *API) MergeConfigModule(ctx *zoox.Context) {
+	var body struct {
+		Content    string `json:"content"`
+		ModuleID   string `json:"module_id"`
+		ModuleYAML string `json:"module_yaml"`
+	}
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	out, err := a.config.ApplyModule(body.Content, body.ModuleID, body.ModuleYAML)
+	if err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	ok(ctx, zoox.H{"content": out})
+}
+
+func (a *API) ConfigRevisions(ctx *zoox.Context) {
+	limit := 50
+	if v := strings.TrimSpace(ctx.Query().Get("limit").String()); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	rows, err := a.config.ListRevisions(limit)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if rows == nil {
+		rows = []service.ConfigRevisionSummary{}
+	}
+	ok(ctx, rows)
+}
+
+func (a *API) ConfigRevision(ctx *zoox.Context) {
+	id, err := strconv.ParseUint(strings.TrimSpace(ctx.Param().Get("id").String()), 10, 64)
+	if err != nil || id == 0 {
+		fail(ctx, http.StatusBadRequest, "invalid revision id")
+		return
+	}
+	row, err := a.config.GetRevision(uint(id))
+	if err != nil {
+		fail(ctx, http.StatusNotFound, err.Error())
+		return
+	}
+	ok(ctx, row)
 }
 
 func (a *API) Reload(ctx *zoox.Context) {

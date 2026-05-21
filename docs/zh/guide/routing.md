@@ -286,6 +286,8 @@ rules:
 
 路径级 `backend` 也可以使用 **`backend.handler`** 直接响应。**`backend.type` 可选**：当 **仅配置了 `handler`** 时会推断为 **`handler`**。下方示例仅在第一条 path 上保留 **`type: handler`**，其余 path 省略 **`backend.type`**，便于对照。
 
+**可运行示例**（含 `file_server`、`templates`、`script`）见 **`examples/handler/`** — [Handler 示例](/zh/examples/handler)。
+
 通过 **`handler.type`** 选择：
 
 - `static_response`（默认）
