@@ -1,0 +1,4 @@
+bin/
+admin.db
+web/node_modules/
+web/dist/

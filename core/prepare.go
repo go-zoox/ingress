@@ -6,7 +6,6 @@ import (
 	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/kv"
 	"github.com/go-zoox/kv/redis"
-	"github.com/go-zoox/logger"
 )
 
 func (c *core) prepare() error {
@@ -18,6 +17,12 @@ func (c *core) prepare() error {
 		c.cfg.Cache.TTL = 60
 	}
 
+	if err := c.cfg.Logging.Normalize(); err != nil {
+		return fmt.Errorf("logging: %w", err)
+	}
+	if c.cfg.Logging.Configured() {
+		c.app.Config.Logger = c.cfg.Logging.Zoox()
+	}
 	c.app.Config.Logger.Middleware.Disabled = true
 
 	// prepare cache
@@ -64,6 +69,6 @@ func (c *core) prepareCache() {
 	}
 
 	if err := c.app.Cache().Clear(); err != nil {
-		logger.Errorf("[prepareCache] failed to clear cache: %s", err)
+		c.app.Logger().Errorf("[prepareCache] failed to clear cache: %s", err)
 	}
 }

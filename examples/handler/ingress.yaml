@@ -1,0 +1,96 @@
+# Runnable samples for all backend.handler types.
+#
+# Validate (from repo root):
+#   ingress validate -c examples/handler/ingress.yaml
+#
+# Run (cwd must be examples/handler so root_dir resolves):
+#   cd examples/handler && ingress run -c ingress.yaml
+#
+# Try:
+#   curl -H "Host: handler.example.work" http://127.0.0.1:8080/static/text
+#   curl -H "Host: handler.example.work" http://127.0.0.1:8080/static/files/
+#   curl -H "Host: handler.example.work" http://127.0.0.1:8080/static/templates/
+#   curl -H "Host: handler.example.work" http://127.0.0.1:8080/static/script/js
+#   curl -H "Host: handler.example.work" http://127.0.0.1:8080/static/script/go
+
+version: v1
+port: 8080
+
+rules:
+  # Host-level service; path backends override with handler.
+  - host: handler.example.work
+    backend:
+      service:
+        name: fallback-upstream.internal
+        port: 8080
+    paths:
+      - path: /static/text
+        backend:
+          type: handler
+          handler:
+            type: static_response
+            status_code: 200
+            headers:
+              Content-Type: text/plain; charset=utf-8
+            body: |
+              Hello from static_response handler.
+
+      - path: /static/json
+        backend:
+          handler:
+            type: static_response
+            headers:
+              Content-Type: application/json
+            body: |
+              {"handler":"static_response","ok":true}
+
+      - path: /static/files
+        backend:
+          handler:
+            type: file_server
+            root_dir: ./static
+            index_file: index.html
+
+      - path: /static/templates
+        backend:
+          handler:
+            type: templates
+            root_dir: ./templates
+
+      - path: /static/script/js
+        backend:
+          handler:
+            type: script
+            engine: javascript
+            status_code: 200
+            headers:
+              Content-Type: application/json
+            script: |
+              ctx.status = 200
+              ctx.type = "application/json"
+              ctx.body = JSON.stringify({
+                engine: "javascript",
+                method: ctx.method,
+                path: ctx.path,
+              })
+              ctx.setHeader("X-Handler-Engine", "javascript")
+
+      - path: /static/script/go
+        backend:
+          handler:
+            type: script
+            engine: go
+            script: |
+              ctx.SetHeader("Content-Type", "application/json")
+              ctx.SetHeader("X-Handler-Engine", "go")
+              ctx.String(200, `{"engine":"go","method":"`+ctx.Method+`","path":"`+ctx.Path+`"}`)
+
+  # Rule-level handler (no paths): health-style plain text.
+  - host: status.example.work
+    backend:
+      type: handler
+      handler:
+        type: static_response
+        headers:
+          Content-Type: text/plain; charset=utf-8
+        body: "ok\n"

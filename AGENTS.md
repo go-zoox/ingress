@@ -41,13 +41,17 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 - Redirect is decided before route matching in `core/build.go` (`shouldRedirectFromHTTP`), while route-level redirect (`rules[].backend.redirect`) still applies in normal route flow.
 - HTTPS detection checks both TLS and `X-Forwarded-Proto: https` to avoid redirect loops behind trusted proxies/LBs.
 
+## Logging (`logging` in ingress.yaml = zoox `Config.Logger`)
+
+- Ingress **`logging`** decodes as **`zcfg.Logger`** and is copied to **`app.Config.Logger`** in `prepare()` when `level` or `transports` is set. Zoox **`Logger()`** builds console + transports (`components/application/logger`).
+- Use **`logging.transports`** with `type: file`, `path`, `levels` (same as zoox). No separate ingress-only logging types.
+- Relative **`path`** / **`levels.*`** values resolve against the **ingress config file directory** (`core.ResolveConfigPaths` in `run` / `validate`), not the process cwd.
+
 ## Access logging
 
-- Access logs are emitted in `core/build.go` (handler branch and upstream proxy branch), and now share `buildAccessLogExtraFields`.
-- Keep existing leading fields stable (`host`, `target`, request line, status, duration) for backwards-compatible log parsing; append new fields at the end.
-- Added extra fields map roughly to common Nginx variables: `real_ip`, `referer`, `ua`, `xff`, `tls_protocol`, `tls_cipher`, `upstream_status`, `upstream_response_length`, `upstream_response_time`.
-- For missing values, use `-` (or `-1` for unknown upstream content length) to keep logs structurally predictable.
-- TLS names are sourced from Go stdlib (`tls.VersionName`, `tls.CipherSuiteName`), so expected protocol strings are like `TLS 1.3` (not `TLSv1.3`).
+- Access logs use `formatAccessLog` in `core/accesslog.go`, emitted from `core/build.go`.
+- Format: `{client_ip} {host} -> {target} "{method} {path} {proto}" {status} {duration_ms} cache_hit=… waf_block=… real_ip=… referer=… ua=… xff=… tls_* upstream_*`.
+- WAF blocks, redirects, handler, and upstream proxy share the same line shape.
 
 ## HTTP response cache (`backend.cache`)
 
@@ -81,6 +85,17 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 - Redirect and auth/header constants behavior: `core/build.go`, `core/constants.go`, `core/build_test.go`.
 - Protocol wiring and logging: `core/build.go`, `core/build_test.go` (`TestBuild_HTTP2HTTP3ZooxConfig`, `TestBuild_AccessLogExtraFields_WithTLS`, `TestBuild_AccessLogExtraFields_WithoutTLS`).
 
+## Admin console (`admin/`)
+
+- **CLI**: `ingress admin -c admin.yaml` (`cmd/ingress/admin.go`).
+- **Stack**: `admin/web` — React + TypeScript + Vite + pnpm; `admin/console` — go-zoox HTTP API, gormx + SQLite (`audit_log`, `waf_event`, `config_revision`).
+- **Ingress integration**: reads/writes `ingress.config_path` YAML; `POST /api/v1/reload` validates then SIGHUP via `pid_file`. Route list / dry-run match use `core.ListRouteRows` and `core.PreviewMatch` (`core/admininspect.go`).
+- **Dev**: `go run ./cmd/ingress admin -c examples/admin-console/admin.yaml` + `cd admin/web && pnpm dev` (proxy `/api`). **Build**: `cd admin && make build`. Demo config: `examples/admin-console/`.
+- **Logs API**: `GET /api/v1/logs` supports `offset` (byte tail), `cache_hit`, `waf_block` filters for live monitoring.
+- **Cache / TLS API**: `GET /api/v1/cache/overview`, `GET /api/v1/tls/certs` (x509 metadata from cert files).
+- **Static prototype** (no backend): `prototypes/admin-console/`.
+
 ## Verification
 
 - From repo root: `go test ./core/...` (or narrow with `-run`). If the environment cannot reach the module proxy, try `GOPROXY=off` when modules are already cached.
+- Admin: `go build ./cmd/ingress && cd admin/web && pnpm build`.

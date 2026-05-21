@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ingress 运维控制台 — 产品原型</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <div class="proto-banner">
+      <span
+        ><strong>产品原型</strong> · 单机部署 · 配置落回 YAML · 模拟数据，按钮可点通流程</span
+      >
+      <span class="tag">v0.1 prototype</span>
+    </div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          Ingress Console
+          <span>单机运维管理</span>
+        </div>
+        <nav class="nav" id="nav"></nav>
+        <div class="sidebar-footer">
+          配置路径<br />
+          <code id="sidebar-config-path">—</code>
+        </div>
+      </aside>
+
+      <main class="main">
+        <!-- 总览 -->
+        <section class="page active" id="page-overview" data-page="overview">
+          <header class="page-header">
+            <h1>总览</h1>
+            <p>本机 ingress 实例运行状态与近期运维事件</p>
+          </header>
+          <div class="cards" id="overview-cards"></div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>最近事件</h2>
+              <button type="button" class="btn btn-ghost" data-goto="logs">查看全部日志</button>
+            </div>
+            <div class="panel-body" id="overview-events"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>快捷操作</h2>
+            </div>
+            <div class="panel-body toolbar">
+              <button type="button" class="btn" data-goto="routes">路由试匹配</button>
+              <button type="button" class="btn" data-goto="config">编辑配置</button>
+              <button type="button" class="btn btn-primary" id="btn-quick-reload">
+                校验并发布
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 路由 -->
+        <section class="page" id="page-routes" data-page="routes">
+          <header class="page-header">
+            <h1>路由</h1>
+            <p>编译后的 host/path 规则表（含 host_type 推断结果）</p>
+          </header>
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>规则列表</h2>
+                <input type="search" id="route-filter" placeholder="过滤 host / target…" />
+              </div>
+              <div class="panel-body" style="padding: 0; overflow: auto">
+                <table class="data" id="routes-table">
+                  <thead>
+                    <tr>
+                      <th>Host</th>
+                      <th>类型</th>
+                      <th>Path</th>
+                      <th>Backend</th>
+                      <th>目标</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h2>试匹配</h2></div>
+              <div class="panel-body">
+                <p style="margin: 0 0 12px; font-size: 13px; color: var(--text-muted)">
+                  输入请求 Host 与 Path，预览将命中的规则（原型为本地模拟逻辑）。
+                </p>
+                <label style="display: block; margin-bottom: 8px; font-size: 12px; color: var(--text-muted)"
+                  >Host</label
+                >
+                <input type="text" id="match-host" value="api.example.com" style="width: 100%; margin-bottom: 12px" />
+                <label style="display: block; margin-bottom: 8px; font-size: 12px; color: var(--text-muted)"
+                  >Path</label
+                >
+                <input type="text" id="match-path" value="/v2/users" style="width: 100%; margin-bottom: 14px" />
+                <button type="button" class="btn btn-primary" id="btn-match" style="width: 100%">
+                  试匹配
+                </button>
+                <div id="match-result"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- WAF -->
+        <section class="page" id="page-waf" data-page="waf">
+          <header class="page-header">
+            <h1>WAF</h1>
+            <p>全局基线与近期 block / audit 事件</p>
+          </header>
+          <div class="cards" id="waf-cards"></div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>近期事件</h2>
+              <select id="waf-filter">
+                <option value="all">全部</option>
+                <option value="block">仅 block</option>
+                <option value="audit">仅 audit</option>
+              </select>
+            </div>
+            <div class="panel-body" style="padding: 0">
+              <table class="data" id="waf-table">
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>动作</th>
+                    <th>规则</th>
+                    <th>Host</th>
+                    <th>Path</th>
+                    <th>客户端</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TLS -->
+        <section class="page" id="page-tls" data-page="tls">
+          <header class="page-header">
+            <h1>TLS / 证书</h1>
+            <p>HTTPS 监听与证书有效期</p>
+          </header>
+          <div class="panel">
+            <div class="panel-head"><h2>证书</h2></div>
+            <div class="panel-body" style="padding: 0">
+              <table class="data" id="certs-table">
+                <thead>
+                  <tr>
+                    <th>域名</th>
+                    <th>签发者</th>
+                    <th>到期日</th>
+                    <th>剩余天数</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 配置 -->
+        <section class="page" id="page-config" data-page="config">
+          <header class="page-header">
+            <h1>配置</h1>
+            <p>编辑 YAML → 校验 → 保存到磁盘 → 发布（SIGHUP reload）</p>
+          </header>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>ingress.yaml</h2>
+              <div class="toolbar">
+                <button type="button" class="btn" id="btn-validate">校验</button>
+                <button type="button" class="btn" id="btn-diff">查看变更</button>
+                <button type="button" class="btn" id="btn-save">保存到 YAML</button>
+                <button type="button" class="btn btn-primary" id="btn-publish">发布</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <textarea class="code" id="yaml-editor" spellcheck="false"></textarea>
+              <div id="validate-output" style="margin-top: 12px"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 日志 -->
+        <section class="page" id="page-logs" data-page="logs">
+          <header class="page-header">
+            <h1>访问日志</h1>
+            <p>简易查询：按 host、状态码、关键字过滤（原型为内存模拟）</p>
+          </header>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>查询</h2>
+            </div>
+            <div class="panel-body toolbar">
+              <input type="search" id="log-q" placeholder="关键字…" style="min-width: 160px" />
+              <input type="text" id="log-host" placeholder="Host" style="width: 160px" />
+              <select id="log-status">
+                <option value="">全部状态</option>
+                <option value="2">2xx</option>
+                <option value="3">3xx</option>
+                <option value="4">4xx</option>
+                <option value="5">5xx</option>
+              </select>
+              <button type="button" class="btn btn-primary" id="btn-log-search">查询</button>
+              <button type="button" class="btn btn-ghost" id="btn-log-clear">清空</button>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>结果</h2>
+              <span id="log-count" style="font-size: 12px; color: var(--text-muted)">—</span>
+            </div>
+            <div class="panel-body" style="padding: 0">
+              <div class="log-lines" id="log-results"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 发布确认 -->
+    <div class="modal-overlay" id="modal-publish">
+      <div class="modal" role="dialog" aria-labelledby="publish-title">
+        <header><h2 id="publish-title">发布配置</h2></header>
+        <div class="content">
+          <p style="margin-top: 0; color: var(--text-muted); font-size: 13px">
+            将执行：<strong>validate</strong> → 写入 <code id="publish-path"></code> →
+            <strong>SIGHUP reload</strong>
+          </p>
+          <ul class="publish-steps" id="publish-steps">
+            <li data-step="validate"><span class="step-icon">1</span> 校验配置</li>
+            <li data-step="write"><span class="step-icon">2</span> 保存 YAML</li>
+            <li data-step="reload"><span class="step-icon">3</span> 热加载</li>
+          </ul>
+          <p id="publish-status" style="font-size: 13px; margin: 0"></p>
+        </div>
+        <footer>
+          <button type="button" class="btn" data-close-modal>取消</button>
+          <button type="button" class="btn btn-primary" id="btn-publish-confirm">开始发布</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Diff -->
+    <div class="modal-overlay" id="modal-diff">
+      <div class="modal" role="dialog">
+        <header><h2>配置变更（草稿 vs 已发布）</h2></header>
+        <div class="content">
+          <pre class="diff" id="diff-content"></pre>
+        </div>
+        <footer>
+          <button type="button" class="btn" data-close-modal>关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast-container" id="toasts"></div>
+
+    <script src="js/mock-data.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>

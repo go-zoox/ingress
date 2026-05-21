@@ -62,6 +62,12 @@ func validateConfigFile(configFilePath string) error {
 	}); err != nil {
 		return fmt.Errorf("invalid config format in file(%s): %s", configFilePath, err)
 	}
+	if err := core.ResolveConfigPaths(&cfg, configFilePath); err != nil {
+		return fmt.Errorf("resolve config paths in file(%s): %w", configFilePath, err)
+	}
+	if err := cfg.Logging.Normalize(); err != nil {
+		return fmt.Errorf("logging in file(%s): %w", configFilePath, err)
+	}
 	if err := waf.ApplyRulePatchesFromFile(configFilePath, cfg.Rules); err != nil {
 		return fmt.Errorf("rules[].waf in file(%s): %w", configFilePath, err)
 	}
