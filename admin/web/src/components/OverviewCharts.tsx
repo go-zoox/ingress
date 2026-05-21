@@ -143,7 +143,7 @@ export function OverviewCharts({ metrics, loading }: Props) {
               <p className="empty-hint">无数据</p>
             ) : (
               metrics.top_hosts.map((h) => (
-                <div key={h.name} className="bar-row">
+                <div key={h.name} className="bar-row host-rank">
                   <span className="bar-label host-label" title={h.name}>
                     {h.name}
                   </span>

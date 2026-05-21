@@ -14,6 +14,8 @@ type Config struct {
 	Database Database `config:"database"`
 	//
 	Web Web `config:"web"`
+	// AdminConfigFile is the -c path (absolute); not loaded from YAML.
+	AdminConfigFile string `config:"-"`
 }
 
 type Ingress struct {

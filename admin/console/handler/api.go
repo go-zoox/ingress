@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -24,16 +23,23 @@ type API struct {
 	logs    *service.Logs
 	metrics *service.Metrics
 	audit   *service.Audit
+	tls     *service.TLS
+	cache   *service.Cache
+	settings *service.Settings
 }
 
 func NewAPI(cfg *config.Config) *API {
 	logs := service.NewLogs(cfg)
+	ingress := service.NewIngress(cfg)
 	return &API{
 		cfg:     cfg,
-		ingress: service.NewIngress(cfg),
+		ingress: ingress,
 		logs:    logs,
 		metrics: service.NewMetrics(logs),
 		audit:   service.NewAudit(),
+		tls:     service.NewTLS(ingress),
+		cache:   service.NewCache(ingress, logs),
+		settings: service.NewSettings(cfg, ingress, logs),
 	}
 }
 
@@ -43,12 +49,14 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/routes/match", a.Match)
 	g.Get("/waf/events", a.WAFEvents)
 	g.Get("/tls/certs", a.TLSCerts)
+	g.Get("/cache/overview", a.CacheOverview)
 	g.Get("/config", a.GetConfig)
 	g.Put("/config", a.PutConfig)
 	g.Post("/config/validate", a.ValidateConfig)
 	g.Post("/reload", a.Reload)
 	g.Get("/logs", a.Logs)
 	g.Get("/metrics/overview", a.OverviewMetrics)
+	g.Get("/settings", a.Settings)
 }
 
 func (a *API) Status(ctx *zoox.Context) {
@@ -131,39 +139,24 @@ func (a *API) WAFEvents(ctx *zoox.Context) {
 }
 
 func (a *API) TLSCerts(ctx *zoox.Context) {
-	icfg, err := a.ingress.LoadConfig()
+	rows, err := a.tls.List()
 	if err != nil {
 		fail(ctx, http.StatusInternalServerError, err.Error())
 		return
 	}
-	type certRow struct {
-		Domain   string `json:"domain"`
-		Cert     string `json:"certificate"`
-		Key      string `json:"certificate_key"`
-		Status   string `json:"status"`
-	}
-	rows := make([]certRow, 0)
-	for _, ssl := range icfg.HTTPS.SSL {
-		st := "ok"
-		if !fileExists(ssl.Cert.Certificate) {
-			st = "missing"
-		}
-		rows = append(rows, certRow{
-			Domain: ssl.Domain,
-			Cert:   ssl.Cert.Certificate,
-			Key:    ssl.Cert.CertificateKey,
-			Status: st,
-		})
+	if rows == nil {
+		rows = []service.TLSCertRow{}
 	}
 	ok(ctx, rows)
 }
 
-func fileExists(p string) bool {
-	if p == "" {
-		return false
+func (a *API) CacheOverview(ctx *zoox.Context) {
+	out, err := a.cache.Overview()
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
 	}
-	_, err := os.Stat(p)
-	return err == nil
+	ok(ctx, out)
 }
 
 func (a *API) GetConfig(ctx *zoox.Context) {
@@ -243,26 +236,39 @@ func (a *API) Logs(ctx *zoox.Context) {
 			limit = n
 		}
 	}
+	var offset int64
+	if v := strings.TrimSpace(ctx.Query().Get("offset").String()); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n >= 0 {
+			offset = n
+		}
+	}
 	kind := service.LogAccess
 	if strings.TrimSpace(ctx.Query().Get("log").String()) == "error" {
 		kind = service.LogError
 	}
 	q := service.LogQuery{
-		Kind:   kind,
-		Q:      strings.TrimSpace(ctx.Query().Get("q").String()),
-		Host:   strings.TrimSpace(ctx.Query().Get("host").String()),
-		Status: strings.TrimSpace(ctx.Query().Get("status").String()),
-		Limit:  limit,
+		Kind:     kind,
+		Q:        strings.TrimSpace(ctx.Query().Get("q").String()),
+		Host:     strings.TrimSpace(ctx.Query().Get("host").String()),
+		Status:   strings.TrimSpace(ctx.Query().Get("status").String()),
+		CacheHit: strings.TrimSpace(ctx.Query().Get("cache_hit").String()),
+		WAFBlock: strings.TrimSpace(ctx.Query().Get("waf_block").String()),
+		Limit:    limit,
+		Offset:   offset,
 	}
-	lines, err := a.logs.Search(q)
+	result, err := a.logs.Search(q)
 	if err != nil {
 		fail(ctx, http.StatusInternalServerError, err.Error())
 		return
 	}
-	ok(ctx, zoox.H{"lines": lines, "count": len(lines)})
+	ok(ctx, result)
 }
 
 func (a *API) OverviewMetrics(ctx *zoox.Context) {
 	window := strings.TrimSpace(ctx.Query().Get("window").String())
 	ok(ctx, a.metrics.Overview(window))
+}
+
+func (a *API) Settings(ctx *zoox.Context) {
+	ok(ctx, a.settings.Get(a.configHash()))
 }

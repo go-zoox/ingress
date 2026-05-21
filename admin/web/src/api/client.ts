@@ -27,6 +27,8 @@ export const api = {
     }),
   wafEvents: () => request<WAFEvent[]>('/waf/events'),
   tlsCerts: () => request<TLSCert[]>('/tls/certs'),
+  cacheOverview: () => request<CacheOverview>('/cache/overview'),
+  settings: () => request<SettingsView>('/settings'),
   getConfig: () => request<{ path: string; content: string }>('/config'),
   putConfig: (content: string) =>
     request<{ hash: string }>('/config', {
@@ -41,14 +43,27 @@ export const api = {
   reload: () => request<{ ok: boolean }>('/reload', { method: 'POST' }),
   overviewMetrics: (window = '15m') =>
     request<OverviewMetrics>(`/metrics/overview?window=${encodeURIComponent(window)}`),
-  logs: (params: { log?: 'access' | 'error'; q?: string; host?: string; status?: string }) => {
+  logs: (params: {
+    log?: 'access' | 'error'
+    q?: string
+    host?: string
+    status?: string
+    cache_hit?: string
+    waf_block?: string
+    offset?: number
+    limit?: number
+  }) => {
     const q = new URLSearchParams()
     if (params.log) q.set('log', params.log)
     if (params.q) q.set('q', params.q)
     if (params.host) q.set('host', params.host)
     if (params.status) q.set('status', params.status)
+    if (params.cache_hit) q.set('cache_hit', params.cache_hit)
+    if (params.waf_block) q.set('waf_block', params.waf_block)
+    if (params.offset != null && params.offset > 0) q.set('offset', String(params.offset))
+    if (params.limit) q.set('limit', String(params.limit))
     const qs = q.toString()
-    return request<{ lines: string[]; count: number }>(`/logs${qs ? `?${qs}` : ''}`)
+    return request<LogResult>(`/logs${qs ? `?${qs}` : ''}`)
   },
 }
 
@@ -90,7 +105,75 @@ export type TLSCert = {
   domain: string
   certificate: string
   certificate_key: string
+  issuer: string
+  expires_at: string
+  days_remaining: number
   status: string
+}
+
+export type LogResult = {
+  lines: string[]
+  count: number
+  offset: number
+}
+
+export type SettingsView = {
+  admin: {
+    config_file: string
+    port: number
+    dev_proxy: boolean
+    ui_embedded: boolean
+  }
+  ingress: {
+    config_path: string
+    pid_file: string
+    log_path: string
+    error_log_path: string
+    reload_ready: boolean
+    config_hash: string
+  }
+  database: {
+    driver: string
+    dsn: string
+    waf_events: number
+    audit_logs: number
+    config_revisions: number
+  }
+  logs: {
+    access_configured: boolean
+    access_exists: boolean
+    error_configured: boolean
+    error_exists: boolean
+  }
+}
+
+export type CacheOverview = {
+  global: {
+    enabled: boolean
+    engine: string
+    ttl: number
+    host: string
+    port: number
+    prefix: string
+  }
+  routes: Array<{
+    id: number
+    rule_index: number
+    host: string
+    path: string
+    backend_type: string
+    target: string
+    ttl: number
+    max_body_kb: number
+    key_hash: string
+  }>
+  stats: {
+    total_requests: number
+    cache_hits: number
+    hit_rate: number
+    top_hosts: Array<{ host: string; hits: number; total: number; hit_rate: number }>
+    top_paths: Array<{ path: string; hits: number; total: number; hit_rate: number }>
+  }
 }
 
 export type OverviewMetrics = {

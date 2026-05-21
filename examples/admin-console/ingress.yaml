@@ -5,6 +5,13 @@
 version: v1
 port: 8080
 
+# Shared cache engine (matcher + http response cache keys)
+cache:
+  ttl: 300
+  host: 127.0.0.1
+  port: 6379
+  prefix: "ingress:"
+
 # zoox Config.Logger (YAML key `logging`): console + file transports
 logging:
   level: warn
@@ -29,16 +36,43 @@ healthcheck:
     interval: 30
     timeout: 5
 
-# Optional HTTPS block (requires real cert files on disk):
-# https:
-#   port: 8443
-#   redirect_from_http:
-#     permanent: true
-#   ssl:
-#     - domain: api.example.com
-#       cert:
-#         certificate: /etc/ingress/certs/api.pem
-#         certificate_key: /etc/ingress/certs/api-key.pem
+https:
+  port: 8443
+  redirect_from_http:
+    permanent: true
+  ssl:
+    - domain: api.example.com
+      cert:
+        certificate: ./certs/api.example.com.pem
+        certificate_key: ./certs/api.example.com.key.pem
+    - domain: cdn.example.com
+      cert:
+        certificate: ./certs/cdn.example.com.pem
+        certificate_key: ./certs/cdn.example.com.key.pem
+    - domain: assets.cdn.example.com
+      cert:
+        certificate: ./certs/assets.cdn.example.com.pem
+        certificate_key: ./certs/assets.cdn.example.com.key.pem
+    - domain: admin.internal
+      cert:
+        certificate: ./certs/admin.internal.pem
+        certificate_key: ./certs/admin.internal.key.pem
+    - domain: legacy.example.com
+      cert:
+        certificate: ./certs/legacy.example.com.pem
+        certificate_key: ./certs/legacy.example.com.key.pem
+    - domain: tunnel-a.inlets.example.com
+      cert:
+        certificate: ./certs/tunnel-a.inlets.example.com.pem
+        certificate_key: ./certs/tunnel-a.inlets.example.com.key.pem
+    - domain: waf-demo.example.com
+      cert:
+        certificate: ./certs/waf-demo.example.com.pem
+        certificate_key: ./certs/waf-demo.example.com.key.pem
+    - domain: portal.example.com
+      cert:
+        certificate: ./certs/portal.example.com.pem
+        certificate_key: ./certs/portal.example.com.key.pem
 
 rules:
   - host: api.example.com
@@ -54,6 +88,15 @@ rules:
             port: 8080
           cache:
             enabled: true
+            ttl: 600
+      - path: /public
+        backend:
+          service:
+            name: api.internal
+            port: 8080
+          cache:
+            enabled: true
+            ttl: 300
 
   - host: "*.cdn.example.com"
     host_type: wildcard
@@ -63,6 +106,7 @@ rules:
         port: 9000
       cache:
         enabled: true
+        ttl: 3600
 
   - host: ^([a-z0-9-]+)\.inlets\.example\.com$
     host_type: regex
@@ -79,6 +123,9 @@ rules:
         headers:
           Content-Type: text/plain; charset=utf-8
         body: "admin console demo host\n"
+      cache:
+        enabled: true
+        ttl: 60
     paths:
       - path: /healthz
         backend:
@@ -94,3 +141,6 @@ rules:
       redirect:
         url: https://www.example.com$request_uri
         permanent: true
+      cache:
+        enabled: true
+        ttl: 120

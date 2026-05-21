@@ -202,6 +202,108 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 	}, nil
 }
 
+// CacheGlobalView describes top-level cache engine settings.
+type CacheGlobalView struct {
+	Enabled bool   `json:"enabled"`
+	Engine  string `json:"engine"`
+	TTL     int64  `json:"ttl"`
+	Host    string `json:"host"`
+	Port    int64  `json:"port"`
+	Prefix  string `json:"prefix"`
+}
+
+// CacheRouteRow is a route/path with HTTP response cache enabled.
+type CacheRouteRow struct {
+	ID          int    `json:"id"`
+	RuleIndex   int    `json:"rule_index"`
+	Host        string `json:"host"`
+	Path        string `json:"path"`
+	BackendType string `json:"backend_type"`
+	Target      string `json:"target"`
+	TTL         int64  `json:"ttl"`
+	MaxBodyKB   int64  `json:"max_body_kb"`
+	KeyHash     string `json:"key_hash"`
+}
+
+// CacheGlobalViewFromConfig builds the global cache panel from ingress config.
+func CacheGlobalViewFromConfig(cfg *Config) CacheGlobalView {
+	if cfg == nil {
+		return CacheGlobalView{Engine: "memory"}
+	}
+	engine := "memory"
+	enabled := cfg.Cache.Host != ""
+	if enabled {
+		engine = "redis"
+	}
+	ttl := cfg.Cache.TTL
+	if ttl == 0 {
+		ttl = 60
+	}
+	prefix := cfg.Cache.Prefix
+	if prefix == "" && enabled {
+		prefix = "gozoox-ingress:"
+	}
+	return CacheGlobalView{
+		Enabled: enabled || cfg.Cache.Prefix != "",
+		Engine:  engine,
+		TTL:     ttl,
+		Host:    cfg.Cache.Host,
+		Port:    cfg.Cache.Port,
+		Prefix:  prefix,
+	}
+}
+
+// ListCacheRouteRows returns backends with backend.cache.enabled.
+func ListCacheRouteRows(cfg *Config) ([]CacheRouteRow, error) {
+	if err := inferBackendTypes(cfg); err != nil {
+		return nil, err
+	}
+	var rows []CacheRouteRow
+	id := 1
+	for i := range cfg.Rules {
+		r := &cfg.Rules[i]
+		if r.Backend.Cache.Enabled {
+			rows = append(rows, cacheRowFromBackend(id, i, "/", r.Host, r.Backend))
+			id++
+		}
+		for j := range r.Paths {
+			p := &r.Paths[j]
+			if p.Backend.Cache.Enabled {
+				rows = append(rows, cacheRowFromBackend(id, i, p.Path, r.Host, p.Backend))
+				id++
+			}
+		}
+	}
+	return rows, nil
+}
+
+func cacheRowFromBackend(id, ruleIndex int, path, host string, b rule.Backend) CacheRouteRow {
+	c := b.Cache
+	ttl := c.TTL
+	if ttl == 0 {
+		ttl = 300
+	}
+	maxKB := c.MaxBodyBytes / 1024
+	if maxKB == 0 {
+		maxKB = 2048
+	}
+	kh := c.KeyHash
+	if kh == "" {
+		kh = "md5"
+	}
+	return CacheRouteRow{
+		ID:          id,
+		RuleIndex:   ruleIndex,
+		Host:        host,
+		Path:        path,
+		BackendType: getBackendType(b),
+		Target:      backendTargetSummary(b),
+		TTL:         ttl,
+		MaxBodyKB:   maxKB,
+		KeyHash:     kh,
+	}
+}
+
 func serviceTarget(s *service.Service) string {
 	if s == nil {
 		return ""
