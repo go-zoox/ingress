@@ -2,7 +2,6 @@ package core
 
 import (
 	"github.com/go-zoox/ingress/core/rule"
-	zcfg "github.com/go-zoox/zoox/config"
 )
 
 type Config struct {
@@ -28,7 +27,7 @@ type Config struct {
 	ErrorPageExposeDetails bool `config:"error_page_expose_details"`
 	//
 	// Logger is zoox logger config (YAML key `logging` for historical reasons).
-	Logger zcfg.Logger `config:"logging"`
+	Logging Logging `config:"logging"`
 	//
 	// Match func(host string, path string) (cfg *service.Service, err error)
 }

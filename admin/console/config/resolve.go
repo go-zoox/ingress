@@ -24,6 +24,9 @@ func ResolvePaths(cfg *Config, adminConfigFile string) error {
 		cfg.Ingress.ErrorLogPath = resolveFilePath(base, cfg.Ingress.ErrorLogPath)
 	}
 	cfg.Database.DSN = resolveSQLiteDSN(base, cfg.Database.DSN)
+	if err := resolveIngressLogPaths(cfg); err != nil {
+		return err
+	}
 	return nil
 }
 

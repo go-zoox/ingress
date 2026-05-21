@@ -280,14 +280,24 @@ The `logging` block is [zoox](https://github.com/go-zoox/zoox) `Config.Logger` (
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `logging.enable` | bool | When **true**, enable console + file logging. If `transports` is omitted, defaults to `/var/log/ingress/access.log` and `/var/log/ingress/error.log` (directory created automatically). When **false**, console only. |
 | `logging.level` | string | Minimum log level (`debug`, `info`, `warn`, `error`). |
-| `logging.transports` | array | Extra sinks, e.g. `type: file` with `path` and optional `levels`. |
+| `logging.transports` | array | Extra sinks, e.g. `type: file` with `path` and optional `levels`. Overrides default paths when set. |
 | `logging.middleware.disabled` | bool | Ingress sets this to `true` (zoox HTTP request logger middleware). |
 
 Example:
 
 ```yaml
 logging:
+  enable: true
+  level: warn
+```
+
+Custom paths:
+
+```yaml
+logging:
+  enable: true
   level: warn
   transports:
     - type: file
