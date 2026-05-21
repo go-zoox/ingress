@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
-import { api, type TLSCert } from '../api/client'
+import { TLSCheckModal } from '../components/TLSCheckModal'
+import { ToastContainer, useToast } from '../components/Toast'
+import { api, type TLSCert, type TLSCertCheck } from '../api/client'
 
 function statusBadge(status: string) {
   if (status === 'ok') return <span className="badge badge-exact">正常</span>
@@ -32,10 +34,106 @@ function displayCertPath(path: string) {
   return { display: full, full }
 }
 
+async function copyText(text: string) {
+  if (!text) throw new Error('路径为空')
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  document.execCommand('copy')
+  document.body.removeChild(ta)
+}
+
+function CertRowActions({
+  cert,
+  checking,
+  onCheck,
+  onCopyPath,
+}: {
+  cert: TLSCert
+  checking: boolean
+  onCheck: () => void
+  onCopyPath: (path: string, label: string) => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
+
+  return (
+    <div className="row-actions">
+      <button
+        type="button"
+        className="action-link"
+        disabled={checking}
+        onClick={onCheck}
+      >
+        {checking ? '检测中…' : '检测'}
+      </button>
+      <div className="action-menu" ref={menuRef}>
+        <button
+          type="button"
+          className="action-link action-advanced"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          高级
+        </button>
+        {menuOpen && (
+          <div className="action-menu-panel" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              className="action-menu-item"
+              onClick={() => {
+                setMenuOpen(false)
+                onCopyPath(cert.certificate, '证书路径')
+              }}
+            >
+              复制证书路径
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="action-menu-item"
+              onClick={() => {
+                setMenuOpen(false)
+                onCopyPath(cert.certificate_key, '私钥路径')
+              }}
+            >
+              复制私钥路径
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function TLSPage() {
   const [certs, setCerts] = useState<TLSCert[]>([])
   const [status, setStatus] = useState<Record<string, unknown> | null>(null)
   const [err, setErr] = useState('')
+  const [checkingDomain, setCheckingDomain] = useState('')
+  const [checkOpen, setCheckOpen] = useState(false)
+  const [checkLoading, setCheckLoading] = useState(false)
+  const [checkResult, setCheckResult] = useState<TLSCertCheck | null>(null)
+  const { toast, show, clear } = useToast()
 
   useEffect(() => {
     api.status().then(setStatus).catch(() => setStatus(null))
@@ -46,6 +144,45 @@ export function TLSPage() {
   }, [])
 
   const warnCount = certs.filter((c) => c.status === 'warn' || c.status === 'expired').length
+
+  const runCheck = async (cert: TLSCert) => {
+    setCheckingDomain(cert.domain)
+    setCheckOpen(true)
+    setCheckLoading(true)
+    setCheckResult(null)
+    try {
+      const result = await api.tlsCheck(cert.domain)
+      setCheckResult(result)
+      setCerts((prev) =>
+        prev.map((c) =>
+          c.domain === cert.domain
+            ? {
+                ...c,
+                issuer: result.issuer,
+                expires_at: result.expires_at,
+                days_remaining: result.days_remaining,
+                status: result.status,
+              }
+            : c,
+        ),
+      )
+    } catch (e) {
+      show(e instanceof Error ? e.message : '检测失败', 'error')
+      setCheckOpen(false)
+    } finally {
+      setCheckLoading(false)
+      setCheckingDomain('')
+    }
+  }
+
+  const copyPath = async (path: string, label: string) => {
+    try {
+      await copyText(path)
+      show(`${label}已复制`)
+    } catch (e) {
+      show(e instanceof Error ? e.message : '复制失败', 'error')
+    }
+  }
 
   return (
     <div className="page">
@@ -81,6 +218,7 @@ export function TLSPage() {
               <col className="col-days" />
               <col className="col-status" />
               <col className="col-path" />
+              <col className="col-actions" />
             </colgroup>
             <thead>
               <tr>
@@ -90,12 +228,13 @@ export function TLSPage() {
                 <th>剩余天数</th>
                 <th>状态</th>
                 <th>证书路径</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
               {certs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="empty-hint">
+                  <td colSpan={7} className="empty-hint">
                     未配置 HTTPS 或 https.ssl 为空
                   </td>
                 </tr>
@@ -116,6 +255,14 @@ export function TLSPage() {
                           {certPath.display}
                         </code>
                       </td>
+                      <td className="tls-actions">
+                        <CertRowActions
+                          cert={c}
+                          checking={checkingDomain === c.domain}
+                          onCheck={() => runCheck(c)}
+                          onCopyPath={copyPath}
+                        />
+                      </td>
                     </tr>
                   )
                 })
@@ -124,6 +271,13 @@ export function TLSPage() {
           </table>
         </div>
       </div>
+      <TLSCheckModal
+        open={checkOpen}
+        result={checkResult}
+        loading={checkLoading}
+        onClose={() => setCheckOpen(false)}
+      />
+      {toast && <ToastContainer message={toast.message} type={toast.type} onDone={clear} />}
     </div>
   )
 }
