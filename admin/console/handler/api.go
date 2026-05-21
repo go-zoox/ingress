@@ -49,6 +49,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/routes/match", a.Match)
 	g.Get("/waf/events", a.WAFEvents)
 	g.Get("/tls/certs", a.TLSCerts)
+	g.Post("/tls/certs/check", a.TLSCertCheck)
 	g.Get("/cache/overview", a.CacheOverview)
 	g.Get("/config", a.GetConfig)
 	g.Put("/config", a.PutConfig)
@@ -148,6 +149,26 @@ func (a *API) TLSCerts(ctx *zoox.Context) {
 		rows = []service.TLSCertRow{}
 	}
 	ok(ctx, rows)
+}
+
+func (a *API) TLSCertCheck(ctx *zoox.Context) {
+	var body struct {
+		Domain string `json:"domain"`
+	}
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	out, err := a.tls.Inspect(body.Domain)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			fail(ctx, http.StatusNotFound, err.Error())
+			return
+		}
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	ok(ctx, out)
 }
 
 func (a *API) CacheOverview(ctx *zoox.Context) {

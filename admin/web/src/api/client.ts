@@ -27,6 +27,11 @@ export const api = {
     }),
   wafEvents: () => request<WAFEvent[]>('/waf/events'),
   tlsCerts: () => request<TLSCert[]>('/tls/certs'),
+  tlsCheck: (domain: string) =>
+    request<TLSCertCheck>('/tls/certs/check', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    }),
   cacheOverview: () => request<CacheOverview>('/cache/overview'),
   settings: () => request<SettingsView>('/settings'),
   getConfig: () => request<{ path: string; content: string }>('/config'),
@@ -109,6 +114,25 @@ export type TLSCert = {
   expires_at: string
   days_remaining: number
   status: string
+}
+
+export type TLSCertCheck = {
+  domain: string
+  certificate: string
+  certificate_key: string
+  ok: boolean
+  status: string
+  issuer: string
+  subject: string
+  expires_at: string
+  days_remaining: number
+  dns_names: string[]
+  checks: Array<{
+    id: string
+    label: string
+    level: 'ok' | 'warn' | 'fail'
+    message: string
+  }>
 }
 
 export type LogResult = {
