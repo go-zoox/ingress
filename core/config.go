@@ -26,6 +26,9 @@ type Config struct {
 	// staging or trusted networks to avoid leaking internal details to clients.
 	ErrorPageExposeDetails bool `config:"error_page_expose_details"`
 	//
+	// Logger is zoox logger config (YAML key `logging` for historical reasons).
+	Logging Logging `config:"logging"`
+	//
 	// Match func(host string, path string) (cfg *service.Service, err error)
 }
 

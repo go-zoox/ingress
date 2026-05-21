@@ -62,6 +62,9 @@ func Run() *cli.Command {
 				}); err != nil {
 					return fmt.Errorf("failed to read config file: %s", err)
 				}
+				if err := core.ResolveConfigPaths(&cfg, configFilePath); err != nil {
+					return fmt.Errorf("failed to resolve config paths: %w", err)
+				}
 				if err := waf.ApplyRulePatchesFromFile(configFilePath, cfg.Rules); err != nil {
 					return fmt.Errorf("failed to apply rules[].waf patches: %w", err)
 				}
@@ -99,6 +102,10 @@ func Run() *cli.Command {
 							FilePath: configFilePath,
 						}); err != nil {
 							logger.Errorf("failed to read config file: %s", err)
+							return
+						}
+						if err := core.ResolveConfigPaths(&cfg, configFilePath); err != nil {
+							logger.Errorf("failed to resolve config paths: %s", err)
 							return
 						}
 						if err := waf.ApplyRulePatchesFromFile(configFilePath, cfg.Rules); err != nil {

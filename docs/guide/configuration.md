@@ -274,25 +274,65 @@ Examples: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-z
 
 See `core/rule/backend_cache.go`, `core/http_cache.go`, and `core/build.go`.
 
+## Logging (`logging`)
+
+The `logging` block is [zoox](https://github.com/go-zoox/zoox) `Config.Logger` (same fields; ingress copies it to `app.Config.Logger` at prepare). Zoox always includes **console**; each `transports` entry is stacked on top. File routing uses [go-zoox/logger/transport/file](https://github.com/go-zoox/logger).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `logging.enable` | bool | When **true**, enable console + file logging. If `transports` is omitted, defaults to `/var/log/ingress/access.log` and `/var/log/ingress/error.log` (directory created automatically). When **false**, console only. |
+| `logging.level` | string | Minimum log level (`debug`, `info`, `warn`, `error`). |
+| `logging.transports` | array | Extra sinks, e.g. `type: file` with `path` and optional `levels`. Overrides default paths when set. |
+| `logging.middleware.disabled` | bool | Ingress sets this to `true` (zoox HTTP request logger middleware). |
+
+Example:
+
+```yaml
+logging:
+  enable: true
+  level: warn
+```
+
+Custom paths:
+
+```yaml
+logging:
+  enable: true
+  level: warn
+  transports:
+    - type: file
+      path: /var/log/ingress/access.log
+      levels:
+        error: /var/log/ingress/error.log
+```
+
+Omit `logging` for zoox default (console only).
+
 ## Access Log Fields
 
-Ingress access logs use an application-level fixed format (not Nginx `log_format`). The original core fields are kept, with the following extra fields appended:
+Each access line uses a fixed text format (not Nginx `log_format`):
 
-- `referer`: value from `Referer`; `-` when empty
-- `ua`: value from `User-Agent`; `-` when empty
-- `xff`: value from `X-Forwarded-For`; `-` when empty
-- `real_ip`: value from `X-Real-IP`; falls back to request remote address; `-` when unavailable
-- `tls_protocol`: TLS version (for example `TLS 1.3`); `-` for non-TLS requests
-- `tls_cipher`: TLS cipher suite name; `-` for non-TLS requests
-- `upstream_status`: upstream response status (handler branch uses handler status)
-- `upstream_response_length`: upstream response length (`-1` when unknown)
-- `upstream_response_time`: upstream response duration in Go `time.Duration` text form
-- `cache_hit`: present as **`cache_hit=1`** when the response was served from **`backend.cache`** (service proxy, handler, or redirect); omitted on miss / uncached routes
+```text
+{client_ip} {host} -> {target} "{method} {path} {proto}" {status} {duration_ms} {extra...}
+```
+
+Extra fields (space-separated `key=value`):
+
+- `cache_hit`: `0` or `1` (HTTP response cache hit)
+- `waf_block`: `0` or `1` (WAF blocked this request)
+- `real_ip`: `X-Real-IP`, else client address; `-` when unavailable
+- `referer`: `Referer` header; `-` when empty
+- `ua`: `User-Agent`; `-` when empty
+- `xff`: `X-Forwarded-For`; `-` when empty (quoted when value contains spaces)
+- `tls_protocol` / `tls_cipher`: TLS names; `-` for plain HTTP
+- `upstream_status`: upstream or handler status code
+- `upstream_response_length`: bytes (`-1` when unknown)
+- `upstream_response_time`: duration in milliseconds (e.g. `12ms`)
 
 Example:
 
 ```text
-[host: example.com, target: http://backend:8080] "GET /api HTTP/1.1" 200 12.3ms real_ip="10.0.0.9" referer="https://portal.example.com/" ua="curl/8.7.1" xff="10.0.0.1" tls_protocol="TLS 1.3" tls_cipher="TLS_AES_128_GCM_SHA256" upstream_status=200 upstream_response_length=512 upstream_response_time=12.3ms
+203.0.113.44 api.example.com -> api.internal:8080 "GET /api/users HTTP/1.1" 200 12ms cache_hit=0 waf_block=0 real_ip=203.0.113.44 referer=- ua=curl/8.0 xff=- tls_protocol=- tls_cipher=- upstream_status=200 upstream_response_length=1024 upstream_response_time=12ms
 ```
 
 Note: there is currently no standalone field exactly equivalent to Nginx `$body_bytes_sent`; if needed, derive it via downstream log/metrics aggregation.

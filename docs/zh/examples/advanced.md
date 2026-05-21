@@ -30,6 +30,8 @@
 
 <<< @/../examples/advanced/service-mode-external-mixed.yaml
 
+全部 handler 类型（`file_server`、`templates`、`script`）见 [Handler 后端示例](/zh/examples/handler)。
+
 ## 多服务与健康检查
 
 <<< @/../examples/advanced/health-checks.yaml
