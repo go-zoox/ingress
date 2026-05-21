@@ -5,10 +5,12 @@ import { api } from '../api/client'
 const nav = [
   { to: '/', label: '总览', icon: '◉', end: true },
   { to: '/routes', label: '路由', icon: '⇄' },
+  { to: '/cache', label: '缓存', icon: '◫' },
   { to: '/waf', label: 'WAF', icon: '⛨' },
   { to: '/tls', label: 'TLS', icon: '🔒' },
-  { to: '/config', label: '配置', icon: '⌘' },
   { to: '/logs', label: '日志', icon: '≡' },
+  { to: '/config', label: '配置', icon: '⌘' },
+  { to: '/settings', label: '设置', icon: '⚙' },
 ]
 
 export function AppLayout() {

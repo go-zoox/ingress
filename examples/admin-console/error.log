@@ -2,10 +2,10 @@
 2026/02/24 10:00:06 upstream 504 host=cdn.example.com target=minio.internal:9000 duration=47886ms
 2026/02/24 12:44:48 upstream 504 host=api.example.com target=api.internal:8080 duration=16285ms
 2026/02/25 18:14:19 [prepareCache] failed to clear cache: redis: connection refused
-2026/02/26 09:01:01 [reload] validate failed: rules[4].host: invalid regex
-2026/02/26 10:03:53 [waf block] phase=request client_ip=192.0.2.17 host=cdn.example.com method=GET path=/assets/logo.png
-2026/02/26 21:06:52 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=assets.cdn.example.com path=/static/main.js
-2026/02/27 11:39:59 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/02/26 09:01:01 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/public
+2026/02/26 10:03:53 [reload] validate failed: rules[3].host: invalid regex
+2026/02/26 21:06:52 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=cdn.example.com path=/assets/app.js
+2026/02/27 11:39:59 [prepareCache] failed to clear cache: redis: connection refused
 2026/02/27 15:45:21 [reload] validate failed: rules[4].host: invalid regex
 2026/02/28 12:06:42 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/api/login
 2026/02/28 16:39:06 [prepareCache] failed to clear cache: redis: connection refused
@@ -25,196 +25,196 @@
 2026/03/08 12:17:56 [prepareCache] failed to clear cache: redis: connection refused
 2026/03/08 16:53:31 [reload] validate failed: rules[3].host: invalid regex
 2026/03/09 15:29:26 [prepareCache] failed to clear cache: redis: connection refused
-2026/03/10 12:53:56 handler panic recovered host=api.example.com path=/search
-2026/03/10 13:19:27 [reload] validate failed: rules[2].host: invalid regex
-2026/03/10 14:07:21 [reload] validate failed: rules[4].host: invalid regex
-2026/03/10 16:11:50 [prepareCache] failed to clear cache: redis: connection refused
-2026/03/10 18:38:04 [prepareCache] failed to clear cache: redis: connection refused
-2026/03/11 17:50:46 upstream 502 host=cdn.example.com target=minio.internal:9000 duration=34869ms
-2026/03/12 21:59:43 handler panic recovered host=legacy.example.com path=/
-2026/03/13 10:11:44 [waf block] phase=request client_ip=198.51.100.8 host=api.example.com method=GET path=/search
-2026/03/13 11:50:29 upstream 504 host=api.example.com target=api.internal:8080 duration=34759ms
-2026/03/13 14:52:24 [waf block] phase=request client_ip=203.0.113.44 host=api.example.com method=GET path=/api/users/42
-2026/03/14 08:29:32 upstream 502 host=cdn.example.com target=minio.internal:9000 duration=43169ms
-2026/03/14 10:28:48 tls handshake error host=cdn.example.com err=remote error: tls: bad certificate
-2026/03/14 13:12:49 [reload] validate failed: rules[4].host: invalid regex
-2026/03/16 11:15:02 [prepareCache] failed to clear cache: redis: connection refused
-2026/03/16 21:37:18 [reload] validate failed: rules[3].host: invalid regex
-2026/03/17 09:09:36 [prepareCache] failed to clear cache: redis: connection refused
-2026/03/19 21:41:50 [waf block] phase=request client_ip=203.0.113.44 host=cdn.example.com method=GET path=/favicon.ico
-2026/03/21 09:21:29 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/03/22 10:50:09 [reload] validate failed: rules[1].host: invalid regex
-2026/03/23 12:34:08 [waf block] phase=request client_ip=203.0.113.88 host=api.example.com method=GET path=/api/users/42
-2026/03/24 08:05:57 [reload] validate failed: rules[1].host: invalid regex
-2026/03/24 12:53:50 [prepareCache] failed to clear cache: redis: connection refused
-2026/03/24 14:22:03 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=assets.cdn.example.com path=/static/main.js
-2026/03/24 21:07:26 [prepareCache] failed to clear cache: redis: connection refused
-2026/03/25 21:24:05 upstream 502 host=api.example.com target=api.internal:8080 duration=25658ms
-2026/03/27 08:05:16 [prepareCache] failed to clear cache: redis: connection refused
-2026/03/27 10:06:53 handler panic recovered host=api.example.com path=/api/orders
-2026/03/27 10:41:05 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=admin.internal path=/
-2026/03/27 13:23:06 [waf block] phase=request client_ip=203.0.113.44 host=api.example.com method=POST path=/api/orders
-2026/03/29 09:03:37 handler panic recovered host=api.example.com path=/api/login
-2026/03/29 14:06:00 tls handshake error host=admin.internal err=remote error: tls: bad certificate
-2026/03/29 17:28:40 handler panic recovered host=api.example.com path=/v2/health
-2026/03/30 10:15:00 [prepareCache] failed to clear cache: redis: connection refused
-2026/04/01 11:43:59 upstream 502 host=api.example.com target=api.internal:8080 duration=10184ms
-2026/04/02 17:49:05 [reload] validate failed: rules[4].host: invalid regex
-2026/04/03 15:09:11 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=tunnel-a.inlets.example.com path=/
-2026/04/03 16:52:36 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/v2/health
-2026/04/04 12:32:48 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/api/users/42
-2026/04/04 12:46:30 upstream 504 host=api.example.com target=api.internal:8080 duration=51856ms
-2026/04/04 12:58:48 [waf block] phase=request client_ip=203.0.113.44 host=legacy.example.com method=GET path=/
-2026/04/04 19:17:31 upstream 502 host=cdn.example.com target=minio.internal:9000 duration=8447ms
-2026/04/06 08:00:40 [waf block] phase=request client_ip=203.0.113.88 host=cdn.example.com method=GET path=/assets/logo.png
-2026/04/06 16:30:34 handler panic recovered host=api.example.com path=/api/users/42
-2026/04/09 20:46:23 handler panic recovered host=api.example.com path=/api/users
+2026/03/10 12:53:56 upstream 504 host=api.example.com target=api.internal:8080 duration=22698ms
+2026/03/10 13:19:27 upstream 502 host=tunnel-a.inlets.example.com target=tunnel-a.tunnel:443 duration=62265ms
+2026/03/10 14:07:21 tls handshake error host=assets.cdn.example.com err=remote error: tls: bad certificate
+2026/03/10 16:11:50 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=legacy.example.com path=/old-page
+2026/03/10 18:38:04 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=legacy.example.com path=/
+2026/03/11 17:50:46 upstream 504 host=api.example.com target=api.internal:8080 duration=49842ms
+2026/03/12 21:59:43 upstream 502 host=cdn.example.com target=minio.internal:9000 duration=34869ms
+2026/03/13 10:11:44 handler panic recovered host=legacy.example.com path=/
+2026/03/13 11:50:29 [waf block] phase=request client_ip=198.51.100.8 host=api.example.com method=GET path=/search
+2026/03/13 14:52:24 upstream 504 host=api.example.com target=api.internal:8080 duration=34759ms
+2026/03/14 08:29:32 [waf block] phase=request client_ip=203.0.113.44 host=api.example.com method=GET path=/api/users/42
+2026/03/14 10:28:48 upstream 502 host=cdn.example.com target=minio.internal:9000 duration=43169ms
+2026/03/14 13:12:49 tls handshake error host=cdn.example.com err=remote error: tls: bad certificate
+2026/03/16 11:15:02 [reload] validate failed: rules[4].host: invalid regex
+2026/03/16 21:37:18 [prepareCache] failed to clear cache: redis: connection refused
+2026/03/17 09:09:36 [reload] validate failed: rules[3].host: invalid regex
+2026/03/19 21:41:50 [prepareCache] failed to clear cache: redis: connection refused
+2026/03/21 09:21:29 [waf block] phase=request client_ip=203.0.113.44 host=cdn.example.com method=GET path=/favicon.ico
+2026/03/22 10:50:09 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/03/23 12:34:08 [reload] validate failed: rules[1].host: invalid regex
+2026/03/24 08:05:57 [waf block] phase=request client_ip=203.0.113.88 host=api.example.com method=GET path=/api/users/42
+2026/03/24 12:53:50 [reload] validate failed: rules[1].host: invalid regex
+2026/03/24 14:22:03 [prepareCache] failed to clear cache: redis: connection refused
+2026/03/24 21:07:26 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=assets.cdn.example.com path=/static/main.js
+2026/03/25 21:24:05 [prepareCache] failed to clear cache: redis: connection refused
+2026/03/27 08:05:16 upstream 502 host=api.example.com target=api.internal:8080 duration=25658ms
+2026/03/27 10:06:53 [prepareCache] failed to clear cache: redis: connection refused
+2026/03/27 10:41:05 handler panic recovered host=api.example.com path=/api/orders
+2026/03/27 13:23:06 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=admin.internal path=/
+2026/03/29 09:03:37 [waf block] phase=request client_ip=203.0.113.44 host=api.example.com method=POST path=/api/orders
+2026/03/29 14:06:00 handler panic recovered host=api.example.com path=/api/login
+2026/03/29 17:28:40 tls handshake error host=admin.internal err=remote error: tls: bad certificate
+2026/03/30 10:15:00 handler panic recovered host=api.example.com path=/v2/health
+2026/04/01 11:43:59 [prepareCache] failed to clear cache: redis: connection refused
+2026/04/02 17:49:05 upstream 502 host=api.example.com target=api.internal:8080 duration=10184ms
+2026/04/03 15:09:11 [reload] validate failed: rules[4].host: invalid regex
+2026/04/03 16:52:36 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=tunnel-a.inlets.example.com path=/
+2026/04/04 12:32:48 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/v2/health
+2026/04/04 12:46:30 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/api/users/42
+2026/04/04 12:58:48 upstream 504 host=api.example.com target=api.internal:8080 duration=51856ms
+2026/04/04 19:17:31 [waf block] phase=request client_ip=203.0.113.44 host=legacy.example.com method=GET path=/
+2026/04/06 08:00:40 upstream 502 host=cdn.example.com target=minio.internal:9000 duration=8447ms
+2026/04/06 16:30:34 [waf block] phase=request client_ip=203.0.113.88 host=cdn.example.com method=GET path=/assets/logo.png
+2026/04/09 20:46:23 [waf block] phase=request client_ip=192.0.2.17 host=api.example.com method=GET path=/public
 2026/04/10 12:36:11 [prepareCache] failed to clear cache: redis: connection refused
-2026/04/10 14:58:33 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/search
-2026/04/11 14:36:23 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/04/11 16:55:32 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/v2/health
-2026/04/12 18:03:11 upstream 504 host=api.example.com target=api.internal:8080 duration=43858ms
-2026/04/13 14:28:37 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/04/13 18:44:28 [reload] validate failed: rules[3].host: invalid regex
-2026/04/14 17:09:44 [prepareCache] failed to clear cache: redis: connection refused
-2026/04/14 21:39:54 [reload] validate failed: rules[4].host: invalid regex
-2026/04/15 17:27:46 tls handshake error host=tunnel-b.inlets.example.com err=remote error: tls: bad certificate
-2026/04/15 18:07:19 [prepareCache] failed to clear cache: redis: connection refused
-2026/04/15 21:20:11 upstream 502 host=waf-demo.example.com target=httpbin.org:443 duration=6449ms
-2026/04/16 17:26:12 [reload] validate failed: rules[0].host: invalid regex
-2026/04/17 14:16:38 [prepareCache] failed to clear cache: redis: connection refused
-2026/04/18 14:58:51 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/v2/health
-2026/04/19 12:23:46 [prepareCache] failed to clear cache: redis: connection refused
-2026/04/19 15:38:01 upstream 502 host=api.example.com target=api.internal:8080 duration=33842ms
-2026/04/22 21:35:56 [waf block] phase=request client_ip=10.0.0.5 host=cdn.example.com method=GET path=/assets/logo.png
-2026/04/23 19:05:57 [reload] validate failed: rules[1].host: invalid regex
-2026/04/24 09:00:43 upstream 504 host=cdn.example.com target=minio.internal:9000 duration=35045ms
-2026/04/24 09:51:56 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=tunnel-b.inlets.example.com path=/health
-2026/04/24 17:32:45 [prepareCache] failed to clear cache: redis: connection refused
-2026/04/24 18:03:06 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=tunnel-b.inlets.example.com path=/
-2026/04/24 19:21:21 [waf block] phase=request client_ip=203.0.113.88 host=admin.internal method=GET path=/
-2026/04/26 19:09:36 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/v2/users
-2026/04/29 09:14:57 [reload] validate failed: rules[3].host: invalid regex
-2026/04/29 16:25:03 [reload] validate failed: rules[1].host: invalid regex
-2026/04/29 18:46:52 tls handshake error host=cdn.example.com err=remote error: tls: bad certificate
-2026/04/29 20:06:29 [waf block] phase=request client_ip=10.0.0.5 host=api.example.com method=GET path=/search
-2026/04/30 08:05:45 [prepareCache] failed to clear cache: redis: connection refused
-2026/04/30 08:36:32 handler panic recovered host=api.example.com path=/v2/health
-2026/04/30 11:16:57 upstream 504 host=tunnel-a.inlets.example.com target=tunnel-a.tunnel:443 duration=49591ms
-2026/05/01 11:28:44 [reload] validate failed: rules[3].host: invalid regex
-2026/05/01 14:02:30 [waf block] phase=request client_ip=192.0.2.17 host=assets.cdn.example.com method=GET path=/static/main.js
-2026/05/01 15:30:52 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=19952ms
-2026/05/01 16:31:16 [waf block] phase=request client_ip=198.51.100.8 host=api.example.com method=GET path=/api/users/42
-2026/05/02 11:30:40 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/05/03 08:49:57 [waf block] phase=request client_ip=10.0.0.5 host=cdn.example.com method=GET path=/assets/vendor.js
-2026/05/04 16:31:54 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=60674ms
-2026/05/04 19:29:53 [reload] validate failed: rules[4].host: invalid regex
-2026/05/05 14:25:11 upstream 502 host=api.example.com target=api.internal:8080 duration=48661ms
-2026/05/06 18:14:12 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/07 13:03:56 [reload] validate failed: rules[0].host: invalid regex
-2026/05/07 14:44:28 upstream 502 host=assets.cdn.example.com target=minio.internal:9000 duration=45787ms
-2026/05/08 21:07:08 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=tunnel-b.inlets.example.com path=/health
-2026/05/10 12:06:44 [reload] validate failed: rules[4].host: invalid regex
-2026/05/10 16:03:16 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/10 17:41:59 tls handshake error host=assets.cdn.example.com err=remote error: tls: bad certificate
-2026/05/11 20:21:07 [reload] validate failed: rules[0].host: invalid regex
-2026/05/12 11:45:47 handler panic recovered host=assets.cdn.example.com path=/static/main.js
-2026/05/13 17:29:50 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=58424ms
-2026/05/14 18:04:12 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/search
-2026/05/14 21:27:41 handler panic recovered host=api.example.com path=/search
-2026/05/15 09:01:40 tls handshake error host=assets.cdn.example.com err=remote error: tls: bad certificate
-2026/05/15 11:39:13 handler panic recovered host=admin.internal path=/healthz
-2026/05/15 13:02:50 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/15 15:04:29 upstream 502 host=api.example.com target=api.internal:8080 duration=37432ms
-2026/05/15 17:55:32 handler panic recovered host=api.example.com path=/search
-2026/05/15 18:25:19 [reload] validate failed: rules[1].host: invalid regex
-2026/05/15 20:55:07 upstream 504 host=api.example.com target=api.internal:8080 duration=39375ms
-2026/05/16 08:49:25 tls handshake error host=cdn.example.com err=remote error: tls: bad certificate
-2026/05/16 13:18:42 upstream 502 host=cdn.example.com target=minio.internal:9000 duration=46735ms
-2026/05/16 13:23:06 [reload] validate failed: rules[4].host: invalid regex
-2026/05/16 14:38:11 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/16 15:19:02 tls handshake error host=tunnel-b.inlets.example.com err=remote error: tls: bad certificate
-2026/05/16 15:48:00 handler panic recovered host=cdn.example.com path=/favicon.ico
-2026/05/16 15:51:36 upstream 502 host=api.example.com target=api.internal:8080 duration=32267ms
-2026/05/16 17:47:13 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/05/17 08:57:37 handler panic recovered host=cdn.example.com path=/assets/logo.png
-2026/05/17 09:08:00 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=admin.internal path=/healthz
-2026/05/17 12:16:54 handler panic recovered host=api.example.com path=/api/users/42
-2026/05/17 12:59:07 [waf block] phase=request client_ip=192.0.2.99 host=cdn.example.com method=GET path=/assets/logo.png
-2026/05/17 13:23:36 tls handshake error host=cdn.example.com err=remote error: tls: bad certificate
-2026/05/17 13:32:11 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/17 14:40:53 handler panic recovered host=api.example.com path=/api/login
-2026/05/17 16:01:28 [waf block] phase=request client_ip=203.0.113.12 host=cdn.example.com method=GET path=/assets/logo.png
-2026/05/17 18:21:29 upstream 502 host=api.example.com target=api.internal:8080 duration=40166ms
-2026/05/17 18:45:54 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=cdn.example.com path=/favicon.ico
-2026/05/17 21:33:25 handler panic recovered host=tunnel-b.inlets.example.com path=/health
-2026/05/17 21:52:09 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/18 05:49:09 tls handshake error host=legacy.example.com err=remote error: tls: bad certificate
-2026/05/18 08:03:01 handler panic recovered host=api.example.com path=/api/login
-2026/05/18 09:55:27 upstream 504 host=waf-demo.example.com target=httpbin.org:443 duration=43857ms
-2026/05/18 14:51:32 upstream 504 host=legacy.example.com target=redirect duration=35659ms
-2026/05/18 18:14:16 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/05/18 21:51:51 [waf block] phase=request client_ip=198.51.100.8 host=api.example.com method=GET path=/search
-2026/05/19 10:40:45 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/05/19 11:34:07 tls handshake error host=tunnel-a.inlets.example.com err=remote error: tls: bad certificate
-2026/05/19 12:44:41 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/05/19 12:48:20 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/api/orders
-2026/05/19 18:06:35 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/05/19 19:05:01 upstream 504 host=api.example.com target=api.internal:8080 duration=14712ms
-2026/05/20 15:52:01 [reload] validate failed: rules[4].host: invalid regex
-2026/05/20 16:19:01 [waf block] phase=request client_ip=203.0.113.12 host=api.example.com method=GET path=/v2/users
-2026/05/20 16:38:04 handler panic recovered host=api.example.com path=/v2/users
-2026/05/20 18:08:51 [waf block] phase=request client_ip=10.0.0.5 host=cdn.example.com method=GET path=/assets/style.css
-2026/05/20 18:21:51 [reload] validate failed: rules[2].host: invalid regex
-2026/05/20 18:53:57 [waf block] phase=request client_ip=198.51.100.22 host=admin.internal method=GET path=/
-2026/05/20 21:19:45 handler panic recovered host=api.example.com path=/api/users/42
-2026/05/20 21:33:30 upstream 502 host=api.example.com target=api.internal:8080 duration=35861ms
-2026/05/20 21:35:46 handler panic recovered host=cdn.example.com path=/assets/app.js
-2026/05/20 23:45:59 [waf block] phase=request client_ip=203.0.113.88 host=cdn.example.com method=GET path=/assets/app.js
-2026/05/20 23:55:56 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/api/users/42
-2026/05/21 01:41:30 tls handshake error host=admin.internal err=remote error: tls: bad certificate
-2026/05/21 02:59:45 upstream 502 host=admin.internal target=handler duration=6189ms
-2026/05/21 03:01:32 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/21 03:19:04 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=cdn.example.com path=/assets/vendor.js
-2026/05/21 04:07:39 handler panic recovered host=admin.internal path=/healthz
-2026/05/21 04:12:19 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/21 05:04:35 [reload] validate failed: rules[2].host: invalid regex
-2026/05/21 05:16:45 tls handshake error host=tunnel-a.inlets.example.com err=remote error: tls: bad certificate
-2026/05/21 07:41:20 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=34987ms
-2026/05/21 08:16:27 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=34352ms
-2026/05/21 08:25:58 [reload] validate failed: rules[0].host: invalid regex
-2026/05/21 09:04:19 tls handshake error host=legacy.example.com err=remote error: tls: bad certificate
-2026/05/21 09:22:40 upstream 502 host=api.example.com target=api.internal:8080 duration=29792ms
-2026/05/21 09:32:49 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/21 09:48:09 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=55341ms
-2026/05/21 11:03:04 [reload] validate failed: rules[0].host: invalid regex
-2026/05/21 11:09:17 [reload] validate failed: rules[0].host: invalid regex
-2026/05/21 11:36:55 upstream 502 host=admin.internal target=handler duration=13513ms
-2026/05/21 12:07:48 upstream 502 host=assets.cdn.example.com target=minio.internal:9000 duration=25542ms
-2026/05/21 12:13:28 [reload] validate failed: rules[1].host: invalid regex
-2026/05/21 13:42:31 upstream 502 host=api.example.com target=api.internal:8080 duration=20169ms
-2026/05/21 15:26:08 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=cdn.example.com path=/assets/app.js
-2026/05/21 16:07:38 upstream 504 host=cdn.example.com target=minio.internal:9000 duration=60645ms
-2026/05/21 16:24:05 tls handshake error host=cdn.example.com err=remote error: tls: bad certificate
-2026/05/21 16:36:01 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/05/21 16:37:24 [reload] validate failed: rules[1].host: invalid regex
-2026/05/21 16:47:28 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=cdn.example.com path=/assets/style.css
-2026/05/21 16:49:52 upstream 502 host=cdn.example.com target=minio.internal:9000 duration=20444ms
-2026/05/21 16:55:20 handler panic recovered host=cdn.example.com path=/assets/vendor.js
-2026/05/21 16:58:43 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/21 17:00:45 upstream 504 host=cdn.example.com target=minio.internal:9000 duration=22586ms
-2026/05/21 17:05:06 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/21 17:06:55 [reload] validate failed: rules[4].host: invalid regex
-2026/05/21 17:11:52 [prepareCache] failed to clear cache: redis: connection refused
-2026/05/21 17:12:13 [reload] validate failed: rules[1].host: invalid regex
-2026/05/21 17:16:25 [waf block] phase=request client_ip=198.51.100.22 host=assets.cdn.example.com method=GET path=/static/theme.css
-2026/05/21 17:17:46 upstream 502 host=api.example.com target=api.internal:8080 duration=44197ms
-2026/05/21 17:19:28 [reload] validate failed: rules[1].host: invalid regex
-2026/05/21 17:20:05 handler panic recovered host=api.example.com path=/api/login
-2026/05/21 17:21:18 tls handshake error host=assets.cdn.example.com err=remote error: tls: bad certificate
-2026/05/21 17:26:08 upstream 504 host=admin.internal target=handler duration=42573ms
-2026/05/21 17:27:03 [waf block] phase=request client_ip=203.0.113.12 host=cdn.example.com method=GET path=/assets/logo.png
-2026/05/21 17:27:13 [reload] validate failed: rules[4].host: invalid regex
-2026/05/21 17:31:22 tls handshake error host=api.example.com err=remote error: tls: bad certificate
-2026/05/21 17:32:21 handler panic recovered host=api.example.com path=/api/users/42
-2026/05/21 17:34:14 handler panic recovered host=api.example.com path=/v2/users
+2026/04/10 14:58:33 [prepareCache] failed to clear cache: redis: connection refused
+2026/04/11 14:36:23 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/search
+2026/04/11 16:55:32 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/04/12 18:03:11 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/v2/health
+2026/04/13 14:28:37 upstream 504 host=api.example.com target=api.internal:8080 duration=43858ms
+2026/04/13 18:44:28 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/04/14 17:09:44 handler panic recovered host=api.example.com path=/api/login
+2026/04/14 21:39:54 [prepareCache] failed to clear cache: redis: connection refused
+2026/04/15 17:27:46 [reload] validate failed: rules[4].host: invalid regex
+2026/04/15 18:07:19 tls handshake error host=tunnel-b.inlets.example.com err=remote error: tls: bad certificate
+2026/04/15 21:20:11 [prepareCache] failed to clear cache: redis: connection refused
+2026/04/16 17:26:12 upstream 502 host=waf-demo.example.com target=httpbin.org:443 duration=6449ms
+2026/04/17 14:16:38 [reload] validate failed: rules[0].host: invalid regex
+2026/04/18 14:58:51 [prepareCache] failed to clear cache: redis: connection refused
+2026/04/19 12:23:46 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/v2/health
+2026/04/19 15:38:01 [prepareCache] failed to clear cache: redis: connection refused
+2026/04/22 21:35:56 upstream 502 host=api.example.com target=api.internal:8080 duration=33842ms
+2026/04/23 19:05:57 [waf block] phase=request client_ip=10.0.0.5 host=cdn.example.com method=GET path=/assets/logo.png
+2026/04/24 09:00:43 [reload] validate failed: rules[1].host: invalid regex
+2026/04/24 09:51:56 upstream 504 host=cdn.example.com target=minio.internal:9000 duration=35045ms
+2026/04/24 17:32:45 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=tunnel-b.inlets.example.com path=/health
+2026/04/24 18:03:06 [prepareCache] failed to clear cache: redis: connection refused
+2026/04/24 19:21:21 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=tunnel-b.inlets.example.com path=/
+2026/04/26 19:09:36 [waf block] phase=request client_ip=203.0.113.88 host=admin.internal method=GET path=/
+2026/04/29 09:14:57 handler panic recovered host=api.example.com path=/public/docs
+2026/04/29 16:25:03 tls handshake error host=assets.cdn.example.com err=remote error: tls: bad certificate
+2026/04/29 18:46:52 handler panic recovered host=cdn.example.com path=/assets/logo.png
+2026/04/29 20:06:29 upstream 502 host=api.example.com target=api.internal:8080 duration=56644ms
+2026/04/30 08:05:45 handler panic recovered host=api.example.com path=/public
+2026/04/30 08:36:32 upstream 504 host=cdn.example.com target=minio.internal:9000 duration=6136ms
+2026/04/30 11:16:57 [reload] validate failed: rules[0].host: invalid regex
+2026/05/01 11:28:44 upstream 504 host=cdn.example.com target=minio.internal:9000 duration=21731ms
+2026/05/01 14:02:30 handler panic recovered host=cdn.example.com path=/assets/style.css
+2026/05/01 15:30:52 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/01 16:31:16 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=19952ms
+2026/05/02 11:30:40 [waf block] phase=request client_ip=198.51.100.8 host=api.example.com method=GET path=/api/users/42
+2026/05/03 08:49:57 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/05/04 16:31:54 [waf block] phase=request client_ip=10.0.0.5 host=cdn.example.com method=GET path=/assets/vendor.js
+2026/05/04 19:29:53 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=60674ms
+2026/05/05 14:25:11 [reload] validate failed: rules[4].host: invalid regex
+2026/05/06 18:14:12 upstream 502 host=api.example.com target=api.internal:8080 duration=48661ms
+2026/05/07 13:03:56 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/07 14:44:28 [reload] validate failed: rules[0].host: invalid regex
+2026/05/08 21:07:08 upstream 502 host=assets.cdn.example.com target=minio.internal:9000 duration=45787ms
+2026/05/10 12:06:44 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=tunnel-b.inlets.example.com path=/health
+2026/05/10 16:03:16 [reload] validate failed: rules[4].host: invalid regex
+2026/05/10 17:41:59 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/11 20:21:07 tls handshake error host=assets.cdn.example.com err=remote error: tls: bad certificate
+2026/05/12 11:45:47 [reload] validate failed: rules[0].host: invalid regex
+2026/05/13 17:29:50 handler panic recovered host=assets.cdn.example.com path=/static/main.js
+2026/05/15 09:01:40 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=58424ms
+2026/05/15 09:06:19 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/search
+2026/05/15 11:39:13 upstream 504 host=api.example.com target=api.internal:8080 duration=30455ms
+2026/05/15 13:02:50 tls handshake error host=assets.cdn.example.com err=remote error: tls: bad certificate
+2026/05/15 15:04:29 handler panic recovered host=admin.internal path=/healthz
+2026/05/15 18:25:19 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/15 20:55:07 upstream 502 host=api.example.com target=api.internal:8080 duration=37432ms
+2026/05/16 08:49:25 handler panic recovered host=api.example.com path=/search
+2026/05/16 13:18:42 [reload] validate failed: rules[1].host: invalid regex
+2026/05/16 13:23:06 upstream 504 host=api.example.com target=api.internal:8080 duration=39375ms
+2026/05/16 14:38:11 tls handshake error host=cdn.example.com err=remote error: tls: bad certificate
+2026/05/16 15:19:02 upstream 502 host=cdn.example.com target=minio.internal:9000 duration=46735ms
+2026/05/16 15:48:00 [reload] validate failed: rules[4].host: invalid regex
+2026/05/16 15:51:36 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/17 08:57:37 tls handshake error host=tunnel-b.inlets.example.com err=remote error: tls: bad certificate
+2026/05/17 09:08:00 handler panic recovered host=cdn.example.com path=/favicon.ico
+2026/05/17 12:16:54 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/17 12:59:07 tls handshake error host=cdn.example.com err=remote error: tls: bad certificate
+2026/05/17 13:23:36 handler panic recovered host=cdn.example.com path=/assets/logo.png
+2026/05/17 13:32:11 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=admin.internal path=/healthz
+2026/05/17 14:40:53 handler panic recovered host=api.example.com path=/api/users/42
+2026/05/17 16:01:28 [waf block] phase=request client_ip=192.0.2.99 host=cdn.example.com method=GET path=/assets/logo.png
+2026/05/17 17:47:13 tls handshake error host=cdn.example.com err=remote error: tls: bad certificate
+2026/05/17 18:21:29 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/17 18:45:54 handler panic recovered host=api.example.com path=/api/login
+2026/05/17 19:31:21 [waf block] phase=request client_ip=203.0.113.12 host=cdn.example.com method=GET path=/assets/logo.png
+2026/05/17 21:33:25 upstream 502 host=api.example.com target=api.internal:8080 duration=40166ms
+2026/05/17 21:52:09 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=cdn.example.com path=/favicon.ico
+2026/05/18 06:38:57 handler panic recovered host=tunnel-b.inlets.example.com path=/health
+2026/05/18 08:03:01 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/18 09:35:35 tls handshake error host=legacy.example.com err=remote error: tls: bad certificate
+2026/05/18 09:55:27 handler panic recovered host=api.example.com path=/api/login
+2026/05/18 18:14:16 upstream 504 host=waf-demo.example.com target=httpbin.org:443 duration=43857ms
+2026/05/18 21:51:51 upstream 504 host=legacy.example.com target=redirect duration=35659ms
+2026/05/19 05:34:43 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/05/19 10:40:45 [waf block] phase=request client_ip=198.51.100.8 host=api.example.com method=GET path=/search
+2026/05/19 11:34:07 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/05/19 12:44:41 tls handshake error host=tunnel-a.inlets.example.com err=remote error: tls: bad certificate
+2026/05/19 12:48:20 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/05/19 19:05:01 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=api.example.com path=/api/orders
+2026/05/20 14:51:32 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/05/20 15:52:01 upstream 504 host=api.example.com target=api.internal:8080 duration=14712ms
+2026/05/20 16:19:01 [reload] validate failed: rules[4].host: invalid regex
+2026/05/20 16:38:04 [waf block] phase=request client_ip=203.0.113.12 host=api.example.com method=GET path=/v2/users
+2026/05/20 18:58:39 handler panic recovered host=api.example.com path=/v2/users
+2026/05/20 19:11:39 [waf block] phase=request client_ip=10.0.0.5 host=cdn.example.com method=GET path=/assets/style.css
+2026/05/20 19:43:45 [reload] validate failed: rules[2].host: invalid regex
+2026/05/20 22:09:33 [waf block] phase=request client_ip=198.51.100.22 host=admin.internal method=GET path=/
+2026/05/20 22:23:18 [waf block] phase=request client_ip=192.0.2.17 host=api.example.com method=GET path=/public
+2026/05/20 22:25:34 [reload] validate failed: rules[3].host: invalid regex
+2026/05/21 00:35:47 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/21 00:45:44 upstream 502 host=waf-demo.example.com target=httpbin.org:443 duration=55716ms
+2026/05/21 02:31:18 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/05/21 03:49:33 [waf block] phase=request client_ip=198.51.100.8 host=api.example.com method=POST path=/api/login
+2026/05/21 03:51:20 upstream 504 host=api.example.com target=api.internal:8080 duration=34298ms
+2026/05/21 04:08:52 [waf block] phase=request client_ip=203.0.113.44 host=api.example.com method=GET path=/v2/health
+2026/05/21 04:57:27 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/21 05:02:07 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=cdn.example.com path=/assets/vendor.js
+2026/05/21 05:54:23 handler panic recovered host=admin.internal path=/healthz
+2026/05/21 06:06:33 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/21 08:31:08 [reload] validate failed: rules[2].host: invalid regex
+2026/05/21 09:06:15 tls handshake error host=tunnel-a.inlets.example.com err=remote error: tls: bad certificate
+2026/05/21 09:15:46 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=34987ms
+2026/05/21 09:54:07 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=34352ms
+2026/05/21 10:12:28 [reload] validate failed: rules[0].host: invalid regex
+2026/05/21 10:22:37 tls handshake error host=legacy.example.com err=remote error: tls: bad certificate
+2026/05/21 10:37:57 upstream 502 host=api.example.com target=api.internal:8080 duration=29792ms
+2026/05/21 11:52:52 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/21 11:59:05 upstream 504 host=assets.cdn.example.com target=minio.internal:9000 duration=55341ms
+2026/05/21 12:26:43 [reload] validate failed: rules[0].host: invalid regex
+2026/05/21 12:57:36 [reload] validate failed: rules[0].host: invalid regex
+2026/05/21 13:03:16 upstream 502 host=admin.internal target=handler duration=13513ms
+2026/05/21 14:32:19 upstream 502 host=assets.cdn.example.com target=minio.internal:9000 duration=25542ms
+2026/05/21 16:15:56 [reload] validate failed: rules[1].host: invalid regex
+2026/05/21 16:57:26 upstream 502 host=api.example.com target=api.internal:8080 duration=20169ms
+2026/05/21 17:13:53 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=cdn.example.com path=/assets/app.js
+2026/05/21 17:25:49 upstream 504 host=cdn.example.com target=minio.internal:9000 duration=60645ms
+2026/05/21 17:27:12 tls handshake error host=cdn.example.com err=remote error: tls: bad certificate
+2026/05/21 17:37:16 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/05/21 17:39:40 [reload] validate failed: rules[1].host: invalid regex
+2026/05/21 17:45:08 service proxy: dial tcp 10.0.0.12:8080: connect: connection refused host=cdn.example.com path=/assets/style.css
+2026/05/21 17:48:31 upstream 502 host=cdn.example.com target=minio.internal:9000 duration=20444ms
+2026/05/21 17:50:33 handler panic recovered host=cdn.example.com path=/assets/vendor.js
+2026/05/21 17:54:54 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/21 17:56:43 upstream 504 host=cdn.example.com target=minio.internal:9000 duration=22586ms
+2026/05/21 18:01:40 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/21 18:02:01 [reload] validate failed: rules[4].host: invalid regex
+2026/05/21 18:06:13 [prepareCache] failed to clear cache: redis: connection refused
+2026/05/21 18:07:34 [reload] validate failed: rules[1].host: invalid regex
+2026/05/21 18:09:16 [waf block] phase=request client_ip=198.51.100.22 host=assets.cdn.example.com method=GET path=/static/theme.css
+2026/05/21 18:09:53 upstream 502 host=api.example.com target=api.internal:8080 duration=44197ms
+2026/05/21 18:11:06 [waf block] phase=request client_ip=198.51.100.22 host=api.example.com method=GET path=/public
+2026/05/21 18:15:56 handler panic recovered host=api.example.com path=/api/login
+2026/05/21 18:16:51 tls handshake error host=assets.cdn.example.com err=remote error: tls: bad certificate
+2026/05/21 18:17:01 upstream 504 host=admin.internal target=handler duration=42573ms
+2026/05/21 18:21:10 [waf block] phase=request client_ip=203.0.113.12 host=cdn.example.com method=GET path=/assets/logo.png
+2026/05/21 18:22:09 [reload] validate failed: rules[4].host: invalid regex
+2026/05/21 18:24:02 tls handshake error host=api.example.com err=remote error: tls: bad certificate

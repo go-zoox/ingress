@@ -4,9 +4,10 @@ Runnable ingress config, log files, and SQLite-backed admin state for `ingress a
 
 | File | Purpose |
 |------|---------|
-| `ingress.yaml` | Multi-route sample (API, CDN wildcard, regex inlets, handler, redirect, WAF) |
+| `ingress.yaml` | Multi-route sample + **https.ssl (8 certs)** + **cache** (global Redis + route rules) |
 | `admin.yaml` | Admin server: points at `ingress.yaml`, `access.log`, `error.log`, `admin.db` |
-| `access.log` | ~4200 lines, **90 days** (Feb–May 2026) — logs API & overview metrics |
+| `certs/` | 8 sample TLS certificates (regenerate: `go run ./examples/admin-console/scripts/gen_sample_certs/main.go`) |
+| `access.log` | ~4200 lines, **90 days** — logs API、概览指标、**Host/Path 缓存命中排行** |
 | `error.log` | ~220 lines over the same period |
 | `admin.db` | Created on first `ingress admin` start; empty DB gets **180 WAF events**, audit log, config revisions (see `bootstrap/sample.go`) |
 
@@ -14,6 +15,12 @@ Regenerate log files:
 
 ```bash
 python3 examples/admin-console/scripts/gen_sample_data.py
+```
+
+Regenerate TLS certs:
+
+```bash
+go run ./examples/admin-console/scripts/gen_sample_certs/main.go
 ```
 
 ```bash

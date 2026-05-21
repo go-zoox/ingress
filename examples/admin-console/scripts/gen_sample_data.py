@@ -27,15 +27,17 @@ ROUTES = [
         "host": "api.example.com",
         "target": "api.internal:8080",
         "paths": [
-            ("GET", "/api/users", 200, (8, 45)),
-            ("GET", "/api/users/42", 200, (6, 30)),
-            ("POST", "/api/login", 200, (10, 80)),
-            ("POST", "/api/login", 401, (5, 15)),
-            ("GET", "/search", 200, (20, 120)),
-            ("GET", "/search", 400, (3, 8)),
-            ("POST", "/api/orders", 201, (15, 90)),
-            ("GET", "/v2/users", 200, (5, 25)),
-            ("GET", "/v2/health", 200, (2, 8)),
+            ("GET", "/api/users", 200, (8, 45), 0.08),
+            ("GET", "/api/users/42", 200, (6, 30), 0.06),
+            ("POST", "/api/login", 200, (10, 80), 0.02),
+            ("POST", "/api/login", 401, (5, 15), 0.0),
+            ("GET", "/search", 200, (20, 120), 0.05),
+            ("GET", "/search", 400, (3, 8), 0.0),
+            ("POST", "/api/orders", 201, (15, 90), 0.0),
+            ("GET", "/v2/users", 200, (5, 25), 0.62),
+            ("GET", "/v2/health", 200, (2, 8), 0.58),
+            ("GET", "/public", 200, (4, 18), 0.48),
+            ("GET", "/public/docs", 200, (3, 12), 0.44),
         ],
         "weight": 42,
         "cache_rate": 0.05,
@@ -44,11 +46,11 @@ ROUTES = [
         "host": "cdn.example.com",
         "target": "minio.internal:9000",
         "paths": [
-            ("GET", "/assets/app.js", 200, (2, 12)),
-            ("GET", "/assets/style.css", 200, (1, 6)),
-            ("GET", "/assets/logo.png", 200, (3, 18)),
-            ("GET", "/assets/vendor.js", 200, (4, 22)),
-            ("GET", "/favicon.ico", 404, (1, 4)),
+            ("GET", "/assets/app.js", 200, (2, 12), 0.78),
+            ("GET", "/assets/style.css", 200, (1, 6), 0.82),
+            ("GET", "/assets/logo.png", 200, (3, 18), 0.71),
+            ("GET", "/assets/vendor.js", 200, (4, 22), 0.75),
+            ("GET", "/favicon.ico", 404, (1, 4), 0.15),
         ],
         "weight": 28,
         "cache_rate": 0.72,
@@ -57,8 +59,8 @@ ROUTES = [
         "host": "assets.cdn.example.com",
         "target": "minio.internal:9000",
         "paths": [
-            ("GET", "/static/main.js", 200, (2, 10)),
-            ("GET", "/static/theme.css", 200, (1, 5)),
+            ("GET", "/static/main.js", 200, (2, 10), 0.88),
+            ("GET", "/static/theme.css", 200, (1, 5), 0.86),
         ],
         "weight": 8,
         "cache_rate": 0.85,
@@ -89,8 +91,8 @@ ROUTES = [
         "host": "admin.internal",
         "target": "handler",
         "paths": [
-            ("GET", "/healthz", 200, (1, 3)),
-            ("GET", "/", 200, (1, 4)),
+            ("GET", "/healthz", 200, (1, 3), 0.52),
+            ("GET", "/", 200, (1, 4), 0.38),
         ],
         "weight": 5,
         "cache_rate": 0.0,
@@ -99,8 +101,8 @@ ROUTES = [
         "host": "legacy.example.com",
         "target": "redirect",
         "paths": [
-            ("GET", "/", 301, (0, 1)),
-            ("GET", "/old-page", 301, (0, 1)),
+            ("GET", "/", 301, (0, 1), 0.42),
+            ("GET", "/old-page", 301, (0, 1), 0.35),
         ],
         "weight": 3,
         "cache_rate": 0.0,
@@ -197,9 +199,19 @@ def pick_timestamps(n: int) -> list[datetime]:
     return out
 
 
-def format_access_line(ts: datetime, route: dict, method: str, path: str, status: int, dur_ms: int) -> str:
+def format_access_line(
+    ts: datetime,
+    route: dict,
+    method: str,
+    path: str,
+    status: int,
+    dur_ms: int,
+    *,
+    path_cache_rate: float | None = None,
+) -> str:
     ip = random.choice(CLIENT_IPS)
-    cache_hit = 1 if random.random() < route["cache_rate"] else 0
+    rate = route["cache_rate"] if path_cache_rate is None else path_cache_rate
+    cache_hit = 1 if random.random() < rate else 0
     waf_block = 1 if status == 403 and route["host"] == "waf-demo.example.com" else 0
     tls_proto, tls_cipher = random.choice(TLS)
     if route["target"].endswith(":443"):
@@ -224,15 +236,26 @@ def format_access_line(ts: datetime, route: dict, method: str, path: str, status
     )
 
 
+def parse_path_entry(entry: tuple) -> tuple[str, str, int, tuple[int, int], float | None]:
+    if len(entry) >= 5:
+        method, path, status, dur, cache_rate = entry
+        return method, path, status, dur, cache_rate
+    method, path, status, dur = entry
+    return method, path, status, dur, None
+
+
 def generate_access_lines(n: int = 4200) -> list[str]:
     random.seed(42)
     timestamps = pick_timestamps(n)
     lines: list[str] = []
     for ts in timestamps:
         route = weighted_choice(ROUTES)
-        method, path, status, (lo, hi) = random.choice(route["paths"])
+        entry = random.choice(route["paths"])
+        method, path, status, (lo, hi), path_cache_rate = parse_path_entry(entry)
         dur = random.randint(lo, hi)
-        lines.append(format_access_line(ts, route, method, path, status, dur))
+        lines.append(
+            format_access_line(ts, route, method, path, status, dur, path_cache_rate=path_cache_rate)
+        )
     return lines
 
 
@@ -242,7 +265,8 @@ def generate_error_lines(n: int = 220) -> list[str]:
     timestamps = pick_timestamps(n)
     for ts in timestamps:
         route = weighted_choice(ROUTES)
-        method, path, _, _ = random.choice(route["paths"])
+        entry = random.choice(route["paths"])
+        method, path, _, _, _ = parse_path_entry(entry)
         tpl = random.choice(ERROR_TEMPLATES)
         ip = random.choice(CLIENT_IPS)
         msg = tpl.format(

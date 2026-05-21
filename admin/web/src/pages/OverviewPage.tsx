@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { OverviewCharts } from '../components/OverviewCharts'
 import { PageHeader } from '../components/PageHeader'
 import { api, type OverviewMetrics, type WAFEvent } from '../api/client'
+import { loadPreferences } from '../lib/preferences'
 
 export function OverviewPage() {
   const navigate = useNavigate()
@@ -22,8 +23,9 @@ export function OverviewPage() {
       .then((d) => setEvents(Array.isArray(d) ? d.slice(0, 4) : []))
       .catch(() => setEvents([]))
     setMetricsLoading(true)
+    const window = loadPreferences().metricsWindow
     api
-      .overviewMetrics('15m')
+      .overviewMetrics(window)
       .then(setMetrics)
       .catch(() => setMetrics(null))
       .finally(() => setMetricsLoading(false))

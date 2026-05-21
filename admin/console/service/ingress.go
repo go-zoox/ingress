@@ -58,6 +58,9 @@ func (s *Ingress) LoadConfig() (*ingcore.Config, error) {
 	if err := waf.ApplyRulePatchesFromFile(path, cfg.Rules); err != nil {
 		return nil, err
 	}
+	if err := ingcore.ResolveConfigPaths(&cfg, path); err != nil {
+		return nil, err
+	}
 	return &cfg, nil
 }
 

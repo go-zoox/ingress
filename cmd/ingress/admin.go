@@ -1,6 +1,8 @@
 package main
 
 import (
+	"path/filepath"
+
 	"github.com/go-zoox/cli"
 	"github.com/go-zoox/config"
 	"github.com/go-zoox/fs"
@@ -36,6 +38,11 @@ func Admin() *cli.Command {
 				}
 				if err := admincfg.ResolvePaths(&cfg, path); err != nil {
 					return err
+				}
+				if abs, err := filepath.Abs(path); err == nil {
+					cfg.AdminConfigFile = abs
+				} else {
+					cfg.AdminConfigFile = path
 				}
 			} else {
 				logger.Warnf("admin config %s not found, using defaults", path)

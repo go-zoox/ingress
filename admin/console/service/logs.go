@@ -3,6 +3,7 @@ package service
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -19,11 +20,21 @@ const (
 
 // LogQuery filters log lines.
 type LogQuery struct {
-	Kind   LogKind
-	Q      string
-	Host   string
-	Status string // access only: "", "2", "3", "4", "5"
-	Limit  int
+	Kind      LogKind
+	Q         string
+	Host      string
+	Status    string // access only: "", "2", "3", "4", "5"
+	CacheHit  string // access only: "", "0", "1"
+	WAFBlock  string // access only: "", "0", "1"
+	Limit     int
+	Offset    int64 // byte offset for incremental tail; 0 = snapshot tail
+}
+
+// LogResult is the logs API payload.
+type LogResult struct {
+	Lines  []string `json:"lines"`
+	Count  int      `json:"count"`
+	Offset int64    `json:"offset"`
 }
 
 // Logs reads configured access and error log files.
@@ -39,7 +50,6 @@ func NewLogs(cfg *config.Config) *Logs {
 	}
 }
 
-// AccessLogPath returns the configured access log file path.
 func (l *Logs) AccessLogPath() string {
 	if l == nil {
 		return ""
@@ -47,7 +57,6 @@ func (l *Logs) AccessLogPath() string {
 	return l.accessPath
 }
 
-// ErrorLogPath returns the configured error log file path.
 func (l *Logs) ErrorLogPath() string {
 	if l == nil {
 		return ""
@@ -62,34 +71,91 @@ func (l *Logs) logPath(kind LogKind) string {
 	return l.accessPath
 }
 
-func (l *Logs) Search(q LogQuery) ([]string, error) {
+func (l *Logs) Search(q LogQuery) (LogResult, error) {
 	if q.Kind == "" {
 		q.Kind = LogAccess
 	}
 	path := l.logPath(q.Kind)
 	if path == "" {
-		return nil, nil
+		return LogResult{}, nil
+	}
+	if q.Offset > 0 {
+		return tailSinceOffset(path, q)
 	}
 	lines, err := tailLogFile(path, q.Limit)
 	if err != nil {
-		return nil, err
+		return LogResult{}, err
 	}
-	var out []string
-	for _, line := range lines {
-		if matchLogLine(line, q) {
-			out = append(out, line)
-		}
-	}
-	return out, nil
+	out := filterLines(lines, q)
+	size, _ := fileSize(path)
+	return LogResult{Lines: out, Count: len(out), Offset: size}, nil
 }
 
-// Tail reads up to max trailing lines from the access log (for metrics).
 func (l *Logs) TailAccess(max int) ([]string, error) {
 	path := strings.TrimSpace(l.accessPath)
 	if path == "" {
 		return nil, nil
 	}
 	return tailLogFile(path, max)
+}
+
+func tailSinceOffset(path string, q LogQuery) (LogResult, error) {
+	size, err := fileSize(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return LogResult{}, nil
+		}
+		return LogResult{}, err
+	}
+	if q.Offset >= size {
+		return LogResult{Offset: size}, nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return LogResult{}, nil
+		}
+		return LogResult{}, fmt.Errorf("open log %s: %w", path, err)
+	}
+	defer f.Close()
+	if _, err := f.Seek(q.Offset, io.SeekStart); err != nil {
+		return LogResult{}, err
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return LogResult{}, err
+	}
+	raw := strings.Split(string(data), "\n")
+	if len(raw) > 0 && raw[len(raw)-1] == "" {
+		raw = raw[:len(raw)-1]
+	}
+	// First fragment after a byte offset may be a partial line; drop it.
+	if q.Offset > 0 && len(raw) > 0 {
+		raw = raw[1:]
+	}
+	out := filterLines(raw, q)
+	if q.Limit > 0 && len(out) > q.Limit {
+		out = out[len(out)-q.Limit:]
+	}
+	return LogResult{Lines: out, Count: len(out), Offset: size}, nil
+}
+
+func filterLines(lines []string, q LogQuery) []string {
+	var out []string
+	for _, line := range lines {
+		if matchLogLine(line, q) {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+func fileSize(path string) (int64, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	return fi.Size(), nil
 }
 
 func tailLogFile(path string, limit int) ([]string, error) {
@@ -126,6 +192,18 @@ func matchLogLine(line string, q LogQuery) bool {
 	}
 	if q.Q != "" && !strings.Contains(low, strings.ToLower(q.Q)) {
 		return false
+	}
+	if q.Kind == LogAccess && q.CacheHit != "" {
+		want := "cache_hit=" + q.CacheHit
+		if !strings.Contains(line, want) {
+			return false
+		}
+	}
+	if q.Kind == LogAccess && q.WAFBlock != "" {
+		want := "waf_block=" + q.WAFBlock
+		if !strings.Contains(line, want) {
+			return false
+		}
 	}
 	if q.Kind == LogError || q.Status == "" {
 		return true

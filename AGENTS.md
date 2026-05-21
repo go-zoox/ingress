@@ -91,6 +91,8 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 - **Stack**: `admin/web` — React + TypeScript + Vite + pnpm; `admin/console` — go-zoox HTTP API, gormx + SQLite (`audit_log`, `waf_event`, `config_revision`).
 - **Ingress integration**: reads/writes `ingress.config_path` YAML; `POST /api/v1/reload` validates then SIGHUP via `pid_file`. Route list / dry-run match use `core.ListRouteRows` and `core.PreviewMatch` (`core/admininspect.go`).
 - **Dev**: `go run ./cmd/ingress admin -c examples/admin-console/admin.yaml` + `cd admin/web && pnpm dev` (proxy `/api`). **Build**: `cd admin && make build`. Demo config: `examples/admin-console/`.
+- **Logs API**: `GET /api/v1/logs` supports `offset` (byte tail), `cache_hit`, `waf_block` filters for live monitoring.
+- **Cache / TLS API**: `GET /api/v1/cache/overview`, `GET /api/v1/tls/certs` (x509 metadata from cert files).
 - **Static prototype** (no backend): `prototypes/admin-console/`.
 
 ## Verification

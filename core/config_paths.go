@@ -19,6 +19,7 @@ func ResolveConfigPaths(cfg *Config, configFilePath string) error {
 		return err
 	}
 	resolveLoggerPaths(&cfg.Logger, base)
+	resolveHTTPSPaths(&cfg.HTTPS, base)
 	return nil
 }
 
@@ -72,4 +73,14 @@ func resolveConfigFilePath(base, p string) string {
 		return p
 	}
 	return filepath.Clean(filepath.Join(base, p))
+}
+
+func resolveHTTPSPaths(https *HTTPS, base string) {
+	if https == nil {
+		return
+	}
+	for i := range https.SSL {
+		https.SSL[i].Cert.Certificate = resolveConfigFilePath(base, https.SSL[i].Cert.Certificate)
+		https.SSL[i].Cert.CertificateKey = resolveConfigFilePath(base, https.SSL[i].Cert.CertificateKey)
+	}
 }
