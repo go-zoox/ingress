@@ -1,0 +1,96 @@
+# Runnable sample aligned with the admin console product prototype (routes, WAF, health).
+# Validate: ingress validate -c examples/admin-console/ingress.yaml
+# Try with admin: ingress admin -c examples/admin-console/admin.yaml
+
+version: v1
+port: 8080
+
+# zoox Config.Logger (YAML key `logging`): console + file transports
+logging:
+  level: warn
+  transports:
+    - type: file
+      path: ./access.log
+      levels:
+        error: ./error.log
+
+waf:
+  enabled: true
+  log_only: false
+  builtin: true
+
+healthcheck:
+  outer:
+    enable: true
+    path: /healthz
+    ok: true
+  inner:
+    enable: true
+    interval: 30
+    timeout: 5
+
+# Optional HTTPS block (requires real cert files on disk):
+# https:
+#   port: 8443
+#   redirect_from_http:
+#     permanent: true
+#   ssl:
+#     - domain: api.example.com
+#       cert:
+#         certificate: /etc/ingress/certs/api.pem
+#         certificate_key: /etc/ingress/certs/api-key.pem
+
+rules:
+  - host: api.example.com
+    backend:
+      service:
+        name: api.internal
+        port: 8080
+    paths:
+      - path: /v2
+        backend:
+          service:
+            name: api-v2.internal
+            port: 8080
+          cache:
+            enabled: true
+
+  - host: "*.cdn.example.com"
+    host_type: wildcard
+    backend:
+      service:
+        name: minio.internal
+        port: 9000
+      cache:
+        enabled: true
+
+  - host: ^([a-z0-9-]+)\.inlets\.example\.com$
+    host_type: regex
+    backend:
+      service:
+        name: ${host.1}.tunnel
+        port: 443
+        protocol: https
+
+  - host: admin.internal
+    backend:
+      type: handler
+      handler:
+        headers:
+          Content-Type: text/plain; charset=utf-8
+        body: "admin console demo host\n"
+    paths:
+      - path: /healthz
+        backend:
+          type: handler
+          handler:
+            headers:
+              Content-Type: text/plain; charset=utf-8
+            body: "ok\n"
+
+  - host: legacy.example.com
+    backend:
+      type: redirect
+      redirect:
+        url: https://www.example.com$request_uri
+        permanent: true

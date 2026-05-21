@@ -31,6 +31,9 @@ ingress run -c examples/waf/log-only-audit.yaml
 
 # reload running instance after editing config (validates then SIGHUP)
 ingress reload -c /path/to/ingress.yaml
+
+# operations admin console (API + web UI; see admin/README.md)
+ingress admin -c examples/admin-console/admin.yaml
 ```
 
 ## Configuration

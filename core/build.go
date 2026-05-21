@@ -3,12 +3,10 @@ package core
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"html/template"
 	"io"
 	"mime"
-	"net"
 	"net/http"
 	"os"
 	pathlib "path"
@@ -18,7 +16,6 @@ import (
 
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/waf"
-	"github.com/go-zoox/logger"
 	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/zoox"
 	"github.com/go-zoox/zoox/middleware"
@@ -49,6 +46,7 @@ func (c *core) build() error {
 
 	// services (core plugin)
 	c.app.Use(middleware.Proxy(func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next, stop bool, err error) {
+		reqStart := time.Now()
 		hostname := ctx.Hostname()
 		method := ctx.Method
 		path := ctx.Path
@@ -63,7 +61,7 @@ func (c *core) build() error {
 
 		serviceIns, matchedRule, pathBackend, hostSm, pathSm, ruleIdx, err := c.match(ctx, hostname, path)
 		if err != nil {
-			logger.Warnf("no route matched (host: %s, path: %s): %s", hostname, path, err)
+			c.app.Logger().Warnf("no route matched (host: %s, path: %s): %s", hostname, path, err)
 			if c.cfg.ErrorPageExposeDetails {
 				writeIngressErrorPage(ctx, http.StatusNotFound,
 					"Route not found",
@@ -85,6 +83,15 @@ func (c *core) build() error {
 		if wafProf != nil && waf.CheckRequest(wafProf, ctx.Request, hostname, path, method) {
 			ctx.SetHeader("Content-Type", wafProf.BlockContentType)
 			ctx.String(wafProf.BlockStatus, wafProf.BlockBody)
+			target := "-"
+			if serviceIns != nil {
+				target = serviceIns.Target()
+			}
+			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, target, method, path, ctx.Request.Proto, wafProf.BlockStatus, time.Since(reqStart), accessLogMeta{
+				WAFBlock:               true,
+				UpstreamStatus:         wafProf.BlockStatus,
+				UpstreamResponseLength: -1,
+			}))
 			return false, true, nil
 		}
 
@@ -119,16 +126,12 @@ func (c *core) build() error {
 				redirectCacheKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, policyRedirect)
 				if hit, code, ulen := tryServeHTTPCache(ctx, policyRedirect, redirectCacheKey); hit {
 					rdDur := time.Since(redirectCacheStart)
-					ctx.Logger.Infof(
-						"[host: %s, target: redirect] \"%s %s %s\" %d %v %s cache_hit=1",
-						hostname,
-						method,
-						path,
-						ctx.Request.Proto,
-						code,
-						rdDur,
-						buildAccessLogExtraFields(ctx.Request, code, ulen, rdDur),
-					)
+					ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, "redirect", method, path, ctx.Request.Proto, code, rdDur, accessLogMeta{
+						CacheHit:               true,
+						UpstreamStatus:         code,
+						UpstreamResponseLength: ulen,
+						UpstreamResponseTime:   rdDur,
+					}))
 					return false, true, nil
 				}
 				mayStoreRedirect = method == http.MethodGet
@@ -167,6 +170,11 @@ func (c *core) build() error {
 			}
 
 			applyRedirect(ctx, redirectURL, permanent, withOriginMethodAndBody)
+			rdCode := redirectStatusFromFlags(permanent, withOriginMethodAndBody)
+			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, "redirect", method, path, ctx.Request.Proto, rdCode, time.Since(redirectCacheStart), accessLogMeta{
+				UpstreamStatus:         rdCode,
+				UpstreamResponseLength: -1,
+			}))
 
 			return false, true, nil
 		}
@@ -196,17 +204,12 @@ func (c *core) build() error {
 				handlerCacheKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, policyHandler)
 				if hit, code, ulen := tryServeHTTPCache(ctx, policyHandler, handlerCacheKey); hit {
 					hDur := time.Since(handlerCacheStart)
-					ctx.Logger.Infof(
-						"[host: %s, target: handler/%s] \"%s %s %s\" %d %v %s cache_hit=1",
-						hostname,
-						handlerType,
-						method,
-						path,
-						ctx.Request.Proto,
-						code,
-						hDur,
-						buildAccessLogExtraFields(ctx.Request, code, ulen, hDur),
-					)
+					ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, handlerAccessTarget(handlerType), method, path, ctx.Request.Proto, code, hDur, accessLogMeta{
+						CacheHit:               true,
+						UpstreamStatus:         code,
+						UpstreamResponseLength: ulen,
+						UpstreamResponseTime:   hDur,
+					}))
 					return false, true, nil
 				}
 				if method == http.MethodGet {
@@ -312,30 +315,24 @@ func (c *core) build() error {
 			if captureBuf != nil {
 				respLen = int64(captureBuf.Len())
 			}
-			ctx.Logger.Infof(
-				"[host: %s, target: handler/%s] \"%s %s %s\" %d %v %s",
-				hostname,
-				handlerType,
-				method,
-				path,
-				ctx.Request.Proto,
-				handlerStatusCode,
-				handlerDuration,
-				buildAccessLogExtraFields(ctx.Request, handlerStatusCode, respLen, handlerDuration),
-			)
+			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, handlerAccessTarget(handlerType), method, path, ctx.Request.Proto, handlerStatusCode, handlerDuration, accessLogMeta{
+				UpstreamStatus:         handlerStatusCode,
+				UpstreamResponseLength: respLen,
+				UpstreamResponseTime:   handlerDuration,
+			}))
 
 			return false, true, nil
 		}
 
 		// If there's only redirect config but no service, skip validation
 		if serviceIns.Name == "" {
-			logger.Errorf("service name is empty for host: %s, path: %s", hostname, path)
+			c.app.Logger().Errorf("service name is empty for host: %s, path: %s", hostname, path)
 			return false, false, proxy.NewHTTPError(500, "Service configuration is invalid")
 		}
 
 		// Validate client authentication before processing request
 		if err := serviceIns.ValidateAuth(ctx.Request); err != nil {
-			logger.Warnf("authentication failed for host: %s, path: %s: %s", hostname, path, err)
+			c.app.Logger().Warnf("authentication failed for host: %s, path: %s: %s", hostname, path, err)
 
 			// Set WWW-Authenticate header based on auth type
 			if serviceIns.Auth.Type == authTypeBasic {
@@ -355,7 +352,7 @@ func (c *core) build() error {
 
 		ips, err := serviceIns.CheckDNS()
 		if err != nil {
-			logger.Errorf("check dns error (service=%s host=%s path=%s): %s", serviceIns.Name, hostname, path, err)
+			c.app.Logger().Errorf("check dns error (service=%s host=%s path=%s): %s", serviceIns.Name, hostname, path, err)
 
 			// exact service specify
 			if matchedRule.HostType == hostTypeExact {
@@ -418,17 +415,12 @@ func (c *core) build() error {
 				httpCacheStoreKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, pc)
 				if hit, code, ulen := tryServeHTTPCache(ctx, pc, httpCacheStoreKey); hit {
 					hitDur := time.Since(proxyStart)
-					ctx.Logger.Infof(
-						"[host: %s, target: %s] \"%s %s %s\" %d %v %s cache_hit=1",
-						hostname,
-						serviceIns.Target(),
-						method,
-						path,
-						ctx.Request.Proto,
-						code,
-						hitDur,
-						buildAccessLogExtraFields(ctx.Request, code, ulen, hitDur),
-					)
+					ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, serviceIns.Target(), method, path, ctx.Request.Proto, code, hitDur, accessLogMeta{
+						CacheHit:               true,
+						UpstreamStatus:         code,
+						UpstreamResponseLength: ulen,
+						UpstreamResponseTime:   hitDur,
+					}))
 					return false, true, nil
 				}
 				httpCacheMayStore = true
@@ -515,17 +507,11 @@ func (c *core) build() error {
 			}
 
 			upstreamDuration := time.Since(proxyStart)
-			ctx.Logger.Infof(
-				"[host: %s, target: %s] \"%s %s %s\" %d %v %s",
-				hostname,
-				serviceIns.Target(),
-				method,
-				path,
-				ctx.Request.Proto,
-				res.StatusCode,
-				upstreamDuration,
-				buildAccessLogExtraFields(ctx.Request, res.StatusCode, res.ContentLength, upstreamDuration),
-			)
+			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, serviceIns.Target(), method, path, ctx.Request.Proto, res.StatusCode, upstreamDuration, accessLogMeta{
+				UpstreamStatus:         res.StatusCode,
+				UpstreamResponseLength: res.ContentLength,
+				UpstreamResponseTime:   upstreamDuration,
+			}))
 
 			return nil
 		}
@@ -591,58 +577,4 @@ func buildHTTPSRedirectURL(hostname, path, rawQuery string, httpsPort int64) str
 	}
 
 	return redirectURL
-}
-
-func buildAccessLogExtraFields(req *http.Request, upstreamStatus int, upstreamResponseLength int64, upstreamResponseTime time.Duration) string {
-	realIP := req.Header.Get("X-Real-IP")
-	if realIP == "" {
-		if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil && host != "" {
-			realIP = host
-		} else if req.RemoteAddr != "" {
-			realIP = req.RemoteAddr
-		} else {
-			realIP = "-"
-		}
-	}
-
-	referer := req.Referer()
-	if referer == "" {
-		referer = "-"
-	}
-
-	userAgent := req.UserAgent()
-	if userAgent == "" {
-		userAgent = "-"
-	}
-
-	xForwardedFor := req.Header.Get("X-Forwarded-For")
-	if xForwardedFor == "" {
-		xForwardedFor = "-"
-	}
-
-	tlsProtocol := "-"
-	tlsCipher := "-"
-	if req.TLS != nil {
-		tlsProtocol = tls.VersionName(req.TLS.Version)
-		tlsCipher = tls.CipherSuiteName(req.TLS.CipherSuite)
-		if tlsProtocol == "" {
-			tlsProtocol = "-"
-		}
-		if tlsCipher == "" {
-			tlsCipher = "-"
-		}
-	}
-
-	return fmt.Sprintf(
-		`real_ip="%s" referer="%s" ua="%s" xff="%s" tls_protocol="%s" tls_cipher="%s" upstream_status=%d upstream_response_length=%d upstream_response_time=%s`,
-		realIP,
-		referer,
-		userAgent,
-		xForwardedFor,
-		tlsProtocol,
-		tlsCipher,
-		upstreamStatus,
-		upstreamResponseLength,
-		upstreamResponseTime,
-	)
 }

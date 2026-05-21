@@ -1,0 +1,14 @@
+port: 9080
+
+ingress:
+  config_path: ./ingress.yaml
+  pid_file: /tmp/gozoox.ingress.pid
+  log_path: ./access.log
+  error_log_path: ./error.log
+
+database:
+  driver: sqlite
+  dsn: file:./admin.db?cache=shared&_fk=1
+
+web:
+  dev_proxy: true
