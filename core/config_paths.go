@@ -18,7 +18,7 @@ func ResolveConfigPaths(cfg *Config, configFilePath string) error {
 	if err != nil {
 		return err
 	}
-	resolveLoggerPaths(&cfg.Logger, base)
+	resolveLoggingPaths(&cfg.Logging, base)
 	resolveHTTPSPaths(&cfg.HTTPS, base)
 	return nil
 }
@@ -42,7 +42,7 @@ func ingressConfigDir(configFilePath string) (string, error) {
 	return filepath.Abs(filepath.Dir(p))
 }
 
-func resolveLoggerPaths(l *zcfg.Logger, base string) {
+func resolveLoggingPaths(l *Logging, base string) {
 	if l == nil {
 		return
 	}

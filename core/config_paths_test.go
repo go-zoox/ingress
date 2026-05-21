@@ -9,7 +9,7 @@ import (
 
 func TestResolveConfigPaths_loggerFiles(t *testing.T) {
 	cfg := &Config{
-		Logger: zcfg.Logger{
+		Logging: Logging{
 			Level: "warn",
 			Transports: []zcfg.Transport{
 				{
@@ -30,17 +30,17 @@ func TestResolveConfigPaths_loggerFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Logger.Transports[0].Path != filepath.Join(wantBase, "access.log") {
-		t.Fatalf("access log path: got %q want %q", cfg.Logger.Transports[0].Path, filepath.Join(wantBase, "access.log"))
+	if cfg.Logging.Transports[0].Path != filepath.Join(wantBase, "access.log") {
+		t.Fatalf("access log path: got %q want %q", cfg.Logging.Transports[0].Path, filepath.Join(wantBase, "access.log"))
 	}
-	if cfg.Logger.Transports[0].Levels["error"] != filepath.Join(wantBase, "error.log") {
-		t.Fatalf("error log path: got %q want %q", cfg.Logger.Transports[0].Levels["error"], filepath.Join(wantBase, "error.log"))
+	if cfg.Logging.Transports[0].Levels["error"] != filepath.Join(wantBase, "error.log") {
+		t.Fatalf("error log path: got %q want %q", cfg.Logging.Transports[0].Levels["error"], filepath.Join(wantBase, "error.log"))
 	}
 }
 
 func TestResolveConfigPaths_keepsAbsolutePaths(t *testing.T) {
 	cfg := &Config{
-		Logger: zcfg.Logger{
+		Logging: Logging{
 			Transports: []zcfg.Transport{
 				{Type: "file", Path: "/var/log/ingress/access.log"},
 			},
@@ -49,7 +49,7 @@ func TestResolveConfigPaths_keepsAbsolutePaths(t *testing.T) {
 	if err := ResolveConfigPaths(cfg, "examples/admin-console/ingress.yaml"); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Logger.Transports[0].Path != "/var/log/ingress/access.log" {
-		t.Fatalf("got %q", cfg.Logger.Transports[0].Path)
+	if cfg.Logging.Transports[0].Path != "/var/log/ingress/access.log" {
+		t.Fatalf("got %q", cfg.Logging.Transports[0].Path)
 	}
 }

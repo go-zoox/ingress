@@ -143,11 +143,18 @@ function LoggingModuleForm({
   doc: Record<string, unknown>
   onChange: (doc: Record<string, unknown>) => void
 }) {
+  const DEFAULT_ACCESS_LOG = '/var/log/ingress/access.log'
+  const DEFAULT_ERROR_LOG = '/var/log/ingress/error.log'
+
   const logging = { ...obj(doc.logging) }
   const transports = arr<Record<string, unknown>>(logging.transports)
   const fileIdx = transports.findIndex((t) => str(t.type) === 'file')
   const file = fileIdx >= 0 ? { ...obj(transports[fileIdx]) } : { type: 'file', path: '', levels: {} }
   const levels = { ...obj(file.levels) }
+  const hasCustomPaths = fileIdx >= 0 && (Boolean(str(file.path)) || Boolean(str(levels.error)))
+  const enabled = logging.enable === undefined
+    ? hasCustomPaths
+    : bool(logging.enable)
 
   const patchLogging = (fn: (next: Record<string, unknown>) => void) => {
     const nextLogging = { ...logging }
@@ -155,24 +162,49 @@ function LoggingModuleForm({
     onChange({ logging: nextLogging })
   }
 
-  const patchFile = (accessPath: string, errorPath: string) => {
-    const nextFile = {
-      ...file,
-      type: 'file',
-      path: accessPath,
-      levels: errorPath ? { ...levels, error: errorPath } : { ...levels },
-    }
-    if (!errorPath) delete (nextFile.levels as Record<string, unknown>).error
-    const nextTransports = [...transports]
-    if (fileIdx >= 0) nextTransports[fileIdx] = nextFile
-    else nextTransports.push(nextFile)
+  const setEnabled = (v: boolean) => {
     patchLogging((n) => {
+      if (v) {
+        n.enable = true
+        if (!hasCustomPaths) delete n.transports
+      } else {
+        n.enable = false
+        delete n.transports
+      }
+    })
+  }
+
+  const patchFile = (accessPath: string, errorPath: string) => {
+    const access = accessPath.trim()
+    const errPath = errorPath.trim()
+    patchLogging((n) => {
+      n.enable = true
+      if (!access && !errPath) {
+        delete n.transports
+        return
+      }
+      const nextFile: Record<string, unknown> = {
+        type: 'file',
+        path: access,
+        levels: errPath ? { error: errPath } : {},
+      }
+      const nextTransports = [...transports]
+      if (fileIdx >= 0) nextTransports[fileIdx] = nextFile
+      else nextTransports.push(nextFile)
       n.transports = nextTransports
     })
   }
 
+  const accessDisplay = str(file.path) || (enabled && !hasCustomPaths ? DEFAULT_ACCESS_LOG : '')
+  const errorDisplay = str(levels.error) || (enabled && !hasCustomPaths ? DEFAULT_ERROR_LOG : '')
+
   return (
     <FormGrid>
+      <FormCheckbox
+        label="启用文件日志 logging.enable"
+        checked={enabled}
+        onChange={setEnabled}
+      />
       <FormSelectField
         label="日志级别"
         keyName="level"
@@ -184,20 +216,26 @@ function LoggingModuleForm({
         <option value="warn">warn</option>
         <option value="error">error</option>
       </FormSelectField>
-      <FormSection title="文件输出">
-        <FormField
-          label="Access 日志路径"
-          hint="logging.transports[].path"
-          value={str(file.path)}
-          onChange={(e) => patchFile(e.target.value, str(levels.error))}
-        />
-        <FormField
-          label="Error 日志路径"
-          hint="logging.transports[].levels.error"
-          value={str(levels.error)}
-          onChange={(e) => patchFile(str(file.path), e.target.value)}
-        />
-      </FormSection>
+      {enabled && (
+        <FormSection title="文件输出">
+          <p className="form-hint">
+            未填写时使用默认路径（console 始终开启）：<code>{DEFAULT_ACCESS_LOG}</code>、<code>{DEFAULT_ERROR_LOG}</code>。
+            启动时会自动创建 <code>/var/log/ingress</code> 目录。
+          </p>
+          <FormField
+            label="Access 日志路径"
+            hint="logging.transports[].path；留空则默认"
+            value={accessDisplay}
+            onChange={(e) => patchFile(e.target.value, str(levels.error))}
+          />
+          <FormField
+            label="Error 日志路径"
+            hint="logging.transports[].levels.error；留空则默认"
+            value={errorDisplay}
+            onChange={(e) => patchFile(str(file.path), e.target.value)}
+          />
+        </FormSection>
+      )}
     </FormGrid>
   )
 }

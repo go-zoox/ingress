@@ -2,12 +2,10 @@ package core
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/kv"
 	"github.com/go-zoox/kv/redis"
-	zcfg "github.com/go-zoox/zoox/config"
 )
 
 func (c *core) prepare() error {
@@ -19,8 +17,11 @@ func (c *core) prepare() error {
 		c.cfg.Cache.TTL = 60
 	}
 
-	if loggerConfigured(&c.cfg.Logger) {
-		c.app.Config.Logger = c.cfg.Logger
+	if err := c.cfg.Logging.Normalize(); err != nil {
+		return fmt.Errorf("logging: %w", err)
+	}
+	if c.cfg.Logging.Configured() {
+		c.app.Config.Logger = c.cfg.Logging.Zoox()
 	}
 	c.app.Config.Logger.Middleware.Disabled = true
 
@@ -70,11 +71,4 @@ func (c *core) prepareCache() {
 	if err := c.app.Cache().Clear(); err != nil {
 		c.app.Logger().Errorf("[prepareCache] failed to clear cache: %s", err)
 	}
-}
-
-func loggerConfigured(l *zcfg.Logger) bool {
-	if strings.TrimSpace(l.Level) != "" {
-		return true
-	}
-	return len(l.Transports) > 0
 }

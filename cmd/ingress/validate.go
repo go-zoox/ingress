@@ -65,6 +65,9 @@ func validateConfigFile(configFilePath string) error {
 	if err := core.ResolveConfigPaths(&cfg, configFilePath); err != nil {
 		return fmt.Errorf("resolve config paths in file(%s): %w", configFilePath, err)
 	}
+	if err := cfg.Logging.Normalize(); err != nil {
+		return fmt.Errorf("logging in file(%s): %w", configFilePath, err)
+	}
 	if err := waf.ApplyRulePatchesFromFile(configFilePath, cfg.Rules); err != nil {
 		return fmt.Errorf("rules[].waf in file(%s): %w", configFilePath, err)
 	}
