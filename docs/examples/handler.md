@@ -11,7 +11,7 @@ Field reference and script APIs: [Routing guide — Handler Backend](/guide/rout
 Static assets for **`file_server`** and **`templates`** live beside the config:
 
 - `examples/handler/static/` — plain files (`index.html`, `hello.txt`)
-- `examples/handler/templates/` — Go templates with `{{.Path}}` and `{{.Method}}`
+- `examples/handler/templates/` — Go templates with <span v-pre>{{.Path}}</span> and <span v-pre>{{.Method}}</span>
 
 ## Validate and run
 

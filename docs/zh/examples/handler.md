@@ -11,7 +11,7 @@
 **`file_server`** / **`templates`** 使用的静态文件与模板目录：
 
 - `examples/handler/static/` — 普通文件（`index.html`、`hello.txt`）
-- `examples/handler/templates/` — Go 模板，可用 `{{.Path}}`、`{{.Method}}`
+- `examples/handler/templates/` — Go 模板，可用 <span v-pre>{{.Path}}</span>、<span v-pre>{{.Method}}</span>
 
 ## 校验与运行
 
