@@ -45,6 +45,7 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 
 - Ingress **`logging`** decodes as **`zcfg.Logger`** and is copied to **`app.Config.Logger`** in `prepare()` when `level` or `transports` is set. Zoox **`Logger()`** builds console + transports (`components/application/logger`).
 - Use **`logging.transports`** with `type: file`, `path`, `levels` (same as zoox). No separate ingress-only logging types.
+- Relative **`path`** / **`levels.*`** values resolve against the **ingress config file directory** (`core.ResolveConfigPaths` in `run` / `validate`), not the process cwd.
 
 ## Access logging
 
