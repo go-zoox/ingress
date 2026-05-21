@@ -286,6 +286,8 @@ Forced HTTP→HTTPS uses `https.redirect_from_http` (including optional `with_or
 
 Path backends can answer from **`backend.handler`** instead of proxying. **`backend.type` is optional**: when only **`handler`** is configured, Ingress infers **`handler`**. The snippet below keeps **`type: handler`** on the first path only so it contrasts with the paths that omit **`backend.type`**.
 
+**Runnable samples** for every handler type (including `file_server`, `templates`, and `script`) live under **`examples/handler/`** — see the [Handler examples](/examples/handler) page.
+
 Use **`handler.type`** to choose one of:
 
 - `static_response` (default)

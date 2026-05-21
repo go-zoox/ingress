@@ -30,6 +30,8 @@ Runnable sample for **`service.mode`** (internal vs external) and handler paths:
 
 <<< @/../examples/advanced/service-mode-external-mixed.yaml
 
+For **all handler types** (`file_server`, `templates`, `script`), see [Handler Backend Examples](/examples/handler).
+
 ## Health checks with multiple services
 
 <<< @/../examples/advanced/health-checks.yaml

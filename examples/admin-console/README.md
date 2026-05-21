@@ -4,7 +4,7 @@ Runnable ingress config, log files, and SQLite-backed admin state for `ingress a
 
 | File | Purpose |
 |------|---------|
-| `ingress.yaml` | Multi-route sample + **https.ssl (8 certs)** + **cache** (global Redis + route rules) |
+| `ingress.yaml` | Multi-route sample + **fallback** + **https.ssl (8 certs)** + **cache** (global Redis + route rules) |
 | `admin.yaml` | Admin server: points at `ingress.yaml`, `access.log`, `error.log`, `admin.db` |
 | `certs/` | 8 sample TLS certificates (regenerate: `go run ./examples/admin-console/scripts/gen_sample_certs/main.go`) |
 | `access.log` | ~4200 lines, **90 days** — logs API、概览指标、**Host/Path 缓存命中排行** |

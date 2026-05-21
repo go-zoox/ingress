@@ -35,11 +35,34 @@ export const api = {
   cacheOverview: () => request<CacheOverview>('/cache/overview'),
   settings: () => request<SettingsView>('/settings'),
   getConfig: () => request<{ path: string; content: string }>('/config'),
-  putConfig: (content: string) =>
+  putConfig: (content: string, note = 'save') =>
     request<{ hash: string }>('/config', {
       method: 'PUT',
+      body: JSON.stringify({ content, note }),
+    }),
+  previewConfig: (content: string) =>
+    request<ConfigPreview>('/config/preview', {
+      method: 'POST',
       body: JSON.stringify({ content }),
     }),
+  publishConfig: (content: string, note = 'publish') =>
+    request<{ hash: string; ok: boolean }>('/config/publish', {
+      method: 'POST',
+      body: JSON.stringify({ content, note }),
+    }),
+  configModules: (content: string) =>
+    request<ConfigModule[]>('/config/modules', {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    }),
+  mergeConfigModule: (content: string, moduleId: string, moduleYaml: string) =>
+    request<{ content: string }>('/config/modules/merge', {
+      method: 'POST',
+      body: JSON.stringify({ content, module_id: moduleId, module_yaml: moduleYaml }),
+    }),
+  configRevisions: (limit = 50) =>
+    request<ConfigRevisionSummary[]>(`/config/revisions?limit=${limit}`),
+  configRevision: (id: number) => request<ConfigRevisionDetail>(`/config/revisions/${id}`),
   validateConfig: (content: string) =>
     request<{ valid: boolean }>('/config/validate', {
       method: 'POST',
@@ -139,6 +162,33 @@ export type LogResult = {
   lines: string[]
   count: number
   offset: number
+}
+
+export type ConfigModule = {
+  id: string
+  label: string
+  keys: string[]
+  yaml: string
+}
+
+export type ConfigPreview = {
+  valid: boolean
+  hash: string
+  published_hash: string
+  changed: boolean
+  error?: string
+  modules_changed: string[]
+}
+
+export type ConfigRevisionSummary = {
+  id: number
+  hash: string
+  note: string
+  created_at: string
+}
+
+export type ConfigRevisionDetail = ConfigRevisionSummary & {
+  content: string
 }
 
 export type SettingsView = {

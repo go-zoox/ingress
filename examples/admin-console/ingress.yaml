@@ -1,17 +1,11 @@
-# Runnable sample aligned with the admin console product prototype (routes, WAF, health).
-# Validate: ingress validate -c examples/admin-console/ingress.yaml
-# Try with admin: ingress admin -c examples/admin-console/admin.yaml
-
 version: v1
 port: 8080
-
 # Shared cache engine (matcher + http response cache keys)
 cache:
   ttl: 300
   host: 127.0.0.1
   port: 6379
   prefix: "ingress:"
-
 # zoox Config.Logger (YAML key `logging`): console + file transports
 logging:
   level: warn
@@ -20,12 +14,10 @@ logging:
       path: ./access.log
       levels:
         error: ./error.log
-
 waf:
-  enabled: true
+  enabled: false
   log_only: false
   builtin: true
-
 healthcheck:
   outer:
     enable: true
@@ -35,7 +27,6 @@ healthcheck:
     enable: true
     interval: 30
     timeout: 5
-
 https:
   port: 8443
   redirect_from_http:
@@ -73,7 +64,11 @@ https:
       cert:
         certificate: ./certs/portal.example.com.pem
         certificate_key: ./certs/portal.example.com.key.pem
-
+fallback:
+  type: service
+  service:
+    name: home
+    port: 8080
 rules:
   - host: api.example.com
     backend:
@@ -97,7 +92,6 @@ rules:
           cache:
             enabled: true
             ttl: 300
-
   - host: "*.cdn.example.com"
     host_type: wildcard
     backend:
@@ -107,7 +101,6 @@ rules:
       cache:
         enabled: true
         ttl: 3600
-
   - host: ^([a-z0-9-]+)\.inlets\.example\.com$
     host_type: regex
     backend:
@@ -115,7 +108,6 @@ rules:
         name: ${host.1}.tunnel
         port: 443
         protocol: https
-
   - host: admin.internal
     backend:
       type: handler
@@ -134,7 +126,6 @@ rules:
             headers:
               Content-Type: text/plain; charset=utf-8
             body: "ok\n"
-
   - host: legacy.example.com
     backend:
       type: redirect

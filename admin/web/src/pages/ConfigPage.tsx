@@ -1,39 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
+import { ConfigModulesPanel } from '../components/ConfigModulesPanel'
+import { ConfigVersionsPanel } from '../components/ConfigVersionsPanel'
 import { DiffModal } from '../components/DiffModal'
+import { PreviewModal } from '../components/PreviewModal'
 import { PublishModal } from '../components/PublishModal'
 import { ToastContainer, useToast } from '../components/Toast'
 import { api } from '../api/client'
+import { buildDiff, escapeHtml } from '../lib/config'
 
-function buildDiff(baseline: string, current: string): string {
-  const a = baseline.split('\n')
-  const b = current.split('\n')
-  const max = Math.max(a.length, b.length)
-  const lines: string[] = []
-  for (let i = 0; i < max; i++) {
-    const x = a[i]
-    const y = b[i]
-    if (x === y) {
-      if (x !== undefined) lines.push('  ' + escapeHtml(x))
-    } else {
-      if (x !== undefined) lines.push('<span class="del">- ' + escapeHtml(x) + '</span>')
-      if (y !== undefined) lines.push('<span class="add">+ ' + escapeHtml(y) + '</span>')
-    }
-  }
-  return lines.join('\n') || '(无变更)'
-}
-
-function escapeHtml(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
+type ConfigView = 'modules' | 'yaml' | 'versions'
 
 export function ConfigPage() {
   const [content, setContent] = useState('')
   const [saved, setSaved] = useState('')
   const [path, setPath] = useState('')
+  const [view, setView] = useState<ConfigView>('modules')
   const [validateOut, setValidateOut] = useState('')
   const [err, setErr] = useState('')
   const [publishOpen, setPublishOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [diffOpen, setDiffOpen] = useState(false)
   const [diffHtml, setDiffHtml] = useState('')
   const { toast, show, clear } = useToast()
@@ -66,7 +52,7 @@ export function ConfigPage() {
     setErr('')
     api
       .validateConfig(content)
-      .then(() => api.putConfig(content))
+      .then(() => api.putConfig(content, 'save'))
       .then(() => {
         setSaved(content)
         show('已保存到 ' + path)
@@ -82,19 +68,57 @@ export function ConfigPage() {
     setDiffOpen(true)
   }
 
+  const restoreDraft = (next: string) => {
+    setContent(next)
+    setValidateOut('')
+    show('已加载历史版本到草稿（尚未保存）')
+    setView('yaml')
+  }
+
+  const dirty = content !== saved
+
   return (
     <div className="page">
-      <PageHeader title="配置" desc="编辑 YAML → 校验 → 保存到磁盘 → 发布（SIGHUP reload）" />
+      <PageHeader
+        title="配置"
+        desc="分模块编辑 ingress.yaml → 预览变更 → 保存版本 → 发布 reload"
+      />
       {err && <p className="err">{err}</p>}
       <div className="panel">
-        <div className="panel-head">
-          <h2>ingress.yaml</h2>
+        <div className="panel-head config-panel-head">
+          <div className="config-view-tabs">
+            <button
+              type="button"
+              className={`config-view-tab ${view === 'modules' ? 'active' : ''}`}
+              onClick={() => setView('modules')}
+            >
+              可视化
+            </button>
+            <button
+              type="button"
+              className={`config-view-tab ${view === 'yaml' ? 'active' : ''}`}
+              onClick={() => setView('yaml')}
+            >
+              YAML
+            </button>
+            <button
+              type="button"
+              className={`config-view-tab ${view === 'versions' ? 'active' : ''}`}
+              onClick={() => setView('versions')}
+            >
+              版本
+            </button>
+            {dirty && <span className="config-draft-badge">草稿未保存</span>}
+          </div>
           <div className="toolbar">
             <button type="button" className="btn" onClick={validate}>
               校验
             </button>
             <button type="button" className="btn" onClick={showDiff}>
               查看变更
+            </button>
+            <button type="button" className="btn" onClick={() => setPreviewOpen(true)}>
+              预览
             </button>
             <button type="button" className="btn" onClick={save}>
               保存到 YAML
@@ -105,18 +129,41 @@ export function ConfigPage() {
           </div>
         </div>
         <div className="panel-body">
-          <textarea
-            className="code"
-            spellCheck={false}
-            value={content}
-            onChange={(e) => {
-              setContent(e.target.value)
-              if (loaded.current) setValidateOut('')
-            }}
-          />
-          <div style={{ marginTop: 12 }} dangerouslySetInnerHTML={{ __html: validateOut }} />
+          {view === 'modules' && (
+            <ConfigModulesPanel
+              content={content}
+              onContentChange={(next) => {
+                setContent(next)
+                if (loaded.current) setValidateOut('')
+              }}
+              onError={setErr}
+              onSwitchToYaml={() => setView('yaml')}
+            />
+          )}
+          {view === 'yaml' && (
+            <>
+              <textarea
+                className="code"
+                spellCheck={false}
+                value={content}
+                onChange={(e) => {
+                  setContent(e.target.value)
+                  if (loaded.current) setValidateOut('')
+                }}
+              />
+              <div style={{ marginTop: 12 }} dangerouslySetInnerHTML={{ __html: validateOut }} />
+            </>
+          )}
+          {view === 'versions' && <ConfigVersionsPanel onRestore={restoreDraft} />}
         </div>
       </div>
+      <PreviewModal
+        open={previewOpen}
+        draft={content}
+        published={saved}
+        onClose={() => setPreviewOpen(false)}
+        onPublish={() => setPublishOpen(true)}
+      />
       <PublishModal
         open={publishOpen}
         configPath={path}
@@ -124,7 +171,7 @@ export function ConfigPage() {
         onClose={() => setPublishOpen(false)}
         onDone={() => {
           setSaved(content)
-          show('配置已保存并 reload')
+          show('配置已发布并 reload')
         }}
       />
       <DiffModal open={diffOpen} diffHtml={diffHtml} onClose={() => setDiffOpen(false)} />
