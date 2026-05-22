@@ -1,0 +1,14 @@
+# Admin console settings (embedded in ingress.yaml under `admin:`)
+#
+#   ingress run -c examples/admin-console/ingress.yaml
+#
+# admin:
+#   enabled: true
+#   port: 9080
+#   database:
+#     driver: sqlite
+#     dsn: file:./admin.db?cache=shared&_fk=1
+#   web:
+#     dev_proxy: false
+#   # log_path / error_log_path optional — default /var/log/ingress/{access.log,error.log}
+#   # or derived from ingress.yaml logging when set there

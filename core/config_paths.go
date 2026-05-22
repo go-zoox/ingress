@@ -9,7 +9,7 @@ import (
 )
 
 // ResolveConfigPaths makes relative paths in cfg absolute against the ingress
-// config file directory (same rule as admin.yaml path resolution).
+// config file directory (same rule as relative paths in ingress.yaml).
 func ResolveConfigPaths(cfg *Config, configFilePath string) error {
 	if cfg == nil {
 		return nil
@@ -19,8 +19,17 @@ func ResolveConfigPaths(cfg *Config, configFilePath string) error {
 		return err
 	}
 	resolveLoggingPaths(&cfg.Logging, base)
+	resolveAdminPaths(&cfg.Admin, base)
 	resolveHTTPSPaths(&cfg.HTTPS, base)
 	return nil
+}
+
+func resolveAdminPaths(admin *Admin, base string) {
+	if admin == nil {
+		return
+	}
+	admin.LogPath = resolveConfigFilePath(base, admin.LogPath)
+	admin.ErrorLogPath = resolveConfigFilePath(base, admin.ErrorLogPath)
 }
 
 func ingressConfigDir(configFilePath string) (string, error) {

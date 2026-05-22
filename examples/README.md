@@ -22,7 +22,7 @@ Several files **mix explicit `backend.type` and omission on purpose** (for examp
 | `redirect/` | Backend redirects and capture templates |
 | `handler/` | **`backend.handler`** — `static_response`, `file_server`, `templates`, `script` |
 | `waf/` | IP lists, custom signatures, `rules[].waf` overlays |
-| `admin-console/` | **Admin UI** demo routes, WAF, sample `access.log` for `ingress admin` |
+| `admin-console/` | **Admin UI** demo routes, WAF, sample `access.log` (`admin.enabled: true` in ingress.yaml) |
 
 Compose production configs by merging patterns from these files; there is no longer a single monolithic sample in-repo.
 

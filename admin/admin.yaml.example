@@ -1,4 +1,0 @@
-# Example bundle: examples/admin-console/admin.yaml
-# ingress.log_path / ingress.error_log_path optional — default /var/log/ingress/{access.log,error.log}
-#
-#   ingress admin -c examples/admin-console/admin.yaml

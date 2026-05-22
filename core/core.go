@@ -18,6 +18,7 @@ type Core interface {
 	Run() error
 	//
 	Reload(cfg *Config) error
+	ReloadFromFile() error
 }
 
 type core struct {
@@ -25,6 +26,9 @@ type core struct {
 
 	version string
 	cfg     *Config
+
+	configFilePath string
+	pidFilePath    string
 
 	router *routerIndex
 
@@ -35,12 +39,20 @@ type core struct {
 }
 
 func New(version string, cfg *Config) (Core, error) {
+	return NewWithPaths(version, cfg, "", "")
+}
+
+// NewWithPaths creates core with ingress config and pid file paths (required for admin console).
+func NewWithPaths(version string, cfg *Config, configFilePath, pidFilePath string) (Core, error) {
 	c := &core{
 		app: defaults.Default(),
 		//
 		version: version,
 		//
 		cfg: cfg,
+		//
+		configFilePath: configFilePath,
+		pidFilePath:    pidFilePath,
 	}
 
 	if err := c.prepare(); err != nil {
