@@ -77,6 +77,8 @@ rules:
 | `fallback` | object | 回退后端 | - |
 | `rules` | array | 路由规则 | `[]` |
 | `waf` | object | WAF 基线；路由级补丁为 **`rules[].waf`** 映射（参见 [WAF](waf.md)） | 省略或 `enabled: false` 时不启用 |
+| `logging` | object | Zoox 日志配置（控制台 + 可选文件 transport）；见 [Logging](#logging-日志) | 省略时仅控制台 |
+| `admin` | object | 内嵌运维控制台（参见 [Admin 指南](admin.md)） | 省略时不启用 |
 
 ### WAF（`waf` / `rules[].waf`）
 
@@ -272,6 +274,65 @@ rules:
 示例：[`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml)（内存 `ctx.Cache()`）、[`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml)（Redis + `backend.cache`）。
 
 实现见 `core/rule/backend_cache.go`、`core/http_cache.go`、`core/build.go`。
+
+### Admin（`admin`）
+
+可选内嵌控制台（HTTP API + UI）。**`admin.enabled: true`** 时与 **`ingress run`** 同进程启动。完整说明：[Admin 控制台](admin.md)。
+
+| 字段 | 类型 | 描述 | 默认值 |
+|------|------|------|--------|
+| `admin.enabled` | bool | 与代理一起启动 admin | `false` |
+| `admin.port` | int | Admin 监听端口 | `9080` |
+| `admin.database.driver` | string | 审计 / 修订 SQLite 驱动 | `sqlite` |
+| `admin.database.dsn` | string | 数据库 DSN | `file:admin.db?cache=shared&_fk=1` |
+| `admin.web.dev_proxy` | bool | 仅 API；UI 由 Vite 开发服务器提供 | `false` |
+| `admin.log_path` | string | 日志页 access 路径 | 来自 `logging` |
+| `admin.error_log_path` | string | 日志页 error 路径 | 来自 `logging` |
+
+```yaml
+admin:
+  enabled: true
+  port: 9080
+  database:
+    driver: sqlite
+    dsn: file:./admin.db?cache=shared&_fk=1
+```
+
+示例包：[`examples/admin-console/ingress.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/admin-console/ingress.yaml)。
+
+## Logging（`logging`）
+
+`logging` 块对应 [zoox](https://github.com/go-zoox/zoox) `Config.Logger`（字段相同；ingress 在 prepare 时复制到 `app.Config.Logger`）。Zoox 始终包含**控制台**输出；`transports` 可叠加文件等 sink。
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| `logging.enable` | bool | 为 **true** 时启用控制台 + 文件日志。未写 `transports` 时默认 `/var/log/ingress/access.log` 与 `error.log`（目录自动创建）。为 **false** 时仅控制台。当 **`admin.enabled: true`** 且 **未配置 `logging`** 时，默认 **`enable: true`**，并在配置文件同目录使用 **`access.log`** / **`error.log`**。**显式 `logging.*` 始终优先。** |
+| `logging.level` | string | 最低级别（`debug`、`info`、`warn`、`error`） |
+| `logging.transports` | array | 额外 sink，如 `type: file` 与 `path`、`levels` |
+| `logging.middleware.disabled` | bool | Ingress 设为 `true`（关闭 zoox HTTP 请求日志中间件） |
+
+示例：
+
+```yaml
+logging:
+  enable: true
+  level: warn
+```
+
+自定义路径：
+
+```yaml
+logging:
+  enable: true
+  level: warn
+  transports:
+    - type: file
+      path: /var/log/ingress/access.log
+      levels:
+        error: /var/log/ingress/error.log
+```
+
+省略 `logging` 时使用 zoox 默认（仅控制台）。
 
 ## 访问日志字段
 

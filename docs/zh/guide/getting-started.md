@@ -105,7 +105,35 @@ rules:
         name: upstream.example.org
 ```
 
+## 运行前校验
+
+在不启动服务的情况下检查 YAML 语法、路由编译、TLS 结构与 backend 一致性：
+
+```bash
+ingress validate -c ingress.yaml
+```
+
+**`ingress run`** 与 **`ingress reload`** 使用相同校验；失败将阻止启动或重载。
+
+## Admin 控制台（可选）
+
+在同一进程中启用运维 UI 与 API：
+
+```yaml
+admin:
+  enabled: true
+  port: 9080
+```
+
+```bash
+ingress run -c examples/admin-console/ingress.yaml
+```
+
+详见 [Admin 控制台指南](/zh/guide/admin) 与 [admin-console 示例](/zh/examples/admin-console)。
+
 ## 命令行选项
+
+Ingress 提供 **`run`**、**`validate`**、**`reload`** 三个子命令。
 
 ### Run 命令
 
@@ -118,12 +146,22 @@ ingress run [options]
 - `-p, --port <port>`: 覆盖配置中的端口
 - `--pid-file <path>`: PID 文件路径（默认：`/tmp/gozoox.ingress.pid`）
 
-### Reload 命令
+当 **`admin.enabled: true`** 时，admin 与代理在同一进程监听 **`admin.port`**（默认 **9080**）。
 
-在不重启的情况下重新加载配置：
+### Validate 命令
 
 ```bash
-ingress reload
+ingress validate -c ingress.yaml
+```
+
+配置路径解析与 **`run`** 相同（`-c`、`CONFIG` 或 `/etc/ingress/config.yaml`）。
+
+### Reload 命令
+
+在不重启进程的情况下重载配置（会先校验）：
+
+```bash
+ingress reload -c ingress.yaml
 ```
 
 或向运行中的进程发送 SIGHUP 信号：
@@ -131,6 +169,8 @@ ingress reload
 ```bash
 kill -HUP $(cat /tmp/gozoox.ingress.pid)
 ```
+
+通过 **`ingress run`** 启动时，admin 控制台的 **`POST /api/v1/reload`** 与**发布**流程会触发相同的进程内热重载。
 
 ## 配置文件位置
 
@@ -144,6 +184,7 @@ Ingress 按以下顺序查找配置文件：
 
 - 了解[配置](/zh/guide/configuration)选项
 - 探索[路由](/zh/guide/routing)功能
+- 可选 [Admin 控制台](/zh/guide/admin)：日志、路由与配置发布
 - [请求和响应重写](/zh/guide/rewriting)：**`service.mode`** 与 **`Host`** 默认行为
 - 设置[认证](/zh/guide/authentication)
 - 配置 [SSL/TLS](/zh/guide/ssl-tls)

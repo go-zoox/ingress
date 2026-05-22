@@ -105,7 +105,35 @@ rules:
         name: upstream.example.org
 ```
 
+## Validate before run
+
+Check YAML syntax, router compilation, TLS shape, and backend consistency without starting the server:
+
+```bash
+ingress validate -c ingress.yaml
+```
+
+`ingress run` and **`ingress reload`** perform the same validation; failures block startup or reload.
+
+## Admin console (optional)
+
+Enable the embedded operations UI and API in the same process:
+
+```yaml
+admin:
+  enabled: true
+  port: 9080
+```
+
+```bash
+ingress run -c examples/admin-console/ingress.yaml
+```
+
+See the [Admin console guide](/guide/admin) and [admin-console example](/examples/admin-console).
+
 ## Command Line Options
+
+Ingress exposes three subcommands: **`run`**, **`validate`**, and **`reload`**.
 
 ### Run Command
 
@@ -118,12 +146,22 @@ Options:
 - `-p, --port <port>`: Override the port from configuration
 - `--pid-file <path>`: Path to the PID file (default: `/tmp/gozoox.ingress.pid`)
 
-### Reload Command
+When **`admin.enabled: true`**, the admin server listens on **`admin.port`** (default **9080**) in the same process.
 
-Reload the configuration without restarting:
+### Validate Command
 
 ```bash
-ingress reload
+ingress validate -c ingress.yaml
+```
+
+Uses the same config path resolution as **`run`** (`-c`, `CONFIG`, or `/etc/ingress/config.yaml`).
+
+### Reload Command
+
+Reload the configuration without restarting (validates first):
+
+```bash
+ingress reload -c ingress.yaml
 ```
 
 Or send a SIGHUP signal to the running process:
@@ -131,6 +169,8 @@ Or send a SIGHUP signal to the running process:
 ```bash
 kill -HUP $(cat /tmp/gozoox.ingress.pid)
 ```
+
+The admin console **`POST /api/v1/reload`** and **Publish** flow trigger the same in-process reload when started via **`ingress run`**.
 
 ## Configuration File Location
 
@@ -144,6 +184,7 @@ Ingress looks for configuration files in the following order:
 
 - Learn about [Configuration](/guide/configuration) options
 - Explore [Routing](/guide/routing) capabilities
+- Optional [Admin console](/guide/admin) for logs, routes, and config publish
 - [Request and Response Rewriting](/guide/rewriting): **`service.mode`** and **`Host`** defaults
 - Set up [Authentication](/guide/authentication)
 - Configure [SSL/TLS](/guide/ssl-tls)

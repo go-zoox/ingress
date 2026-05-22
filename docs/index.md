@@ -29,9 +29,9 @@ features:
   - icon: 🏥
     title: Health Checks
     details: Built-in health check support for both outer and inner service monitoring.
-  - icon: 🔄
-    title: Request Rewriting
-    details: Path, header, and query rewriting; service.mode (internal vs external) for upstream Host when proxying external origins.
+  - icon: 🛠️
+    title: Admin Console
+    details: Optional embedded UI and API for routes, logs, TLS, cache, and config validate / publish / reload.
 
 ---
 

@@ -32,6 +32,9 @@ features:
   - icon: 🔄
     title: 请求重写
     details: 路径、请求头、查询参数重写；service.mode（internal / external）控制反代外网源时上游 Host 的默认行为。
+  - icon: 🛠️
+    title: Admin 控制台
+    details: 可选内嵌 UI 与 API：路由、日志、TLS、缓存，以及配置校验 / 发布 / 热重载。
 
 ---
 
