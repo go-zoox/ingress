@@ -1,15 +1,28 @@
 version: v1
 port: 8080
+admin:
+  enabled: true
+  port: 9080
+  database:
+    driver: sqlite
+    dsn: file:./admin.db?cache=shared&_fk=1
+  web:
+    dev_proxy: true
 # Shared cache engine (matcher + http response cache keys)
 cache:
   ttl: 300
-  host: 127.0.0.1
-  port: 6379
+  # host: 127.0.0.1
+  # port: 6379
   prefix: "ingress:"
-# zoox Config.Logger (YAML key `logging`): enable → console + /var/log/ingress/*.log
-logging:
-  enable: true
-  level: warn
+# zoox Config.Logger (YAML key `logging`): console + local log files (no /var/log/ingress required)
+# logging:
+#   enable: true
+#   level: warn
+#   transports:
+#     - type: file
+#       path: ./access.log
+#       levels:
+#         error: ./error.log
 waf:
   enabled: false
   log_only: false

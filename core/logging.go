@@ -67,17 +67,80 @@ func (l *Logging) Zoox() zcfg.Logger {
 	}
 }
 
-// Normalize applies logging.enable defaults, clears file sinks when disabled, and creates log directories.
+// Normalize applies logging defaults when admin is disabled and creates log directories.
 func (l *Logging) Normalize() error {
+	return l.Prepare(Admin{}, "")
+}
+
+// Prepare configures file logging. When admin is enabled, unset logging defaults to
+// enable=true with a file transport beside the ingress config; explicit logging.* wins.
+func (l *Logging) Prepare(admin Admin, configFilePath string) error {
 	if l == nil {
 		return nil
 	}
-	l.applyFileDefaults()
+	if admin.Enabled {
+		l.applyAdminLoggingDefaults(configFilePath)
+	} else {
+		l.applyFileDefaults()
+	}
 	paths := l.logFilePaths()
 	if len(paths) == 0 {
 		return nil
 	}
 	return EnsureLogDirectories(paths...)
+}
+
+func (l *Logging) applyAdminLoggingDefaults(configFilePath string) {
+	if hasFileLogTransport(l.Transports) {
+		return
+	}
+	if l.Enable != nil && !*l.Enable {
+		return
+	}
+	if l.Enable == nil {
+		enabled := true
+		l.Enable = &enabled
+	}
+	if len(l.Transports) > 0 {
+		return
+	}
+	access, errorLog := logPathsBesideConfig(configFilePath)
+	l.Transports = []zcfg.Transport{{
+		Type: "file",
+		Path: access,
+		Levels: map[string]string{
+			"error": errorLog,
+		},
+	}}
+}
+
+func hasFileLogTransport(transports []zcfg.Transport) bool {
+	access, _ := peekFileTransports(transports)
+	return access != ""
+}
+
+func peekFileTransports(transports []zcfg.Transport) (access, errorLog string) {
+	for _, t := range transports {
+		typ := strings.ToLower(strings.TrimSpace(t.Type))
+		if typ != "" && typ != "file" {
+			continue
+		}
+		if strings.TrimSpace(t.Path) != "" {
+			access = t.Path
+		}
+		if p := strings.TrimSpace(t.Levels["error"]); p != "" {
+			errorLog = p
+		}
+	}
+	return access, errorLog
+}
+
+func logPathsBesideConfig(configFilePath string) (access, errorLog string) {
+	base, err := ingressConfigDir(configFilePath)
+	if err != nil || strings.TrimSpace(base) == "" {
+		return DefaultAccessLogPath, DefaultErrorLogPath
+	}
+	return filepath.Join(base, "access.log"), filepath.Join(base, "error.log")
 }
 
 func (l *Logging) applyFileDefaults() {

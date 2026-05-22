@@ -64,6 +64,18 @@ func ValidateConfig(cfg *Config) error {
 		}
 	}
 
+	if cfg.Admin.Enabled {
+		if cfg.Admin.Port <= 0 {
+			return fmt.Errorf("admin.port must be positive when admin.enabled is true")
+		}
+		d := strings.ToLower(strings.TrimSpace(cfg.Admin.Database.Driver))
+		switch d {
+		case "sqlite", "sqlite3", "mysql", "postgres", "postgresql", "":
+		default:
+			return fmt.Errorf("unsupported admin.database.driver %q", cfg.Admin.Database.Driver)
+		}
+	}
+
 	return nil
 }
 

@@ -29,7 +29,29 @@ type Config struct {
 	// Logger is zoox logger config (YAML key `logging` for historical reasons).
 	Logging Logging `config:"logging"`
 	//
+	Admin Admin `config:"admin"`
+	//
 	// Match func(host string, path string) (cfg *service.Service, err error)
+}
+
+// Admin configures the embedded operations console (HTTP API + optional UI).
+type Admin struct {
+	Enabled      bool          `config:"enabled"`
+	Port         int64         `config:"port,default=9080"`
+	Database     AdminDatabase `config:"database"`
+	Web          AdminWeb      `config:"web"`
+	LogPath      string        `config:"log_path"`
+	ErrorLogPath string        `config:"error_log_path"`
+}
+
+type AdminDatabase struct {
+	Driver string `config:"driver,default=sqlite"`
+	DSN    string `config:"dsn,default=file:admin.db?cache=shared&_fk=1"`
+}
+
+type AdminWeb struct {
+	// DevProxy when true serves API only; frontend runs on Vite dev server.
+	DevProxy bool `config:"dev_proxy"`
 }
 
 type HTTPS struct {

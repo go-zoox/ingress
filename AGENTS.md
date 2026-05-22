@@ -85,12 +85,12 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 - Redirect and auth/header constants behavior: `core/build.go`, `core/constants.go`, `core/build_test.go`.
 - Protocol wiring and logging: `core/build.go`, `core/build_test.go` (`TestBuild_HTTP2HTTP3ZooxConfig`, `TestBuild_AccessLogExtraFields_WithTLS`, `TestBuild_AccessLogExtraFields_WithoutTLS`).
 
-## Admin console (`admin/`)
+## Admin console (`core/admin/`)
 
-- **CLI**: `ingress admin -c admin.yaml` (`cmd/ingress/admin.go`).
-- **Stack**: `admin/web` — React + TypeScript + Vite + pnpm; `admin/console` — go-zoox HTTP API, gormx + SQLite (`audit_log`, `waf_event`, `config_revision`).
-- **Ingress integration**: reads/writes `ingress.config_path` YAML; `POST /api/v1/reload` validates then SIGHUP via `pid_file`. Route list / dry-run match use `core.ListRouteRows` and `core.PreviewMatch` (`core/admininspect.go`).
-- **Dev**: `go run ./cmd/ingress admin -c examples/admin-console/admin.yaml` + `cd admin/web && pnpm dev` (proxy `/api`). **Build**: `cd admin && make build`. Demo config: `examples/admin-console/`.
+- **Config**: `admin:` section in `ingress.yaml` (`admin.enabled`, `port`, `database`, `web`).
+- **Stack**: `core/admin/web` — React + TypeScript + Vite + pnpm; `core/admin` — go-zoox HTTP API, gormx + SQLite (`audit_log`, `waf_event`, `config_revision`).
+- **Ingress integration**: starts with `ingress run` when `admin.enabled: true`; reads/writes the same ingress config file; `POST /api/v1/reload` validates then in-process reload. Route list / dry-run match use `core.ListRouteRows` and `core.PreviewMatch` (`core/admininspect.go`).
+- **Dev**: `ingress run -c examples/admin-console/ingress.yaml` + `cd core/admin/web && pnpm dev` (proxy `/api`). **Build**: `cd core/admin && make build`. Demo config: `examples/admin-console/`.
 - **Logs API**: `GET /api/v1/logs` supports `offset` (byte tail), `cache_hit`, `waf_block` filters for live monitoring.
 - **Cache / TLS API**: `GET /api/v1/cache/overview`, `GET /api/v1/tls/certs` (x509 metadata from cert files).
 - **Static prototype** (no backend): `prototypes/admin-console/`.
@@ -98,4 +98,4 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 ## Verification
 
 - From repo root: `go test ./core/...` (or narrow with `-run`). If the environment cannot reach the module proxy, try `GOPROXY=off` when modules are already cached.
-- Admin: `go build ./cmd/ingress && cd admin/web && pnpm build`.
+- Admin: `go build ./cmd/ingress && cd core/admin/web && pnpm build`.

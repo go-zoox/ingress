@@ -84,9 +84,15 @@ func Run() *cli.Command {
 				fmt.PrintJSON("config:", cfg)
 			}
 
-			app, err := core.New(ingress.Version, &cfg)
+			app, err := core.NewWithPaths(ingress.Version, &cfg, configFilePath, pidFilePath)
 			if err != nil {
 				return fmt.Errorf("failed to create core: %s", err)
+			}
+
+			if cfg.Admin.Enabled {
+				if err := startAdmin(app, &cfg, configFilePath, pidFilePath); err != nil {
+					return err
+				}
 			}
 
 			signals := make(chan os.Signal, 1)

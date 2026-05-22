@@ -17,7 +17,7 @@ func (c *core) prepare() error {
 		c.cfg.Cache.TTL = 60
 	}
 
-	if err := c.cfg.Logging.Normalize(); err != nil {
+	if err := c.cfg.Logging.Prepare(c.cfg.Admin, c.configFilePath); err != nil {
 		return fmt.Errorf("logging: %w", err)
 	}
 	if c.cfg.Logging.Configured() {
