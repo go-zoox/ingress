@@ -1,6 +1,10 @@
 env:
   - GO111MODULE=on
 
+before:
+  hooks:
+    - make -C core/admin web
+
 builds:
   - env:
       - CGO_ENABLED=0

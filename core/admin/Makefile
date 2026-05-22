@@ -1,5 +1,6 @@
 .PHONY: web web-dev tidy build
 
+# Output: core/admin/static/dist (embedded by static/embed.go)
 web:
 	cd web && pnpm install && pnpm build
 
