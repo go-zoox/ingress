@@ -38,6 +38,7 @@ export default defineConfig({
               text: 'Features',
               items: [
                 { text: 'Routing', link: '/guide/routing' },
+                { text: 'Admin Console', link: '/guide/admin' },
                 { text: 'Web Application Firewall', link: '/guide/waf' },
                 { text: 'Authentication', link: '/guide/authentication' },
                 { text: 'SSL/TLS', link: '/guide/ssl-tls' },
@@ -58,6 +59,7 @@ export default defineConfig({
                 { text: 'Redirects', link: '/examples/redirect' },
                 { text: 'Handler Backends', link: '/examples/handler' },
                 { text: 'WAF', link: '/examples/waf' },
+                { text: 'Admin Console', link: '/examples/admin-console' },
                 { text: 'Advanced', link: '/examples/advanced' }
               ]
             }
@@ -94,6 +96,7 @@ export default defineConfig({
               text: '功能',
               items: [
                 { text: '路由', link: '/zh/guide/routing' },
+                { text: 'Admin 控制台', link: '/zh/guide/admin' },
                 { text: 'Web 应用防火墙（WAF）', link: '/zh/guide/waf' },
                 { text: '认证', link: '/zh/guide/authentication' },
                 { text: 'SSL/TLS', link: '/zh/guide/ssl-tls' },
@@ -114,6 +117,7 @@ export default defineConfig({
                 { text: '重定向', link: '/zh/examples/redirect' },
                 { text: 'Handler 后端', link: '/zh/examples/handler' },
                 { text: 'WAF', link: '/zh/examples/waf' },
+                { text: 'Admin 控制台', link: '/zh/examples/admin-console' },
                 { text: '高级用法', link: '/zh/examples/advanced' }
               ]
             }

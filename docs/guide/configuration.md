@@ -78,6 +78,8 @@ rules:
 | `fallback` | object | Fallback backend | - |
 | `rules` | array | Routing rules | `[]` |
 | `waf` | object | Optional WAF baseline; route patches use **`rules[].waf`** YAML maps ([WAF guide](waf.md)) | _(inactive when omitted or `enabled: false`)_ |
+| `logging` | object | Zoox logger config (console + optional file transports); see [Logging](#logging-logging) | console only when omitted |
+| `admin` | object | Embedded operations console ([Admin guide](admin.md)) | disabled when omitted |
 
 ### WAF (`waf` / `rules[].waf`)
 
@@ -274,13 +276,38 @@ Examples: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-z
 
 See `core/rule/backend_cache.go`, `core/http_cache.go`, and `core/build.go`.
 
+### Admin (`admin`)
+
+Optional embedded console (HTTP API + UI). Enabled with **`admin.enabled: true`**; starts in the same process as **`ingress run`**. Full guide: [Admin console](admin.md).
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `admin.enabled` | bool | Start admin with the proxy | `false` |
+| `admin.port` | int | Admin listen port | `9080` |
+| `admin.database.driver` | string | SQLite driver for audit / revisions | `sqlite` |
+| `admin.database.dsn` | string | Database DSN | `file:admin.db?cache=shared&_fk=1` |
+| `admin.web.dev_proxy` | bool | API only; UI from Vite dev server | `false` |
+| `admin.log_path` | string | Access log path for the log viewer | from `logging` |
+| `admin.error_log_path` | string | Error log path for the log viewer | from `logging` |
+
+```yaml
+admin:
+  enabled: true
+  port: 9080
+  database:
+    driver: sqlite
+    dsn: file:./admin.db?cache=shared&_fk=1
+```
+
+Example bundle: [`examples/admin-console/ingress.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/admin-console/ingress.yaml).
+
 ## Logging (`logging`)
 
 The `logging` block is [zoox](https://github.com/go-zoox/zoox) `Config.Logger` (same fields; ingress copies it to `app.Config.Logger` at prepare). Zoox always includes **console**; each `transports` entry is stacked on top. File routing uses [go-zoox/logger/transport/file](https://github.com/go-zoox/logger).
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `logging.enable` | bool | When **true**, enable console + file logging. If `transports` is omitted, defaults to `/var/log/ingress/access.log` and `/var/log/ingress/error.log` (directory created automatically). When **false**, console only. |
+| `logging.enable` | bool | When **true**, enable console + file logging. If `transports` is omitted, defaults to `/var/log/ingress/access.log` and `/var/log/ingress/error.log` (directory created automatically). When **false**, console only. When **`admin.enabled: true`** and **`logging` is unset**, defaults to **`enable: true`** with **`access.log`** / **`error.log`** beside the config file instead. **Explicit `logging.*` always wins.** |
 | `logging.level` | string | Minimum log level (`debug`, `info`, `warn`, `error`). |
 | `logging.transports` | array | Extra sinks, e.g. `type: file` with `path` and optional `levels`. Overrides default paths when set. |
 | `logging.middleware.disabled` | bool | Ingress sets this to `true` (zoox HTTP request logger middleware). |
