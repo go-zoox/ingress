@@ -10,6 +10,27 @@ Ingress 支持多种认证方法来保护您的后端服务。您可以在规则
 - **OAuth2**：OAuth 2.0 认证
 - **OIDC**：OpenID Connect 认证
 
+## 启用/禁用认证
+
+配置 `auth.type` 后，认证默认启用。您可以使用 `enabled` 字段临时禁用认证（如调试、灰度发布等），而无需删除认证配置：
+
+```yaml
+auth:
+  enabled: false   # 设为 true 重新启用；省略时若 type 已设置则默认启用
+  type: basic
+  basic:
+    users:
+      - username: admin
+        password: admin123
+```
+
+| `enabled` 值 | `type` 是否设置 | 行为 |
+|--------------|---------------|------|
+| *(省略)* | 否 | 无认证（默认） |
+| *(省略)* | 是 | 认证**启用**（默认） |
+| `true` | 任意 | 认证**启用** |
+| `false` | 任意 | 认证**禁用**（配置保留） |
+
 ## Basic 认证
 
 Basic 认证使用用户名和密码凭据。

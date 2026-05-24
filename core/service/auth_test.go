@@ -475,3 +475,63 @@ func TestValidateAuth_BearerToken_EmptyToken(t *testing.T) {
 		t.Fatalf("expected 'invalid token' error, got: %v", err)
 	}
 }
+
+func TestAuthIsEnabled_NilEnabled_EmptyType(t *testing.T) {
+	a := Auth{Enabled: nil, Type: ""}
+	if a.IsEnabled() {
+		t.Fatal("expected IsEnabled=false when Enabled is nil and Type is empty")
+	}
+}
+
+func TestAuthIsEnabled_NilEnabled_WithType(t *testing.T) {
+	a := Auth{Enabled: nil, Type: "basic"}
+	if !a.IsEnabled() {
+		t.Fatal("expected IsEnabled=true when Enabled is nil and Type is non-empty")
+	}
+}
+
+func TestAuthIsEnabled_ExplicitTrue(t *testing.T) {
+	v := true
+	a := Auth{Enabled: &v, Type: "basic"}
+	if !a.IsEnabled() {
+		t.Fatal("expected IsEnabled=true when Enabled is explicitly true")
+	}
+}
+
+func TestAuthIsEnabled_ExplicitFalse_OverridesType(t *testing.T) {
+	v := false
+	a := Auth{Enabled: &v, Type: "basic"}
+	if a.IsEnabled() {
+		t.Fatal("expected IsEnabled=false when Enabled is explicitly false, even with Type set")
+	}
+}
+
+func TestAuthIsEnabled_ExplicitTrue_NoType(t *testing.T) {
+	v := true
+	a := Auth{Enabled: &v, Type: ""}
+	if !a.IsEnabled() {
+		t.Fatal("expected IsEnabled=true when Enabled is explicitly true, even with empty Type")
+	}
+}
+
+func TestValidateAuth_DisabledExplicitly(t *testing.T) {
+	v := false
+	s := &Service{
+		Auth: Auth{
+			Enabled: &v,
+			Type:    "basic",
+			Basic: BasicAuth{
+				Users: []BasicUser{
+					{Username: "admin", Password: "secret"},
+				},
+			},
+		},
+	}
+
+	req, _ := http.NewRequest("GET", "/", nil)
+	// No auth header — would normally fail, but auth is disabled
+	err := s.ValidateAuth(req)
+	if err != nil {
+		t.Fatalf("expected no error when auth is explicitly disabled, got: %v", err)
+	}
+}

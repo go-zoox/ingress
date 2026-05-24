@@ -7,11 +7,21 @@ import (
 	"strings"
 )
 
+// IsEnabled returns whether authentication should be enforced.
+// When Enabled is nil (not set in config), auth is enabled iff Type is non-empty.
+// When Enabled is explicitly set, it takes precedence.
+func (a *Auth) IsEnabled() bool {
+	if a.Enabled != nil {
+		return *a.Enabled
+	}
+	return a.Type != ""
+}
+
 // ValidateAuth validates the client's authentication credentials
 // Returns error if authentication fails, nil if authentication succeeds
 func (s *Service) ValidateAuth(req *http.Request) error {
-	if s.Auth.Type == "" {
-		return nil // No auth configured, allow all requests
+	if !s.Auth.IsEnabled() {
+		return nil // Auth disabled or not configured, allow all requests
 	}
 
 	switch s.Auth.Type {

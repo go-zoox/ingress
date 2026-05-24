@@ -333,7 +333,7 @@ func (c *core) build() error {
 		// Handle OAuth2 authentication flow (redirects, callbacks, session).
 		// This must run before the stateless ValidateAuth check because OAuth2
 		// uses a redirect-based flow that writes its own response.
-		if serviceIns.Auth.Type == authTypeOAuth2 {
+		if serviceIns.Auth.Type == authTypeOAuth2 && serviceIns.Auth.IsEnabled() {
 			redirected, err := serviceIns.ValidateOAuth2(ctx)
 			if err != nil {
 				c.app.Logger().Warnf("oauth2 authentication failed for host: %s: %s", hostname, err)

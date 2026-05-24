@@ -22,6 +22,7 @@ type RouteRow struct {
 	Target      string `json:"target"`
 	WAF         string `json:"waf"`
 	Cache       bool   `json:"cache"`
+	Auth        string `json:"auth"`
 }
 
 // MatchPreview is the result of a dry-run host/path match.
@@ -34,6 +35,7 @@ type MatchPreview struct {
 	BackendType string `json:"backend_type"`
 	Target      string `json:"target"`
 	WAF         string `json:"waf"`
+	Auth        string `json:"auth"`
 	Fallback    bool   `json:"fallback"`
 	Message     string `json:"message,omitempty"`
 }
@@ -95,6 +97,7 @@ func routeRowFromBackend(id, ruleIndex, pathIndex int, r *rule.Rule, hostType, p
 		Target:      target,
 		WAF:         wafLabel,
 		Cache:       cache,
+		Auth:        authLabelFromBackend(b),
 	}
 }
 
@@ -124,6 +127,46 @@ func backendTargetSummary(b rule.Backend) string {
 			}
 		}
 		return s.Name + ":" + strconv.FormatInt(port, 10)
+	}
+}
+
+func authLabelFromBackend(b rule.Backend) string {
+	if b.Service.Auth.Type == "" {
+		return ""
+	}
+	label := authLabelFromAuthFields(b.Service.Auth)
+	if b.Service.Auth.Enabled != nil && !*b.Service.Auth.Enabled {
+		label += " (disabled)"
+	}
+	return label
+}
+
+func authLabelFromService(s *service.Service) string {
+	if s == nil || s.Auth.Type == "" {
+		return ""
+	}
+	label := authLabelFromAuthFields(s.Auth)
+	if s.Auth.Enabled != nil && !*s.Auth.Enabled {
+		label += " (disabled)"
+	}
+	return label
+}
+
+func authLabelFromAuthFields(auth service.Auth) string {
+	switch auth.Type {
+	case "basic":
+		cnt := len(auth.Basic.Users)
+		return fmt.Sprintf("basic (%d users)", cnt)
+	case "bearer":
+		return "bearer"
+	case "oauth2":
+		provider := auth.OAuth2.Provider
+		if provider != "" {
+			return fmt.Sprintf("oauth2 (%s)", provider)
+		}
+		return "oauth2"
+	default:
+		return auth.Type
 	}
 }
 
@@ -182,6 +225,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 			Path:        matchedPath,
 			BackendType: backendTypeService,
 			Target:      backendTargetSummary(cfg.Fallback),
+			Auth:        authLabelFromBackend(cfg.Fallback),
 			Fallback:    true,
 		}, nil
 	}
@@ -199,6 +243,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 		BackendType: bt,
 		Target:      target,
 		WAF:         "inherit",
+		Auth:        authLabelFromService(svc),
 	}, nil
 }
 
