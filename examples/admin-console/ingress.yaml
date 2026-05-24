@@ -39,7 +39,8 @@ healthcheck:
 https:
   port: 8443
   redirect_from_http:
-    permanent: true
+    disabled: true
+    # permanent: true
   ssl:
     - domain: api.example.com
       cert:
@@ -144,3 +145,10 @@ rules:
       cache:
         enabled: true
         ttl: 120
+  - host: httpbin.work
+    backend:
+      service:
+        mode: external
+        protocol: https
+        name: httpbin.zcorky.com
+        port: 443
