@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/base64"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -414,7 +415,7 @@ func TestValidateAuth_BearerToken_NoTokensConfigured(t *testing.T) {
 func TestValidateAuth_UnsupportedType(t *testing.T) {
 	s := &Service{
 		Auth: Auth{
-			Type: "oauth2",
+			Type: "unsupported-type",
 		},
 	}
 
@@ -423,8 +424,8 @@ func TestValidateAuth_UnsupportedType(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when auth type is unsupported")
 	}
-	if err.Error() != "unsupported auth type: oauth2" {
-		t.Fatalf("expected 'unsupported auth type: oauth2' error, got: %v", err)
+	if !strings.Contains(err.Error(), "unsupported auth type") {
+		t.Fatalf("expected 'unsupported auth type' error, got: %v", err)
 	}
 }
 

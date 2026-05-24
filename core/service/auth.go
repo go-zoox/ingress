@@ -19,6 +19,11 @@ func (s *Service) ValidateAuth(req *http.Request) error {
 		return s.validateBasicAuth(req)
 	case "bearer":
 		return s.validateBearerAuth(req)
+	case "oauth2":
+		// OAuth2 is handled entirely in ValidateOAuth2 (core/build.go),
+		// which runs before this switch. If we reach here, the user
+		// already has a valid OAuth2 session — always allow.
+		return nil
 	default:
 		return fmt.Errorf("unsupported auth type: %s", s.Auth.Type)
 	}
