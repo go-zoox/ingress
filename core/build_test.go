@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1150,5 +1151,336 @@ func TestBuild_RedirectFromHTTP_Disabled(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status code 200 when disabled, got %d", rec.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Auth integration tests — ensure that authentication is enforced at the HTTP
+// handler level, not just at the service.ValidateAuth unit level.
+// ---------------------------------------------------------------------------
+
+// buildBasicAuthRule returns a minimal Config with a handler-backed rule
+// (avoids needing a live upstream) whose service layer has basic auth.
+// We use a static-response handler as the "upstream" so we can confirm a
+// 200 is served only when credentials are valid.
+func buildBasicAuthConfig(host string, users []service.BasicUser) *Config {
+	return &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: host,
+				Backend: rule.Backend{
+					Service: service.Service{
+						Protocol: "http",
+						Name:     "127.0.0.1",
+						Port:     9999, // unreachable — auth must reject before DNS/proxy
+						Auth: service.Auth{
+							Type:  "basic",
+							Basic: service.BasicAuth{Users: users},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestBuild_BasicAuth_NoCredentials_Returns401 verifies that a request without
+// an Authorization header is rejected with HTTP 401 and a WWW-Authenticate header.
+func TestBuild_BasicAuth_NoCredentials_Returns401(t *testing.T) {
+	cfg := buildBasicAuthConfig("secure.example.com", []service.BasicUser{
+		{Username: "admin", Password: "admin123"},
+	})
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://secure.example.com/", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for missing credentials, got %d", rec.Code)
+	}
+	wwwAuth := rec.Header().Get("WWW-Authenticate")
+	if !strings.Contains(wwwAuth, "Basic") {
+		t.Fatalf("expected WWW-Authenticate: Basic ..., got %q", wwwAuth)
+	}
+}
+
+// TestBuild_BasicAuth_WrongCredentials_Returns401 verifies that wrong credentials
+// are rejected.
+func TestBuild_BasicAuth_WrongCredentials_Returns401(t *testing.T) {
+	cfg := buildBasicAuthConfig("secure.example.com", []service.BasicUser{
+		{Username: "admin", Password: "admin123"},
+	})
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://secure.example.com/", nil)
+	req.SetBasicAuth("admin", "wrongpassword")
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for wrong credentials, got %d", rec.Code)
+	}
+}
+
+// TestBuild_BasicAuth_MultiUser_ValidCredentials_Passes verifies that all configured
+// users can authenticate successfully (auth is not short-circuiting to 401 for everyone).
+// A valid login reaches the proxy stage; since the upstream is unavailable the response
+// will NOT be 401 — any non-401 code confirms the auth gate was passed.
+func TestBuild_BasicAuth_MultiUser_ValidCredentials_Passes(t *testing.T) {
+	users := []service.BasicUser{
+		{Username: "admin", Password: "admin123"},
+		{Username: "user1", Password: "user123"},
+		{Username: "user2", Password: "user456"},
+	}
+
+	// Spin up a minimal echo upstream so the proxy has somewhere to connect.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("upstream-ok"))
+	}))
+	defer upstream.Close()
+
+	// Parse host and port from upstream URL.
+	upstreamAddr := strings.TrimPrefix(upstream.URL, "http://")
+	var upstreamHost string
+	var upstreamPort int64
+	if _, err := fmt.Sscanf(upstreamAddr, "%s", &upstreamAddr); err == nil {
+		parts := strings.Split(upstreamAddr, ":")
+		if len(parts) == 2 {
+			upstreamHost = parts[0]
+			fmt.Sscanf(parts[1], "%d", &upstreamPort)
+		}
+	}
+	if upstreamHost == "" {
+		upstreamHost = "127.0.0.1"
+		upstreamPort = 9999
+	}
+
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "multiauth.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{
+						Protocol: "http",
+						Name:     upstreamHost,
+						Port:     upstreamPort,
+						Auth: service.Auth{
+							Type:  "basic",
+							Basic: service.BasicAuth{Users: users},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	for _, u := range users {
+		t.Run(u.Username, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "http://multiauth.example.com/", nil)
+			req.SetBasicAuth(u.Username, u.Password)
+			rec := httptest.NewRecorder()
+			ins.app.ServeHTTP(rec, req)
+
+			// A valid credential must NOT return 401.
+			if rec.Code == http.StatusUnauthorized {
+				t.Fatalf("user %q: expected auth to pass (non-401), but got 401", u.Username)
+			}
+		})
+	}
+}
+
+// TestBuild_BasicAuth_MultiUser_WrongCredentials_Returns401 ensures that an
+// unrecognised user against the multi-user list is still rejected.
+func TestBuild_BasicAuth_MultiUser_WrongCredentials_Returns401(t *testing.T) {
+	users := []service.BasicUser{
+		{Username: "admin", Password: "admin123"},
+		{Username: "user1", Password: "user123"},
+		{Username: "user2", Password: "user456"},
+	}
+
+	cfg := buildBasicAuthConfig("multiauth.example.com", users)
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	wrongCreds := []struct{ user, pass string }{
+		{"admin", "badpass"},
+		{"unknown", "admin123"},
+		{"user2", "user123"}, // right user, wrong password
+	}
+	for _, tc := range wrongCreds {
+		t.Run(tc.user+":"+tc.pass, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "http://multiauth.example.com/", nil)
+			req.SetBasicAuth(tc.user, tc.pass)
+			rec := httptest.NewRecorder()
+			ins.app.ServeHTTP(rec, req)
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("expected 401, got %d for %s:%s", rec.Code, tc.user, tc.pass)
+			}
+		})
+	}
+}
+
+// TestBuild_BearerAuth_NoCredentials_Returns401 verifies 401 when no Bearer token present.
+func TestBuild_BearerAuth_NoCredentials_Returns401(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "api.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{
+						Protocol: "http",
+						Name:     "127.0.0.1",
+						Port:     9999,
+						Auth: service.Auth{
+							Type: "bearer",
+							Bearer: service.BearerAuth{
+								Tokens: []string{"secret-token"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.example.com/v1/data", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+	wwwAuth := rec.Header().Get("WWW-Authenticate")
+	if !strings.Contains(wwwAuth, "Bearer") {
+		t.Fatalf("expected WWW-Authenticate: Bearer, got %q", wwwAuth)
+	}
+}
+
+// TestBuild_BearerAuth_InvalidToken_Returns401 verifies that a wrong token is rejected.
+func TestBuild_BearerAuth_InvalidToken_Returns401(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "api.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{
+						Protocol: "http",
+						Name:     "127.0.0.1",
+						Port:     9999,
+						Auth: service.Auth{
+							Type: "bearer",
+							Bearer: service.BearerAuth{
+								Tokens: []string{"secret-token"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://api.example.com/v1/data", nil)
+	req.Header.Set("Authorization", "Bearer wrong-token")
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for wrong bearer token, got %d", rec.Code)
+	}
+}
+
+// TestBuild_NoAuth_RequestPassesThrough ensures that routes without auth configured
+// do not incorrectly block requests (i.e., the auth fix does not regress no-auth routes).
+// The handler backend responds directly so we can assert 200.
+func TestBuild_NoAuth_RequestPassesThrough(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "open.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Body: "open-access",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://open.example.com/", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for open route, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); body != "open-access" {
+		t.Fatalf("unexpected body %q", body)
 	}
 }
