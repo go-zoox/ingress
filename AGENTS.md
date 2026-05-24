@@ -35,7 +35,7 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 ## HTTP -> HTTPS redirect behavior
 
 - Global redirect is configured under `https.redirect_from_http` in `core/config.go`.
-- **Default behavior**: when `https.port` is set, forced HTTP -> HTTPS redirect is enabled unless `https.redirect_from_http.disabled: true`.
+- **Default behavior**: when `https.port` is set, forced HTTP -> HTTPS redirect is **not** active unless `https.redirect_from_http.enabled: true`.
 - `permanent: true` returns 301; `permanent: false` returns 302, unless **`with_origin_method_and_body: true`** uses **308**/**307** instead (**302**/**301** when false).
 - `exclude_paths` uses exact path matching and skips forced redirect for matched paths.
 - Redirect is decided before route matching in `core/build.go` (`shouldRedirectFromHTTP`), while route-level redirect (`rules[].backend.redirect`) still applies in normal route flow.

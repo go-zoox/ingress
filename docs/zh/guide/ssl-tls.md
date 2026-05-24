@@ -31,7 +31,7 @@ https:
 | `enable_http3` | bool | 在已配置 TLS 时启用 HTTP/3（QUIC，UDP） |
 | `http3_port` | int | HTTP/3 的 UDP 端口；省略或 `0` 时与 HTTPS 端口相同（TCP 与 UDP 可同时监听同端口号） |
 | `http3_altsvc_max_age` | int | HTTPS 响应中 `Alt-Svc` 的 `ma=`（秒）；`0` 使用服务端默认；负数为不发送 `Alt-Svc` |
-| `redirect_from_http.disabled` | bool | 禁用全局 HTTP -> HTTPS 强制重定向（默认 `false`，即在配置 HTTPS 时默认开启） |
+| `redirect_from_http.enabled` | bool | 启用全局 HTTP -> HTTPS 强制重定向（默认 `false`，设为 `true` 以在配置 HTTPS 时激活） |
 | `redirect_from_http.permanent` | bool | 为 `true` 时使用 `301`，否则使用 `302` |
 | `redirect_from_http.with_origin_method_and_body` | bool | 为 `true` 时使用 `308`/`307` 以保留方法与请求体（默认 `false`，否则为 `301`/`302`） |
 | `redirect_from_http.exclude_paths` | array | 需要跳过强制重定向的精确路径 |
@@ -155,7 +155,7 @@ Ingress 将从配置的路径重新加载证书。
 https:
   port: 443
   redirect_from_http:
-    # disabled: false
+    # enabled: true
     permanent: true
     # exclude_paths:
     #   - /healthz
@@ -169,7 +169,7 @@ https:
 行为说明：
 
 - 重定向在路由匹配前执行。
-- 当配置了 `https.port` 时，默认开启强制重定向（除非设置 `redirect_from_http.disabled: true`）。
+- 仅当配置了 `https.port` 且设置 `redirect_from_http.enabled: true` 时，重定向才会生效。
 - 默认保留原始 host/path/query。
 - 当 `https.port` 不是 `443` 时，重定向 URL 会带上端口。
 - 已判定为 HTTPS 的请求（`TLS` 或 `X-Forwarded-Proto: https`）不会被重定向。

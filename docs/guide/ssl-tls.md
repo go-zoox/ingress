@@ -31,7 +31,7 @@ https:
 | `enable_http3` | bool | Enable HTTP/3 (QUIC) on UDP when TLS is configured |
 | `http3_port` | int | UDP port for HTTP/3; omit or `0` to use the same port as HTTPS (TCP and UDP) |
 | `http3_altsvc_max_age` | int | `Alt-Svc` response header `ma=` in seconds; `0` uses a server default; negative omits `Alt-Svc` |
-| `redirect_from_http.disabled` | bool | Disable forced HTTP -> HTTPS redirect (`false` by default, which means enabled when HTTPS is configured) |
+| `redirect_from_http.enabled` | bool | Enable forced HTTP -> HTTPS redirect (`false` by default; set to `true` to activate when HTTPS is configured) |
 | `redirect_from_http.permanent` | bool | Use `301` when true, `302` when false |
 | `redirect_from_http.with_origin_method_and_body` | bool | When true, use `308`/`307` instead of `301`/`302` so method and body are preserved (default `false`) |
 | `redirect_from_http.exclude_paths` | array | Exact request paths that should skip forced redirect |
@@ -155,7 +155,7 @@ To force global HTTP -> HTTPS redirects, configure `https.redirect_from_http`:
 https:
   port: 443
   redirect_from_http:
-    # disabled: false
+    # enabled: true
     permanent: true
     # exclude_paths:
     #   - /healthz
@@ -169,7 +169,7 @@ https:
 Behavior:
 
 - Redirect applies before route matching.
-- Redirect is enabled by default when `https.port` is configured (unless `redirect_from_http.disabled: true`).
+- Redirect is only active when `https.port` is configured and `redirect_from_http.enabled: true`.
 - The redirect keeps original host/path/query by default.
 - When `https.port` is not `443`, the redirect URL includes that port.
 - Requests already identified as HTTPS (`TLS` or `X-Forwarded-Proto: https`) are not redirected.
