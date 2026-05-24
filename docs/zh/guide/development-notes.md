@@ -10,7 +10,7 @@
 https:
   port: 443
   redirect_from_http:
-    disabled: false
+    enabled: true
     permanent: true
     exclude_paths:
       - /healthz
@@ -19,8 +19,8 @@ https:
 关键约定：
 
 - 重定向在路由匹配前执行。
-- 只要配置了 `https.port`，默认开启重定向。
-- 显式关闭方式是 `disabled: true`。
+- 仅当配置了 `https.port` 且设置 `enabled: true` 时，重定向才会生效。
+- `enabled: true` 是显式启用。
 - 默认保留原始 host/path/query。
 - 已识别为 HTTPS 的请求（`TLS` 或 `X-Forwarded-Proto: https`）不重定向。
 - `exclude_paths` 为精确路径匹配。

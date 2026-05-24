@@ -476,12 +476,12 @@ function HTTPSModuleForm({
           }
         />
         <FormCheckbox
-          label="禁用强制重定向"
-          checked={bool(redirect.disabled)}
+          label="启用强制重定向"
+          checked={bool(redirect.enabled)}
           onChange={(v) =>
             patchHttps((n) => {
               const r = { ...obj(n.redirect_from_http) }
-              setBool(r, 'disabled', v)
+              setBool(r, 'enabled', v)
               n.redirect_from_http = r
             })
           }

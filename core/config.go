@@ -68,8 +68,8 @@ type HTTPS struct {
 }
 
 type RedirectFromHTTP struct {
-	// Disabled controls forced HTTP -> HTTPS redirects. Default false means enabled.
-	Disabled bool `config:"disabled"`
+	// Enabled activates forced HTTP -> HTTPS redirects when https.port is configured. Default false means no redirect.
+	Enabled bool `config:"enabled"`
 	// Permanent uses 301 when true; 302 when false (or 308/307 when WithOriginMethodAndBody is true).
 	Permanent bool `config:"permanent"`
 	// WithOriginMethodAndBody uses HTTP 307/308 so clients preserve method and body on redirect.

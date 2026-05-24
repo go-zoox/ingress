@@ -10,7 +10,7 @@ The redirect behavior is configured under `https.redirect_from_http`.
 https:
   port: 443
   redirect_from_http:
-    disabled: false
+    enabled: true
     permanent: true
     exclude_paths:
       - /healthz
@@ -19,8 +19,8 @@ https:
 Key decisions:
 
 - Redirect is evaluated before route matching.
-- Redirect is enabled by default when `https.port` is set.
-- `disabled: true` is the only explicit opt-out.
+- Redirect is enabled only when `https.port` is set and `enabled: true`.
+- `enabled: true` is the explicit opt-in.
 - Redirect keeps host/path/query by default.
 - Requests already identified as HTTPS (`TLS` or `X-Forwarded-Proto: https`) are not redirected.
 - `exclude_paths` uses exact path matching.

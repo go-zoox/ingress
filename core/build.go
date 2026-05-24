@@ -566,7 +566,7 @@ func shouldRedirectFromHTTP(req *http.Request, path string, cfg *Config) bool {
 		return false
 	}
 
-	if cfg.HTTPS.RedirectFromHTTP.Disabled {
+	if !cfg.HTTPS.RedirectFromHTTP.Enabled {
 		return false
 	}
 

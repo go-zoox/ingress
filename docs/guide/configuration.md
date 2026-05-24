@@ -25,7 +25,7 @@ https:
   # http3_port: 8443           # Optional: UDP port (default: same as https.port)
   # http3_altsvc_max_age: 86400 # Optional: Alt-Svc ma= (seconds); negative disables header
   # redirect_from_http:
-  #   disabled: false          # Optional: false by default; when false and https.port is set, force HTTP -> HTTPS
+  #   enabled: true           # Optional: false by default; set to true to force HTTP -> HTTPS when https.port is set
   #   permanent: true          # Optional: true=301, false=302
   #   exclude_paths:           # Optional: exact paths to skip redirect
   #     - /healthz
@@ -119,7 +119,7 @@ rules:
 | `enable_http3` | bool | Enable HTTP/3 (QUIC) on UDP when TLS is configured |
 | `http3_port` | int | UDP port for HTTP/3; `0` means same as `https.port` |
 | `http3_altsvc_max_age` | int | `Alt-Svc` `ma=` in seconds; `0` uses server default; negative disables `Alt-Svc` |
-| `redirect_from_http.disabled` | bool | Disable forced HTTP -> HTTPS redirect (`false` by default, which means enabled when `https.port` is set) |
+| `redirect_from_http.enabled` | bool | Enable forced HTTP -> HTTPS redirect (`false` by default; set to `true` to activate when `https.port` is set) |
 | `redirect_from_http.permanent` | bool | Use `301` when true, `302` when false |
 | `redirect_from_http.with_origin_method_and_body` | bool | When true, use `308`/`307` instead of `301`/`302` so method and body are preserved (default `false`) |
 | `redirect_from_http.exclude_paths` | array | Exact request paths that skip forced redirect |

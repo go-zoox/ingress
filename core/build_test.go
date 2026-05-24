@@ -768,6 +768,7 @@ func TestBuild_RedirectFromHTTP_Permanent(t *testing.T) {
 		HTTPS: HTTPS{
 			Port: 443,
 			RedirectFromHTTP: RedirectFromHTTP{
+				Enabled:   true,
 				Permanent: true,
 			},
 		},
@@ -813,6 +814,7 @@ func TestBuild_RedirectFromHTTP_WithOriginMethodAndBody_Temporary(t *testing.T) 
 		HTTPS: HTTPS{
 			Port: 443,
 			RedirectFromHTTP: RedirectFromHTTP{
+				Enabled:                 true,
 				Permanent:               false,
 				WithOriginMethodAndBody: true,
 			},
@@ -859,6 +861,7 @@ func TestBuild_RedirectFromHTTP_WithOriginMethodAndBody_Permanent(t *testing.T) 
 		HTTPS: HTTPS{
 			Port: 443,
 			RedirectFromHTTP: RedirectFromHTTP{
+				Enabled:                 true,
 				Permanent:               true,
 				WithOriginMethodAndBody: true,
 			},
@@ -1068,6 +1071,7 @@ func TestBuild_RedirectFromHTTP_WithCustomHTTPSPortAndExcludePath(t *testing.T) 
 		HTTPS: HTTPS{
 			Port: 8443,
 			RedirectFromHTTP: RedirectFromHTTP{
+				Enabled:      true,
 				Permanent:    false,
 				ExcludePaths: []string{"/healthz"},
 			},
@@ -1113,13 +1117,13 @@ func TestBuild_RedirectFromHTTP_WithCustomHTTPSPortAndExcludePath(t *testing.T) 
 	}
 }
 
-func TestBuild_RedirectFromHTTP_Disabled(t *testing.T) {
+func TestBuild_RedirectFromHTTP_NotEnabled(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
 		HTTPS: HTTPS{
 			Port: 443,
 			RedirectFromHTTP: RedirectFromHTTP{
-				Disabled: true,
+				Enabled: false,
 			},
 		},
 		Rules: []rule.Rule{
@@ -1150,7 +1154,7 @@ func TestBuild_RedirectFromHTTP_Disabled(t *testing.T) {
 	ins.app.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status code 200 when disabled, got %d", rec.Code)
+		t.Fatalf("expected status code 200 when not enabled, got %d", rec.Code)
 	}
 }
 

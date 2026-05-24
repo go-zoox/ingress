@@ -39,7 +39,7 @@ healthcheck:
 https:
   port: 8443
   redirect_from_http:
-    disabled: true
+    enabled: false
     # permanent: true
   ssl:
     - domain: api.example.com
