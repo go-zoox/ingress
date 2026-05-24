@@ -3,26 +3,31 @@ const PREFIX = 'ingress-admin.'
 export type UIPreferences = {
   logLiveIntervalMs: number
   metricsWindow: string
+  metricsRefreshMs: number
 }
 
 export const DEFAULT_PREFERENCES: UIPreferences = {
   logLiveIntervalMs: 2000,
   metricsWindow: '15m',
+  metricsRefreshMs: 5000,
 }
 
 const LOG_INTERVAL_KEY = `${PREFIX}logLiveIntervalMs`
 const METRICS_WINDOW_KEY = `${PREFIX}metricsWindow`
+const METRICS_REFRESH_KEY = `${PREFIX}metricsRefreshMs`
 
 export function loadPreferences(): UIPreferences {
   const logLiveIntervalMs = readInt(LOG_INTERVAL_KEY, DEFAULT_PREFERENCES.logLiveIntervalMs)
   const metricsWindow =
     localStorage.getItem(METRICS_WINDOW_KEY)?.trim() || DEFAULT_PREFERENCES.metricsWindow
-  return { logLiveIntervalMs, metricsWindow }
+  const metricsRefreshMs = readInt(METRICS_REFRESH_KEY, DEFAULT_PREFERENCES.metricsRefreshMs)
+  return { logLiveIntervalMs, metricsWindow, metricsRefreshMs }
 }
 
 export function savePreferences(prefs: UIPreferences) {
   localStorage.setItem(LOG_INTERVAL_KEY, String(prefs.logLiveIntervalMs))
   localStorage.setItem(METRICS_WINDOW_KEY, prefs.metricsWindow)
+  localStorage.setItem(METRICS_REFRESH_KEY, String(prefs.metricsRefreshMs))
 }
 
 function readInt(key: string, fallback: number) {

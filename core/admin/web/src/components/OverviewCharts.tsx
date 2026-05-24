@@ -12,10 +12,24 @@ export function OverviewCharts({ metrics, loading }: Props) {
   if (!metrics || metrics.total === 0) {
     return (
       <div className="panel metrics-empty">
-        <p className="empty-hint">
-          暂无访问日志数据。请在 <code>ingress.yaml</code> 的 <code>logging</code> 段配置文件输出（启用{' '}
-          <code>admin.enabled</code> 且未配置 logging 时会默认同目录 <code>access.log</code>），或确保已有日志内容。
-        </p>
+        {metrics && metrics.source === 'access_log_empty' ? (
+          <p className="empty-hint">
+            日志文件已配置但尚无内容。等待请求产生后数据会自动刷新。
+          </p>
+        ) : metrics && metrics.source === 'unconfigured' ? (
+          <p className="empty-hint">
+            未配置日志路径。请在 <code>ingress.yaml</code> 的 <code>logging</code> 段配置文件输出，或启用{' '}
+            <code>admin.enabled</code>（默认在同目录生成 <code>access.log</code>）。
+          </p>
+        ) : metrics && metrics.source === 'error' ? (
+          <p className="empty-hint">
+            读取日志文件失败。请检查日志路径是否正确。
+          </p>
+        ) : (
+          <p className="empty-hint">
+            暂无访问日志数据。等待请求产生后数据会自动刷新。
+          </p>
+        )}
       </div>
     )
   }

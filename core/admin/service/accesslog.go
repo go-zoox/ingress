@@ -8,10 +8,13 @@ import (
 )
 
 var (
-	reLogTime = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+`)
-	reHostTag = regexp.MustCompile(`\[host:\s*([^,\]]+)`)
+	reANSI      = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	reLogTime   = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+`)
+	reLogTime2  = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+`)
+	reLogLev    = regexp.MustCompile(`^(DEBUG|INFO|WARN|ERROR|FATAL)\s+`)
+	reHostTag   = regexp.MustCompile(`\[host:\s*([^,\]]+)`)
 	reArrowHost = regexp.MustCompile(`^\S+\s+(\S+)\s+->`)
-	reRequest = regexp.MustCompile(`"([A-Z]+)\s+([^\s]+)\s+HTTP/[^"]+"\s+(\d{3})\s+(\d+(?:\.\d+)?)(ms|s)?`)
+	reRequest   = regexp.MustCompile(`"([A-Z]+)\s+([^\s]+)\s+HTTP/[^"]+"\s+(\d{3})\s+(\d+(?:\.\d+)?)(ms|s)?`)
 )
 
 // AccessEntry is one parsed ingress access log line.
@@ -32,6 +35,9 @@ func parseAccessLine(line string) (AccessEntry, bool) {
 		return AccessEntry{}, false
 	}
 
+	// Strip ANSI escape sequences that zoox file transport may include (e.g. colored log levels).
+	line = reANSI.ReplaceAllString(line, "")
+
 	var at time.Time
 	if m := reLogTime.FindStringSubmatch(line); len(m) == 2 {
 		if t, err := time.ParseInLocation("2006/01/02 15:04:05", m[1], time.Local); err == nil {
@@ -39,6 +45,13 @@ func parseAccessLine(line string) (AccessEntry, bool) {
 		}
 		line = strings.TrimSpace(line[len(m[0]):])
 	}
+
+	// Zoox file transport prepends a duplicate timestamp + log level (e.g. "2026/05/24 19:51:04 INFO").
+	// Strip the optional second timestamp so the remaining line can be matched by reArrowHost.
+	if m := reLogTime2.FindStringSubmatch(line); len(m) == 2 {
+		line = strings.TrimSpace(line[len(m[0]):])
+	}
+	line = reLogLev.ReplaceAllString(line, "")
 
 	host := ""
 	if m := reHostTag.FindStringSubmatch(line); len(m) == 2 {
