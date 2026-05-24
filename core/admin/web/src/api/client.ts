@@ -124,6 +124,7 @@ export const api = {
 export type RouteRow = {
   id: number
   rule_index: number
+  path_index: number
   host: string
   host_type: string
   path: string
@@ -136,6 +137,7 @@ export type RouteRow = {
 export type MatchPreview = {
   matched: boolean
   rule_index: number
+  path_index: number
   host: string
   host_type: string
   path: string

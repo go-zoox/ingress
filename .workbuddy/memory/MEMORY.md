@@ -48,6 +48,8 @@ auth:
 - Wants AI to provide options when uncertain, then seek confirmation
 - Values following the plan exactly — gets frustrated when implementation deviates
 - Reads Chinese, communicates in Chinese for this project
+- **Wants all git commit messages in English**
+- **No Chinese in code comments** (Chinese UI text in JSX is OK)
 
 ## Session History
 - 2026-05-24: Auth bug fix, OAuth2 feature, auth.enabled, admin console auth UI, healthcheck UI, mobile responsive, ANSI log parse fix, LogPath->AccessLogPath rename, Overview flicker fix (11 commits)

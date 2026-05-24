@@ -33,9 +33,10 @@ export function RoutesPage() {
       .catch(() => setRows([]))
   }, [])
 
-  // derived: which host & row id are matched
+  // derived: which host, rule index & path index are matched
   const matchedHost = match?.matched ? match.host : null
   const matchedRuleIndex = match?.matched ? match.rule_index : null
+  const matchedPathIndex: number | null = match?.matched ? (match.path_index ?? null) : null
 
   // auto-expand matched host
   useEffect(() => {
@@ -124,8 +125,13 @@ export function RoutesPage() {
                             </thead>
                             <tbody>
                               {hostRows.map((r) => {
+                                const isHostRow = r.path_index === -1
                                 const isMatched =
-                                  match?.matched && r.rule_index === matchedRuleIndex
+                                  match?.matched &&
+                                  r.rule_index === matchedRuleIndex &&
+                                  (isHostRow
+                                    ? (matchedPathIndex == null || matchedPathIndex < 0)
+                                    : r.path_index === matchedPathIndex)
                                 return (
                                   <tr
                                     key={r.id}
