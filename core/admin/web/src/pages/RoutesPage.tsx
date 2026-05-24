@@ -3,7 +3,13 @@ import { PageHeader } from '../components/PageHeader'
 import { HostBadge } from '../components/HostBadge'
 import { api, type MatchPreview, type RouteRow } from '../api/client'
 
-function groupByHost(rows: RouteRow[]): { host: string; type: string; rows: RouteRow[] }[] {
+interface HostGroup {
+  host: string
+  type: string
+  rows: RouteRow[]
+}
+
+function groupByHost(rows: RouteRow[]): HostGroup[] {
   const m = new Map<string, { type: string; rows: RouteRow[] }>()
   for (const r of rows) {
     if (!m.has(r.host)) m.set(r.host, { type: r.host_type, rows: [] })
@@ -17,15 +23,26 @@ export function RoutesPage() {
   const [filter, setFilter] = useState('')
   const [urlInput, setUrlInput] = useState('https://api.example.com/v2/users')
   const [match, setMatch] = useState<MatchPreview | null>(null)
-  const [err, setErr] = useState('')
+  const [matchError, setMatchError] = useState('')
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     api
       .routes()
       .then((data) => setRows(Array.isArray(data) ? data : []))
-      .catch((e: Error) => setErr(e.message))
+      .catch(() => setRows([]))
   }, [])
+
+  // derived: which host & row id are matched
+  const matchedHost = match?.matched ? match.host : null
+  const matchedRuleIndex = match?.matched ? match.rule_index : null
+
+  // auto-expand matched host
+  useEffect(() => {
+    if (matchedHost && !expandedHosts.has(matchedHost)) {
+      setExpandedHosts((prev) => new Set(prev).add(matchedHost))
+    }
+  }, [matchedHost])
 
   const q = filter.toLowerCase()
   const filtered = rows.filter((r) =>
@@ -33,13 +50,16 @@ export function RoutesPage() {
   )
 
   const runMatch = () => {
-    setErr('')
+    setMatchError('')
     setMatch(null)
     try {
       const u = new URL(urlInput)
-      api.match(u.hostname, u.pathname).then(setMatch).catch((e: Error) => setErr(e.message))
+      api
+        .match(u.hostname, u.pathname)
+        .then((m) => setMatch(m))
+        .catch((e: Error) => setMatchError(e.message))
     } catch {
-      setErr('请输入合法的 URL，例如 https://api.example.com/v2/users')
+      setMatchError('请输入合法的 URL，例如 https://api.example.com/v2/users')
     }
   }
 
@@ -57,8 +77,10 @@ export function RoutesPage() {
   return (
     <div className="page">
       <PageHeader title="路由" desc="编译后的 host/path 规则表（含 host_type 推断结果）" />
-      {err && <p className="err">{err}</p>}
+      {matchError && <p className="err">{matchError}</p>}
+
       <div className="grid-2">
+        {/* ---- left: route list ---- */}
         <div className="panel">
           <div className="panel-head">
             <h2>规则列表</h2>
@@ -86,7 +108,9 @@ export function RoutesPage() {
                         <span className="route-chevron">{expanded ? '▼' : '▶'}</span>
                         <code>{host}</code>
                         <HostBadge t={type} />
-                        <span className="route-count">{hostRows.length} path{hostRows.length > 1 ? 's' : ''}</span>
+                        <span className="route-count">
+                          {hostRows.length} path{hostRows.length > 1 ? 's' : ''}
+                        </span>
                       </button>
                       {expanded && (
                         <div className="route-accordion-body">
@@ -99,13 +123,22 @@ export function RoutesPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {hostRows.map((r) => (
-                                <tr key={r.id}>
-                                  <td>{r.path}</td>
-                                  <td>{r.backend_type}</td>
-                                  <td><code>{r.target}</code></td>
-                                </tr>
-                              ))}
+                              {hostRows.map((r) => {
+                                const isMatched =
+                                  match?.matched && r.rule_index === matchedRuleIndex
+                                return (
+                                  <tr
+                                    key={r.id}
+                                    className={isMatched ? 'match-highlight' : ''}
+                                  >
+                                    <td>{r.path}</td>
+                                    <td>{r.backend_type}</td>
+                                    <td>
+                                      <code>{r.target}</code>
+                                    </td>
+                                  </tr>
+                                )
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -117,6 +150,8 @@ export function RoutesPage() {
             )}
           </div>
         </div>
+
+        {/* ---- right: match input + result ---- */}
         <div className="panel">
           <div className="panel-head">
             <h2>试匹配</h2>
@@ -132,18 +167,28 @@ export function RoutesPage() {
               onChange={(e) => setUrlInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') runMatch() }}
             />
-            <button type="button" className="btn btn-primary" style={{ width: '100%' }} onClick={runMatch}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ width: '100%' }}
+              onClick={runMatch}
+            >
               试匹配
             </button>
+
+            {/* inline match result */}
             {match && (
               <div className={`match-result ${match.matched ? 'hit' : 'miss'}`}>
                 {match.matched ? (
                   <>
-                    <h3>命中规则 #{match.rule_index}</h3>
+                    <h3>
+                      命中规则 #{match.rule_index}
+                      {match.fallback && '（fallback）'}
+                    </h3>
                     <dl>
                       <dt>Host</dt>
                       <dd>
-                        {match.host} ({match.host_type})
+                        {match.host}（{match.host_type}）
                       </dd>
                       <dt>Path</dt>
                       <dd>{match.path}</dd>
@@ -154,6 +199,9 @@ export function RoutesPage() {
                         <code>{match.target}</code>
                       </dd>
                     </dl>
+                    <p className="match-hint" style={{ marginTop: 8 }}>
+                      已在左侧列表中高亮对应规则。
+                    </p>
                   </>
                 ) : (
                   <>

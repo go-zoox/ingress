@@ -201,13 +201,14 @@ export function WafRulesEditor({
   return (
     <>
       <FormSection title={`内置规则 (${WAF_BUILTIN_RULES.length})`}>
+        <div className="table-scroll">
         <table className="data config-waf-rules-table">
           <thead>
             <tr>
               <th>ID</th>
               <th>名称</th>
               <th>类型</th>
-              <th>Pattern</th>
+              <th className="col-pattern">Pattern</th>
               <th>Targets</th>
             </tr>
           </thead>
@@ -217,12 +218,13 @@ export function WafRulesEditor({
                 <td><code>{rule.id}</code></td>
                 <td>{rule.name}</td>
                 <td>{rule.type}</td>
-                <td><code className="path-cell">{rule.pattern}</code></td>
+                <td className="col-pattern"><code className="path-cell">{rule.pattern}</code></td>
                 <td>{rule.targets.join(', ')}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
         <p className="form-hint">
           内置规则为只读，全局启用/禁用通过上方的「禁用内置规则」控制。同 id 的自定义规则可覆盖内置规则。
         </p>
@@ -242,12 +244,13 @@ export function WafRulesEditor({
 
       <FormSection title={`自定义规则 (${rules.length})`}>
         <EntityTableToolbar label="waf.rules" onAdd={openAdd} />
+        <div className="table-scroll">
         <table className="data config-waf-rules-table">
           <thead>
             <tr>
               <th>ID</th>
               <th>类型</th>
-              <th>Pattern</th>
+              <th className="col-pattern">Pattern</th>
               <th>Targets</th>
               <th>操作</th>
             </tr>
@@ -264,7 +267,7 @@ export function WafRulesEditor({
                 <tr key={`${str(rule.id)}-${i}`}>
                   <td><code>{str(rule.id)}</code></td>
                   <td>{str(rule.type, 'regex')}</td>
-                  <td><code className="path-cell">{str(rule.pattern)}</code></td>
+                  <td className="col-pattern"><code className="path-cell">{str(rule.pattern)}</code></td>
                   <td>{arrTargets(rule)}</td>
                   <td>
                     <EntityRowActions onEdit={() => openEdit(i)} onDelete={() => remove(i)} />
@@ -274,6 +277,7 @@ export function WafRulesEditor({
             )}
           </tbody>
         </table>
+        </div>
         <p className="form-hint">
           v1 不扫描 body；<code>regex</code> 使用 Go regexp，<code>contains</code> 为子串匹配。
           同 id 的规则可覆盖内置或全局定义。

@@ -160,7 +160,34 @@ func (a *API) WAFToggle(ctx *zoox.Context) {
 }
 
 func (a *API) WAFEvents(ctx *zoox.Context) {
-	rows, err := a.audit.ListWAFEvents(100)
+	f := service.WAFAuditFilter{}
+
+	// query params
+	if v := strings.TrimSpace(ctx.Query().Get("action").String()); v != "" {
+		f.Action = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("host").String()); v != "" {
+		f.Host = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("client_ip").String()); v != "" {
+		f.ClientIP = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("rule").String()); v != "" {
+		f.Rule = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("time_start").String()); v != "" {
+		f.TimeStart = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("time_end").String()); v != "" {
+		f.TimeEnd = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("limit").String()); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			f.Limit = n
+		}
+	}
+
+	rows, err := a.audit.ListWAFEvents(f)
 	if err != nil {
 		fail(ctx, http.StatusInternalServerError, err.Error())
 		return
