@@ -59,6 +59,12 @@ type Response struct {
 }
 
 type Auth struct {
+	// Enabled controls whether authentication is enforced.
+	// nil (not set in config): auth is enabled iff Type is non-empty.
+	// Explicit true: auth is enabled.
+	// Explicit false: auth is disabled (preserves config for later toggle).
+	Enabled *bool `config:"enabled"`
+
 	Type string `config:"type"`
 
 	// type: basic

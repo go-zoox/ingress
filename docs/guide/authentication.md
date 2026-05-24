@@ -10,6 +10,29 @@ Ingress supports multiple authentication methods to secure your backend services
 - **OAuth2**: OAuth 2.0 authentication
 - **OIDC**: OpenID Connect authentication
 
+## Enabling / Disabling Authentication
+
+When you configure `auth.type`, authentication is enabled by default. You can
+use the `enabled` field to temporarily disable authentication (e.g. for
+debugging or gradual rollouts) without removing the auth configuration:
+
+```yaml
+auth:
+  enabled: false   # set to true to re-enable; omit to default to true when type is set
+  type: basic
+  basic:
+    users:
+      - username: admin
+        password: admin123
+```
+
+| `enabled` value | `type` set? | Behavior |
+|-----------------|------------|----------|
+| *(omitted)* | No | No auth (default) |
+| *(omitted)* | Yes | Auth **enabled** (default) |
+| `true` | Any | Auth **enabled** |
+| `false` | Any | Auth **disabled** (config preserved) |
+
 ## Basic Authentication
 
 Basic Authentication uses username and password credentials.

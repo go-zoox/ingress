@@ -27,6 +27,7 @@ rules:
         name: httpbin.zcorky.com
         port: 443
         auth:
+          # enabled: true  # optional, defaults to true when type is set; set to false to temporarily disable auth
           type: oauth2
           oauth2:
             provider: feishu

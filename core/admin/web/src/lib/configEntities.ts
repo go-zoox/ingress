@@ -39,6 +39,33 @@ ctx.SetHeader("Content-Type", "application/json")
 ctx.String(200, ctx.Method+" "+ctx.Path)`,
 }
 
+export type AuthFormType = '' | 'basic' | 'bearer' | 'oauth2'
+
+export type AuthBasicUserForm = {
+  username: string
+  password: string
+}
+
+export type AuthOAuth2ConnectJWTForm = {
+  secret: string
+  algorithm: string
+  expires_in: string
+}
+
+export type AuthOAuth2ConnectForm = {
+  enabled: boolean
+  jwt: AuthOAuth2ConnectJWTForm
+}
+
+export type AuthOAuth2Form = {
+  provider: string
+  client_id: string
+  client_secret: string
+  redirect_url: string
+  scopes: string
+  connect: AuthOAuth2ConnectForm
+}
+
 export type BackendForm = {
   backend_type: RuleBackendType
   service_name: string
@@ -66,6 +93,20 @@ export type BackendForm = {
   cache_honor_pragma_no_cache: boolean
   cache_key_headers: string
   cache_methods: string
+  // auth fields
+  auth_enabled: boolean | undefined  // undefined = not set (default by type), true = explicit enable, false = explicit disable
+  auth_type: AuthFormType
+  auth_basic_users: AuthBasicUserForm[]
+  auth_bearer_tokens: string
+  auth_oauth2_provider: string
+  auth_oauth2_client_id: string
+  auth_oauth2_client_secret: string
+  auth_oauth2_redirect_url: string
+  auth_oauth2_scopes: string
+  auth_oauth2_connect_enabled: boolean
+  auth_oauth2_connect_jwt_secret: string
+  auth_oauth2_connect_jwt_algorithm: string
+  auth_oauth2_connect_jwt_expires_in: string
 }
 
 export type PathForm = {
@@ -197,6 +238,53 @@ function cacheToForm(backend: Record<string, unknown>): Pick<
   }
 }
 
+function authToForm(service: Record<string, unknown>): Pick<BackendForm,
+  'auth_enabled' | 'auth_type' | 'auth_basic_users' | 'auth_bearer_tokens' |
+  'auth_oauth2_provider' | 'auth_oauth2_client_id' | 'auth_oauth2_client_secret' |
+  'auth_oauth2_redirect_url' | 'auth_oauth2_scopes' |
+  'auth_oauth2_connect_enabled' | 'auth_oauth2_connect_jwt_secret' |
+  'auth_oauth2_connect_jwt_algorithm' | 'auth_oauth2_connect_jwt_expires_in'
+> {
+  const auth = obj(service.auth)
+  const authType = str(auth.type) as AuthFormType
+
+  // auth.enabled: undefined = not set (default by type), true = explicit enable, false = explicit disable
+  let authEnabled: boolean | undefined
+  if (auth.enabled !== undefined && auth.enabled !== null) {
+    authEnabled = bool(auth.enabled)
+  }
+
+  // basic users
+  const basicUsers = arr<Record<string, unknown>>(obj(auth.basic).users)
+  const authBasicUsers = basicUsers.length > 0
+    ? basicUsers.map(u => ({ username: str(u.username), password: str(u.password) }))
+    : authType === 'basic' ? [{ username: '', password: '' }] : []
+
+  // bearer tokens
+  const bearerTokens = arr<string>(obj(auth.bearer).tokens)
+
+  // oauth2
+  const oauth2 = obj(auth.oauth2)
+  const connect = obj(oauth2.connect)
+  const jwt = obj(connect.jwt)
+
+  return {
+    auth_enabled: authEnabled,
+    auth_type: authType,
+    auth_basic_users: authBasicUsers,
+    auth_bearer_tokens: bearerTokens.join(', '),
+    auth_oauth2_provider: str(oauth2.provider),
+    auth_oauth2_client_id: str(oauth2.client_id),
+    auth_oauth2_client_secret: str(oauth2.client_secret),
+    auth_oauth2_redirect_url: str(oauth2.redirect_url),
+    auth_oauth2_scopes: arr<string>(oauth2.scopes).join(', '),
+    auth_oauth2_connect_enabled: bool(connect.enabled),
+    auth_oauth2_connect_jwt_secret: str(jwt.secret),
+    auth_oauth2_connect_jwt_algorithm: str(jwt.algorithm, 'hs256') || 'hs256',
+    auth_oauth2_connect_jwt_expires_in: str(jwt.expires_in, '5m') || '5m',
+  }
+}
+
 export function backendToForm(backend: Record<string, unknown>): BackendForm {
   const backendType = inferBackendType(backend)
   const service = obj(backend.service)
@@ -212,6 +300,7 @@ export function backendToForm(backend: Record<string, unknown>): BackendForm {
     redirect_permanent: bool(redirect.permanent),
     ...handlerToForm(obj(backend.handler)),
     ...cacheToForm(backend),
+    ...authToForm(service),
   }
 }
 
@@ -243,6 +332,19 @@ export function emptyBackendForm(): BackendForm {
     cache_honor_pragma_no_cache: true,
     cache_key_headers: '',
     cache_methods: '',
+    auth_enabled: undefined,
+    auth_type: '' as AuthFormType,
+    auth_basic_users: [],
+    auth_bearer_tokens: '',
+    auth_oauth2_provider: '',
+    auth_oauth2_client_id: '',
+    auth_oauth2_client_secret: '',
+    auth_oauth2_redirect_url: '',
+    auth_oauth2_scopes: '',
+    auth_oauth2_connect_enabled: false,
+    auth_oauth2_connect_jwt_secret: '',
+    auth_oauth2_connect_jwt_algorithm: 'hs256',
+    auth_oauth2_connect_jwt_expires_in: '5m',
   }
 }
 
@@ -376,6 +478,60 @@ function buildBackendCore(form: BackendForm): Record<string, unknown> {
   return { type: 'service', service }
 }
 
+function buildAuth(form: BackendForm): Record<string, unknown> | undefined {
+  if (!form.auth_type) return undefined
+
+  const auth: Record<string, unknown> = { type: form.auth_type }
+
+  // Only write enabled when explicitly set (false = disabled, true = enabled)
+  // When undefined, omit the field so the core engine defaults to "enabled when type is set"
+  if (form.auth_enabled === false) auth.enabled = false
+  else if (form.auth_enabled === true) auth.enabled = true
+
+  if (form.auth_type === 'basic') {
+    const users = form.auth_basic_users
+      .filter(u => u.username.trim())
+      .map(u => ({ username: u.username.trim(), password: u.password }))
+    if (users.length > 0) auth.basic = { users }
+  }
+
+  if (form.auth_type === 'bearer') {
+    const tokens = form.auth_bearer_tokens.split(',').map(s => s.trim()).filter(Boolean)
+    if (tokens.length > 0) auth.bearer = { tokens }
+  }
+
+  if (form.auth_type === 'oauth2') {
+    const oauth2: Record<string, unknown> = {
+      provider: form.auth_oauth2_provider.trim(),
+      client_id: form.auth_oauth2_client_id.trim(),
+      client_secret: form.auth_oauth2_client_secret.trim(),
+    }
+    if (form.auth_oauth2_redirect_url.trim()) {
+      oauth2.redirect_url = form.auth_oauth2_redirect_url.trim()
+    }
+    const scopes = form.auth_oauth2_scopes.split(',').map(s => s.trim()).filter(Boolean)
+    if (scopes.length > 0) oauth2.scopes = scopes
+
+    if (form.auth_oauth2_connect_enabled) {
+      const connect: Record<string, unknown> = { enabled: true }
+      const jwtObj: Record<string, unknown> = {
+        secret: form.auth_oauth2_connect_jwt_secret.trim(),
+      }
+      if (form.auth_oauth2_connect_jwt_algorithm && form.auth_oauth2_connect_jwt_algorithm !== 'hs256') {
+        jwtObj.algorithm = form.auth_oauth2_connect_jwt_algorithm
+      }
+      if (form.auth_oauth2_connect_jwt_expires_in && form.auth_oauth2_connect_jwt_expires_in !== '5m') {
+        jwtObj.expires_in = form.auth_oauth2_connect_jwt_expires_in
+      }
+      connect.jwt = jwtObj
+      oauth2.connect = connect
+    }
+    auth.oauth2 = oauth2
+  }
+
+  return auth
+}
+
 export function formToBackend(form: BackendForm, original?: Record<string, unknown>): Record<string, unknown> {
   const orig = original ? { ...original } : {}
   const core = buildBackendCore(form)
@@ -387,6 +543,9 @@ export function formToBackend(form: BackendForm, original?: Record<string, unkno
     const svc = { ...obj(orig.service), ...obj(core.service) }
     if (!form.service_strip_prefix) delete svc.strip_prefix
     if (form.service_mode !== 'internal' && form.service_mode !== 'external') delete svc.mode
+    const authBlock = buildAuth(form)
+    if (authBlock) svc.auth = authBlock
+    else delete svc.auth
     next.service = svc
     delete next.handler
     delete next.redirect
@@ -468,6 +627,12 @@ export function backendSummary(backend: Record<string, unknown>): string {
   else if (redirect.url) base = `redirect → ${str(redirect.url)}`
   else base = str(backend.type, 'service')
   if (bool(cache.enabled)) base += ` · cache ${num(cache.ttl, 300)}s`
+  const auth = obj(service.auth)
+  const authType = str(auth.type)
+  if (authType === 'basic') base += ' · auth:basic'
+  else if (authType === 'bearer') base += ' · auth:bearer'
+  else if (authType === 'oauth2') base += ` · auth:oauth2(${str(obj(auth.oauth2).provider)})`
+  if (authType && auth.enabled === false) base += ' (disabled)'
   return base
 }
 

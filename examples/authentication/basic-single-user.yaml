@@ -8,6 +8,7 @@ rules:
         name: api-service
         port: 8080
         auth:
+          # enabled: true  # optional, defaults to true when type is set; set to false to temporarily disable auth
           type: basic
           basic:
             users:

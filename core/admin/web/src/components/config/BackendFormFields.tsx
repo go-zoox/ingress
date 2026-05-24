@@ -4,6 +4,7 @@ import {
   FormGrid,
   FormSelectField,
 } from '../Form'
+import { AuthFormFields } from './AuthFormFields'
 import { BackendCacheFormFields } from './BackendCacheFormFields'
 import { HandlerFormFields } from './HandlerFormFields'
 import type { BackendForm } from '../../lib/configEntities'
@@ -104,6 +105,10 @@ export function BackendFormFields<T extends BackendForm>({
       )}
 
       <BackendCacheFormFields form={form} onChange={onChange} idPrefix={idPrefix} />
+
+      {form.backend_type === 'service' && (
+        <AuthFormFields form={form} onChange={onChange} idPrefix={idPrefix} />
+      )}
     </>
   )
 }
@@ -127,5 +132,5 @@ export function BackendFormGrid<T extends BackendForm>({
 }
 
 export function backendFormWide(form: BackendForm): boolean {
-  return form.backend_type === 'handler' || form.cache_enabled
+  return form.backend_type === 'handler' || form.cache_enabled || form.auth_type !== ''
 }

@@ -588,7 +588,7 @@ export function ConfigModuleForm({
           <RulesModuleForm doc={doc} onChange={onDocChange} />
           {onSwitchToYaml && (
             <button type="button" className="btn btn-ghost config-yaml-link" onClick={onSwitchToYaml}>
-              高级：在 YAML 模式中编辑 rules[].waf、auth、request 等
+              高级：在 YAML 模式中编辑 rules[].waf、request 等
             </button>
           )}
         </>

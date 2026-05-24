@@ -8,6 +8,7 @@ rules:
         name: api-service
         port: 8080
         auth:
+          # enabled: true  # optional, defaults to true when type is set
           type: basic
           basic:
             users:
@@ -20,6 +21,7 @@ rules:
             name: admin-service
             port: 8080
             auth:
+              # enabled: true  # optional, defaults to true when type is set
               type: basic
               basic:
                 users:
@@ -33,6 +35,7 @@ rules:
             name: api-service
             port: 8080
             auth:
+              # enabled: true  # optional, defaults to true when type is set
               type: bearer
               bearer:
                 tokens:
