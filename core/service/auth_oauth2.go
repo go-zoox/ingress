@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-zoox/jwt"
 	gozooxoauth2 "github.com/go-zoox/oauth2"
 	"github.com/go-zoox/oauth2/create"
-	"github.com/go-zoox/jwt"
 	"github.com/go-zoox/zoox"
 )
 
@@ -172,7 +172,7 @@ func (s *Service) newOAuth2Client(ctx *zoox.Context, cfg *OAuth2Auth) (gozooxoau
 		if ctx.Request.TLS != nil {
 			scheme = "https"
 		}
-		redirectURL = fmt.Sprintf("%s://%s%s", scheme, ctx.Hostname(), oauth2CallbackPath)
+		redirectURL = fmt.Sprintf("%s://%s%s", scheme, ctx.Host(), oauth2CallbackPath)
 	}
 
 	scopes := cfg.Scopes

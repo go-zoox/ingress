@@ -5,8 +5,10 @@ rules:
   - host: bearer-auth-multi.example.com
     backend:
       service:
-        name: api-service
-        port: 8080
+        mode: external
+        protocol: https
+        name: httpbin.zcorky.com
+        port: 443
         auth:
           type: bearer
           bearer:

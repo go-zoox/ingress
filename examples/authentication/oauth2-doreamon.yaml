@@ -42,7 +42,7 @@ rules:
             # Optional: redirect_url — auto-generated from the request host if omitted.
             # redirect_url: "https://oauth2-doreamon.example.com/oauth2/callback"
             #
-            redirect_url: "http://oauth2-doreamon.example.com:8080/oauth2/callback"
+            # redirect_url: "http://oauth2-doreamon.example.com:8080/oauth2/callback"
 
             # Optional: connect JWT headers for upstream user identification.
             # connect:
