@@ -30,7 +30,7 @@ COPY --from=web /build/core/admin/static/dist ./core/admin/static/dist
 
 ARG TARGETARCH
 
-RUN CGO_ENABLED=0 \
+RUN CGO_ENABLED=1 \
   GOOS=linux \
   GOARCH=$TARGETARCH \
   go build \
