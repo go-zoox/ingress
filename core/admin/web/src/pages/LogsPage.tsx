@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { api } from '../api/client'
 import { loadPreferences } from '../lib/preferences'
+import { useSSE } from '../hooks/useSSE'
 
 const REFRESH_OPTIONS = [
   { value: 0, label: '关闭' },
@@ -40,6 +41,9 @@ export function LogsPage() {
   const offsetRef = useRef(0)
   const logEndRef = useRef<HTMLDivElement>(null)
   const filtersRef = useRef({ logKind, q, host, status, cacheHit, wafBlock })
+
+  // SSE for real-time log streaming
+  const { data: sseData, connected: sseConnected } = useSSE(['logs'])
 
   filtersRef.current = { logKind, q, host, status, cacheHit, wafBlock }
 
@@ -120,9 +124,34 @@ export function LogsPage() {
 
   useEffect(() => {
     if (!live || intervalMs <= 0) return
+    // Use SSE when connected, otherwise fall back to polling
+    if (sseConnected) return
     const id = window.setInterval(() => fetchLogs(true), intervalMs)
     return () => window.clearInterval(id)
-  }, [live, intervalMs, fetchLogs, logKind, q, host, status, cacheHit, wafBlock])
+  }, [live, intervalMs, fetchLogs, logKind, q, host, status, cacheHit, wafBlock, sseConnected])
+
+  // Handle SSE log data
+  useEffect(() => {
+    if (live && sseData.logs) {
+      const logData = sseData.logs
+      if (typeof logData === 'string') {
+        setLines((prev) => {
+          const merged = [...prev, logData]
+          return merged.length > MAX_LINES ? merged.slice(-MAX_LINES) : merged
+        })
+        setCount((prev) => {
+          const n = parseInt(prev, 10)
+          return `${(Number.isNaN(n) ? 0 : n) + 1} 条`
+        })
+        setLastRefresh(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
+      } else if (Array.isArray(logData)) {
+        setLines((prev) => {
+          const merged = [...prev, ...logData.map(String)]
+          return merged.length > MAX_LINES ? merged.slice(-MAX_LINES) : merged
+        })
+      }
+    }
+  }, [sseData.logs, live])
 
   useEffect(() => {
     if (live && logEndRef.current) {
@@ -221,7 +250,7 @@ export function LogsPage() {
           <h2>{live ? '实时日志' : '结果'}</h2>
           <span className="log-count">
             {count}
-            {live && intervalMs > 0 ? ` · 每 ${intervalMs / 1000}s` : ''}
+            {live && intervalMs > 0 ? ` · 每 ${intervalMs / 1000}s` : ''}{live && sseConnected ? ' (SSE)' : ''}
           </span>
         </div>
         <div className="panel-body panel-table-wrap">

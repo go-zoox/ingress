@@ -39,6 +39,13 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 	g := app.Group("/api/v1")
 	api.Mount(g)
 
+	// Start the health check service and SSE broker
+	if api.Broker() != nil {
+		api.Health().Start()
+		// Note: Health check service will be stopped when the process exits.
+		// zoox Application doesn't expose OnShutdown; cleanup is handled by process signals.
+	}
+
 	if !cfg.Web.DevProxy {
 		if err := static.Mount(app); err != nil {
 			return nil, fmt.Errorf("static: %w", err)

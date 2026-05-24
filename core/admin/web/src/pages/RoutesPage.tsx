@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { HostBadge } from '../components/HostBadge'
 import { api, type MatchPreview, type RouteRow } from '../api/client'
@@ -19,6 +20,7 @@ function groupByHost(rows: RouteRow[]): HostGroup[] {
 }
 
 export function RoutesPage() {
+  const navigate = useNavigate()
   const [rows, setRows] = useState<RouteRow[]>([])
   const [filter, setFilter] = useState('')
   const [urlInput, setUrlInput] = useState('https://api.example.com/v2/users')
@@ -135,7 +137,13 @@ export function RoutesPage() {
                                 return (
                                   <tr
                                     key={r.id}
-                                    className={isMatched ? 'match-highlight' : ''}
+                                    className={`${isMatched ? 'match-highlight' : ''} route-row-clickable`}
+                                    onClick={() => {
+                                      if (!isHostRow) {
+                                        navigate(`/routes/${r.rule_index}/${r.path_index}`)
+                                      }
+                                    }}
+                                    style={{ cursor: isHostRow ? 'default' : 'pointer' }}
                                   >
                                     <td>{r.path}</td>
                                     <td>{r.backend_type}</td>

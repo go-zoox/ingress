@@ -122,6 +122,16 @@ export const api = {
     return request<LogResult>(`/logs${qs ? `?${qs}` : ''}`)
   },
   logHosts: () => request<string[]>('/logs/hosts'),
+  routeDetail: (ri: number, pi: number) =>
+    request<RouteDetail>(`/routes/${ri}/${pi}`),
+  routeMetrics: (ri: number, pi: number) =>
+    request<RouteMetrics>(`/routes/${ri}/${pi}/metrics`),
+  healthCheck: () =>
+    request<{ checks: HealthCheckResult[]; summary: HealthSummary }>('/healthcheck'),
+  sseURL: (channels: string[] = []) => {
+    const ch = channels.join(',')
+    return `/api/v1/events/stream?channels=${encodeURIComponent(ch)}`
+  },
 }
 
 export type RouteRow = {
@@ -308,4 +318,80 @@ export type OverviewMetrics = {
     status: number
     duration_ms: number
   }>
+}
+
+// --- New types for route detail, metrics, and health check ---
+
+export type RouteDetail = {
+  rule_index: number
+  path_index: number
+  host: string
+  path: string
+  backend: {
+    type: string
+    target: string
+    service_name: string
+    service_port: number
+    service_protocol: string
+  }
+  auth: {
+    type: string
+    enabled: boolean
+    summary: string
+  } | null
+  cache: {
+    enabled: boolean
+    ttl: number
+    max_body_kb: number
+    key_hash: string
+  } | null
+  health_check: {
+    enabled: boolean
+    method: string
+    path: string
+    status: number[]
+    ok: boolean
+  } | null
+  waf: {
+    enabled: boolean
+    log_only: boolean
+    patched: boolean
+  } | null
+}
+
+export type RouteMetrics = {
+  window: string
+  rpm: number
+  error_rate: number
+  p50_ms: number
+  p95_ms: number
+  cache_hit_rate: number
+  total: number
+  timeline: Array<{
+    label: string
+    count: number
+    '2xx': number
+    '3xx': number
+    '4xx': number
+    '5xx': number
+  }>
+}
+
+export type HealthCheckResult = {
+  key: string
+  host: string
+  path: string
+  backend: string
+  url: string
+  status: string
+  last_check: string
+  response_ms: number
+  error: string
+}
+
+export type HealthSummary = {
+  total: number
+  up: number
+  down: number
+  unknown: number
 }

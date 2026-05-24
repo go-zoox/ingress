@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { api, type WAFEvent } from '../api/client'
+import { useSSE } from '../hooks/useSSE'
 
 export function WAFPage() {
   const [status, setStatus] = useState<Record<string, unknown> | null>(null)
@@ -20,9 +21,10 @@ export function WAFPage() {
   const [wafHosts, setWafHosts] = useState<string[]>([])
   const [wafRules, setWafRules] = useState<string[]>([])
 
-  // real-time polling
+  // real-time via SSE
   const [realtime, setRealtime] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const { data: sseData, connected: sseConnected } = useSSE(['waf'])
 
   const load = useCallback(() => {
     const params: Parameters<typeof api.wafEvents>[0] = {}
@@ -53,13 +55,28 @@ export function WAFPage() {
     api.wafRules().then(setWafRules).catch(() => setWafRules([]))
   }, [])
 
-  // real-time polling
+  // real-time polling (fallback when SSE is not available)
   useEffect(() => {
-    if (realtime) {
+    if (realtime && !sseConnected) {
       timerRef.current = setInterval(() => { load(); loadStatus() }, 3000)
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [realtime, load, loadStatus])
+  }, [realtime, load, loadStatus, sseConnected])
+
+  // Update events from SSE
+  useEffect(() => {
+    if (sseData.waf) {
+      const wafEvents = Array.isArray(sseData.waf) ? sseData.waf : []
+      if (wafEvents.length > 0) {
+        setEvents((prev) => {
+          // Merge new events, avoiding duplicates by id
+          const existingIds = new Set(prev.map((e) => e.id))
+          const newEvents = wafEvents.filter((e: WAFEvent) => !existingIds.has(e.id))
+          return [...newEvents, ...prev].slice(0, 200)
+        })
+      }
+    }
+  }, [sseData.waf])
 
   const handleRefresh = () => { load(); loadStatus() }
   const handleResetFilters = () => {
@@ -133,7 +150,7 @@ export function WAFPage() {
                 checked={realtime}
                 onChange={(e) => setRealtime(e.target.checked)}
               />{' '}
-              实时刷新{realtime ? ' (3s)' : ''}
+              实时刷新{sseConnected ? ' (SSE)' : realtime && !sseConnected ? ' (3s 轮询)' : ''}
             </label>
             <button className="btn btn-sm" onClick={handleRefresh}>刷新</button>
             <button className="btn btn-sm btn-ghost" onClick={handleResetFilters}>重置</button>

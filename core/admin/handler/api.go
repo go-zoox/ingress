@@ -25,12 +25,16 @@ type API struct {
 	cache    *service.Cache
 	settings *service.Settings
 	config   *service.Config
+	broker   *service.SSEBroker
+	health   *service.HealthCheckService
 }
 
 func NewAPI(cfg *config.Config) *API {
 	logs := service.NewLogs(cfg)
 	ingress := service.NewIngress(cfg)
 	audit := service.NewAudit()
+	broker := service.NewSSEBroker()
+	healthSvc := service.NewHealthCheckService(ingress, broker)
 	return &API{
 		cfg:      cfg,
 		ingress:  ingress,
@@ -41,6 +45,8 @@ func NewAPI(cfg *config.Config) *API {
 		cache:    service.NewCache(ingress, logs),
 		settings: service.NewSettings(cfg, ingress, logs),
 		config:   service.NewConfig(ingress, audit),
+		broker:   broker,
+		health:   healthSvc,
 	}
 }
 
@@ -69,6 +75,14 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/logs/hosts", a.LogHosts)
 	g.Get("/metrics/overview", a.OverviewMetrics)
 	g.Get("/settings", a.Settings)
+	// New routes for SSE, route detail, and health check
+	sseHandler := NewSSEHandler(a.broker)
+	g.Get("/events/stream", sseHandler.Stream)
+	routeDetailHandler := NewRouteDetailHandler(a.ingress, a.metrics, a.health)
+	g.Get("/routes/:ri/:pi", routeDetailHandler.GetDetail)
+	g.Get("/routes/:ri/:pi/metrics", routeDetailHandler.GetMetrics)
+	healthHandler := NewHealthHandler(a.health)
+	g.Get("/healthcheck", healthHandler.ListChecks)
 }
 
 func (a *API) Status(ctx *zoox.Context) {
@@ -475,4 +489,14 @@ func (a *API) OverviewMetrics(ctx *zoox.Context) {
 
 func (a *API) Settings(ctx *zoox.Context) {
 	ok(ctx, a.settings.Get(a.configHash()))
+}
+
+// Broker returns the SSE broker instance.
+func (a *API) Broker() *service.SSEBroker {
+	return a.broker
+}
+
+// Health returns the health check service instance.
+func (a *API) Health() *service.HealthCheckService {
+	return a.health
 }

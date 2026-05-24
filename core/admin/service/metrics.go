@@ -304,6 +304,11 @@ func percentiles(vals []float64, ps ...float64) (results []float64) {
 	return results
 }
 
+// ComputePercentiles is the exported version of percentiles for use by handlers.
+func ComputePercentiles(vals []float64, ps ...float64) []float64 {
+	return percentiles(vals, ps...)
+}
+
 func topN(m map[string]int, n int) []NamedCount {
 	type pair struct {
 		name  string

@@ -8,6 +8,7 @@ import { PublishModal } from '../components/PublishModal'
 import { ToastContainer, useToast } from '../components/Toast'
 import { api } from '../api/client'
 import { buildDiff, escapeHtml } from '../lib/config'
+import { useUndo } from '../hooks/useUndo'
 
 type ConfigView = 'modules' | 'yaml' | 'versions'
 
@@ -26,6 +27,9 @@ export function ConfigPage() {
   const loaded = useRef(false)
   const modulesRef = useRef<ConfigModulesPanelHandle>(null)
 
+  // Undo/redo hook
+  const undoState = useUndo('')
+
   useEffect(() => {
     api
       .getConfig()
@@ -33,10 +37,41 @@ export function ConfigPage() {
         setContent(r.content)
         setSaved(r.content)
         setPath(r.path)
+        undoState.reset(r.content)
         loaded.current = true
       })
       .catch((e: Error) => setErr(e.message))
   }, [])
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Skip if user is not in YAML view or focus is outside the textarea
+      if (view !== 'yaml') return
+
+      const isUndo = (e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey
+      const isRedo = (e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey
+
+      if (isUndo) {
+        e.preventDefault()
+        const val = undoState.undo()
+        if (val !== '') {
+          setContent(val)
+          setValidateOut('')
+        }
+      } else if (isRedo) {
+        e.preventDefault()
+        const val = undoState.redo()
+        if (val !== '') {
+          setContent(val)
+          setValidateOut('')
+        }
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [view, undoState])
 
   const validate = () => {
     setErr('')
@@ -56,6 +91,7 @@ export function ConfigPage() {
       await api.validateConfig(content)
       await api.putConfig(content, 'save')
       setSaved(content)
+      undoState.reset(content)
       show('已保存到 ' + path)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -71,12 +107,16 @@ export function ConfigPage() {
 
   const restoreDraft = (next: string) => {
     setContent(next)
+    undoState.reset(next)
     setValidateOut('')
     show('已加载历史版本到草稿（尚未保存）')
     setView('yaml')
   }
 
   const dirty = content !== saved
+
+  // Count changes from saved state
+  const changeCount = undoState.canUndo ? 1 : 0
 
   return (
     <div className="page">
@@ -109,9 +149,43 @@ export function ConfigPage() {
             >
               版本
             </button>
-            {dirty && <span className="config-draft-badge">草稿未保存</span>}
+            {dirty && (
+              <span className="config-draft-badge">
+                草稿未保存{changeCount > 0 ? '（有变更）' : ''}
+              </span>
+            )}
           </div>
           <div className="toolbar">
+            <button
+              type="button"
+              className="btn btn-undo"
+              disabled={!undoState.canUndo}
+              onClick={() => {
+                const val = undoState.undo()
+                if (val !== '') {
+                  setContent(val)
+                  setValidateOut('')
+                }
+              }}
+              title="撤销 (Ctrl+Z)"
+            >
+              ↩ 撤销
+            </button>
+            <button
+              type="button"
+              className="btn btn-redo"
+              disabled={!undoState.canRedo}
+              onClick={() => {
+                const val = undoState.redo()
+                if (val !== '') {
+                  setContent(val)
+                  setValidateOut('')
+                }
+              }}
+              title="重做 (Ctrl+Shift+Z)"
+            >
+              ↪ 重做
+            </button>
             <button type="button" className="btn" onClick={validate}>
               校验
             </button>
@@ -139,6 +213,7 @@ export function ConfigPage() {
               content={content}
               onContentChange={(next) => {
                 setContent(next)
+                undoState.push(next)
                 if (loaded.current) setValidateOut('')
               }}
               onError={setErr}
@@ -152,7 +227,9 @@ export function ConfigPage() {
                 spellCheck={false}
                 value={content}
                 onChange={(e) => {
-                  setContent(e.target.value)
+                  const val = e.target.value
+                  setContent(val)
+                  undoState.push(val)
                   if (loaded.current) setValidateOut('')
                 }}
               />
@@ -176,6 +253,7 @@ export function ConfigPage() {
         onClose={() => setPublishOpen(false)}
         onDone={() => {
           setSaved(content)
+          undoState.reset(content)
           show('配置已发布并 reload')
         }}
       />
