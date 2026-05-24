@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/go-zoox/ingress/core/admin/config"
@@ -183,6 +184,49 @@ func tailLogFile(path string, limit int) ([]string, error) {
 		lines = lines[len(lines)-limit:]
 	}
 	return lines, nil
+}
+
+// DistinctHosts extracts unique host values from the access log (last 5000 lines).
+func (l *Logs) DistinctHosts() ([]string, error) {
+	path := strings.TrimSpace(l.accessPath)
+	if path == "" {
+		return nil, nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("open log %s: %w", path, err)
+	}
+	defer f.Close()
+
+	// tail last 5000 lines
+	var allLines []string
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		allLines = append(allLines, sc.Text())
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	if len(allLines) > 5000 {
+		allLines = allLines[len(allLines)-5000:]
+	}
+
+	seen := make(map[string]struct{})
+	for _, line := range allLines {
+		if entry, ok := parseAccessLine(line); ok && entry.Host != "" {
+			seen[entry.Host] = struct{}{}
+		}
+	}
+
+	hosts := make([]string, 0, len(seen))
+	for h := range seen {
+		hosts = append(hosts, h)
+	}
+	sort.Strings(hosts)
+	return hosts, nil
 }
 
 func matchLogLine(line string, q LogQuery) bool {

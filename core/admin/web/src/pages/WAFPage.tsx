@@ -16,6 +16,10 @@ export function WAFPage() {
   const [filterTimeStart, setFilterTimeStart] = useState('')
   const [filterTimeEnd, setFilterTimeEnd] = useState('')
 
+  // dropdown options
+  const [wafHosts, setWafHosts] = useState<string[]>([])
+  const [wafRules, setWafRules] = useState<string[]>([])
+
   // real-time polling
   const [realtime, setRealtime] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -23,10 +27,10 @@ export function WAFPage() {
   const load = useCallback(() => {
     const params: Parameters<typeof api.wafEvents>[0] = {}
     if (filterAction !== 'all') params.action = filterAction
-    if (filterHost.trim()) params.host = filterHost.trim()
+    if (filterHost) params.host = filterHost
     if (filterPath.trim()) params.path = filterPath.trim()
     if (filterClientIP.trim()) params.client_ip = filterClientIP.trim()
-    if (filterRule.trim()) params.rule = filterRule.trim()
+    if (filterRule) params.rule = filterRule
     if (filterTimeStart) params.time_start = filterTimeStart
     if (filterTimeEnd) params.time_end = filterTimeEnd + 'T23:59:59Z'
 
@@ -42,6 +46,12 @@ export function WAFPage() {
 
   useEffect(() => { loadStatus() }, [loadStatus])
   useEffect(() => { load() }, [load])
+
+  // fetch distinct hosts and rules for dropdown options
+  useEffect(() => {
+    api.wafHosts().then(setWafHosts).catch(() => setWafHosts([]))
+    api.wafRules().then(setWafRules).catch(() => setWafRules([]))
+  }, [])
 
   // real-time polling
   useEffect(() => {
@@ -140,12 +150,12 @@ export function WAFPage() {
           </div>
           <div className="filter-field">
             <label>Host</label>
-            <input
-              type="text"
-              placeholder="模糊匹配 host"
-              value={filterHost}
-              onChange={(e) => setFilterHost(e.target.value)}
-            />
+            <select value={filterHost} onChange={(e) => setFilterHost(e.target.value)}>
+              <option value="">全部</option>
+              {wafHosts.map((h) => (
+                <option key={h} value={h}>{h}</option>
+              ))}
+            </select>
           </div>
           <div className="filter-field">
             <label>Path</label>
@@ -167,12 +177,12 @@ export function WAFPage() {
           </div>
           <div className="filter-field">
             <label>规则</label>
-            <input
-              type="text"
-              placeholder="模糊匹配规则名"
-              value={filterRule}
-              onChange={(e) => setFilterRule(e.target.value)}
-            />
+            <select value={filterRule} onChange={(e) => setFilterRule(e.target.value)}>
+              <option value="">全部</option>
+              {wafRules.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
           </div>
           <div className="filter-field">
             <label>开始时间</label>

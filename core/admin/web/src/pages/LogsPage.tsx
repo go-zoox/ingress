@@ -36,6 +36,7 @@ export function LogsPage() {
   const [count, setCount] = useState('—')
   const [err, setErr] = useState('')
   const [lastRefresh, setLastRefresh] = useState('')
+  const [logHosts, setLogHosts] = useState<string[]>([])
   const offsetRef = useRef(0)
   const logEndRef = useRef<HTMLDivElement>(null)
   const filtersRef = useRef({ logKind, q, host, status, cacheHit, wafBlock })
@@ -112,6 +113,11 @@ export function LogsPage() {
     fetchLogs(false)
   }, [logKind, fetchLogs])
 
+  // fetch distinct hosts for filter dropdown
+  useEffect(() => {
+    api.logHosts().then(setLogHosts).catch(() => setLogHosts([]))
+  }, [])
+
   useEffect(() => {
     if (!live || intervalMs <= 0) return
     const id = window.setInterval(() => fetchLogs(true), intervalMs)
@@ -155,13 +161,16 @@ export function LogsPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <input
-            type="text"
-            placeholder="Host"
-            style={{ width: 140 }}
+          <select
             value={host}
             onChange={(e) => setHost(e.target.value)}
-          />
+            style={{ minWidth: 160 }}
+          >
+            <option value="">全部 Host</option>
+            {logHosts.map((h) => (
+              <option key={h} value={h}>{h}</option>
+            ))}
+          </select>
           {logKind === 'access' ? (
             <>
               <select value={status} onChange={(e) => setStatus(e.target.value)}>
