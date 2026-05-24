@@ -85,20 +85,20 @@ func TestCompileIngress_PerRuleAndFallback(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://h/", nil)
 	req.RemoteAddr = "192.0.2.1:1"
-	if !CheckRequest(per[0], req, "h", "/", http.MethodGet) {
+	if !CheckRequest(per[0], req, "h", "/", http.MethodGet, nil) {
 		t.Fatal("rule0 should inherit global deny")
 	}
-	if CheckRequest(per[1], req, "h", "/", http.MethodGet) {
+	if CheckRequest(per[1], req, "h", "/", http.MethodGet, nil) {
 		t.Fatal("rule1 patch should replace deny list")
 	}
 	req2 := httptest.NewRequest(http.MethodGet, "http://h/", nil)
 	req2.RemoteAddr = "192.0.2.2:1"
-	if !CheckRequest(per[1], req2, "h", "/", http.MethodGet) {
+	if !CheckRequest(per[1], req2, "h", "/", http.MethodGet, nil) {
 		t.Fatal("rule1 should use patched deny")
 	}
 	reqFB := httptest.NewRequest(http.MethodGet, "http://h/", nil)
 	reqFB.RemoteAddr = "192.0.2.1:1"
-	if !CheckRequest(fb, reqFB, "h", "/", http.MethodGet) {
+	if !CheckRequest(fb, reqFB, "h", "/", http.MethodGet, nil) {
 		t.Fatal("fallback profile should reflect global-only merge")
 	}
 }
@@ -291,7 +291,7 @@ func TestCompileProfile_IPv6_deny_matches(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "[" + raw + "]:1234"
-	if !CheckRequest(prof, req, "x", "/", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/", http.MethodGet, nil) {
 		t.Fatal("ipv6 deny should trigger")
 	}
 }

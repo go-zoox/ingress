@@ -1,15 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { HostBadge } from '../components/HostBadge'
 import { api, type MatchPreview, type RouteRow } from '../api/client'
 
+function groupByHost(rows: RouteRow[]): { host: string; type: string; rows: RouteRow[] }[] {
+  const m = new Map<string, { type: string; rows: RouteRow[] }>()
+  for (const r of rows) {
+    if (!m.has(r.host)) m.set(r.host, { type: r.host_type, rows: [] })
+    m.get(r.host)!.rows.push(r)
+  }
+  return Array.from(m.entries()).map(([host, v]) => ({ host, ...v }))
+}
+
 export function RoutesPage() {
   const [rows, setRows] = useState<RouteRow[]>([])
   const [filter, setFilter] = useState('')
-  const [host, setHost] = useState('api.example.com')
-  const [path, setPath] = useState('/v2/users')
+  const [urlInput, setUrlInput] = useState('https://api.example.com/v2/users')
   const [match, setMatch] = useState<MatchPreview | null>(null)
   const [err, setErr] = useState('')
+  const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     api
@@ -25,8 +34,25 @@ export function RoutesPage() {
 
   const runMatch = () => {
     setErr('')
-    api.match(host, path).then(setMatch).catch((e: Error) => setErr(e.message))
+    setMatch(null)
+    try {
+      const u = new URL(urlInput)
+      api.match(u.hostname, u.pathname).then(setMatch).catch((e: Error) => setErr(e.message))
+    } catch {
+      setErr('请输入合法的 URL，例如 https://api.example.com/v2/users')
+    }
   }
+
+  const toggleHost = (host: string) => {
+    setExpandedHosts((prev) => {
+      const next = new Set(prev)
+      if (next.has(host)) next.delete(host)
+      else next.add(host)
+      return next
+    })
+  }
+
+  const groups = useMemo(() => groupByHost(filtered), [filtered])
 
   return (
     <div className="page">
@@ -44,42 +70,51 @@ export function RoutesPage() {
             />
           </div>
           <div className="panel-body panel-table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Host</th>
-                  <th>类型</th>
-                  <th>Path</th>
-                  <th>Backend</th>
-                  <th>目标</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="empty-hint">
-                      无匹配规则
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((r) => (
-                    <tr key={r.id}>
-                      <td>
-                        <code>{r.host}</code>
-                      </td>
-                      <td>
-                        <HostBadge t={r.host_type} />
-                      </td>
-                      <td>{r.path}</td>
-                      <td>{r.backend_type}</td>
-                      <td>
-                        <code>{r.target}</code>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            {groups.length === 0 ? (
+              <p className="empty-hint">无匹配规则</p>
+            ) : (
+              <div className="route-accordion-list">
+                {groups.map(({ host, type, rows: hostRows }) => {
+                  const expanded = expandedHosts.has(host)
+                  return (
+                    <div key={host} className="route-accordion">
+                      <button
+                        type="button"
+                        className="route-accordion-header"
+                        onClick={() => toggleHost(host)}
+                      >
+                        <span className="route-chevron">{expanded ? '▼' : '▶'}</span>
+                        <code>{host}</code>
+                        <HostBadge t={type} />
+                        <span className="route-count">{hostRows.length} path{hostRows.length > 1 ? 's' : ''}</span>
+                      </button>
+                      {expanded && (
+                        <div className="route-accordion-body">
+                          <table className="data">
+                            <thead>
+                              <tr>
+                                <th>Path</th>
+                                <th>Backend</th>
+                                <th>目标</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {hostRows.map((r) => (
+                                <tr key={r.id}>
+                                  <td>{r.path}</td>
+                                  <td>{r.backend_type}</td>
+                                  <td><code>{r.target}</code></td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
         <div className="panel">
@@ -87,20 +122,15 @@ export function RoutesPage() {
             <h2>试匹配</h2>
           </div>
           <div className="panel-body">
-            <p className="match-hint">输入请求 Host 与 Path，预览将命中的规则。</p>
-            <label className="field-label">Host</label>
-            <input
-              type="text"
-              className="field-input"
-              value={host}
-              onChange={(e) => setHost(e.target.value)}
-            />
-            <label className="field-label">Path</label>
+            <p className="match-hint">输入完整 URL，自动提取 Host 与 Path 进行匹配。</p>
+            <label className="field-label">URL</label>
             <input
               type="text"
               className="field-input-last"
-              value={path}
-              onChange={(e) => setPath(e.target.value)}
+              placeholder="https://api.example.com/v2/users"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') runMatch() }}
             />
             <button type="button" className="btn btn-primary" style={{ width: '100%' }} onClick={runMatch}>
               试匹配

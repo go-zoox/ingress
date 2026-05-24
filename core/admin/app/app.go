@@ -9,7 +9,9 @@ import (
 	"github.com/go-zoox/ingress/core/admin/bootstrap"
 	"github.com/go-zoox/ingress/core/admin/config"
 	"github.com/go-zoox/ingress/core/admin/handler"
+	"github.com/go-zoox/ingress/core/admin/service"
 	"github.com/go-zoox/ingress/core/admin/static"
+	"github.com/go-zoox/logger"
 	"github.com/go-zoox/zoox"
 	"github.com/go-zoox/zoox/defaults"
 )
@@ -21,6 +23,12 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 	}
 	if err := bootstrap.Init(cfg); err != nil {
 		return nil, err
+	}
+
+	// Wire WAF event callback so blocks/audits are persisted to the admin DB.
+	if cfg.CoreInstance != nil {
+		audit := service.NewAudit()
+		cfg.CoreInstance.SetWAFCallback(&wafEventAdapter{audit: audit})
 	}
 
 	app := defaults.Default()
@@ -71,4 +79,18 @@ func Run(app *zoox.Application, cfg *config.Config) error {
 
 	app.Logger().Info("Admin started at http://%s", app.AddressForLog())
 	return server.Serve(listener)
+}
+
+// wafEventAdapter bridges the core WAFCallback interface to the audit service.
+type wafEventAdapter struct {
+	audit *service.Audit
+}
+
+func (a *wafEventAdapter) OnWAFEvent(action, rule, host, path, clientIP string) {
+	// Fire-and-forget to avoid blocking the request path.
+	go func() {
+		if err := a.audit.RecordWAFEvent(action, rule, host, path, clientIP); err != nil {
+			logger.Warnf("waf event record failed: %s", err)
+		}
+	}()
 }

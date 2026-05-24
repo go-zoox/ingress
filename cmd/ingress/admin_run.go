@@ -10,7 +10,7 @@ import (
 )
 
 func startAdmin(ingressApp core.Core, ingressCfg *core.Config, configFilePath, pidFilePath string) error {
-	adminCfg, err := buildAdminConfig(ingressCfg, configFilePath, pidFilePath, ingressApp.ReloadFromFile)
+	adminCfg, err := buildAdminConfig(ingressApp, ingressCfg, configFilePath, pidFilePath, ingressApp.ReloadFromFile)
 	if err != nil {
 		return fmt.Errorf("admin: %w", err)
 	}
@@ -26,7 +26,7 @@ func startAdmin(ingressApp core.Core, ingressCfg *core.Config, configFilePath, p
 	return nil
 }
 
-func buildAdminConfig(ingressCfg *core.Config, ingressConfigFile, pidFile string, reloadFn func() error) (*admincfg.Config, error) {
+func buildAdminConfig(ingressApp core.Core, ingressCfg *core.Config, ingressConfigFile, pidFile string, reloadFn func() error) (*admincfg.Config, error) {
 	a := ingressCfg.Admin
 	accessLog, errorLog := "", ""
 	if ingressCfg != nil {
@@ -42,6 +42,7 @@ func buildAdminConfig(ingressCfg *core.Config, ingressConfigFile, pidFile string
 		IngressConfigPath: ingressConfigFile,
 		PidFile:           pidFile,
 		ReloadFn:          reloadFn,
+		CoreInstance:      ingressApp,
 	}
 	if cfg.AccessLogPath == "" {
 		cfg.AccessLogPath = accessLog

@@ -9,7 +9,8 @@ import (
 )
 
 // CheckRequest returns whether the proxy middleware should terminate with the WAF block response.
-func CheckRequest(p *Profile, r *http.Request, hostname, path, method string) bool {
+// If reportFn is non-nil, it is called for each block/audit hit with the action, rule/phase, and client IP.
+func CheckRequest(p *Profile, r *http.Request, hostname, path, method string, reportFn func(action string, rule string, cliIP string)) bool {
 	if p == nil || !p.Enabled || r == nil {
 		return false
 	}
@@ -18,13 +19,13 @@ func CheckRequest(p *Profile, r *http.Request, hostname, path, method string) bo
 
 	if len(p.denyNet) > 0 && ipMatchesNets(cli, p.denyNet) {
 		stop := !p.GlobalLogOnly
-		logHit(stop, "ip deny", hostname, path, method, cli)
+		logHit(stop, "ip deny", hostname, path, method, cli, reportFn)
 		return stop
 	}
 
 	if len(p.allowNet) > 0 && !ipMatchesNets(cli, p.allowNet) {
 		stop := !p.GlobalLogOnly
-		logHit(stop, "ip allow", hostname, path, method, cli)
+		logHit(stop, "ip allow", hostname, path, method, cli, reportFn)
 		return stop
 	}
 
@@ -35,7 +36,7 @@ func CheckRequest(p *Profile, r *http.Request, hostname, path, method string) bo
 		}
 		ruleAudit := sr.logOnly || p.GlobalLogOnly
 		stop := !ruleAudit
-		logHit(stop, "sig "+sr.id, hostname, path, method, cli)
+		logHit(stop, "sig "+sr.id, hostname, path, method, cli, reportFn)
 		if stop {
 			return true
 		}
@@ -43,16 +44,23 @@ func CheckRequest(p *Profile, r *http.Request, hostname, path, method string) bo
 	return false
 }
 
-func logHit(blockAction bool, phase, hostname, path, method string, cli net.IP) {
+func logHit(stop bool, phase, hostname, path, method string, cli net.IP, reportFn func(action string, rule string, cliIP string)) {
 	ipStr := "-"
 	if cli != nil {
 		ipStr = cli.String()
 	}
+	action := "audit"
+	if stop {
+		action = "block"
+	}
 	tag := "[waf audit]"
-	if blockAction {
+	if stop {
 		tag = "[waf block]"
 	}
 	logger.Warnf("%s phase=%s client_ip=%s host=%s method=%s path=%s", tag, phase, ipStr, hostname, method, path)
+	if reportFn != nil {
+		reportFn(action, phase, ipStr)
+	}
 }
 
 func matchesSignature(sr *sigRule, req *http.Request, pathOnly, rawQuery string) bool {

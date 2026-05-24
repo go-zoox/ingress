@@ -26,6 +26,11 @@ export const api = {
       body: JSON.stringify({ host, path }),
     }),
   wafEvents: () => request<WAFEvent[]>('/waf/events'),
+  wafToggle: (enabled: boolean | null) =>
+    request<{ ok: boolean }>('/waf/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    }),
   tlsCerts: () => request<TLSCert[]>('/tls/certs'),
   tlsCheck: (domain: string) =>
     request<TLSCertCheck>('/tls/certs/check', {

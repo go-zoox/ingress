@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
-import { ConfigModulesPanel } from '../components/ConfigModulesPanel'
+import { ConfigModulesPanel, type ConfigModulesPanelHandle } from '../components/ConfigModulesPanel'
 import { ConfigVersionsPanel } from '../components/ConfigVersionsPanel'
 import { DiffModal } from '../components/DiffModal'
 import { PreviewModal } from '../components/PreviewModal'
@@ -24,6 +24,7 @@ export function ConfigPage() {
   const [diffHtml, setDiffHtml] = useState('')
   const { toast, show, clear } = useToast()
   const loaded = useRef(false)
+  const modulesRef = useRef<ConfigModulesPanelHandle>(null)
 
   useEffect(() => {
     api
@@ -48,19 +49,19 @@ export function ConfigPage() {
       })
   }
 
-  const save = () => {
+  const save = async () => {
     setErr('')
-    api
-      .validateConfig(content)
-      .then(() => api.putConfig(content, 'save'))
-      .then(() => {
-        setSaved(content)
-        show('已保存到 ' + path)
-      })
-      .catch((e: Error) => {
-        setErr(e.message)
-        show(e.message, 'error')
-      })
+    try {
+      await modulesRef.current?.autoApplyIfDirty()
+      await api.validateConfig(content)
+      await api.putConfig(content, 'save')
+      setSaved(content)
+      show('已保存到 ' + path)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setErr(msg)
+      show(msg, 'error')
+    }
   }
 
   const showDiff = () => {
@@ -123,7 +124,10 @@ export function ConfigPage() {
             <button type="button" className="btn" onClick={save}>
               保存到 YAML
             </button>
-            <button type="button" className="btn btn-primary" onClick={() => setPublishOpen(true)}>
+            <button type="button" className="btn btn-primary" onClick={async () => {
+              try { await modulesRef.current?.autoApplyIfDirty() } catch { /* error already shown */ }
+              setPublishOpen(true)
+            }}>
               发布
             </button>
           </div>
@@ -131,6 +135,7 @@ export function ConfigPage() {
         <div className="panel-body">
           {view === 'modules' && (
             <ConfigModulesPanel
+              ref={modulesRef}
               content={content}
               onContentChange={(next) => {
                 setContent(next)

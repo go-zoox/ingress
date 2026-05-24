@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	ingcore "github.com/go-zoox/ingress/core"
 )
 
 // Config is the resolved admin console settings for the running ingress process.
@@ -17,6 +19,8 @@ type Config struct {
 	IngressConfigPath string
 	PidFile           string
 	ReloadFn          func() error
+	//
+	CoreInstance ingcore.Core // set by cmd/ingress before starting admin
 }
 
 type Database struct {

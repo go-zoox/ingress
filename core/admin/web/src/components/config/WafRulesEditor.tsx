@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   FormCheckbox,
   FormField,
@@ -14,13 +14,18 @@ import {
 import {
   emptyWAFRuleForm,
   formTargets,
+  patchWafAllow,
+  patchWafDeny,
   patchWafRules,
+  wafAllowList,
+  wafDenyList,
   wafRuleSaveDisabled,
   wafRuleToForm,
   wafRuleToRow,
   wafRulesFromDoc,
   type WAFRuleForm,
 } from '../../lib/wafEntities'
+import { WAF_BUILTIN_RULES } from '../../lib/wafBuiltinRules'
 import { str } from '../../lib/ingressModuleForms'
 
 function WAFRuleFormFields({
@@ -107,6 +112,46 @@ function WAFRuleFormFields({
   )
 }
 
+function IPListEditor({
+  title,
+  items,
+  onChange,
+}: {
+  title: string
+  items: string[]
+  onChange: (items: string[]) => void
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const text = items.join('\n')
+
+  const trySave = () => {
+    const el = textareaRef.current
+    if (!el) return
+    const lines = el.value
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    onChange(lines)
+  }
+
+  return (
+    <FormSection title={title}>
+      <p className="form-hint">每行一个 CIDR 或 IP，如 203.0.113.0/24 或 192.168.1.1</p>
+      <textarea
+        ref={textareaRef}
+        className="code"
+        rows={items.length < 3 ? 3 : Math.min(items.length + 1, 8)}
+        spellCheck={false}
+        defaultValue={text}
+        onBlur={trySave}
+      />
+      <p className="form-hint" style={{ marginTop: 4 }}>
+        {items.length > 0 ? `${items.length} 条记录 · 修改后失焦保存` : '暂未配置'}
+      </p>
+    </FormSection>
+  )
+}
+
 export function WafRulesEditor({
   doc,
   onChange,
@@ -115,6 +160,8 @@ export function WafRulesEditor({
   onChange: (doc: Record<string, unknown>) => void
 }) {
   const rules = wafRulesFromDoc(doc)
+  const denyList = wafDenyList(doc)
+  const allowList = wafAllowList(doc)
   const [modalOpen, setModalOpen] = useState(false)
   const [editIndex, setEditIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState<WAFRuleForm>(emptyWAFRuleForm())
@@ -153,6 +200,46 @@ export function WafRulesEditor({
 
   return (
     <>
+      <FormSection title={`内置规则 (${WAF_BUILTIN_RULES.length})`}>
+        <table className="data config-waf-rules-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>名称</th>
+              <th>类型</th>
+              <th>Pattern</th>
+              <th>Targets</th>
+            </tr>
+          </thead>
+          <tbody>
+            {WAF_BUILTIN_RULES.map((rule) => (
+              <tr key={rule.id}>
+                <td><code>{rule.id}</code></td>
+                <td>{rule.name}</td>
+                <td>{rule.type}</td>
+                <td><code className="path-cell">{rule.pattern}</code></td>
+                <td>{rule.targets.join(', ')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="form-hint">
+          内置规则为只读，全局启用/禁用通过上方的「禁用内置规则」控制。同 id 的自定义规则可覆盖内置规则。
+        </p>
+      </FormSection>
+
+      <IPListEditor
+        title={`IP 黑名单 deny (${denyList.length})`}
+        items={denyList}
+        onChange={(items) => onChange(patchWafDeny(doc, items))}
+      />
+
+      <IPListEditor
+        title={`IP 白名单 allow (${allowList.length})`}
+        items={allowList}
+        onChange={(items) => onChange(patchWafAllow(doc, items))}
+      />
+
       <FormSection title={`自定义规则 (${rules.length})`}>
         <EntityTableToolbar label="waf.rules" onAdd={openAdd} />
         <table className="data config-waf-rules-table">
