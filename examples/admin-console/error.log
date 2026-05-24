@@ -218,3 +218,9 @@
 2026/05/21 18:21:10 [waf block] phase=request client_ip=203.0.113.12 host=cdn.example.com method=GET path=/assets/logo.png
 2026/05/21 18:22:09 [reload] validate failed: rules[4].host: invalid regex
 2026/05/21 18:24:02 tls handshake error host=api.example.com err=remote error: tls: bad certificate
+2026/05/24 20:35:46 2026/05/24 20:35:46 [31mERROR[39m check dns error (service=home host=httpbin.work path=/ip): lookup home: no such host
+2026/05/24 20:35:48 2026/05/24 20:35:48 [31mERROR[39m check dns error (service=home host=httpbin.work path=/ip): lookup home: no such host
+2026/05/24 20:35:48 2026/05/24 20:35:48 [31mERROR[39m check dns error (service=home host=httpbin.work path=/ip): lookup home: no such host
+2026/05/24 20:35:56 2026/05/24 20:35:56 [31mERROR[39m check dns error (service=home host=httpbin.work path=/ip): lookup home: no such host
+2026/05/24 20:36:07 2026/05/24 20:36:07 [31mERROR[39m check dns error (service=home host=httpbin.work path=/ip): lookup home: no such host
+2026/05/24 20:36:08 2026/05/24 20:36:08 [31mERROR[39m check dns error (service=home host=httpbin.work path=/ip): lookup home: no such host
