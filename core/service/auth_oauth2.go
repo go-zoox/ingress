@@ -71,7 +71,7 @@ func (s *Service) ValidateOAuth2(ctx *zoox.Context) (redirected bool, err error)
 
 	// 1. Is this the callback from the identity provider?
 	if ctx.Path == oauth2CallbackPath {
-		return false, s.handleOAuth2Callback(ctx, &cfg)
+		return s.handleOAuth2Callback(ctx, &cfg)
 	}
 
 	// 2. Does the user already have a valid session?
@@ -82,46 +82,57 @@ func (s *Service) ValidateOAuth2(ctx *zoox.Context) (redirected bool, err error)
 	}
 
 	// 3. No session — redirect to the identity provider.
-	redirectURL, err := s.buildOAuth2AuthorizeURL(ctx, &cfg)
+	client, err := s.newOAuth2Client(ctx, &cfg)
 	if err != nil {
-		return false, fmt.Errorf("failed to build authorize URL: %w", err)
+		return false, fmt.Errorf("failed to create oauth2 client: %w", err)
 	}
+
+	state, err := generateRandomState()
+	if err != nil {
+		return false, fmt.Errorf("failed to generate oauth2 state: %w", err)
+	}
+	ctx.Session().Set(sessOAuth2State, state)
 
 	// Save the original request URL so we can redirect back after login.
 	originalURL := ctx.Request.URL.String()
 	ctx.Session().Set(sessOAuth2Redirect, originalURL)
 
-	ctx.RedirectTemporary(redirectURL)
+	client.Authorize(state, func(loginURL string) {
+		ctx.RedirectTemporary(loginURL)
+	})
 	return true, nil
 }
 
 // handleOAuth2Callback exchanges the authorization code for a token,
 // fetches user info, stores it in the session, and redirects back to
 // the original protected URL.
-func (s *Service) handleOAuth2Callback(ctx *zoox.Context, cfg *OAuth2Auth) error {
+// All business logic lives inside the Callback closure, following the
+// go-zoox/oauth2 library's intended pattern (as used in go-zoox/connect).
+func (s *Service) handleOAuth2Callback(ctx *zoox.Context, cfg *OAuth2Auth) (redirected bool, err error) {
 	code := ctx.Query().Get("code").String()
 	state := ctx.Query().Get("state").String()
 
 	if code == "" || state == "" {
-		return fmt.Errorf("oauth2 callback: missing code or state")
+		return false, fmt.Errorf("oauth2 callback: missing code or state")
 	}
 
 	// Verify state matches to prevent CSRF.
 	expectedState := ctx.Session().Get(sessOAuth2State)
 	if expectedState == "" || state != expectedState {
-		return fmt.Errorf("oauth2 callback: state mismatch")
+		return false, fmt.Errorf("oauth2 callback: state mismatch")
 	}
 
 	// Create the OAuth2 client and exchange the code.
-	client, err := s.newOAuth2Client(ctx, cfg)
-	if err != nil {
-		return fmt.Errorf("oauth2 callback: %w", err)
+	client, clientErr := s.newOAuth2Client(ctx, cfg)
+	if clientErr != nil {
+		return false, fmt.Errorf("oauth2 callback: %w", clientErr)
 	}
 
-	var callbackErr error
-	client.Callback(code, state, func(user *gozooxoauth2.User, token *gozooxoauth2.Token, err error) {
-		if err != nil {
-			callbackErr = fmt.Errorf("oauth2 callback exchange failed: %w", err)
+	// Following go-zoox/connect pattern: all handling (including redirect)
+	// happens inside the Callback closure.
+	client.Callback(code, state, func(user *gozooxoauth2.User, token *gozooxoauth2.Token, cbErr error) {
+		if cbErr != nil {
+			err = fmt.Errorf("oauth2 callback exchange failed: %w", cbErr)
 			return
 		}
 
@@ -131,46 +142,21 @@ func (s *Service) handleOAuth2Callback(ctx *zoox.Context, cfg *OAuth2Auth) error
 
 		tokenBytes, _ := json.Marshal(token)
 		ctx.Session().Set(sessOAuth2Token, string(tokenBytes))
+
+		// Clean up state.
+		ctx.Session().Del(sessOAuth2State)
+
+		// Redirect back to the original URL.
+		redirectURL := ctx.Session().Get(sessOAuth2Redirect)
+		if redirectURL == "" {
+			redirectURL = "/"
+		}
+		ctx.Session().Del(sessOAuth2Redirect)
+
+		ctx.RedirectTemporary(redirectURL)
+		redirected = true
 	})
-
-	if callbackErr != nil {
-		return callbackErr
-	}
-
-	// Clean up state.
-	ctx.Session().Del(sessOAuth2State)
-
-	// Redirect back to the original URL.
-	redirectURL := ctx.Session().Get(sessOAuth2Redirect)
-	if redirectURL == "" {
-		redirectURL = "/"
-	}
-	ctx.Session().Del(sessOAuth2Redirect)
-
-	ctx.RedirectTemporary(redirectURL)
-	return nil
-}
-
-// buildOAuth2AuthorizeURL generates the identity provider's authorization URL
-// and persists the CSRF state in the session.
-func (s *Service) buildOAuth2AuthorizeURL(ctx *zoox.Context, cfg *OAuth2Auth) (string, error) {
-	client, err := s.newOAuth2Client(ctx, cfg)
-	if err != nil {
-		return "", err
-	}
-
-	state, err := generateRandomState()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate oauth2 state: %w", err)
-	}
-	ctx.Session().Set(sessOAuth2State, state)
-
-	var loginURL string
-	client.Authorize(state, func(url string) {
-		loginURL = url
-	})
-
-	return loginURL, nil
+	return
 }
 
 // newOAuth2Client creates a go-zoox/oauth2 client from the ingress config.
