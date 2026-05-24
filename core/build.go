@@ -80,7 +80,11 @@ func (c *core) build() error {
 		if ruleIdx >= 0 && ruleIdx < len(c.wafByRuleIdx) {
 			wafProf = c.wafByRuleIdx[ruleIdx]
 		}
-		if wafProf != nil && waf.CheckRequest(wafProf, ctx.Request, hostname, path, method) {
+		if wafProf != nil && c.IsWAFEnabled() && waf.CheckRequest(wafProf, ctx.Request, hostname, path, method, func(action, rule, clientIP string) {
+			if c.wafCallback != nil {
+				c.wafCallback.OnWAFEvent(action, rule, hostname, path, clientIP)
+			}
+		}) {
 			ctx.SetHeader("Content-Type", wafProf.BlockContentType)
 			ctx.String(wafProf.BlockStatus, wafProf.BlockBody)
 			target := "-"

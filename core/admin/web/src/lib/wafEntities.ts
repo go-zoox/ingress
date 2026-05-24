@@ -21,6 +21,40 @@ export function wafRulesFromDoc(doc: Record<string, unknown>): Record<string, un
   return arr<Record<string, unknown>>(obj(doc.waf).rules)
 }
 
+export function wafDenyList(doc: Record<string, unknown>): string[] {
+  return arr<string>(obj(doc.waf).deny)
+}
+
+export function wafAllowList(doc: Record<string, unknown>): string[] {
+  return arr<string>(obj(doc.waf).allow)
+}
+
+export function patchWafDeny(doc: Record<string, unknown>, items: string[]): Record<string, unknown> {
+  const filtered = items
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const waf = { ...obj(doc.waf) }
+  if (filtered.length > 0) {
+    waf.deny = filtered
+  } else {
+    delete waf.deny
+  }
+  return { waf }
+}
+
+export function patchWafAllow(doc: Record<string, unknown>, items: string[]): Record<string, unknown> {
+  const filtered = items
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const waf = { ...obj(doc.waf) }
+  if (filtered.length > 0) {
+    waf.allow = filtered
+  } else {
+    delete waf.allow
+  }
+  return { waf }
+}
+
 export function wafRuleToForm(row: Record<string, unknown>): WAFRuleForm {
   const targets = arr<string>(row.targets).map((t) => str(t).toLowerCase())
   const extra = targets.filter((t) => !STANDARD_TARGETS.has(t))

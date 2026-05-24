@@ -24,6 +24,18 @@ func (a *Audit) Record(action, detail, actor string) error {
 	return gormx.GetDB().Create(row).Error
 }
 
+func (a *Audit) RecordWAFEvent(action, rule, host, path, clientIP string) error {
+	row := &model.WAFEvent{
+		Action:    action,
+		Rule:      rule,
+		Host:      host,
+		Path:      path,
+		ClientIP:  clientIP,
+		CreatedAt: time.Now(),
+	}
+	return gormx.GetDB().Create(row).Error
+}
+
 func (a *Audit) ListWAFEvents(limit int) ([]model.WAFEvent, error) {
 	if limit <= 0 {
 		limit = 50

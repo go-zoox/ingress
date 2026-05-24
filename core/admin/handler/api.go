@@ -48,6 +48,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/status", a.Status)
 	g.Get("/routes", a.Routes)
 	g.Post("/routes/match", a.Match)
+	g.Post("/waf/toggle", a.WAFToggle)
 	g.Get("/waf/events", a.WAFEvents)
 	g.Get("/tls/certs", a.TLSCerts)
 	g.Post("/tls/certs/check", a.TLSCertCheck)
@@ -74,18 +75,23 @@ func (a *API) Status(ctx *zoox.Context) {
 		return
 	}
 	wafOn := icfg.WAF.Enabled
+	wafRuntimeOn := wafOn
+	if a.cfg.CoreInstance != nil {
+		wafRuntimeOn = a.cfg.CoreInstance.IsWAFEnabled()
+	}
 	ok(ctx, zoox.H{
-		"version":       "ingress",
-		"config_path":   a.ingress.ConfigPath(),
-		"pid_file":      a.cfg.PidFile,
-		"reload_ready":  a.ingress.ReloadReady(),
-		"listen_http":   icfg.Port,
-		"listen_https":  icfg.HTTPS.Port,
-		"rules_count":   len(icfg.Rules),
-		"waf_enabled":   wafOn,
-		"waf_log_only":  icfg.WAF.LogOnly,
-		"last_reload":   time.Now().Format(time.RFC3339),
-		"config_hash":   a.configHash(),
+		"version":            "ingress",
+		"config_path":        a.ingress.ConfigPath(),
+		"pid_file":           a.cfg.PidFile,
+		"reload_ready":       a.ingress.ReloadReady(),
+		"listen_http":        icfg.Port,
+		"listen_https":       icfg.HTTPS.Port,
+		"rules_count":        len(icfg.Rules),
+		"waf_enabled":        wafOn,
+		"waf_log_only":       icfg.WAF.LogOnly,
+		"waf_runtime_enabled": wafRuntimeOn,
+		"last_reload":        time.Now().Format(time.RFC3339),
+		"config_hash":        a.configHash(),
 	})
 }
 
@@ -135,6 +141,22 @@ func (a *API) Match(ctx *zoox.Context) {
 		return
 	}
 	ok(ctx, preview)
+}
+
+func (a *API) WAFToggle(ctx *zoox.Context) {
+	var body struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	if a.cfg.CoreInstance == nil {
+		fail(ctx, http.StatusServiceUnavailable, "core not available")
+		return
+	}
+	a.cfg.CoreInstance.SetWAFOverride(body.Enabled)
+	ok(ctx, zoox.H{"ok": true})
 }
 
 func (a *API) WAFEvents(ctx *zoox.Context) {

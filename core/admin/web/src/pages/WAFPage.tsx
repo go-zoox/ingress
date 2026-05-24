@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { api, type WAFEvent } from '../api/client'
 
@@ -7,8 +7,9 @@ export function WAFPage() {
   const [events, setEvents] = useState<WAFEvent[]>([])
   const [filter, setFilter] = useState('all')
   const [err, setErr] = useState('')
+  const [toggling, setToggling] = useState(false)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api.status().then(setStatus).catch(() => setStatus(null))
     api
       .wafEvents()
@@ -16,12 +17,33 @@ export function WAFPage() {
       .catch((e: Error) => setErr(e.message))
   }, [])
 
+  useEffect(() => {
+    load()
+  }, [load])
+
   const rows = events.filter((e) => filter === 'all' || e.action === filter)
-  const wafLabel = status?.waf_enabled
+  const configWafLabel = status?.waf_enabled
     ? status.waf_log_only
       ? '仅审计'
       : '拦截'
     : '关闭'
+  const runtimeWafEnabled = status?.waf_runtime_enabled !== undefined
+    ? Boolean(status.waf_runtime_enabled)
+    : Boolean(status?.waf_enabled)
+  const configWafEnabled = Boolean(status?.waf_enabled)
+  const overrideActive = runtimeWafEnabled !== configWafEnabled
+
+  const handleToggle = async (enabled: boolean) => {
+    setToggling(true)
+    try {
+      await api.wafToggle(enabled ? true : null)
+      load() // refresh status
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setToggling(false)
+    }
+  }
 
   return (
     <div className="page">
@@ -35,13 +57,32 @@ export function WAFPage() {
         </div>
         <div className={`card ${status?.waf_log_only ? 'warn' : ''}`}>
           <div className="label">模式</div>
-          <div className="value">{wafLabel}</div>
+          <div className="value">{configWafLabel}</div>
           <div className="sub">log_only</div>
         </div>
         <div className="card">
           <div className="label">内置规则</div>
           <div className="value">已加载</div>
           <div className="sub">builtin: true</div>
+        </div>
+        <div className={`card ${overrideActive ? 'warn' : ''}`}>
+          <div className="label">WAF 实时开关</div>
+          <div className="value">
+            <label className="live-toggle">
+              <input
+                type="checkbox"
+                checked={runtimeWafEnabled}
+                disabled={toggling}
+                onChange={(e) => handleToggle(e.target.checked)}
+              />{' '}
+              {toggling ? '切换中…' : runtimeWafEnabled ? '已启用' : '已关闭'}
+            </label>
+          </div>
+          <div className="sub">
+            {overrideActive
+              ? '运行时覆盖生效，与配置文件不同'
+              : '无需 reload，立即生效'}
+          </div>
         </div>
       </div>
       <div className="panel">

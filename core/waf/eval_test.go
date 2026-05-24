@@ -17,7 +17,7 @@ func TestCheckRequest_IPDeny_Block(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "192.168.3.33:4444"
-	if !CheckRequest(prof, req, "x", "/", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/", http.MethodGet, nil) {
 		t.Fatal("expected block")
 	}
 }
@@ -40,7 +40,7 @@ func TestCheckRequest_CustomSignature(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/p?x=BADTOKEN", nil)
 	req.RemoteAddr = "127.0.0.1:1"
-	if !CheckRequest(prof, req, "x", "/p", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/p", http.MethodGet, nil) {
 		t.Fatal("expected block on query token")
 	}
 }
@@ -64,7 +64,7 @@ func TestCheckRequest_LogOnly_NoBlock(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/p?x=BADTOKEN", nil)
 	req.RemoteAddr = "127.0.0.1:1"
-	if CheckRequest(prof, req, "x", "/p", http.MethodGet) {
+	if CheckRequest(prof, req, "x", "/p", http.MethodGet, nil) {
 		t.Fatal("log_only should not block")
 	}
 }
@@ -85,7 +85,7 @@ func TestCheckRequest_TrustProxy_XFF(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "127.0.0.1:1"
 	req.Header.Set(headerXForwardedFor, "203.0.113.55, 10.0.0.1")
-	if !CheckRequest(prof, req, "x", "/", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/", http.MethodGet, nil) {
 		t.Fatal("expected deny via XFF leftmost")
 	}
 }
@@ -103,33 +103,33 @@ func TestCheckRequest_AllowWhitelistBlocksOther(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "192.168.1.1:1"
-	if !CheckRequest(prof, req, "x", "/", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/", http.MethodGet, nil) {
 		t.Fatal("expected block: not on allowlist")
 	}
 	req2 := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req2.RemoteAddr = "10.10.10.10:1111"
-	if CheckRequest(prof, req2, "x", "/", http.MethodGet) {
+	if CheckRequest(prof, req2, "x", "/", http.MethodGet, nil) {
 		t.Fatal("allowlisted IP must pass ip phase")
 	}
 }
 
 func TestCheckRequest_NilOrDisabled_NoBlock(t *testing.T) {
 	t.Parallel()
-	if CheckRequest(nil, httptest.NewRequest(http.MethodGet, "http://x/", nil), "x", "/", http.MethodGet) {
+	if CheckRequest(nil, httptest.NewRequest(http.MethodGet, "http://x/", nil), "x", "/", http.MethodGet, nil) {
 		t.Fatal("nil profile must not block")
 	}
 	disabled, err := compileProfile(0, rule.WAF{Enabled: false})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if CheckRequest(disabled, httptest.NewRequest(http.MethodGet, "http://x/", nil), "x", "/", http.MethodGet) {
+	if CheckRequest(disabled, httptest.NewRequest(http.MethodGet, "http://x/", nil), "x", "/", http.MethodGet, nil) {
 		t.Fatal("disabled profile must not block")
 	}
 	en, err := compileProfile(0, rule.WAF{Enabled: true, DisableBuiltin: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if CheckRequest(en, nil, "x", "/", http.MethodGet) {
+	if CheckRequest(en, nil, "x", "/", http.MethodGet, nil) {
 		t.Fatal("nil request must not block")
 	}
 }
@@ -147,12 +147,12 @@ func TestCheckRequest_IPDeny_CIDR(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "198.51.100.88:1234"
-	if !CheckRequest(prof, req, "x", "/", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/", http.MethodGet, nil) {
 		t.Fatal("expected block inside CIDR")
 	}
 	req2 := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req2.RemoteAddr = "203.0.113.1:1"
-	if CheckRequest(prof, req2, "x", "/", http.MethodGet) {
+	if CheckRequest(prof, req2, "x", "/", http.MethodGet, nil) {
 		t.Fatal("expected pass outside CIDR")
 	}
 }
@@ -171,7 +171,7 @@ func TestCheckRequest_GlobalLogOnly_IPDeny_NoBlock(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "192.0.2.9:1"
-	if CheckRequest(prof, req, "x", "/", http.MethodGet) {
+	if CheckRequest(prof, req, "x", "/", http.MethodGet, nil) {
 		t.Fatal("global log_only must not block ip deny")
 	}
 }
@@ -192,7 +192,7 @@ func TestCheckRequest_XFFIndex_NegativeSelectsRightmost(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "127.0.0.1:1"
 	req.Header.Set(headerXForwardedFor, "10.0.0.1, 198.18.0.1")
-	if !CheckRequest(prof, req, "x", "/", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/", http.MethodGet, nil) {
 		t.Fatal("expected deny on rightmost XFF hop")
 	}
 }
@@ -215,7 +215,7 @@ func TestCheckRequest_RegexOnPath(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/Admin/extra", nil)
 	req.RemoteAddr = "127.0.0.1:1"
-	if !CheckRequest(prof, req, "x", "/Admin/extra", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/Admin/extra", http.MethodGet, nil) {
 		t.Fatal("expected regex block on path")
 	}
 }
@@ -238,12 +238,12 @@ func TestCheckRequest_TargetURI_CombinesPathAndQuery(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/p?q=needleOK", nil)
 	req.RemoteAddr = "127.0.0.1:1"
-	if !CheckRequest(prof, req, "x", "/p", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/p", http.MethodGet, nil) {
 		t.Fatal("expected match in query portion of synthetic URI blob")
 	}
 	req2 := httptest.NewRequest(http.MethodGet, "http://x/needle-in-path", nil)
 	req2.RemoteAddr = "127.0.0.1:1"
-	if !CheckRequest(prof, req2, "x", "/needle-in-path", http.MethodGet) {
+	if !CheckRequest(prof, req2, "x", "/needle-in-path", http.MethodGet, nil) {
 		t.Fatal("expected match in path when no query")
 	}
 }
@@ -267,7 +267,7 @@ func TestCheckRequest_TargetHeaders(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "127.0.0.1:1"
 	req.Header.Set("User-Agent", "Mozilla/5.0 evilgadget")
-	if !CheckRequest(prof, req, "x", "/", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/", http.MethodGet, nil) {
 		t.Fatal("expected match in flattened headers blob")
 	}
 }
@@ -291,7 +291,7 @@ func TestCheckRequest_TargetSingleHeaderPrefix(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "127.0.0.1:1"
 	req.Header.Set("Referer", "https://evil.test/badref")
-	if !CheckRequest(prof, req, "x", "/", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/", http.MethodGet, nil) {
 		t.Fatal("expected match on Referer only")
 	}
 }
@@ -306,7 +306,7 @@ func TestCheckRequest_BuiltinSQLi_whenNotDisabled(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://x/search", nil)
 	req.URL.RawQuery = "q=x union select null"
 	req.RemoteAddr = "127.0.0.1:1"
-	if !CheckRequest(prof, req, "x", "/search", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/search", http.MethodGet, nil) {
 		t.Fatal("expected builtin URI rule to trigger")
 	}
 }
@@ -320,7 +320,7 @@ func TestCheckRequest_BuiltinPathTraversal_whenNotDisabled(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "127.0.0.1:1"
-	if !CheckRequest(prof, req, "x", "/static/../../etc/passwd", http.MethodGet) {
+	if !CheckRequest(prof, req, "x", "/static/../../etc/passwd", http.MethodGet, nil) {
 		t.Fatal("expected builtin path rule to trigger")
 	}
 }
@@ -340,13 +340,13 @@ func TestCheckRequest_TrustProxy_UnparseableXFF_UsesRemoteAddr(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req.RemoteAddr = "127.0.0.1:1"
 	req.Header.Set(headerXForwardedFor, ":::not-v4-v6:::")
-	if CheckRequest(prof, req, "x", "/", http.MethodGet) {
+	if CheckRequest(prof, req, "x", "/", http.MethodGet, nil) {
 		t.Fatal("unparseable XFF must fall back to RemoteAddr")
 	}
 	req2 := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	req2.RemoteAddr = "203.0.113.9:1"
 	req2.Header.Set(headerXForwardedFor, ":::garbage:::")
-	if !CheckRequest(prof, req2, "x", "/", http.MethodGet) {
+	if !CheckRequest(prof, req2, "x", "/", http.MethodGet, nil) {
 		t.Fatal("fallback client must still be evaluated when XFF yields no IPs")
 	}
 }
@@ -370,7 +370,7 @@ func TestCheckRequest_PerRuleLogOnly_SignatureNoBlock(t *testing.T) {
 	}
 	req := httptest.NewRequest(http.MethodGet, "http://x/p?q=AUDITME", nil)
 	req.RemoteAddr = "127.0.0.1:1"
-	if CheckRequest(prof, req, "x", "/p", http.MethodGet) {
+	if CheckRequest(prof, req, "x", "/p", http.MethodGet, nil) {
 		t.Fatal("per-rule log_only must not block signatures")
 	}
 }
