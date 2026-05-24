@@ -2,7 +2,9 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { OverviewCharts } from '../components/OverviewCharts'
 import { PageHeader } from '../components/PageHeader'
-import { api, type OverviewMetrics, type WAFEvent } from '../api/client'
+import { VersionConsistencyBadge } from '../components/VersionConsistencyBadge'
+import { api, type OverviewMetrics, type WAFEvent, type TLSCert, type ConfigRevisionSummary } from '../api/client'
+import { useSSE } from '../hooks/useSSE'
 import { loadPreferences } from '../lib/preferences'
 
 export function OverviewPage() {
@@ -12,9 +14,14 @@ export function OverviewPage() {
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [err, setErr] = useState('')
+  const [certs, setCerts] = useState<TLSCert[]>([])
+  const [revisions, setRevisions] = useState<ConfigRevisionSummary[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Track whether the first fetch has completed so we only show full-page loading once.
   const mountedRef = useRef(false)
+
+  // SSE for real-time metrics
+  const { data: sseData, connected: sseConnected } = useSSE(['metrics'])
 
   const fetchMetrics = useCallback(() => {
     const window = loadPreferences().metricsWindow
@@ -47,8 +54,17 @@ export function OverviewPage() {
       .wafEvents()
       .then((d) => setEvents(Array.isArray(d) ? d.slice(0, 4) : []))
       .catch(() => setEvents([]))
+    api
+      .tlsCerts()
+      .then((d) => setCerts(Array.isArray(d) ? d : []))
+      .catch(() => setCerts([]))
+    api
+      .configRevisions(5)
+      .then((d) => setRevisions(Array.isArray(d) ? d : []))
+      .catch(() => setRevisions([]))
     fetchMetrics()
 
+    // Use SSE for metrics if connected, otherwise fall back to polling
     const refreshMs = loadPreferences().metricsRefreshMs
     if (refreshMs > 0) {
       timerRef.current = window.setInterval(fetchMetrics, refreshMs)
@@ -60,6 +76,14 @@ export function OverviewPage() {
       }
     }
   }, [fetchMetrics])
+
+  // Update metrics from SSE data
+  useEffect(() => {
+    if (sseData.metrics) {
+      setMetrics(sseData.metrics as OverviewMetrics)
+      setMetricsLoading(false)
+    }
+  }, [sseData.metrics])
 
   if (err) {
     return (
@@ -78,10 +102,20 @@ export function OverviewPage() {
     )
   }
 
-  const certWarn = 0
+  // Compute cert warning count from real data
+  const certWarn = certs.filter((c) => c.days_remaining < 30).length
+  const certCritical = certs.filter((c) => c.days_remaining < 7).length
+
   const wafLabel = status.waf_enabled ? (status.waf_log_only ? '审计' : '拦截') : '关'
   const wafCardClass = status.waf_log_only ? 'warn' : ''
   const reloadReady = Boolean(status.reload_ready)
+
+  // Version consistency
+  const runningHash = String(status.config_hash || '')
+  const latestHash = revisions.length > 0 ? revisions[0].hash : ''
+
+  // SSE status indicator
+  const sseStatusClass = sseConnected ? 'ok' : ''
 
   return (
     <div className="page">
@@ -103,7 +137,10 @@ export function OverviewPage() {
         <div className="card">
           <div className="label">版本</div>
           <div className="value">{String(status.version || 'ingress')}</div>
-          <div className="sub">配置 hash {String(status.config_hash || '—')}</div>
+          <div className="sub">
+            配置 hash {String(status.config_hash || '—')}
+            <VersionConsistencyBadge runningHash={runningHash} latestHash={latestHash} />
+          </div>
         </div>
         <div className="card">
           <div className="label">监听</div>
@@ -120,10 +157,21 @@ export function OverviewPage() {
           <div className="value">{wafLabel}</div>
           <div className="sub">log_only={String(status.waf_log_only)}</div>
         </div>
-        <div className={`card ${certWarn ? 'warn' : 'ok'}`}>
+        <div className={`card ${certCritical > 0 ? 'danger' : certWarn > 0 ? 'warn' : 'ok'}`}>
           <div className="label">证书</div>
-          <div className="value">{certWarn ? `${certWarn} 需关注` : '正常'}</div>
+          <div className="value">
+            {certCritical > 0
+              ? `${certCritical} 即将过期`
+              : certWarn > 0
+                ? `${certWarn} 需关注`
+                : '正常'}
+          </div>
           <div className="sub">TLS 证书有效期</div>
+        </div>
+        <div className={`card ${sseStatusClass}`}>
+          <div className="label">实时推送</div>
+          <div className="value">{sseConnected ? '已连接' : '未连接'}</div>
+          <div className="sub">SSE 事件流</div>
         </div>
       </div>
       <OverviewCharts metrics={metrics} loading={metricsLoading} />

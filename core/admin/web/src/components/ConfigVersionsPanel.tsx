@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type ConfigRevisionDetail, type ConfigRevisionSummary } from '../api/client'
+import { RollbackConfirmModal } from './RollbackConfirmModal'
 
 export function ConfigVersionsPanel({
   onRestore,
@@ -10,6 +11,7 @@ export function ConfigVersionsPanel({
   const [err, setErr] = useState('')
   const [detail, setDetail] = useState<ConfigRevisionDetail | null>(null)
   const [loadingId, setLoadingId] = useState<number | null>(null)
+  const [rollbackRevision, setRollbackRevision] = useState<ConfigRevisionSummary | null>(null)
 
   useEffect(() => {
     api
@@ -29,6 +31,13 @@ export function ConfigVersionsPanel({
     } finally {
       setLoadingId(null)
     }
+  }
+
+  const refreshList = () => {
+    api
+      .configRevisions()
+      .then((data) => setRows(Array.isArray(data) ? data : []))
+      .catch((e: Error) => setErr(e.message))
   }
 
   return (
@@ -69,6 +78,13 @@ export function ConfigVersionsPanel({
                   >
                     {loadingId === r.id ? '加载中…' : '查看'}
                   </button>
+                  <button
+                    type="button"
+                    className="action-link action-danger"
+                    onClick={() => setRollbackRevision(r)}
+                  >
+                    回滚
+                  </button>
                 </td>
               </tr>
             ))
@@ -104,9 +120,35 @@ export function ConfigVersionsPanel({
               >
                 恢复为草稿
               </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => {
+                  setRollbackRevision({
+                    id: detail.id,
+                    hash: detail.hash,
+                    note: detail.note,
+                    created_at: detail.created_at,
+                  })
+                  setDetail(null)
+                }}
+              >
+                回滚到此版本
+              </button>
             </footer>
           </div>
         </div>
+      )}
+
+      {rollbackRevision && (
+        <RollbackConfirmModal
+          revision={rollbackRevision}
+          onConfirm={() => {
+            setRollbackRevision(null)
+            refreshList()
+          }}
+          onCancel={() => setRollbackRevision(null)}
+        />
       )}
     </div>
   )

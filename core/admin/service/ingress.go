@@ -150,3 +150,8 @@ func (s *Ingress) Reload() error {
 	}
 	return proc.Signal(syscall.SIGHUP)
 }
+
+// Logs returns the Logs service for access to log files.
+func (s *Ingress) Logs() *Logs {
+	return NewLogs(s.cfg)
+}

@@ -1,0 +1,229 @@
+classDiagram
+
+    %% ===== 前端 Hooks =====
+    class useUndo {
+        +history: string[]
+        +cursor: number
+        +maxSize: number = 50
+        +debounceMs: number = 300
+        +push(value: string) void
+        +undo() string
+        +redo() string
+        +canUndo: boolean
+        +canRedo: boolean
+        +reset(value: string) void
+    }
+
+    class useSSE {
+        +url: string
+        +channels: string[]
+        +data: Record~string, unknown~
+        +connected: boolean
+        +error: Error | null
+        +fallbackPolling: boolean
+        -es: EventSource | null
+        -reconnectTimer: number
+        +close() void
+    }
+
+    %% ===== 前端页面组件 =====
+    class RouteDetailPage {
+        +ruleIndex: number
+        +pathIndex: number
+        +detail: RouteDetail
+        +metrics: RouteMetrics
+        +activeTab: string
+        -loadDetail() Promise
+        -loadMetrics() Promise
+    }
+
+    class TopologyPage {
+        +routes: RouteRow[]
+        +healthMap: Map~string, HealthStatus~
+        +certs: TLSCert[]
+        +svgWidth: number
+        +svgHeight: number
+        -computeLayout() TopologyLayout
+    }
+
+    class HealthPage {
+        +checks: HealthCheckResult[]
+        +summary: HealthSummary
+        -loadChecks() Promise
+    }
+
+    %% ===== 前端子组件 =====
+    class TopologySVG {
+        +layout: TopologyLayout
+        +onNodeClick(node: TopologyNode) void
+        -renderNodes() JSX.Element[]
+        -renderEdges() JSX.Element[]
+        -bezierPath(from: Point, to: Point) string
+    }
+
+    class RollbackConfirmModal {
+        +revision: ConfigRevisionSummary
+        +diffSummary: string
+        +onConfirm() void
+        +onCancel() void
+        +loading: boolean
+    }
+
+    class VersionConsistencyBadge {
+        +runningHash: string
+        +latestHash: string
+        +consistent: boolean
+    }
+
+    %% ===== 后端 Handler =====
+    class SSEHandler {
+        +broker: SSEBroker
+        +Stream(ctx: *zoox.Context) void
+    }
+
+    class RouteDetailHandler {
+        +ingressSvc: *IngressService
+        +metricsSvc: *MetricsService
+        +healthSvc: *HealthCheckService
+        +GetDetail(ctx: *zoox.Context) void
+        +GetMetrics(ctx: *zoox.Context) void
+    }
+
+    class HealthHandler {
+        +healthSvc: *HealthCheckService
+        +ListChecks(ctx: *zoox.Context) void
+    }
+
+    %% ===== 后端 Service =====
+    class SSEBroker {
+        +subscribers: Map~string, Set~Subscriber~~
+        +mu: sync.RWMutex
+        +Subscribe(channels: string[]) Subscriber
+        +Unsubscribe(channels: string[], sub: Subscriber) void
+        +Publish(channel: string, event: SSEEvent) void
+        +Start() void
+    }
+
+    class HealthCheckService {
+        +results: Map~string, *HealthCheckResult~
+        +mu: sync.RWMutex
+        +ticker: *time.Ticker
+        +done: chan bool
+        +client: *http.Client
+        +ingressSvc: *IngressService
+        +Start() void
+        +Stop() void
+        +check(backend: HealthCheckTarget) HealthCheckResult
+        +ListResults() []HealthCheckResult
+    }
+
+    %% ===== 数据模型 =====
+    class RouteDetail {
+        +ruleIndex: number
+        +pathIndex: number
+        +host: string
+        +path: string
+        +backend: BackendInfo
+        +auth: AuthInfo | null
+        +cache: CacheInfo | null
+        +healthCheck: HealthCheckInfo | null
+        +waf: WAFInfo | null
+    }
+
+    class RouteMetrics {
+        +window: string
+        +rpm: number
+        +errorRate: number
+        +p50: number
+        +p95: number
+        +cacheHitRate: number
+        +timeline: TimelinePoint[]
+    }
+
+    class HealthCheckResult {
+        +key: string
+        +host: string
+        +path: string
+        +backend: string
+        +url: string
+        +status: string
+        +lastCheck: time.Time
+        +responseMs: number
+        +error: string
+    }
+
+    class HealthCheckTarget {
+        +host: string
+        +path: string
+        +backend: string
+        +method: string
+        +checkPath: string
+        +expectedStatus: int
+        +expectedBody: string
+    }
+
+    class SSEEvent {
+        +event: string
+        +data: string
+        +id: string
+        +retry: number
+    }
+
+    class Subscriber {
+        +ch: chan SSEEvent
+        +channels: string[]
+        +closed: bool
+    }
+
+    class HealthSummary {
+        +total: number
+        +up: number
+        +down: number
+        +unknown: number
+    }
+
+    class TopologyNode {
+        +id: string
+        +type: string
+        +label: string
+        +x: number
+        +y: number
+        +status: string
+        +meta: Record~string, unknown~
+    }
+
+    class TopologyEdge {
+        +from: string
+        +to: string
+        +style: string
+    }
+
+    class TopologyLayout {
+        +nodes: TopologyNode[]
+        +edges: TopologyEdge[]
+        +width: number
+        +height: number
+    }
+
+    %% ===== 关系 =====
+    RouteDetailPage --> RouteDetail : fetches
+    RouteDetailPage --> RouteMetrics : fetches
+    RouteDetailPage --> useSSE : uses
+    TopologyPage --> TopologySVG : renders
+    TopologyPage --> TopologyLayout : computes
+    TopologySVG --> TopologyNode : renders
+    TopologySVG --> TopologyEdge : renders
+    HealthPage --> HealthCheckResult : lists
+    HealthPage --> HealthSummary : displays
+    ConfigPage --> useUndo : uses
+    OverviewPage --> useSSE : uses
+    WAFPage --> useSSE : uses
+    LogsPage --> useSSE : uses
+
+    SSEHandler --> SSEBroker : uses
+    RouteDetailHandler --> HealthCheckService : reads
+    HealthHandler --> HealthCheckService : reads
+    HealthCheckService --> HealthCheckTarget : probes
+    HealthCheckService --> HealthCheckResult : produces
+    SSEBroker --> Subscriber : manages
+    SSEBroker --> SSEEvent : publishes

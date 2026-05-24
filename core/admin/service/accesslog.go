@@ -88,6 +88,11 @@ func parseAccessLine(line string) (AccessEntry, bool) {
 	}, true
 }
 
+// ParseAccessEntry is the exported version of parseAccessLine for use by handlers.
+func ParseAccessEntry(line string) (AccessEntry, bool) {
+	return parseAccessLine(line)
+}
+
 func statusClass(code int) string {
 	switch {
 	case code >= 500:

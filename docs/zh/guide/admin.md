@@ -124,9 +124,62 @@ Vite 开发服务器将 `/api` 代理到 admin 端口。生产 UI 在 `cd core/a
 | `GET` | `/config/revisions` | 修订历史列表 |
 | `GET` | `/config/revisions/:id` | 单条修订 |
 | `POST` | `/reload` | 校验磁盘配置并重载 ingress |
+| `GET` | `/routes/:ri/:pi` | 路由详情（配置 + auth/cache/healthcheck） |
+| `GET` | `/routes/:ri/:pi/metrics` | 路由级聚合指标 |
+| `GET` | `/events/stream` | SSE 实时事件流（`?channels=...`） |
+| `GET` | `/healthcheck` | 健康检查探测结果与汇总 |
 | `GET` | `/settings` | Admin 与 ingress 设置快照 |
 
 **在控制台内发布 / 重载**会先校验配置文件，再触发进程内热重载（与 **`ingress reload`** / **SIGHUP** 在 `ingress run` 启动时效果一致）。
+
+## 实时事件（SSE）
+
+管理控制台通过 **Server-Sent Events**（SSE）推送实时更新。连接端点：
+
+```
+GET /api/v1/events/stream?channels=metrics,waf,logs,health
+```
+
+支持的频道：`metrics`、`waf`、`logs`、`health`。UI 根据当前页面自动订阅。单 IP 最多 **5 个并发 SSE 连接**；超出或不可用时客户端自动降级为轮询。
+
+事件格式：
+
+```
+event: channel:action
+data: {"key": "value", ...}
+```
+
+## 路由详情
+
+点击路由列表中的任意行，进入路由详情页 `/routes/:ruleIndex/:pathIndex`。展示内容：
+
+- 完整路由配置（host、path、backend、auth、cache、healthcheck、WAF）
+- 实时指标（QPS、延迟分位数、错误率、缓存命中率）
+- 该路由的过滤日志、WAF 事件、缓存数据
+
+## 拓扑图
+
+**拓扑**页面（`/topology`）以纯 SVG 渲染三层图：**Host → Path → Backend**。节点颜色标识健康状态（绿色=正常、黄色=告警、红色=故障）。点击节点可跳转至路由详情或路由列表。
+
+## 健康检查面板
+
+**健康检查**页面（`/health`）展示所有配置了 `healthcheck` 的后端状态。后端每 **30 秒**探测一次，**5 秒**超时。状态变更通过 SSE `health` 频道推送。
+
+## 配置草稿与撤销
+
+配置编辑器追踪编辑历史（最多 **50 步**）。使用 **Ctrl+Z** / **Cmd+Z** 撤销，**Ctrl+Shift+Z** / **Cmd+Shift+Z** 重做。Tab 栏的草稿徽章显示未保存的变更。
+
+## 一键回滚
+
+在**配置版本历史**面板中，每个修订都有**回滚**按钮。点击后弹出确认对话框，然后校验、发布并重载所选版本 — 无需手动复制粘贴。
+
+## 证书到期告警
+
+**总览**页现在读取真实 TLS 证书数据，而非硬编码值。证书在 **30 天**内到期显示黄色告警，**7 天**内显示红色严重告警。
+
+## 版本一致性标识
+
+总览页对比**运行配置 hash** 与**最新修订 hash**。绿色徽章表示"配置一致"，黄色表示"有变更未发布"。
 
 ## 安全说明
 

@@ -5,9 +5,12 @@ import { CachePage } from './pages/CachePage'
 import { ConfigPage } from './pages/ConfigPage'
 import { LogsPage } from './pages/LogsPage'
 import { OverviewPage } from './pages/OverviewPage'
+import { RouteDetailPage } from './pages/RouteDetailPage'
 import { RoutesPage } from './pages/RoutesPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TLSPage } from './pages/TLSPage'
+import { TopologyPage } from './pages/TopologyPage'
+import { HealthPage } from './pages/HealthPage'
 import { WAFPage } from './pages/WAFPage'
 
 export default function App() {
@@ -17,6 +20,9 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route index element={<OverviewPage />} />
           <Route path="routes" element={<RoutesPage />} />
+          <Route path="routes/:ruleIndex/:pathIndex" element={<RouteDetailPage />} />
+          <Route path="topology" element={<TopologyPage />} />
+          <Route path="health" element={<HealthPage />} />
           <Route path="cache" element={<CachePage />} />
           <Route path="waf" element={<WAFPage />} />
           <Route path="tls" element={<TLSPage />} />

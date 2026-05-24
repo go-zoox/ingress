@@ -1,0 +1,182 @@
+%% === 4.1 配置草稿 Undo 流程 ===
+sequenceDiagram
+    actor User
+    participant ConfigPage
+    participant useUndo
+    participant Textarea
+
+    User->>Textarea: 输入内容 (onChange)
+    Textarea->>useUndo: push(newContent)
+    Note over useUndo: debounce 300ms
+    useUndo->>useUndo: 追加到 history[], cursor++
+    Note over useUndo: history 超过 50 步时 shift 最早记录
+
+    User->>ConfigPage: Ctrl+Z / Cmd+Z
+    ConfigPage->>useUndo: undo()
+    useUndo->>useUndo: cursor--
+    useUndo-->>ConfigPage: 返回 history[cursor]
+    ConfigPage->>Textarea: setContent(result)
+
+    User->>ConfigPage: Ctrl+Shift+Z / Cmd+Shift+Z
+    ConfigPage->>useUndo: redo()
+    useUndo->>useUndo: cursor++
+    useUndo-->>ConfigPage: 返回 history[cursor]
+    ConfigPage->>Textarea: setContent(result)
+
+    User->>ConfigPage: 点击"撤销"按钮
+    ConfigPage->>useUndo: undo()
+    useUndo-->>ConfigPage: 返回前一步内容
+
+    User->>ConfigPage: 保存草稿
+    ConfigPage->>useUndo: reset(savedContent)
+    Note over useUndo: 清空历史，重新记录
+
+%% === 4.2 SSE 实时推送流程 ===
+sequenceDiagram
+    actor User
+    participant Browser as 浏览器 (EventSource)
+    participant SSEHandler as handler/sse.go
+    participant Broker as SSEBroker
+    participant Metrics as MetricsService
+    participant WAF as AuditService
+    participant Logs as LogsService
+
+    User->>Browser: 打开 OverviewPage/WAFPage/LogsPage
+    Browser->>SSEHandler: GET /api/v1/events/stream?channels=metrics,waf,logs
+    SSEHandler->>SSEHandler: 设置 Header: text/event-stream, no-cache, keep-alive
+    SSEHandler->>Broker: Subscribe(channels)
+    Broker-->>SSEHandler: Subscriber{ch}
+
+    loop 定期推送 (后台 goroutine)
+        Metrics->>Broker: Publish("metrics", SSEEvent{event:"metrics:update", data:json})
+        WAF->>Broker: Publish("waf", SSEEvent{event:"waf:event", data:json})
+        Logs->>Broker: Publish("logs", SSEEvent{event:"log:line", data:json})
+    end
+
+    Broker->>SSEHandler: Subscriber.ch <- event
+    SSEHandler->>Browser: data: {"rpm":1200,"error_rate":0.02,...}\n\n
+    Browser->>Browser: EventSource.onmessage → useSSE 更新 data
+
+    Note over Browser: SSE 连接断开
+    Browser->>Browser: EventSource 自动重连
+    Note over Browser: 重连失败超过 3 次
+    Browser->>Browser: 降级到 setInterval 轮询
+
+    User->>Browser: 页面卸载
+    Browser->>SSEHandler: 连接关闭
+    SSEHandler->>Broker: Unsubscribe(channels, subscriber)
+
+%% === 4.3 路由详情页加载流程 ===
+sequenceDiagram
+    actor User
+    participant RoutesPage
+    participant RouteDetailPage
+    participant APIClient as api/client.ts
+    participant RouteDetailHandler as handler/route_detail.go
+    participant IngressSvc as IngressService
+    participant MetricsSvc as MetricsService
+    participant HealthSvc as HealthCheckService
+
+    User->>RoutesPage: 点击某路由行
+    RoutesPage->>RoutesPage: navigate(`/routes/${ruleIndex}/${pathIndex}`)
+
+    RouteDetailPage->>APIClient: routeDetail(ruleIndex, pathIndex)
+    APIClient->>RouteDetailHandler: GET /api/v1/routes/:ri/:pi
+    RouteDetailHandler->>IngressSvc: LoadConfig()
+    IngressSvc-->>RouteDetailHandler: *ingcore.Config
+    RouteDetailHandler->>RouteDetailHandler: 解析 rule[ri].paths[pi] → RouteDetail
+    RouteDetailHandler->>HealthSvc: results[key]
+    HealthSvc-->>RouteDetailHandler: HealthCheckResult
+    RouteDetailHandler-->>APIClient: {code:0, data: RouteDetail}
+
+    RouteDetailPage->>APIClient: routeMetrics(ruleIndex, pathIndex)
+    APIClient->>RouteDetailHandler: GET /api/v1/routes/:ri/:pi/metrics
+    RouteDetailHandler->>MetricsSvc: aggregateByRoute(host, path)
+    MetricsSvc->>MetricsSvc: 过滤 AccessEntry by host+path, 聚合计算
+    MetricsSvc-->>RouteDetailHandler: RouteMetrics
+    RouteDetailHandler-->>APIClient: {code:0, data: RouteMetrics}
+
+    RouteDetailPage->>RouteDetailPage: 渲染：左侧配置概览 + 右侧指标 + 底部 Tab
+
+%% === 4.4 一键回滚流程 ===
+sequenceDiagram
+    actor User
+    participant ConfigVersionsPanel
+    participant RollbackConfirmModal
+    participant APIClient as api/client.ts
+    participant ConfigHandler as handler (existing)
+    participant ConfigSvc as ConfigService
+
+    User->>ConfigVersionsPanel: 点击"查看"某版本
+    ConfigVersionsPanel->>ConfigVersionsPanel: 显示版本详情弹窗
+    User->>RollbackConfirmModal: 点击"回滚到此版本"
+    RollbackConfirmModal->>RollbackConfirmModal: 显示确认弹窗（版本 hash、时间、说明）
+
+    User->>RollbackConfirmModal: 点击"回滚并发布"
+    RollbackConfirmModal->>APIClient: validateConfig(versionContent)
+    APIClient->>ConfigHandler: POST /api/v1/config/validate
+    ConfigHandler->>ConfigSvc: ValidateYAML(content)
+    ConfigSvc-->>ConfigHandler: valid: true
+    ConfigHandler-->>APIClient: {code:0, data:{valid:true}}
+
+    RollbackConfirmModal->>APIClient: publishConfig(versionContent)
+    APIClient->>ConfigHandler: POST /api/v1/config/publish
+    ConfigHandler->>ConfigSvc: Publish(content)
+    Note over ConfigSvc: Save() → 写 YAML 文件\nCreate revision → GORM\nReload() → SIGHUP
+    ConfigSvc-->>ConfigHandler: ok
+    ConfigHandler-->>APIClient: {code:0, data:{hash:"abc12345"}}
+
+    RollbackConfirmModal->>RollbackConfirmModal: Toast: "已回滚到版本 #{id} 并发布"
+    RollbackConfirmModal->>ConfigVersionsPanel: 刷新版本列表
+
+%% === 4.5 健康检查探测流程 ===
+sequenceDiagram
+    participant App as app/app.go
+    participant HealthSvc as HealthCheckService
+    participant IngressSvc as IngressService
+    participant Target as Backend Server
+    participant Broker as SSEBroker
+
+    App->>HealthSvc: Start()
+    HealthSvc->>HealthSvc: 启动 goroutine, ticker = 30s
+
+    loop 每 30 秒
+        HealthSvc->>IngressSvc: LoadConfig()
+        IngressSvc-->>HealthSvc: *ingcore.Config
+        HealthSvc->>HealthSvc: 解析所有 healthcheck 配置 → []HealthCheckTarget
+
+        loop 每个 target
+            HealthSvc->>Target: HTTP GET target.checkPath (timeout 5s)
+            Target-->>HealthSvc: 200 OK / 超时 / 错误
+            HealthSvc->>HealthSvc: 判定 status: "up" / "down"
+            HealthSvc->>HealthSvc: 记录 HealthCheckResult → results map
+        end
+
+        HealthSvc->>Broker: Publish("health", SSEEvent{event:"health:update"})
+    end
+
+    Note over HealthSvc: App.Shutdown() 时
+    App->>HealthSvc: Stop()
+    HealthSvc->>HealthSvc: done <- true, ticker.Stop()
+
+%% === 4.6 拓扑图渲染流程 ===
+sequenceDiagram
+    actor User
+    participant TopologyPage
+    participant APIClient as api/client.ts
+    participant TopologySVG
+
+    User->>TopologyPage: 访问 /topology
+    TopologyPage->>APIClient: routes() + tlsCerts() + healthCheck()
+    APIClient-->>TopologyPage: 路由列表 + 证书 + 健康状态
+
+    TopologyPage->>TopologyPage: computeLayout()
+    Note over TopologyPage: 分层：Host 列 → Path 列 → Backend 列\n同列内按 index 均匀分布\n节点颜色：绿/黄/红/灰\n连线：实线/虚线/红色闪烁
+
+    TopologyPage->>TopologySVG: render(layout)
+    TopologySVG->>TopologySVG: renderNodes() — 每个节点 <rect> + <text>
+    TopologySVG->>TopologySVG: renderEdges() — 每条连线 <path d="M...C...">
+
+    User->>TopologySVG: 点击某节点
+    TopologySVG->>TopologyPage: onNodeClick(node)
+    TopologyPage->>TopologyPage: navigate(目标页面)
