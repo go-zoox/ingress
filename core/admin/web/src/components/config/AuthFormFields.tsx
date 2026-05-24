@@ -73,7 +73,7 @@ export function AuthFormFields<T extends BackendForm>({
           {form.auth_basic_users.map((user, idx) => (
             <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
               <FormField
-                label={idx === 0 ? '用户名' : undefined}
+                label={idx === 0 ? '用户名' : ''}
                 keyName={`${idPrefix}service.auth.basic.users[${idx}].username`}
                 value={user.username}
                 onChange={(e) => {
@@ -83,7 +83,7 @@ export function AuthFormFields<T extends BackendForm>({
                 }}
               />
               <FormField
-                label={idx === 0 ? '密码' : undefined}
+                label={idx === 0 ? '密码' : ''}
                 keyName={`${idPrefix}service.auth.basic.users[${idx}].password`}
                 type="password"
                 value={user.password}
