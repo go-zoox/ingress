@@ -13,15 +13,29 @@ export function OverviewPage() {
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [err, setErr] = useState('')
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Track whether the first fetch has completed so we only show full-page loading once.
+  const mountedRef = useRef(false)
 
   const fetchMetrics = useCallback(() => {
     const window = loadPreferences().metricsWindow
-    setMetricsLoading(true)
+    if (!mountedRef.current) {
+      setMetricsLoading(true)
+    }
     api
       .overviewMetrics(window)
-      .then(setMetrics)
-      .catch(() => setMetrics(null))
-      .finally(() => setMetricsLoading(false))
+      .then((data) => {
+        setMetrics(data)
+        setMetricsLoading(false)
+        mountedRef.current = true
+      })
+      .catch(() => {
+        if (!mountedRef.current) {
+          setMetrics(null)
+          setMetricsLoading(false)
+          mountedRef.current = true
+        }
+        // On subsequent errors, keep the last known metrics — no flash.
+      })
   }, [])
 
   useEffect(() => {
