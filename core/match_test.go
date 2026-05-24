@@ -559,3 +559,118 @@ func TestMatchPathWithHandlerBackend(t *testing.T) {
 		t.Fatalf("expected handler backend type, got %s", matchedPath.Backend.Type)
 	}
 }
+
+// TestMatchHost_AuthFieldPropagated is a regression test for the bug where
+// service.Service was constructed in hostMatcherFromMatchedRule without copying
+// the Auth field, causing ValidateAuth to always see an empty Auth and allow all
+// requests regardless of the configured authentication.
+func TestMatchHost_AuthFieldPropagated(t *testing.T) {
+	rules := []rule.Rule{
+		{
+			Host: "basic-auth.example.com",
+			Backend: rule.Backend{
+				Service: service.Service{
+					Protocol: "https",
+					Name:     "upstream.example.com",
+					Port:     443,
+					Auth: service.Auth{
+						Type: "basic",
+						Basic: service.BasicAuth{
+							Users: []service.BasicUser{
+								{Username: "admin", Password: "admin123"},
+								{Username: "user1", Password: "user123"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	hm, err := MatchHost(rules, rule.Backend{}, "basic-auth.example.com")
+	if err != nil {
+		t.Fatalf("MatchHost failed: %v", err)
+	}
+
+	if hm.Service.Auth.Type != "basic" {
+		t.Fatalf("expected Auth.Type=\"basic\", got %q — Auth field not propagated from rule config", hm.Service.Auth.Type)
+	}
+	if len(hm.Service.Auth.Basic.Users) != 2 {
+		t.Fatalf("expected 2 basic auth users, got %d", len(hm.Service.Auth.Basic.Users))
+	}
+	if hm.Service.Auth.Basic.Users[0].Username != "admin" {
+		t.Fatalf("expected first user to be admin, got %q", hm.Service.Auth.Basic.Users[0].Username)
+	}
+}
+
+// TestMatchHost_BearerAuthFieldPropagated ensures Bearer auth config is also preserved.
+func TestMatchHost_BearerAuthFieldPropagated(t *testing.T) {
+	rules := []rule.Rule{
+		{
+			Host: "bearer-auth.example.com",
+			Backend: rule.Backend{
+				Service: service.Service{
+					Protocol: "http",
+					Name:     "api-service",
+					Port:     80,
+					Auth: service.Auth{
+						Type: "bearer",
+						Bearer: service.BearerAuth{
+							Tokens: []string{"secret-token-abc", "secret-token-xyz"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	hm, err := MatchHost(rules, rule.Backend{}, "bearer-auth.example.com")
+	if err != nil {
+		t.Fatalf("MatchHost failed: %v", err)
+	}
+
+	if hm.Service.Auth.Type != "bearer" {
+		t.Fatalf("expected Auth.Type=\"bearer\", got %q", hm.Service.Auth.Type)
+	}
+	if len(hm.Service.Auth.Bearer.Tokens) != 2 {
+		t.Fatalf("expected 2 bearer tokens, got %d", len(hm.Service.Auth.Bearer.Tokens))
+	}
+}
+
+// TestMatchHost_RegexHost_AuthFieldPropagated ensures the Auth field is copied even
+// when the host is matched via a regex rule (the second branch in hostMatcherFromMatchedRule).
+func TestMatchHost_RegexHost_AuthFieldPropagated(t *testing.T) {
+	rules := []rule.Rule{
+		{
+			Host:     `^secure-([a-z]+)\.example\.com$`,
+			HostType: "regex",
+			Backend: rule.Backend{
+				Service: service.Service{
+					Protocol: "http",
+					Name:     "$1.internal",
+					Port:     80,
+					Auth: service.Auth{
+						Type: "basic",
+						Basic: service.BasicAuth{
+							Users: []service.BasicUser{
+								{Username: "ops", Password: "opspass"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	hm, err := MatchHost(rules, rule.Backend{}, "secure-frontend.example.com")
+	if err != nil {
+		t.Fatalf("MatchHost failed: %v", err)
+	}
+
+	if hm.Service.Auth.Type != "basic" {
+		t.Fatalf("expected Auth.Type=\"basic\" for regex host match, got %q", hm.Service.Auth.Type)
+	}
+	if len(hm.Service.Auth.Basic.Users) != 1 || hm.Service.Auth.Basic.Users[0].Username != "ops" {
+		t.Fatalf("expected user ops, got %v", hm.Service.Auth.Basic.Users)
+	}
+}
