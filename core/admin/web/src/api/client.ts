@@ -52,6 +52,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ enabled }),
     }),
+  wafHosts: () => request<string[]>('/waf/hosts'),
+  wafRules: () => request<string[]>('/waf/rules'),
   tlsCerts: () => request<TLSCert[]>('/tls/certs'),
   tlsCheck: (domain: string) =>
     request<TLSCertCheck>('/tls/certs/check', {
@@ -119,6 +121,7 @@ export const api = {
     const qs = q.toString()
     return request<LogResult>(`/logs${qs ? `?${qs}` : ''}`)
   },
+  logHosts: () => request<string[]>('/logs/hosts'),
 }
 
 export type RouteRow = {

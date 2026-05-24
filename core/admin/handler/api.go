@@ -50,6 +50,8 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/routes/match", a.Match)
 	g.Post("/waf/toggle", a.WAFToggle)
 	g.Get("/waf/events", a.WAFEvents)
+	g.Get("/waf/hosts", a.WAFHosts)
+	g.Get("/waf/rules", a.WAFRules)
 	g.Get("/tls/certs", a.TLSCerts)
 	g.Post("/tls/certs/check", a.TLSCertCheck)
 	g.Get("/cache/overview", a.CacheOverview)
@@ -64,6 +66,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/config/revisions/:id", a.ConfigRevision)
 	g.Post("/reload", a.Reload)
 	g.Get("/logs", a.Logs)
+	g.Get("/logs/hosts", a.LogHosts)
 	g.Get("/metrics/overview", a.OverviewMetrics)
 	g.Get("/settings", a.Settings)
 }
@@ -193,6 +196,30 @@ func (a *API) WAFEvents(ctx *zoox.Context) {
 		return
 	}
 	ok(ctx, rows)
+}
+
+func (a *API) WAFHosts(ctx *zoox.Context) {
+	hosts, err := a.audit.DistinctWAFHosts()
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if hosts == nil {
+		hosts = []string{}
+	}
+	ok(ctx, hosts)
+}
+
+func (a *API) WAFRules(ctx *zoox.Context) {
+	rules, err := a.audit.DistinctWAFRules()
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if rules == nil {
+		rules = []string{}
+	}
+	ok(ctx, rules)
 }
 
 func (a *API) TLSCerts(ctx *zoox.Context) {
@@ -427,6 +454,18 @@ func (a *API) Logs(ctx *zoox.Context) {
 		return
 	}
 	ok(ctx, result)
+}
+
+func (a *API) LogHosts(ctx *zoox.Context) {
+	hosts, err := a.logs.DistinctHosts()
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if hosts == nil {
+		hosts = []string{}
+	}
+	ok(ctx, hosts)
 }
 
 func (a *API) OverviewMetrics(ctx *zoox.Context) {
