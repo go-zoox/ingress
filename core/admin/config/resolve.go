@@ -24,8 +24,8 @@ func ResolvePaths(cfg *Config, ingressConfigFile string) error {
 	}
 	cfg.IngressConfigPath = absConfig
 	cfg.PidFile = resolveFilePath(base, cfg.PidFile)
-	if strings.TrimSpace(cfg.LogPath) != "" {
-		cfg.LogPath = resolveFilePath(base, cfg.LogPath)
+	if strings.TrimSpace(cfg.AccessLogPath) != "" {
+		cfg.AccessLogPath = resolveFilePath(base, cfg.AccessLogPath)
 	}
 	if strings.TrimSpace(cfg.ErrorLogPath) != "" {
 		cfg.ErrorLogPath = resolveFilePath(base, cfg.ErrorLogPath)

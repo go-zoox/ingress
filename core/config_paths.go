@@ -28,7 +28,7 @@ func resolveAdminPaths(admin *Admin, base string) {
 	if admin == nil {
 		return
 	}
-	admin.LogPath = resolveConfigFilePath(base, admin.LogPath)
+	admin.AccessLogPath = resolveConfigFilePath(base, admin.AccessLogPath)
 	admin.ErrorLogPath = resolveConfigFilePath(base, admin.ErrorLogPath)
 }
 

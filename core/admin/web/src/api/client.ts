@@ -201,7 +201,7 @@ export type SettingsView = {
   ingress: {
     config_path: string
     pid_file: string
-    log_path: string
+    access_log_path: string
     error_log_path: string
     reload_ready: boolean
     config_hash: string

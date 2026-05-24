@@ -100,7 +100,7 @@ export function SettingsPage() {
               </span>
             </SettingsRow>
             <SettingsRow label="access.log">
-              {data ? <PathValue path={data.ingress.log_path} /> : '—'}
+              {data ? <PathValue path={data.ingress.access_log_path} /> : '—'}
               {data?.logs.access_exists === false && data.logs.access_configured ? (
                 <span className="settings-hint"> · 文件不存在</span>
               ) : null}

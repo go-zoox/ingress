@@ -27,8 +27,8 @@ logging:
 	if err := ResolvePaths(&cfg, ingressFile); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.LogPath != "/var/log/ingress/access.log" {
-		t.Fatalf("log_path: got %q", cfg.LogPath)
+	if cfg.AccessLogPath != "/var/log/ingress/access.log" {
+		t.Fatalf("access_log_path: got %q", cfg.AccessLogPath)
 	}
 	if cfg.ErrorLogPath != "/var/log/ingress/error.log" {
 		t.Fatalf("error_log_path: got %q", cfg.ErrorLogPath)
@@ -63,8 +63,8 @@ logging:
 	}
 	wantAccess := filepath.Join(exampleDir, "access.log")
 	wantError := filepath.Join(exampleDir, "error.log")
-	if cfg.LogPath != wantAccess {
-		t.Fatalf("log_path: got %q want %q", cfg.LogPath, wantAccess)
+	if cfg.AccessLogPath != wantAccess {
+		t.Fatalf("access_log_path: got %q want %q", cfg.AccessLogPath, wantAccess)
 	}
 	if cfg.ErrorLogPath != wantError {
 		t.Fatalf("error_log_path: got %q want %q", cfg.ErrorLogPath, wantError)

@@ -40,7 +40,7 @@ type Admin struct {
 	Port         int64         `config:"port,default=9080"`
 	Database     AdminDatabase `config:"database"`
 	Web          AdminWeb      `config:"web"`
-	LogPath      string        `config:"log_path"`
+	AccessLogPath string        `config:"access_log_path"`
 	ErrorLogPath string        `config:"error_log_path"`
 }
 

@@ -1,17 +1,21 @@
 package service
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
 
 func TestOverview_withRealLogData(t *testing.T) {
-	// Simulate what happens when we parse the real log file lines
-	// Lines that contain real access log entries
+	// Use timestamps relative to now so the 15m window always includes them.
+	now := time.Now()
+	ts := now.Add(-2 * time.Minute).Format("2006/01/02 15:04:05")
+	ts2 := now.Add(-2*time.Minute + time.Second).Format("2006/01/02 15:04:05")
+
 	lines := []string{
-		`2026/05/24 20:10:00 2026/05/24 20:10:00 INFO 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com "GET /ip HTTP/1.1" 200 125ms cache_hit=0 waf_block=0 real_ip=127.0.0.1 referer=- ua=curl/7.86.0 xff=- tls_protocol=- tls_cipher=- upstream_status=200 upstream_response_length=55 upstream_response_time=125ms`,
-		`2026/05/24 20:10:00 2026/05/24 20:10:00 INFO 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com "GET /ip HTTP/1.1" 200 37ms cache_hit=0 waf_block=0 real_ip=127.0.0.1`,
-		`2026/05/24 20:10:01 2026/05/24 20:10:01 INFO 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com "GET /ip HTTP/1.1" 200 38ms cache_hit=0 waf_block=0`,
+		fmt.Sprintf(`%s %s INFO 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com "GET /ip HTTP/1.1" 200 125ms cache_hit=0 waf_block=0 real_ip=127.0.0.1 referer=- ua=curl/7.86.0 xff=- tls_protocol=- tls_cipher=- upstream_status=200 upstream_response_length=55 upstream_response_time=125ms`, ts, ts),
+		fmt.Sprintf(`%s %s INFO 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com "GET /ip HTTP/1.1" 200 37ms cache_hit=0 waf_block=0 real_ip=127.0.0.1`, ts, ts),
+		fmt.Sprintf(`%s %s INFO 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com "GET /ip HTTP/1.1" 200 38ms cache_hit=0 waf_block=0`, ts2, ts2),
 		// Zoox framework logs that should be skipped
 		`2026/05/24 20:11:33 INFO [127.0.0.1:64965][=>] GET /api/v1/metrics/overview`,
 		`2026/05/24 20:11:33 INFO [127.0.0.1:64965][<=] GET /api/v1/metrics/overview 200 +6ms`,
@@ -45,8 +49,7 @@ func TestOverview_withRealLogData(t *testing.T) {
 		t.Fatal("expected entries to have timestamps")
 	}
 
-	// Check time-based filtering: entries are ~3 minutes ago, window is 15m
-	// anchor is time.Now(), entries should be within window
+	// Check time-based filtering: entries are ~2 minutes ago, window is 15m
 	anchor := time.Now()
 	windowDur := parseWindowDuration("15m")
 	filtered := filterEntriesInWindow(entries, anchor, windowDur, true)
@@ -57,10 +60,13 @@ func TestOverview_withRealLogData(t *testing.T) {
 }
 
 func TestOverview_ansiColoredLog(t *testing.T) {
-	// Exact format from real log file with ANSI escapes
+	// Use timestamps relative to now so the 15m window always includes them.
+	now := time.Now()
+	ts := now.Add(-1 * time.Minute).Format("2006/01/02 15:04:05")
+
 	lines := []string{
-		"2026/05/24 20:14:50 2026/05/24 20:14:50 \x1b[34mINFO\x1b[39m 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com \"GET /ip HTTP/1.1\" 200 132ms cache_hit=0 waf_block=0 real_ip=127.0.0.1 referer=- ua=curl/7.86.0",
-		"2026/05/24 20:14:50 2026/05/24 20:14:50 \x1b[34mINFO\x1b[39m 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com \"GET /ip HTTP/1.1\" 200 37ms cache_hit=0",
+		fmt.Sprintf("%s %s \x1b[34mINFO\x1b[39m 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com \"GET /ip HTTP/1.1\" 200 132ms cache_hit=0 waf_block=0 real_ip=127.0.0.1 referer=- ua=curl/7.86.0", ts, ts),
+		fmt.Sprintf("%s %s \x1b[34mINFO\x1b[39m 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com \"GET /ip HTTP/1.1\" 200 37ms cache_hit=0", ts, ts),
 	}
 
 	entries := make([]AccessEntry, 0)

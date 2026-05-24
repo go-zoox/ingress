@@ -11,7 +11,7 @@ type Config struct {
 	Port         int64
 	Database     Database
 	Web          Web
-	LogPath      string
+	AccessLogPath string
 	ErrorLogPath string
 	//
 	IngressConfigPath string

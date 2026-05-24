@@ -286,7 +286,7 @@ rules:
 | `admin.database.driver` | string | 审计 / 修订 SQLite 驱动 | `sqlite` |
 | `admin.database.dsn` | string | 数据库 DSN | `file:admin.db?cache=shared&_fk=1` |
 | `admin.web.dev_proxy` | bool | 仅 API；UI 由 Vite 开发服务器提供 | `false` |
-| `admin.log_path` | string | 日志页 access 路径 | 来自 `logging` |
+| `admin.access_log_path` | string | 日志页 access 路径 | 来自 `logging` |
 | `admin.error_log_path` | string | 日志页 error 路径 | 来自 `logging` |
 
 ```yaml

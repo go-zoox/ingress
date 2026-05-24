@@ -27,7 +27,7 @@ type AdminSettings struct {
 type IngressSettings struct {
 	ConfigPath  string `json:"config_path"`
 	PidFile     string `json:"pid_file"`
-	LogPath     string `json:"log_path"`
+	AccessLogPath string `json:"access_log_path"`
 	ErrorLogPath string `json:"error_log_path"`
 	ReloadReady bool   `json:"reload_ready"`
 	ConfigHash  string `json:"config_hash"`
@@ -70,7 +70,7 @@ func (s *Settings) Get(configHash string) SettingsView {
 		Ingress: IngressSettings{
 			ConfigPath:   s.cfg.IngressConfigPath,
 			PidFile:      s.cfg.PidFile,
-			LogPath:      s.cfg.LogPath,
+			AccessLogPath: s.cfg.AccessLogPath,
 			ErrorLogPath: s.cfg.ErrorLogPath,
 			ReloadReady:  s.ingress.ReloadReady(),
 			ConfigHash:   configHash,
