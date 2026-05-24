@@ -1,0 +1,53 @@
+# OAuth2 authentication with Doreamon + connect JWT headers
+#
+# Doreamon is a unified OAuth2 identity provider (login.zcorky.com).
+# It supports standard OAuth2 / OIDC flows with openid, email, profile scopes.
+#
+# Before using:
+#   1. Register an OAuth2 application at https://login.zcorky.com
+#   2. Set the callback URL to: http://oauth2-doreamon.example.com/oauth2/callback
+#      (or https:// if using TLS)
+#   3. Copy your Client ID and Client Secret below.
+#
+# Connect headers:
+#   When connect.enabled is true, ingress injects two headers into the upstream
+#   request after successful authentication:
+#     X-Connect-Token:     JWT containing the authenticated user's info
+#     X-Connect-Timestamp: Unix millisecond timestamp
+#   The upstream service can decode the JWT using the shared jwt.secret.
+#
+#   If connect is not needed (auth-only mode), omit the connect block entirely.
+
+port: 8080
+
+rules:
+  - host: oauth2-doreamon.example.com
+    backend:
+      service:
+        mode: external
+        protocol: https
+        name: httpbin.zcorky.com
+        port: 443
+        auth:
+          type: oauth2
+          oauth2:
+            provider: doreamon
+            client_id: "c20620595ece17010d6d313fbc751dbf"
+            client_secret: "dfc7ce701fc58d9d65b7245b83bef87c9a897a43"
+            # scopes is optional — defaults to "openid email profile"
+            # scopes:
+            #   - "openid"
+            #   - "email"
+            #   - "profile"
+            # Optional: redirect_url — auto-generated from the request host if omitted.
+            # redirect_url: "https://oauth2-doreamon.example.com/oauth2/callback"
+            #
+            redirect_url: "http://oauth2-doreamon.example.com:8080/oauth2/callback"
+
+            # Optional: connect JWT headers for upstream user identification.
+            # connect:
+            #   enabled: true
+            #   jwt:
+            #     secret: "your-shared-jwt-secret"
+            #     # algorithm: hs256       # optional, default hs256
+            #     # expires_in: "5m"       # optional, default 5m

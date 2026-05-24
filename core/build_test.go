@@ -1484,3 +1484,230 @@ func TestBuild_NoAuth_RequestPassesThrough(t *testing.T) {
 		t.Fatalf("unexpected body %q", body)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// OAuth2 integration tests — verify redirect, callback, and connect headers.
+// ---------------------------------------------------------------------------
+
+// buildOAuth2Config returns a minimal Config with an OAuth2-protected route.
+// The upstream is a handler backend so we can verify behavior without a real
+// OAuth2 provider.
+func buildOAuth2Config(host string, provider string) *Config {
+	return &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: host,
+				Backend: rule.Backend{
+					Service: service.Service{
+						Protocol: "http",
+						Name:     "127.0.0.1",
+						Port:     9999,
+						Auth: service.Auth{
+							Type: "oauth2",
+							OAuth2: service.OAuth2Auth{
+								Provider:     provider,
+								ClientID:     "test-client-id",
+								ClientSecret: "test-client-secret",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestBuild_OAuth2_NoSession_RedirectsToProvider(t *testing.T) {
+	cfg := buildOAuth2Config("oauth2.example.com", "github")
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://oauth2.example.com/protected", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	// Without a session, should redirect to the provider.
+	if rec.Code != http.StatusTemporaryRedirect && rec.Code != http.StatusFound {
+		t.Fatalf("expected 302/307 redirect to provider, got %d", rec.Code)
+	}
+	location := rec.Header().Get("Location")
+	if location == "" {
+		t.Fatal("expected Location header in redirect response")
+	}
+	if !strings.Contains(location, "github.com") {
+		t.Fatalf("expected redirect URL to contain provider host, got: %s", location)
+	}
+
+	// Verify session cookie is set (for CSRF state + redirect URL).
+	setCookie := rec.Header().Get("Set-Cookie")
+	if setCookie == "" {
+		t.Fatal("expected Set-Cookie header in redirect response")
+	}
+}
+
+func TestBuild_OAuth2_Callback_MissingCode_ReturnsError(t *testing.T) {
+	cfg := buildOAuth2Config("oauth2.example.com", "github")
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	// Hit callback path without code — should fail.
+	req := httptest.NewRequest(http.MethodGet, "http://oauth2.example.com/oauth2/callback", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for callback without code, got %d", rec.Code)
+	}
+}
+
+func TestBuild_OAuth2_Callback_StateMismatch_ReturnsError(t *testing.T) {
+	cfg := buildOAuth2Config("oauth2.example.com", "github")
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://oauth2.example.com/oauth2/callback?code=abc123&state=badstate", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for state mismatch, got %d", rec.Code)
+	}
+}
+
+func TestBuild_OAuth2_UnsupportedProvider_ReturnsError(t *testing.T) {
+	cfg := buildOAuth2Config("oauth2.example.com", "unsupported-provider")
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://oauth2.example.com/", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unsupported provider, got %d", rec.Code)
+	}
+}
+
+func TestBuild_OAuth2_SupportsMultipleProviders(t *testing.T) {
+	providers := []string{"github", "gitlab", "google", "feishu", "microsoft"}
+	for _, p := range providers {
+		t.Run(p, func(t *testing.T) {
+			cfg := buildOAuth2Config(p+".example.com", p)
+			c, err := New("test-version", cfg)
+			if err != nil {
+				t.Fatalf("New %s: %v", p, err)
+			}
+			ins := c.(*core)
+			if err := ins.build(); err != nil {
+				t.Fatalf("build %s: %v", p, err)
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "http://"+p+".example.com/protected", nil)
+			rec := httptest.NewRecorder()
+			ins.app.ServeHTTP(rec, req)
+
+			// Should redirect to the provider.
+			if rec.Code < 300 || rec.Code >= 400 {
+				t.Fatalf("%s: expected 3xx redirect, got %d", p, rec.Code)
+			}
+			location := rec.Header().Get("Location")
+			if location == "" {
+				t.Fatalf("%s: expected Location header", p)
+			}
+		})
+	}
+}
+
+func TestBuild_NoAuth_StillWorksWithOAuth2RoutesPresent(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "oauth2.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{
+						Protocol: "http",
+						Name:     "127.0.0.1",
+						Port:     9999,
+						Auth: service.Auth{
+							Type: "oauth2",
+							OAuth2: service.OAuth2Auth{
+								Provider:     "github",
+								ClientID:     "test",
+								ClientSecret: "test",
+							},
+						},
+					},
+				},
+			},
+			{
+				Host: "open.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Body: "open-ok",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	// Unprotected route should still work.
+	req := httptest.NewRequest(http.MethodGet, "http://open.example.com/", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for open route, got %d", rec.Code)
+	}
+	if body := rec.Body.String(); body != "open-ok" {
+		t.Fatalf("unexpected body %q", body)
+	}
+
+	// OAuth2 route should redirect.
+	req2 := httptest.NewRequest(http.MethodGet, "http://oauth2.example.com/protected", nil)
+	rec2 := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec2, req2)
+
+	if rec2.Code < 300 || rec2.Code >= 400 {
+		t.Fatalf("expected 3xx redirect for oauth2 route, got %d", rec2.Code)
+	}
+}

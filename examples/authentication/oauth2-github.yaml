@@ -1,0 +1,45 @@
+# OAuth2 authentication with GitHub + connect JWT headers
+#
+# Before using:
+#   1. Register a GitHub OAuth App at https://github.com/settings/developers
+#   2. Set the callback URL to: http://oauth2-github.example.com/oauth2/callback
+#      (or https:// if using TLS)
+#   3. Copy your Client ID and Client Secret below.
+#
+# Connect headers:
+#   When connect.enabled is true, ingress injects two headers into the upstream
+#   request after successful authentication:
+#     X-Connect-Token:     JWT containing the authenticated user's info
+#     X-Connect-Timestamp: Unix millisecond timestamp
+#   The upstream service can decode the JWT using the shared jwt.secret.
+#
+#   If connect is not needed (auth-only mode), omit the connect block entirely.
+
+port: 8080
+
+rules:
+  - host: oauth2-github.example.com
+    backend:
+      service:
+        mode: external
+        protocol: https
+        name: httpbin.zcorky.com
+        port: 443
+        auth:
+          type: oauth2
+          oauth2:
+            provider: github
+            client_id: "your-github-client-id"
+            client_secret: "your-github-client-secret"
+            scopes:
+              - "user:email"
+            # Optional: redirect_url — auto-generated from the request host if omitted.
+            # redirect_url: "https://oauth2-github.example.com/oauth2/callback"
+
+            # Optional: connect JWT headers for upstream user identification.
+            connect:
+              enabled: true
+              jwt:
+                secret: "your-shared-jwt-secret"
+                # algorithm: hs256       # optional, default hs256
+                # expires_in: "5m"       # optional, default 5m
