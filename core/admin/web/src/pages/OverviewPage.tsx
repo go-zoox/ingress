@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { OverviewCharts } from '../components/OverviewCharts'
 import { PageHeader } from '../components/PageHeader'
@@ -12,6 +12,17 @@ export function OverviewPage() {
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [err, setErr] = useState('')
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const fetchMetrics = useCallback(() => {
+    const window = loadPreferences().metricsWindow
+    setMetricsLoading(true)
+    api
+      .overviewMetrics(window)
+      .then(setMetrics)
+      .catch(() => setMetrics(null))
+      .finally(() => setMetricsLoading(false))
+  }, [])
 
   useEffect(() => {
     api
@@ -22,14 +33,19 @@ export function OverviewPage() {
       .wafEvents()
       .then((d) => setEvents(Array.isArray(d) ? d.slice(0, 4) : []))
       .catch(() => setEvents([]))
-    setMetricsLoading(true)
-    const window = loadPreferences().metricsWindow
-    api
-      .overviewMetrics(window)
-      .then(setMetrics)
-      .catch(() => setMetrics(null))
-      .finally(() => setMetricsLoading(false))
-  }, [])
+    fetchMetrics()
+
+    const refreshMs = loadPreferences().metricsRefreshMs
+    if (refreshMs > 0) {
+      timerRef.current = window.setInterval(fetchMetrics, refreshMs)
+    }
+
+    return () => {
+      if (timerRef.current != null) {
+        window.clearInterval(timerRef.current)
+      }
+    }
+  }, [fetchMetrics])
 
   if (err) {
     return (

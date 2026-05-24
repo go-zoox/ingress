@@ -70,13 +70,17 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 			entries = append(entries, e)
 		}
 	}
+
 	source := "unconfigured"
 	if m.logs != nil && strings.TrimSpace(m.logs.AccessLogPath()) != "" {
 		source = "access_log"
 		if len(lines) == 0 {
 			source = "access_log_empty"
+		} else if len(entries) == 0 {
+			source = "access_log_parse_fail"
 		}
 	}
+
 	return aggregateOverview(entries, window, source)
 }
 
