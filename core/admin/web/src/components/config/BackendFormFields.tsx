@@ -7,6 +7,7 @@ import {
 import { AuthFormFields } from './AuthFormFields'
 import { BackendCacheFormFields } from './BackendCacheFormFields'
 import { HandlerFormFields } from './HandlerFormFields'
+import { HealthCheckFormFields } from './HealthCheckFormFields'
 import type { BackendForm } from '../../lib/configEntities'
 
 export function BackendFormFields<T extends BackendForm>({
@@ -109,6 +110,10 @@ export function BackendFormFields<T extends BackendForm>({
       {form.backend_type === 'service' && (
         <AuthFormFields form={form} onChange={onChange} idPrefix={idPrefix} />
       )}
+
+      {form.backend_type === 'service' && (
+        <HealthCheckFormFields form={form} onChange={onChange} idPrefix={idPrefix} />
+      )}
     </>
   )
 }
@@ -132,5 +137,5 @@ export function BackendFormGrid<T extends BackendForm>({
 }
 
 export function backendFormWide(form: BackendForm): boolean {
-  return form.backend_type === 'handler' || form.cache_enabled || form.auth_type !== ''
+  return form.backend_type === 'handler' || form.cache_enabled || form.auth_type !== '' || form.health_check_enable
 }
