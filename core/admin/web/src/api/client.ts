@@ -25,7 +25,28 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ host, path }),
     }),
-  wafEvents: () => request<WAFEvent[]>('/waf/events'),
+  wafEvents: (params?: {
+    action?: string
+    host?: string
+    path?: string
+    client_ip?: string
+    rule?: string
+    time_start?: string
+    time_end?: string
+    limit?: number
+  }) => {
+    const q = new URLSearchParams()
+    if (params?.action) q.set('action', params.action)
+    if (params?.host) q.set('host', params.host)
+    if (params?.path) q.set('path', params.path)
+    if (params?.client_ip) q.set('client_ip', params.client_ip)
+    if (params?.rule) q.set('rule', params.rule)
+    if (params?.time_start) q.set('time_start', params.time_start)
+    if (params?.time_end) q.set('time_end', params.time_end)
+    if (params?.limit) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return request<WAFEvent[]>(`/waf/events${qs ? `?${qs}` : ''}`)
+  },
   wafToggle: (enabled: boolean | null) =>
     request<{ ok: boolean }>('/waf/toggle', {
       method: 'POST',
