@@ -50,7 +50,7 @@ Full demo bundle: [`examples/admin-console/`](https://github.com/go-zoox/ingress
 | `admin.database.driver` | string | Audit / revision DB driver | `sqlite` |
 | `admin.database.dsn` | string | SQLite DSN (relative paths resolve beside the ingress config file) | `file:admin.db?cache=shared&_fk=1` |
 | `admin.web.dev_proxy` | bool | API only; run the UI from Vite dev server (proxies `/api`) | `false` |
-| `admin.log_path` | string | Override access log path for the log viewer | from `logging` file transport |
+| `admin.access_log_path` | string | Override access log path for the log viewer | from `logging` file transport |
 | `admin.error_log_path` | string | Override error log path for the log viewer | from `logging` file transport |
 
 Example with local SQLite and UI dev mode:
@@ -75,7 +75,7 @@ Override only for the admin reader (without changing ingress logging):
 ```yaml
 admin:
   enabled: true
-  log_path: /var/log/ingress/access.log
+  access_log_path: /var/log/ingress/access.log
   error_log_path: /var/log/ingress/error.log
 ```
 

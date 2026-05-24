@@ -12,7 +12,7 @@ func resolveIngressLogPaths(cfg *Config) error {
 	if cfg == nil {
 		return nil
 	}
-	access := strings.TrimSpace(cfg.LogPath)
+	access := strings.TrimSpace(cfg.AccessLogPath)
 	errorLog := strings.TrimSpace(cfg.ErrorLogPath)
 	if access != "" && errorLog != "" {
 		return nil
@@ -25,7 +25,7 @@ func resolveIngressLogPaths(cfg *Config) error {
 		} else {
 			access = ingcore.DefaultAccessLogPath
 		}
-		cfg.LogPath = access
+		cfg.AccessLogPath = access
 	}
 	if errorLog == "" {
 		if fromIngressError != "" {

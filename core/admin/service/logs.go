@@ -45,7 +45,7 @@ type Logs struct {
 
 func NewLogs(cfg *config.Config) *Logs {
 	return &Logs{
-		accessPath: strings.TrimSpace(cfg.LogPath),
+		accessPath: strings.TrimSpace(cfg.AccessLogPath),
 		errorPath:  strings.TrimSpace(cfg.ErrorLogPath),
 	}
 }

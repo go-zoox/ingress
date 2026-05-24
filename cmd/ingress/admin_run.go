@@ -37,14 +37,14 @@ func buildAdminConfig(ingressCfg *core.Config, ingressConfigFile, pidFile string
 		Port:              a.Port,
 		Database:          admincfg.Database{Driver: a.Database.Driver, DSN: a.Database.DSN},
 		Web:               admincfg.Web{DevProxy: a.Web.DevProxy},
-		LogPath:           a.LogPath,
+		AccessLogPath:     a.AccessLogPath,
 		ErrorLogPath:      a.ErrorLogPath,
 		IngressConfigPath: ingressConfigFile,
 		PidFile:           pidFile,
 		ReloadFn:          reloadFn,
 	}
-	if cfg.LogPath == "" {
-		cfg.LogPath = accessLog
+	if cfg.AccessLogPath == "" {
+		cfg.AccessLogPath = accessLog
 	}
 	if cfg.ErrorLogPath == "" {
 		cfg.ErrorLogPath = errorLog

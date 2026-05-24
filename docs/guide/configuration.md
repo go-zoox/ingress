@@ -287,7 +287,7 @@ Optional embedded console (HTTP API + UI). Enabled with **`admin.enabled: true`*
 | `admin.database.driver` | string | SQLite driver for audit / revisions | `sqlite` |
 | `admin.database.dsn` | string | Database DSN | `file:admin.db?cache=shared&_fk=1` |
 | `admin.web.dev_proxy` | bool | API only; UI from Vite dev server | `false` |
-| `admin.log_path` | string | Access log path for the log viewer | from `logging` |
+| `admin.access_log_path` | string | Access log path for the log viewer | from `logging` |
 | `admin.error_log_path` | string | Error log path for the log viewer | from `logging` |
 
 ```yaml

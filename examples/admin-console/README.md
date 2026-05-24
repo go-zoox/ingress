@@ -39,7 +39,7 @@ Admin started at http://127.0.0.1:9080
 Server started at http://127.0.0.1:8080
 ```
 
-`logging` writes to **`./access.log`** and **`./error.log`** next to this config (no `/var/log/ingress` required). Admin follows the same paths when `admin.log_path` / `error_log_path` are omitted.
+`logging` writes to **`./access.log`** and **`./error.log`** next to this config (no `/var/log/ingress` required). Admin follows the same paths when `admin.access_log_path` / `error_log_path` are omitted.
 
 Admin UI dev mode (`admin.web.dev_proxy: true`): run `cd core/admin/web && pnpm dev` and open the Vite dev server (proxies `/api`).
 

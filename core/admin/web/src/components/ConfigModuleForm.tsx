@@ -173,9 +173,9 @@ function AdminModuleForm({
           ingress.yaml 同目录的 <code>access.log</code> / <code>error.log</code>。
         </p>
         <FormField
-          label="Access 日志 admin.log_path"
-          value={str(admin.log_path)}
-          onChange={(e) => patchAdmin((n) => setStr(n, 'log_path', e.target.value))}
+          label="Access 日志 admin.access_log_path"
+          value={str(admin.access_log_path)}
+          onChange={(e) => patchAdmin((n) => setStr(n, 'access_log_path', e.target.value))}
         />
         <FormField
           label="Error 日志 admin.error_log_path"
