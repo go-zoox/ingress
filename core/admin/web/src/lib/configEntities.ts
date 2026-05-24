@@ -107,6 +107,12 @@ export type BackendForm = {
   auth_oauth2_connect_jwt_secret: string
   auth_oauth2_connect_jwt_algorithm: string
   auth_oauth2_connect_jwt_expires_in: string
+  // healthcheck fields
+  health_check_enable: boolean
+  health_check_method: string
+  health_check_path: string
+  health_check_status: string
+  health_check_ok: boolean
 }
 
 export type PathForm = {
@@ -285,6 +291,21 @@ function authToForm(service: Record<string, unknown>): Pick<BackendForm,
   }
 }
 
+function healthCheckToForm(service: Record<string, unknown>): Pick<BackendForm,
+  'health_check_enable' | 'health_check_method' | 'health_check_path' |
+  'health_check_status' | 'health_check_ok'
+> {
+  const hc = obj(service.healthcheck)
+  const statusArr = arr<number>(hc.status)
+  return {
+    health_check_enable: bool(hc.enable),
+    health_check_method: str(hc.method),
+    health_check_path: str(hc.path),
+    health_check_status: statusArr.length > 0 ? statusArr.join(',') : '',
+    health_check_ok: bool(hc.ok),
+  }
+}
+
 export function backendToForm(backend: Record<string, unknown>): BackendForm {
   const backendType = inferBackendType(backend)
   const service = obj(backend.service)
@@ -301,6 +322,7 @@ export function backendToForm(backend: Record<string, unknown>): BackendForm {
     ...handlerToForm(obj(backend.handler)),
     ...cacheToForm(backend),
     ...authToForm(service),
+    ...healthCheckToForm(service),
   }
 }
 
@@ -345,6 +367,11 @@ export function emptyBackendForm(): BackendForm {
     auth_oauth2_connect_jwt_secret: '',
     auth_oauth2_connect_jwt_algorithm: 'hs256',
     auth_oauth2_connect_jwt_expires_in: '5m',
+    health_check_enable: false,
+    health_check_method: '',
+    health_check_path: '',
+    health_check_status: '',
+    health_check_ok: false,
   }
 }
 
@@ -532,6 +559,32 @@ function buildAuth(form: BackendForm): Record<string, unknown> | undefined {
   return auth
 }
 
+function buildHealthCheck(form: BackendForm): Record<string, unknown> | undefined {
+  if (!form.health_check_enable && !form.health_check_method && !form.health_check_path &&
+      !form.health_check_status && !form.health_check_ok) {
+    return undefined
+  }
+
+  if (!form.health_check_enable) return undefined
+
+  const hc: Record<string, unknown> = { enable: true }
+
+  if (form.health_check_method && form.health_check_method !== 'GET') {
+    hc.method = form.health_check_method
+  }
+  if (form.health_check_path && form.health_check_path !== '/health') {
+    hc.path = form.health_check_path
+  }
+  if (form.health_check_status) {
+    const codes = form.health_check_status.split(',').map(s => s.trim()).filter(Boolean).map(Number).filter(n => !isNaN(n))
+    const nonDefault = codes.length > 0 && !(codes.length === 1 && codes[0] === 200)
+    if (nonDefault) hc.status = codes
+  }
+  if (form.health_check_ok) hc.ok = true
+
+  return hc
+}
+
 export function formToBackend(form: BackendForm, original?: Record<string, unknown>): Record<string, unknown> {
   const orig = original ? { ...original } : {}
   const core = buildBackendCore(form)
@@ -546,6 +599,9 @@ export function formToBackend(form: BackendForm, original?: Record<string, unkno
     const authBlock = buildAuth(form)
     if (authBlock) svc.auth = authBlock
     else delete svc.auth
+    const hcBlock = buildHealthCheck(form)
+    if (hcBlock) svc.healthcheck = hcBlock
+    else delete svc.healthcheck
     next.service = svc
     delete next.handler
     delete next.redirect
@@ -633,6 +689,9 @@ export function backendSummary(backend: Record<string, unknown>): string {
   else if (authType === 'bearer') base += ' · auth:bearer'
   else if (authType === 'oauth2') base += ` · auth:oauth2(${str(obj(auth.oauth2).provider)})`
   if (authType && auth.enabled === false) base += ' (disabled)'
+  const hc = obj(service.healthcheck)
+  if (bool(hc.ok)) base += ' · HC: ✓(ok)'
+  else if (bool(hc.enable)) base += ' · HC: ✓'
   return base
 }
 

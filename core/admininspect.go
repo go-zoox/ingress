@@ -23,6 +23,7 @@ type RouteRow struct {
 	WAF         string `json:"waf"`
 	Cache       bool   `json:"cache"`
 	Auth        string `json:"auth"`
+	HealthCheck string `json:"health_check"`
 }
 
 // MatchPreview is the result of a dry-run host/path match.
@@ -36,6 +37,7 @@ type MatchPreview struct {
 	Target      string `json:"target"`
 	WAF         string `json:"waf"`
 	Auth        string `json:"auth"`
+	HealthCheck string `json:"health_check"`
 	Fallback    bool   `json:"fallback"`
 	Message     string `json:"message,omitempty"`
 }
@@ -98,6 +100,7 @@ func routeRowFromBackend(id, ruleIndex, pathIndex int, r *rule.Rule, hostType, p
 		WAF:         wafLabel,
 		Cache:       cache,
 		Auth:        authLabelFromBackend(b),
+		HealthCheck: healthCheckLabelFromBackend(b),
 	}
 }
 
@@ -141,6 +144,10 @@ func authLabelFromBackend(b rule.Backend) string {
 	return label
 }
 
+func healthCheckLabelFromBackend(b rule.Backend) string {
+	return healthCheckLabelFromService(&b.Service)
+}
+
 func authLabelFromService(s *service.Service) string {
 	if s == nil || s.Auth.Type == "" {
 		return ""
@@ -168,6 +175,20 @@ func authLabelFromAuthFields(auth service.Auth) string {
 	default:
 		return auth.Type
 	}
+}
+
+func healthCheckLabelFromService(s *service.Service) string {
+	if s == nil {
+		return ""
+	}
+	hc := s.HealthCheck
+	if !hc.Enable {
+		return ""
+	}
+	if hc.Ok {
+		return "✓(ok)"
+	}
+	return "✓"
 }
 
 // PreviewMatch dry-runs routing for host and path without starting a server.
@@ -226,6 +247,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 			BackendType: backendTypeService,
 			Target:      backendTargetSummary(cfg.Fallback),
 			Auth:        authLabelFromBackend(cfg.Fallback),
+			HealthCheck: healthCheckLabelFromBackend(cfg.Fallback),
 			Fallback:    true,
 		}, nil
 	}
@@ -244,6 +266,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 		Target:      target,
 		WAF:         "inherit",
 		Auth:        authLabelFromService(svc),
+		HealthCheck: healthCheckLabelFromService(svc),
 	}, nil
 }
 
