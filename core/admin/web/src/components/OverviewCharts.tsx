@@ -112,7 +112,7 @@ const TimelinePanel = memo(function TimelinePanel({ metrics }: { metrics: Overvi
       </div>
       <div className="panel-body">
         <div className="timeline-chart">
-          {metrics.timeline.map((b, i) => (
+          {metrics.timeline.map((b) => (
             <TimelineCol key={b.label} bucket={b} max={maxTimeline} />
           ))}
         </div>
