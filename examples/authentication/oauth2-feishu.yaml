@@ -1,0 +1,46 @@
+# OAuth2 authentication with Feishu (飞书) + connect JWT headers
+#
+# Before using:
+#   1. Create a Feishu app at https://open.feishu.cn/app
+#   2. In "Security Settings", add the callback URL:
+#      http://oauth2-feishu.example.com/oauth2/callback
+#      (or https:// if using TLS)
+#   3. Copy your App ID as client_id and App Secret as client_secret below.
+#
+# Connect headers:
+#   When connect.enabled is true, ingress injects two headers into the upstream
+#   request after successful authentication:
+#     X-Connect-Token:     JWT containing the authenticated user's info
+#     X-Connect-Timestamp: Unix millisecond timestamp
+#   The upstream service can decode the JWT using the shared jwt.secret.
+#
+#   If connect is not needed (auth-only mode), omit the connect block entirely.
+
+port: 8080
+
+rules:
+  - host: oauth2-feishu.example.com
+    backend:
+      service:
+        mode: external
+        protocol: https
+        name: httpbin.zcorky.com
+        port: 443
+        auth:
+          type: oauth2
+          oauth2:
+            provider: feishu
+            client_id: "your-feishu-app-id"
+            client_secret: "your-feishu-app-secret"
+            scopes:
+              - "user:email"
+            # Optional: redirect_url — auto-generated from the request host if omitted.
+            # redirect_url: "https://oauth2-feishu.example.com/oauth2/callback"
+
+            # Optional: connect JWT headers for upstream user identification.
+            connect:
+              enabled: true
+              jwt:
+                secret: "your-shared-jwt-secret"
+                # algorithm: hs256       # optional, default hs256
+                # expires_in: "5m"       # optional, default 5m

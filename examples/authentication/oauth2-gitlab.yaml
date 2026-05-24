@@ -1,0 +1,32 @@
+# OAuth2 authentication with GitLab
+#
+# Register a GitLab OAuth application at:
+#   GitLab.com:  https://gitlab.com/-/profile/applications
+#   Self-hosted: https://<your-gitlab>/-/profile/applications
+#
+# Required scopes: openid, read_user
+# Callback URL:   http://oauth2-gitlab.example.com/oauth2/callback
+
+port: 8080
+
+rules:
+  - host: oauth2-gitlab.example.com
+    backend:
+      service:
+        mode: external
+        protocol: https
+        name: httpbin.zcorky.com
+        port: 443
+        auth:
+          type: oauth2
+          oauth2:
+            provider: gitlab
+            client_id: "your-gitlab-application-id"
+            client_secret: "your-gitlab-secret"
+            scopes:
+              - "openid"
+              - "read_user"
+            connect:
+              enabled: true
+              jwt:
+                secret: "your-shared-secret"

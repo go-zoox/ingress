@@ -51,8 +51,16 @@ const (
 	// auth type selector
 	authTypeBasic  = "basic"
 	authTypeBearer = "bearer"
+	authTypeOAuth2 = "oauth2"
 
 	// WWW-Authenticate challenge values
 	authChallengeBasic  = "Basic realm=\"Restricted\""
 	authChallengeBearer = "Bearer"
+
+	// OAuth2 callback path and session keys
+	oauth2CallbackPath           = "/oauth2/callback"
+	oauth2SessionState           = "ingress_oauth2_state"
+	oauth2SessionToken           = "ingress_oauth2_token"
+	oauth2SessionUser            = "ingress_oauth2_user"
+	oauth2SessionRedirect        = "ingress_oauth2_redirect"
 )

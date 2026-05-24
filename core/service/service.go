@@ -71,11 +71,7 @@ type Auth struct {
 	Secret string `config:"secret"`
 
 	// type: oauth2
-	Provider     string   `config:"provider"`
-	ClientID     string   `config:"client_id"`
-	ClientSecret string   `config:"client_secret"`
-	RedirectURL  string   `config:"redirect_url"`
-	Scopes       []string `config:"scopes"`
+	OAuth2 OAuth2Auth `config:"oauth2"`
 
 	// type: oidc
 
@@ -93,4 +89,24 @@ type BasicUser struct {
 
 type BearerAuth struct {
 	Tokens []string `config:"tokens"`
+}
+
+type OAuth2Auth struct {
+	Provider     string        `config:"provider"`
+	ClientID     string        `config:"client_id"`
+	ClientSecret string        `config:"client_secret"`
+	RedirectURL  string        `config:"redirect_url"`
+	Scopes       []string      `config:"scopes"`
+	Connect      OAuth2Connect `config:"connect"`
+}
+
+type OAuth2Connect struct {
+	Enabled bool            `config:"enabled"`
+	JWT     OAuth2ConnectJWT `config:"jwt"`
+}
+
+type OAuth2ConnectJWT struct {
+	Secret    string `config:"secret"`
+	Algorithm string `config:"algorithm,default=hs256"`
+	ExpiresIn string `config:"expires_in,default=5m"`
 }

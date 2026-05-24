@@ -330,6 +330,28 @@ func (c *core) build() error {
 			return false, false, proxy.NewHTTPError(500, "Service configuration is invalid")
 		}
 
+		// Handle OAuth2 authentication flow (redirects, callbacks, session).
+		// This must run before the stateless ValidateAuth check because OAuth2
+		// uses a redirect-based flow that writes its own response.
+		if serviceIns.Auth.Type == authTypeOAuth2 {
+			redirected, err := serviceIns.ValidateOAuth2(ctx)
+			if err != nil {
+				c.app.Logger().Warnf("oauth2 authentication failed for host: %s: %s", hostname, err)
+				ctx.Status(http.StatusUnauthorized)
+				ctx.String(http.StatusUnauthorized, "Unauthorized")
+				return false, true, nil
+			}
+			if redirected {
+				return false, true, nil
+			}
+			// OAuth2 authenticated — inject connect headers to upstream if enabled.
+			if serviceIns.Auth.OAuth2.Connect.Enabled {
+				if err := serviceIns.InjectConnectHeaders(ctx); err != nil {
+					c.app.Logger().Warnf("failed to inject connect headers: %v", err)
+				}
+			}
+		}
+
 		// Validate client authentication before processing request
 		if err := serviceIns.ValidateAuth(ctx.Request); err != nil {
 			c.app.Logger().Warnf("authentication failed for host: %s, path: %s: %s", hostname, path, err)

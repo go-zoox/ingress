@@ -142,7 +142,27 @@ curl -H "Authorization: Bearer <jwt-token>" http://example.com/api
 
 ## OAuth2 Authentication
 
-OAuth2 authentication supports OAuth 2.0 flow.
+OAuth2 authentication enables a redirect-based login flow using third-party identity providers.
+When a user visits a protected route without a valid session, ingress redirects them to the
+provider's authorization page. After successful login, the provider redirects back to ingress,
+which stores the user session and forwards the request to the upstream service.
+
+### Supported Providers
+
+| Provider | Identifier |
+|----------|-----------|
+| GitHub | `github` |
+| GitLab | `gitlab` |
+| Google | `google` |
+| Microsoft | `microsoft` |
+| Feishu (飞书) | `feishu` |
+| Slack | `slack` |
+| Kakao | `kakao` |
+| Auth0 | `auth0` |
+| Okta | `okta` |
+| Doreamon | `doreamon` |
+
+### Basic Configuration
 
 ```yaml
 rules:
@@ -153,15 +173,110 @@ rules:
         port: 8080
         auth:
           type: oauth2
-          provider: google
-          client_id: your-client-id
-          client_secret: your-client-secret
-          redirect_url: https://example.com/callback
-          scopes:
-            - openid
-            - profile
-            - email
+          oauth2:
+            provider: github
+            client_id: your-github-client-id
+            client_secret: your-github-client-secret
+            # scopes is optional — defaults are provider-specific
+            scopes:
+              - user:email
 ```
+
+**Required fields:**
+
+| Field | Description |
+|-------|-------------|
+| `type` | Must be `oauth2` |
+| `oauth2.provider` | Identity provider name (see table above) |
+| `oauth2.client_id` | OAuth application client ID |
+| `oauth2.client_secret` | OAuth application client secret |
+
+**Optional fields:**
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `oauth2.scopes` | Provider-specific (see below) | OAuth scopes to request |
+| `oauth2.redirect_url` | Auto-generated from request host | Custom callback URL |
+
+**Default scopes per provider:**
+
+| Provider | Default scopes |
+|----------|---------------|
+| GitHub | `user:email` |
+| GitLab | `read_user` |
+| Google | `openid profile email` |
+| Microsoft | `openid profile email` |
+| Feishu | `user:email` |
+| Slack | `users:read` |
+| Auth0 | `openid profile email` |
+| Okta | `openid profile email` |
+| Doreamon / Kakao | *(provider default)* |
+
+The callback path is always `/oauth2/callback` (fixed). The full redirect URL is
+auto-generated from the incoming request's scheme and host, e.g.
+`http://example.com/oauth2/callback`.
+
+### Connect JWT Headers
+
+When `connect.enabled` is `true`, ingress injects user identity headers into the upstream
+request after successful OAuth2 authentication. This allows the backend service to identify
+the authenticated user without re-implementing the OAuth2 flow.
+
+```yaml
+rules:
+  - host: example.com
+    backend:
+      service:
+        name: backend-service
+        port: 8080
+        auth:
+          type: oauth2
+          oauth2:
+            provider: github
+            client_id: your-client-id
+            client_secret: your-client-secret
+            scopes:
+              - user:email
+            connect:
+              enabled: true
+              jwt:
+                secret: your-shared-jwt-secret
+                algorithm: hs256       # optional, default: hs256
+                expires_in: "5m"       # optional, default: 5m
+```
+
+**Injected headers:**
+
+| Header | Description |
+|--------|-------------|
+| `X-Connect-Token` | JWT containing `id`, `username`, `email`, `nickname`, `avatar` |
+| `X-Connect-Timestamp` | Unix millisecond timestamp of token issuance |
+
+**JWT decoding by the upstream (example in Go):**
+
+```go
+import "github.com/go-zoox/jwt"
+
+token := r.Header.Get("X-Connect-Token")
+j := jwt.New("your-shared-jwt-secret")
+claims, err := j.Verify(token)
+if err != nil {
+    // invalid token
+}
+userID := claims.Get("id").String()
+```
+
+### Authentication Flow
+
+1. Client visits `https://example.com/protected`
+2. Ingress detects no session → generates CSRF state → redirects to provider login
+3. User authenticates with the provider
+4. Provider redirects to `https://example.com/oauth2/callback?code=xxx&state=yyy`
+5. Ingress validates state, exchanges code for token, fetches user info
+6. User info is stored in an encrypted session cookie
+7. Client is redirected back to the original URL (`/protected`)
+8. On subsequent requests, the session cookie identifies the authenticated user
+9. If `connect.enabled: true`, `X-Connect-Token` and `X-Connect-Timestamp` are injected into the upstream request
 
 ## OIDC Authentication
 
