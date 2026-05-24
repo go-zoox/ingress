@@ -1,5 +1,5 @@
 # Admin web UI (embedded into Go binary via core/admin/static)
-FROM node:22-alpine AS web
+FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 
 WORKDIR /build/core/admin/web
 
