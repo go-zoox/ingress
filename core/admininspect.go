@@ -30,6 +30,7 @@ type RouteRow struct {
 type MatchPreview struct {
 	Matched     bool   `json:"matched"`
 	RuleIndex   int    `json:"rule_index"`
+	PathIndex   int    `json:"path_index"`
 	Host        string `json:"host"`
 	HostType    string `json:"host_type"`
 	Path        string `json:"path"`
@@ -213,6 +214,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 	bt := getBackendType(t.Backend)
 	target := backendTargetSummary(t.Backend)
 	matchedPath := "/"
+	matchedPathIndex := -1
 	var svc *service.Service = hm.Service
 
 	if hm.IsPathsExist && hm.ruleIndex >= 0 {
@@ -222,6 +224,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 				return &MatchPreview{
 					Matched:   false,
 					RuleIndex: hm.ruleIndex,
+					PathIndex: -1,
 					Host:      t.Host,
 					HostType:  t.HostType,
 					Message:   "host matched but path did not",
@@ -234,6 +237,13 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 			matchedPath = mp.Path
 			bt = getBackendType(mp.Backend)
 			target = backendTargetSummary(mp.Backend)
+			// locate the path index for precise UI highlighting
+			for j := range t.Paths {
+				if &t.Paths[j] == mp {
+					matchedPathIndex = j
+					break
+				}
+			}
 		}
 	}
 
@@ -241,6 +251,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 		return &MatchPreview{
 			Matched:     true,
 			RuleIndex:   -1,
+			PathIndex:   -1,
 			Host:        fallbackRuleHost,
 			HostType:    hostTypeExact,
 			Path:        matchedPath,
@@ -259,6 +270,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 	return &MatchPreview{
 		Matched:     true,
 		RuleIndex:   hm.ruleIndex,
+		PathIndex:   matchedPathIndex,
 		Host:        t.Host,
 		HostType:    t.HostType,
 		Path:        matchedPath,
