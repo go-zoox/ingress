@@ -172,7 +172,9 @@ export function TopologySVG({ layout, onNodeClick, highlightIds }: TopologySVGPr
           {nodes.map((n) => {
             const highlighted = highlightIds?.has(n.id)
             const borderColor = highlighted ? 'var(--accent)' : statusColor(n.status)
-            const icon = n.type === 'host' ? '◉' : n.type === 'path' ? '/' : '■'
+            const icon =
+              n.type === 'host' ? '◉' : n.type === 'path' ? '◇' : n.type === 'backend' ? '■' : ''
+            const labelX = icon ? n.x + 28 : n.x + 10
             return (
               <g
                 key={n.id}
@@ -194,18 +196,20 @@ export function TopologySVG({ layout, onNodeClick, highlightIds }: TopologySVGPr
                   strokeWidth={highlighted ? 2.5 : 1.5}
                   className="topology-node-rect"
                 />
+                {icon ? (
+                  <text
+                    x={n.x + 10}
+                    y={n.y + NODE_H / 2}
+                    dominantBaseline="central"
+                    fill={borderColor}
+                    fontSize={12}
+                    fontFamily="var(--mono)"
+                  >
+                    {icon}
+                  </text>
+                ) : null}
                 <text
-                  x={n.x + 10}
-                  y={n.y + NODE_H / 2}
-                  dominantBaseline="central"
-                  fill={borderColor}
-                  fontSize={12}
-                  fontFamily="var(--mono)"
-                >
-                  {icon}
-                </text>
-                <text
-                  x={n.x + 28}
+                  x={labelX}
                   y={n.y + NODE_H / 2}
                   dominantBaseline="central"
                   fill="var(--text)"

@@ -1,19 +1,25 @@
 import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { Circle, Radio, RefreshCw } from 'lucide-react'
-import { VersionConsistencyBadge } from './VersionConsistencyBadge'
+import { ConfigGovernanceBadges } from './ConfigGovernanceBadges'
 
 type Props = {
   reloadReady: boolean
   configHash: string
+  runtimeHash?: string
   latestHash: string
+  runtimeDrift?: boolean
+  revisionDrift?: boolean
   sseConnected: boolean
 }
 
 export const SidebarGlobalStatus = memo(function SidebarGlobalStatus({
   reloadReady,
   configHash,
+  runtimeHash,
   latestHash,
+  runtimeDrift,
+  revisionDrift,
   sseConnected,
 }: Props) {
   return (
@@ -25,7 +31,13 @@ export const SidebarGlobalStatus = memo(function SidebarGlobalStatus({
       <div className="status-line">
         <span className="status-label">配置 hash</span>
         <code>{configHash ? configHash.slice(0, 8) : '—'}</code>
-        <VersionConsistencyBadge runningHash={configHash} latestHash={latestHash} />
+        <ConfigGovernanceBadges
+          fileHash={configHash}
+          runtimeHash={runtimeHash}
+          latestRevisionHash={latestHash}
+          runtimeDrift={runtimeDrift}
+          revisionDrift={revisionDrift}
+        />
       </div>
       <div className={`status-line ${sseConnected ? 'ok' : ''}`}>
         <Radio size={12} aria-hidden />

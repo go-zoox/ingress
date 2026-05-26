@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { ConfigModulesPanel, type ConfigModulesPanelHandle } from '../components/ConfigModulesPanel'
 import { ConfigVersionsPanel } from '../components/ConfigVersionsPanel'
+import { ConfigGovernanceBanner } from '../components/ConfigGovernanceBanner'
+import { ConfigChangeTimeline } from '../components/ConfigChangeTimeline'
+import { RollbackConfirmModal } from '../components/RollbackConfirmModal'
+import { api, type ConfigRevisionSummary, type IngressStatus } from '../api/client'
 import { DiffModal } from '../components/DiffModal'
 import { PreviewModal } from '../components/PreviewModal'
 import { PublishModal } from '../components/PublishModal'
 import { ToastContainer, useToast } from '../components/Toast'
-import { api } from '../api/client'
 import { buildDiff, escapeHtml } from '../lib/config'
 import { useUndo } from '../hooks/useUndo'
 
@@ -23,6 +26,8 @@ export function ConfigPage() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [diffOpen, setDiffOpen] = useState(false)
   const [diffHtml, setDiffHtml] = useState('')
+  const [gov, setGov] = useState<IngressStatus | null>(null)
+  const [rollbackRevision, setRollbackRevision] = useState<ConfigRevisionSummary | null>(null)
   const { toast, show, clear } = useToast()
   const loaded = useRef(false)
   const modulesRef = useRef<ConfigModulesPanelHandle>(null)
@@ -41,7 +46,12 @@ export function ConfigPage() {
         loaded.current = true
       })
       .catch((e: Error) => setErr(e.message))
+    api.status().then(setGov).catch(() => setGov(null))
   }, [])
+
+  const refreshGovernance = () => {
+    api.status().then(setGov).catch(() => setGov(null))
+  }
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -125,6 +135,23 @@ export function ConfigPage() {
         desc="分模块编辑 ingress.yaml → 预览变更 → 保存版本 → 发布 reload"
       />
       {err && <p className="err">{err}</p>}
+      <ConfigGovernanceBanner
+        runtimeDrift={gov?.runtime_drift}
+        revisionDrift={gov?.revision_drift}
+        reloadReady={gov?.reload_ready}
+        fileHash={gov?.file_hash || gov?.config_hash}
+        runtimeHash={gov?.runtime_hash}
+        latestRevisionHash={gov?.latest_revision_hash}
+        onReload={async () => {
+          try {
+            await api.reload()
+            show('已触发 reload')
+            refreshGovernance()
+          } catch (e: unknown) {
+            show(e instanceof Error ? e.message : String(e), 'error')
+          }
+        }}
+      />
       <div className="panel">
         <div className="panel-head config-panel-head">
           <div className="config-view-tabs">
@@ -147,7 +174,7 @@ export function ConfigPage() {
               className={`config-view-tab ${view === 'versions' ? 'active' : ''}`}
               onClick={() => setView('versions')}
             >
-              版本
+              版本与变更
             </button>
             {dirty && (
               <span className="config-draft-badge">
@@ -236,7 +263,15 @@ export function ConfigPage() {
               <div style={{ marginTop: 12 }} dangerouslySetInnerHTML={{ __html: validateOut }} />
             </>
           )}
-          {view === 'versions' && <ConfigVersionsPanel onRestore={restoreDraft} />}
+          {view === 'versions' && (
+            <>
+              <ConfigChangeTimeline
+                onRestore={restoreDraft}
+                onRollback={(rev) => setRollbackRevision(rev)}
+              />
+              <ConfigVersionsPanel onRestore={restoreDraft} />
+            </>
+          )}
         </div>
       </div>
       <PreviewModal
@@ -255,8 +290,25 @@ export function ConfigPage() {
           setSaved(content)
           undoState.reset(content)
           show('配置已发布并 reload')
+          refreshGovernance()
         }}
       />
+      {rollbackRevision ? (
+        <RollbackConfirmModal
+          revision={rollbackRevision}
+          onConfirm={() => {
+            setRollbackRevision(null)
+            api.getConfig().then((r) => {
+              setContent(r.content)
+              setSaved(r.content)
+              undoState.reset(r.content)
+            })
+            refreshGovernance()
+            show('已回滚并 reload')
+          }}
+          onCancel={() => setRollbackRevision(null)}
+        />
+      ) : null}
       <DiffModal open={diffOpen} diffHtml={diffHtml} onClose={() => setDiffOpen(false)} />
       {toast && <ToastContainer message={toast.message} type={toast.type} onDone={clear} />}
     </div>

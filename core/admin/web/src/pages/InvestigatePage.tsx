@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Network, RefreshCw, ScrollText, Search, Settings2, Shield } from 'lucide-react'
+import { Copy, Network, RefreshCw, ScrollText, Search, Settings2, Shield } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
+import { InvestigateHistoryPanel } from '../components/investigate/InvestigateHistoryPanel'
 import { InvestigateLatencyBar } from '../components/investigate/InvestigateLatencyBar'
 import { InvestigateMatchPanel } from '../components/investigate/InvestigateMatchPanel'
 import { InvestigatePolicyPanel } from '../components/investigate/InvestigatePolicyPanel'
+import { InvestigateRouteMetrics } from '../components/investigate/InvestigateRouteMetrics'
 import { InvestigateSamplesTable } from '../components/investigate/InvestigateSamplesTable'
 import { api, type InvestigateResult } from '../api/client'
 import { configLink, logsLink, routesTabLink, wafLink } from '../lib/deepLinks'
+import { pushInvestigateHistory } from '../lib/investigateHistory'
+import { copyInvestigateLink } from '../lib/investigateShare'
 
 function queryFromSearchParams(sp: URLSearchParams) {
   const ri = sp.get('ri')
@@ -35,6 +39,8 @@ export function InvestigatePage() {
   const [loadError, setLoadError] = useState('')
   const [inputError, setInputError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [historyVersion, setHistoryVersion] = useState(0)
+  const [copyHint, setCopyHint] = useState('')
 
   useEffect(() => {
     setHostInput(urlQuery.host)
@@ -62,6 +68,8 @@ export function InvestigatePage() {
           pi: q.pi,
         })
         setData(result)
+        pushInvestigateHistory({ host, path, method: q.method })
+        setHistoryVersion((v) => v + 1)
       } catch (e) {
         setLoadError((e as Error).message)
         setData(null)
@@ -115,6 +123,23 @@ export function InvestigatePage() {
 
   const anchorSample = data?.samples?.[0]
   const match = data?.match ?? null
+  const showRouteMetrics =
+    match?.matched && match.path_index != null && match.path_index >= 0
+
+  const copyLink = async () => {
+    if (!urlQuery.host) return
+    const ok = await copyInvestigateLink({
+      host: urlQuery.host,
+      path: urlQuery.path,
+      method: urlQuery.method,
+      status: urlQuery.status,
+      ri: urlQuery.ri,
+      pi: urlQuery.pi,
+      client_ip: urlQuery.client_ip,
+    })
+    setCopyHint(ok ? '已复制链接' : '复制失败')
+    window.setTimeout(() => setCopyHint(''), 2000)
+  }
 
   return (
     <div className="page investigate-page">
@@ -122,14 +147,25 @@ export function InvestigatePage() {
         title="请求调查"
         desc="聚合路由裁决、访问样本、策略与健康状态，用于排查慢请求、5xx 与 WAF 拦截"
         actions={
-          <button
-            type="button"
-            className="btn btn-sm"
-            disabled={loading || !urlQuery.host}
-            onClick={() => runLoad(urlQuery)}
-          >
-            <RefreshCw size={14} aria-hidden /> 刷新
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              disabled={!urlQuery.host}
+              onClick={copyLink}
+            >
+              <Copy size={14} aria-hidden /> 复制链接
+            </button>
+            {copyHint ? <span className="chart-hint">{copyHint}</span> : null}
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={loading || !urlQuery.host}
+              onClick={() => runLoad(urlQuery)}
+            >
+              <RefreshCw size={14} aria-hidden /> 刷新
+            </button>
+          </>
         }
       />
 
@@ -172,6 +208,15 @@ export function InvestigatePage() {
           {inputError ? <p className="err" style={{ gridColumn: '1 / -1', margin: '8px 0 0' }}>{inputError}</p> : null}
           {urlQuery.method ? <span className="investigate-tag">method={urlQuery.method}</span> : null}
           {urlQuery.status ? <span className="investigate-tag">status={urlQuery.status}</span> : null}
+        </div>
+      </div>
+
+      <div className="panel investigate-history-panel">
+        <div className="panel-head">
+          <h2>最近调查</h2>
+        </div>
+        <div className="panel-body">
+          <InvestigateHistoryPanel version={historyVersion} />
         </div>
       </div>
 
@@ -231,6 +276,21 @@ export function InvestigatePage() {
               <div className="card">
                 <div className="label">缓存命中</div>
                 <div className="value">{data.stats.cache_hit_rate.toFixed(1)}%</div>
+              </div>
+            </div>
+          ) : null}
+
+          {showRouteMetrics ? (
+            <div className="panel">
+              <div className="panel-head">
+                <h2>路由指标</h2>
+                <span className="chart-hint">15m · 规则 #{match!.rule_index}</span>
+              </div>
+              <div className="panel-body">
+                <InvestigateRouteMetrics
+                  ruleIndex={match!.rule_index}
+                  pathIndex={match!.path_index}
+                />
               </div>
             </div>
           ) : null}

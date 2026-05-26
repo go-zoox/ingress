@@ -4,6 +4,7 @@ import { Activity, Filter } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { api } from '../api/client'
 import { buildEventsFeed, type FeedEvent } from '../lib/buildEventsFeed'
+import { runbookForEvent } from '../lib/eventRunbook'
 
 type KindFilter = 'all' | 'waf' | 'health' | 'tls'
 
@@ -45,7 +46,7 @@ export function EventsPage() {
     <div className="page">
       <PageHeader
         title="事件"
-        desc="聚合 WAF 拦截、健康检查 DOWN 与证书告警；点击可带筛选跳转处理页"
+        desc="聚合 WAF 拦截、健康检查 DOWN 与证书告警；含 Runbook 处理建议与调查深链"
         actions={
           <button type="button" className="btn btn-sm" onClick={load}>
             刷新
@@ -86,6 +87,20 @@ export function EventsPage() {
                       {e.time ? (
                         <time className="events-feed-time">{formatTime(e.time)}</time>
                       ) : null}
+                      <ul className="events-runbook">
+                        {runbookForEvent(e).map((step, i) => (
+                          <li key={i}>
+                            {step.href ? (
+                              <Link to={step.href}>
+                                {step.text}
+                                {step.label ? `（${step.label}）` : ''}
+                              </Link>
+                            ) : (
+                              <span>{step.text}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
                   <div className="events-feed-actions">

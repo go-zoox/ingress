@@ -19,11 +19,41 @@ type WAFAuditFilter struct {
 	Limit     int
 }
 
+// AuditLogRow is a list entry for the admin change timeline.
+type AuditLogRow struct {
+	ID        uint      `json:"id"`
+	Action    string    `json:"action"`
+	Detail    string    `json:"detail"`
+	Actor     string    `json:"actor"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // Audit writes admin audit rows.
 type Audit struct{}
 
 func NewAudit() *Audit {
 	return &Audit{}
+}
+
+func (a *Audit) List(limit int) ([]AuditLogRow, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	var rows []model.AuditLog
+	if err := gormx.GetDB().Order("created_at desc, id desc").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]AuditLogRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, AuditLogRow{
+			ID:        row.ID,
+			Action:    row.Action,
+			Detail:    row.Detail,
+			Actor:     row.Actor,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return out, nil
 }
 
 func (a *Audit) Record(action, detail, actor string) error {

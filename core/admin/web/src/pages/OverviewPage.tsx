@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { OverviewCharts } from '../components/OverviewCharts'
 import { OverviewAttentionPanel } from '../components/OverviewAttentionPanel'
 import { PageHeader } from '../components/PageHeader'
-import { VersionConsistencyBadge } from '../components/VersionConsistencyBadge'
+import { ConfigGovernanceBadges } from '../components/ConfigGovernanceBadges'
 import {
   api,
   type OverviewMetrics,
@@ -12,6 +12,7 @@ import {
   type ConfigRevisionSummary,
   type HealthCheckResult,
   type HealthSummary,
+  type IngressStatus,
 } from '../api/client'
 import { useSSE } from '../hooks/useSSE'
 import { loadPreferences, savePreferences } from '../lib/preferences'
@@ -27,7 +28,7 @@ const WINDOW_OPTIONS = [
 
 export function OverviewPage() {
   const navigate = useNavigate()
-  const [status, setStatus] = useState<Record<string, unknown> | null>(null)
+  const [status, setStatus] = useState<IngressStatus | null>(null)
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [err, setErr] = useState('')
@@ -169,8 +170,9 @@ export function OverviewPage() {
 
   const reloadReady = Boolean(status.reload_ready)
   const wafLabel = status.waf_enabled ? (status.waf_log_only ? 'WAF 审计' : 'WAF 拦截') : 'WAF 关'
-  const runningHash = String(status.config_hash || '')
-  const latestHash = revisions.length > 0 ? revisions[0].hash : ''
+  const fileHash = String(status.file_hash || status.config_hash || '')
+  const runtimeHash = String(status.runtime_hash || '')
+  const latestHash = String(status.latest_revision_hash || (revisions.length > 0 ? revisions[0].hash : ''))
 
   return (
     <div className="page overview-page">
@@ -249,8 +251,14 @@ export function OverviewPage() {
             value={String(status.version || 'ingress')}
             sub={
               <>
-                hash {String(status.config_hash || '—').slice(0, 8)}…
-                <VersionConsistencyBadge runningHash={runningHash} latestHash={latestHash} />
+                hash {fileHash.slice(0, 8)}…
+                <ConfigGovernanceBadges
+                  fileHash={fileHash}
+                  runtimeHash={runtimeHash}
+                  latestRevisionHash={latestHash}
+                  runtimeDrift={status.runtime_drift}
+                  revisionDrift={status.revision_drift}
+                />
               </>
             }
           />

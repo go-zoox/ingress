@@ -21,5 +21,8 @@ func (c *core) ReloadFromFile() error {
 	if err := waf.ApplyRulePatchesFromFile(c.configFilePath, cfg.Rules); err != nil {
 		return fmt.Errorf("waf patches: %w", err)
 	}
-	return c.Reload(&cfg)
+	if err := c.Reload(&cfg); err != nil {
+		return err
+	}
+	return nil
 }
