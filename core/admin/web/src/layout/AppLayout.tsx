@@ -6,7 +6,7 @@ const nav = [
   { to: '/', label: '总览', icon: '◉', end: true },
   { to: '/routes', label: '路由', icon: '⇄' },
   { to: '/topology', label: '拓扑', icon: '◈' },
-  { to: '/health', label: '健康检查', icon: '♥' },
+  { to: '/healths', label: '健康检查', icon: '♥' },
   { to: '/cache', label: '缓存', icon: '◫' },
   { to: '/waf', label: 'WAF', icon: '⛨' },
   { to: '/tls', label: 'TLS', icon: '🔒' },

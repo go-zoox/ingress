@@ -36,7 +36,7 @@ func (a *Audit) Record(action, detail, actor string) error {
 	return gormx.GetDB().Create(row).Error
 }
 
-func (a *Audit) RecordWAFEvent(action, rule, host, path, clientIP string) error {
+func (a *Audit) RecordWAFEvent(action, rule, host, path, clientIP string) (*model.WAFEvent, error) {
 	row := &model.WAFEvent{
 		Action:    action,
 		Rule:      rule,
@@ -45,7 +45,10 @@ func (a *Audit) RecordWAFEvent(action, rule, host, path, clientIP string) error 
 		ClientIP:  clientIP,
 		CreatedAt: time.Now(),
 	}
-	return gormx.GetDB().Create(row).Error
+	if err := gormx.GetDB().Create(row).Error; err != nil {
+		return nil, err
+	}
+	return row, nil
 }
 
 // ListWAFEvents queries WAF events with optional filters.
@@ -79,6 +82,16 @@ func (a *Audit) ListWAFEvents(f WAFAuditFilter) ([]model.WAFEvent, error) {
 	}
 	err := q.Order("created_at desc").Limit(f.Limit).Find(&rows).Error
 	return rows, err
+}
+
+// GetWAFEvent returns one WAF event by id.
+func (a *Audit) GetWAFEvent(id uint) (*model.WAFEvent, error) {
+	var row model.WAFEvent
+	err := gormx.GetDB().First(&row, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
 }
 
 // distinctWAFHosts returns distinct host values from waf_events for filter dropdowns.

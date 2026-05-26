@@ -124,34 +124,53 @@ export function LogsPage() {
 
   useEffect(() => {
     if (!live || intervalMs <= 0) return
-    // Use SSE when connected, otherwise fall back to polling
+    // Prefer SSE push; poll as fallback when SSE is not connected
     if (sseConnected) return
     const id = window.setInterval(() => fetchLogs(true), intervalMs)
     return () => window.clearInterval(id)
-  }, [live, intervalMs, fetchLogs, logKind, q, host, status, cacheHit, wafBlock, sseConnected])
+  }, [live, intervalMs, fetchLogs, sseConnected])
 
-  // Handle SSE log data
+  // When enabling live mode, reset tail offset and refresh once
   useEffect(() => {
-    if (live && sseData.logs) {
-      const logData = sseData.logs
-      if (typeof logData === 'string') {
-        setLines((prev) => {
-          const merged = [...prev, logData]
-          return merged.length > MAX_LINES ? merged.slice(-MAX_LINES) : merged
-        })
-        setCount((prev) => {
-          const n = parseInt(prev, 10)
-          return `${(Number.isNaN(n) ? 0 : n) + 1} 条`
-        })
-        setLastRefresh(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
-      } else if (Array.isArray(logData)) {
-        setLines((prev) => {
-          const merged = [...prev, ...logData.map(String)]
-          return merged.length > MAX_LINES ? merged.slice(-MAX_LINES) : merged
-        })
-      }
+    if (!live) return
+    offsetRef.current = 0
+    fetchLogs(false).then(() => {
+      // After initial snapshot, incremental tail uses file byte offset from API
+    })
+  }, [live, fetchLogs])
+
+  const appendLine = useCallback((line: string) => {
+    if (!line) return
+    setLines((prev) => {
+      const merged = [...prev, line]
+      return merged.length > MAX_LINES ? merged.slice(-MAX_LINES) : merged
+    })
+    setCount((prev) => {
+      const n = parseInt(prev, 10)
+      return `${(Number.isNaN(n) ? 0 : n) + 1} 条`
+    })
+    setLastRefresh(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
+  }, [])
+
+  // Handle SSE log data ({ line, kind } or raw string)
+  useEffect(() => {
+    if (!live || !sseData.logs) return
+    const logData = sseData.logs
+    if (typeof logData === 'string') {
+      appendLine(logData)
+      return
     }
-  }, [sseData.logs, live])
+    if (Array.isArray(logData)) {
+      for (const item of logData) appendLine(String(item))
+      return
+    }
+    if (typeof logData === 'object' && logData !== null) {
+      const row = logData as { line?: string; kind?: string }
+      const kind = row.kind || 'access'
+      if (filtersRef.current.logKind !== kind) return
+      if (row.line) appendLine(row.line)
+    }
+  }, [sseData.logs, live, appendLine])
 
   useEffect(() => {
     if (live && logEndRef.current) {

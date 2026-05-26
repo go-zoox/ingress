@@ -39,14 +39,15 @@ export function TopologyPage() {
       api.routes().catch(() => []),
       api.healthCheck().catch(() => ({ checks: [], summary: { total: 0, up: 0, down: 0, unknown: 0 } })),
       api.tlsCerts().catch(() => []),
-    ]).then(([routes, health, tls]) => {
-      setRows(Array.isArray(routes) ? routes : [])
-      setHealthChecks(health?.checks || [])
-      setCerts(Array.isArray(tls) ? tls : [])
-    }).catch((e: Error) => setErr(e.message))
+    ])
+      .then(([routes, health, tls]) => {
+        setRows(Array.isArray(routes) ? routes : [])
+        setHealthChecks(health?.checks || [])
+        setCerts(Array.isArray(tls) ? tls : [])
+      })
+      .catch((e: Error) => setErr(e.message))
   }, [])
 
-  // Build health map by backend target
   const healthMap = useMemo(() => {
     const m = new Map<string, string>()
     for (const h of healthChecks) {
@@ -55,7 +56,6 @@ export function TopologyPage() {
     return m
   }, [healthChecks])
 
-  // Build cert warning map by domain
   const certWarnMap = useMemo(() => {
     const m = new Map<string, string>()
     for (const c of certs) {
@@ -68,14 +68,18 @@ export function TopologyPage() {
   const layout = useMemo(() => computeLayout(rows, healthMap, certWarnMap), [rows, healthMap, certWarnMap])
 
   const handleNodeClick = (node: TopologyNode) => {
-    if (node.type === 'path' || node.type === 'backend') {
-      const ri = node.meta.ruleIndex as number
-      const pi = node.meta.pathIndex as number
-      if (ri != null && pi != null) {
-        navigate(`/routes/${ri}/${pi}`)
+    const ri = node.meta.ruleIndex as number | undefined
+    const pi = node.meta.pathIndex as number | undefined
+    if (ri != null && pi != null) {
+      navigate(`/routes/${ri}/${pi}`)
+      return
+    }
+    if (node.type === 'host') {
+      const host = node.label
+      const first = rows.find((r) => r.host === host)
+      if (first) {
+        navigate(`/routes/${first.rule_index}/${first.path_index}`)
       }
-    } else if (node.type === 'host') {
-      navigate('/routes')
     }
   }
 
@@ -83,7 +87,7 @@ export function TopologyPage() {
     <div className="page">
       <PageHeader
         title="拓扑"
-        desc="Host → Path → Backend 服务关系图，颜色标识健康状态"
+        desc="Host → Path → Backend 服务关系图；滚轮或工具栏缩放，拖拽平移"
       />
       {err && <p className="err">{err}</p>}
       <div className="topology-container">
@@ -116,21 +120,19 @@ function computeLayout(
     return { nodes: [], edges: [], width: 800, height: 300 }
   }
 
-  // Group rows by host
   const hostMap = new Map<string, RouteRow[]>()
   for (const r of rows) {
     if (!hostMap.has(r.host)) hostMap.set(r.host, [])
     hostMap.get(r.host)!.push(r)
   }
 
-  const colX = [80, 340, 600] // Host, Path, Backend columns
+  const colX = [80, 360, 640]
   const nodeH = 36
-  const gapY = 56
+  const gapY = 48
 
   const nodes: TopologyNode[] = []
   const edges: TopologyEdge[] = []
 
-  // Collect all unique nodes per layer
   type LayerNode = { id: string; label: string; status: string; meta: Record<string, unknown> }
   const hostNodes: LayerNode[] = []
   const pathNodes: LayerNode[] = []
@@ -140,11 +142,11 @@ function computeLayout(
   const seenPaths = new Set<string>()
   const seenBackends = new Set<string>()
 
-  // Host → Path edges and Path → Backend edges
   const hostPathEdges: { from: string; to: string; style: string }[] = []
   const pathBackendEdges: { from: string; to: string; style: string }[] = []
 
   for (const [host, hostRows] of hostMap.entries()) {
+    const firstRow = hostRows[0]
     if (!seenHosts.has(host)) {
       seenHosts.add(host)
       const certStatus = certWarnMap.get(host)
@@ -152,18 +154,22 @@ function computeLayout(
       if (certStatus === 'critical') status = 'down'
       else if (certStatus === 'warning') status = 'warn'
       else status = 'ok'
-      hostNodes.push({ id: `host:${host}`, label: host, status, meta: {} })
+      hostNodes.push({
+        id: `host:${host}`,
+        label: host,
+        status,
+        meta: { ruleIndex: firstRow.rule_index, pathIndex: firstRow.path_index },
+      })
     }
 
     for (const r of hostRows) {
-      if (r.path_index < 0) continue
-
-      const pathKey = `path:${host}:${r.path}`
+      const pathLabel = r.path_index < 0 ? `${r.path} (规则级)` : r.path
+      const pathKey = `path:${host}:${r.rule_index}:${r.path_index}`
       if (!seenPaths.has(pathKey)) {
         seenPaths.add(pathKey)
         pathNodes.push({
           id: pathKey,
-          label: r.path,
+          label: pathLabel,
           status: 'ok',
           meta: { ruleIndex: r.rule_index, pathIndex: r.path_index },
         })
@@ -176,20 +182,22 @@ function computeLayout(
         const healthStatus = healthMap.get(r.target) || 'unknown'
         backendNodes.push({
           id: backendKey,
-          label: r.target,
+          label: r.target || '(empty)',
           status: healthStatus,
           meta: { ruleIndex: r.rule_index, pathIndex: r.path_index },
         })
       }
-      pathBackendEdges.push({ from: pathKey, to: backendKey, style: healthMap.get(r.target) === 'down' ? 'danger' : 'solid' })
+      pathBackendEdges.push({
+        from: pathKey,
+        to: backendKey,
+        style: healthMap.get(r.target) === 'down' ? 'danger' : 'solid',
+      })
     }
   }
 
-  // Assign Y positions
   const maxLayerSize = Math.max(hostNodes.length, pathNodes.length, backendNodes.length, 1)
-  const totalHeight = maxLayerSize * (nodeH + gapY)
-  const width = 800
-  const height = Math.max(totalHeight + 100, 400)
+  const height = Math.max(maxLayerSize * (nodeH + gapY) + 120, 400)
+  const width = 920
 
   function assignPositions(layer: LayerNode[], colIdx: number) {
     const x = colX[colIdx]
@@ -212,7 +220,6 @@ function computeLayout(
   assignPositions(pathNodes, 1)
   assignPositions(backendNodes, 2)
 
-  // Collect all edges
   for (const e of hostPathEdges) edges.push(e)
   for (const e of pathBackendEdges) edges.push(e)
 

@@ -56,8 +56,12 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/routes/match", a.Match)
 	g.Post("/waf/toggle", a.WAFToggle)
 	g.Get("/waf/events", a.WAFEvents)
+	g.Get("/waf/events/:id", a.WAFEventDetail)
+	g.Post("/waf/match", a.WAFMatch)
 	g.Get("/waf/hosts", a.WAFHosts)
 	g.Get("/waf/rules", a.WAFRules)
+	g.Get("/waf/rules/catalog", a.WAFRulesCatalog)
+	g.Get("/waf/rules/catalog", a.WAFRulesCatalog)
 	g.Get("/tls/certs", a.TLSCerts)
 	g.Post("/tls/certs/check", a.TLSCertCheck)
 	g.Get("/cache/overview", a.CacheOverview)
@@ -186,6 +190,9 @@ func (a *API) WAFEvents(ctx *zoox.Context) {
 	if v := strings.TrimSpace(ctx.Query().Get("host").String()); v != "" {
 		f.Host = v
 	}
+	if v := strings.TrimSpace(ctx.Query().Get("path").String()); v != "" {
+		f.Path = v
+	}
 	if v := strings.TrimSpace(ctx.Query().Get("client_ip").String()); v != "" {
 		f.ClientIP = v
 	}
@@ -212,6 +219,36 @@ func (a *API) WAFEvents(ctx *zoox.Context) {
 	ok(ctx, rows)
 }
 
+func (a *API) WAFEventDetail(ctx *zoox.Context) {
+	id, err := strconv.ParseUint(strings.TrimSpace(ctx.Param().Get("id").String()), 10, 64)
+	if err != nil || id == 0 {
+		fail(ctx, http.StatusBadRequest, "invalid event id")
+		return
+	}
+	row, err := a.audit.GetWAFEvent(uint(id))
+	if err != nil {
+		fail(ctx, http.StatusNotFound, "event not found")
+		return
+	}
+	cfg, _ := a.ingress.LoadConfig()
+	detail := service.BuildWAFEventDetail(cfg, row)
+	ok(ctx, detail)
+}
+
+func (a *API) WAFMatch(ctx *zoox.Context) {
+	var body service.WAFTrialInput
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	out, err := a.ingress.TrialWAF(body)
+	if err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	ok(ctx, out)
+}
+
 func (a *API) WAFHosts(ctx *zoox.Context) {
 	hosts, err := a.audit.DistinctWAFHosts()
 	if err != nil {
@@ -234,6 +271,19 @@ func (a *API) WAFRules(ctx *zoox.Context) {
 		rules = []string{}
 	}
 	ok(ctx, rules)
+}
+
+func (a *API) WAFRulesCatalog(ctx *zoox.Context) {
+	cfg, err := a.ingress.LoadConfig()
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	catalog := service.WAFRulesCatalog(cfg)
+	if catalog == nil {
+		catalog = []service.WAFRuleDetail{}
+	}
+	ok(ctx, catalog)
 }
 
 func (a *API) TLSCerts(ctx *zoox.Context) {
@@ -456,6 +506,7 @@ func (a *API) Logs(ctx *zoox.Context) {
 		Kind:     kind,
 		Q:        strings.TrimSpace(ctx.Query().Get("q").String()),
 		Host:     strings.TrimSpace(ctx.Query().Get("host").String()),
+		Path:     strings.TrimSpace(ctx.Query().Get("path").String()),
 		Status:   strings.TrimSpace(ctx.Query().Get("status").String()),
 		CacheHit: strings.TrimSpace(ctx.Query().Get("cache_hit").String()),
 		WAFBlock: strings.TrimSpace(ctx.Query().Get("waf_block").String()),
@@ -494,6 +545,11 @@ func (a *API) Settings(ctx *zoox.Context) {
 // Broker returns the SSE broker instance.
 func (a *API) Broker() *service.SSEBroker {
 	return a.broker
+}
+
+// LogsService returns the logs service instance.
+func (a *API) LogsService() *service.Logs {
+	return a.logs
 }
 
 // Health returns the health check service instance.

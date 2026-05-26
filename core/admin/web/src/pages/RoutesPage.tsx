@@ -127,23 +127,18 @@ export function RoutesPage() {
                             </thead>
                             <tbody>
                               {hostRows.map((r) => {
-                                const isHostRow = r.path_index === -1
                                 const isMatched =
                                   match?.matched &&
                                   r.rule_index === matchedRuleIndex &&
-                                  (isHostRow
-                                    ? (matchedPathIndex == null || matchedPathIndex < 0)
-                                    : r.path_index === matchedPathIndex)
+                                  r.path_index === matchedPathIndex
                                 return (
                                   <tr
                                     key={r.id}
                                     className={`${isMatched ? 'match-highlight' : ''} route-row-clickable`}
                                     onClick={() => {
-                                      if (!isHostRow) {
-                                        navigate(`/routes/${r.rule_index}/${r.path_index}`)
-                                      }
+                                      navigate(`/routes/${r.rule_index}/${r.path_index}`)
                                     }}
-                                    style={{ cursor: isHostRow ? 'default' : 'pointer' }}
+                                    style={{ cursor: 'pointer' }}
                                   >
                                     <td>{r.path}</td>
                                     <td>{r.backend_type}</td>

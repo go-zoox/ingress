@@ -6,10 +6,17 @@ const MAX_RECONNECT = 3
 /** Polling interval in milliseconds when SSE is unavailable. */
 const POLL_INTERVAL_MS = 2000
 
+/** Known SSE event actions per channel (server sends event: channel:action). */
+const CHANNEL_ACTIONS: Record<string, string[]> = {
+  logs: ['line'],
+  waf: ['event'],
+  metrics: ['update'],
+  health: ['update'],
+}
+
 /**
  * useSSE manages an EventSource connection to the admin SSE endpoint.
- * On connection failure it retries up to MAX_RECONNECT times, then
- * falls back to setInterval polling.
+ * Custom SSE event types require addEventListener (onmessage only handles the default event).
  */
 export function useSSE(channels: string[] = []) {
   const [data, setData] = useState<Record<string, unknown>>({})
@@ -44,7 +51,6 @@ export function useSSE(channels: string[] = []) {
   const startPolling = useCallback(() => {
     setFallbackPolling(true)
     setConnected(false)
-    // Poll each relevant API endpoint at POLL_INTERVAL_MS
     pollTimerRef.current = window.setInterval(async () => {
       try {
         const res = await fetch('/api/v1/metrics/overview?window=15m')
@@ -57,8 +63,17 @@ export function useSSE(channels: string[] = []) {
     }, POLL_INTERVAL_MS)
   }, [])
 
+  const handleEvent = useCallback((eventType: string, raw: string) => {
+    const channel = eventType.split(':')[0] || 'unknown'
+    try {
+      const parsed = JSON.parse(raw)
+      setData((prev) => ({ ...prev, [channel]: parsed }))
+    } catch {
+      setData((prev) => ({ ...prev, [channel]: raw }))
+    }
+  }, [])
+
   const connect = useCallback(() => {
-    // Clean up any existing connection
     if (esRef.current) {
       esRef.current.close()
       esRef.current = null
@@ -80,16 +95,22 @@ export function useSSE(channels: string[] = []) {
       reconnectCountRef.current = 0
     }
 
+    // Default message event (e.g. connected)
     es.onmessage = (evt) => {
-      try {
-        const parsed = JSON.parse(evt.data)
-        // Determine channel from event type format "channel:action"
-        const eventType = (evt as MessageEvent).type ?? ''
-        const channel = eventType.split(':')[0] || 'unknown'
-        setData((prev) => ({ ...prev, [channel]: parsed }))
-      } catch {
-        // If data is not JSON, store as raw string
-        setData((prev) => ({ ...prev, raw: evt.data }))
+      if (evt.data) {
+        handleEvent('message', evt.data)
+      }
+    }
+
+    // Named events: logs:line, waf:event, metrics:update, health:update
+    for (const ch of channelsRef.current) {
+      const actions = CHANNEL_ACTIONS[ch] ?? ['update', 'line', 'event']
+      for (const action of actions) {
+        const eventName = `${ch}:${action}`
+        es.addEventListener(eventName, (evt) => {
+          const e = evt as MessageEvent
+          handleEvent(eventName, e.data)
+        })
       }
     }
 
@@ -98,17 +119,17 @@ export function useSSE(channels: string[] = []) {
       reconnectCountRef.current += 1
 
       if (reconnectCountRef.current >= MAX_RECONNECT) {
-        // Give up on SSE, fall back to polling
         es.close()
         esRef.current = null
         setError(new Error('SSE connection failed, falling back to polling'))
         startPolling()
       } else {
-        setError(new Error(`SSE connection lost (attempt ${reconnectCountRef.current}/${MAX_RECONNECT})`))
-        // EventSource will auto-reconnect; just update state
+        setError(
+          new Error(`SSE connection lost (attempt ${reconnectCountRef.current}/${MAX_RECONNECT})`),
+        )
       }
     }
-  }, [buildURL, startPolling])
+  }, [buildURL, startPolling, handleEvent])
 
   useEffect(() => {
     connect()
@@ -117,7 +138,6 @@ export function useSSE(channels: string[] = []) {
     }
   }, [connect, close])
 
-  // Close on page unload
   useEffect(() => {
     const onUnload = () => close()
     window.addEventListener('beforeunload', onUnload)

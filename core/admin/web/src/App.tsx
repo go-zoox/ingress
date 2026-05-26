@@ -22,7 +22,8 @@ export default function App() {
           <Route path="routes" element={<RoutesPage />} />
           <Route path="routes/:ruleIndex/:pathIndex" element={<RouteDetailPage />} />
           <Route path="topology" element={<TopologyPage />} />
-          <Route path="health" element={<HealthPage />} />
+          <Route path="healths" element={<HealthPage />} />
+          <Route path="health" element={<Navigate to="/healths" replace />} />
           <Route path="cache" element={<CachePage />} />
           <Route path="waf" element={<WAFPage />} />
           <Route path="tls" element={<TLSPage />} />

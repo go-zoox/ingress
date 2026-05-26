@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
+import { WafRuleTooltip } from '../components/WafRuleTooltip'
+import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
 import { api, type RouteDetail, type RouteMetrics } from '../api/client'
 import { useSSE } from '../hooks/useSSE'
 
@@ -257,7 +259,7 @@ function RouteLogsTab({ host, path }: { host: string; path: string }) {
 
   useEffect(() => {
     setLoading(true)
-    api.logs({ host, q: path, limit: 100 }).then((r) => {
+    api.logs({ host, path, limit: 100 }).then((r) => {
       setLines(r.lines || [])
       setLoading(false)
     }).catch(() => {
@@ -280,6 +282,7 @@ function RouteLogsTab({ host, path }: { host: string; path: string }) {
 
 /** Sub-component: WAF events filtered by host/path */
 function RouteWAFTab({ host, path }: { host: string; path: string }) {
+  const { lookup: ruleLookup } = useWafRuleLookup()
   const [events, setEvents] = useState<{ id: number; action: string; rule: string; client_ip: string; created_at: string }[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -312,7 +315,9 @@ function RouteWAFTab({ host, path }: { host: string; path: string }) {
           <tr key={e.id}>
             <td>{new Date(e.created_at).toLocaleString()}</td>
             <td><span className={`badge badge-${e.action}`}>{e.action}</span></td>
-            <td>{e.rule}</td>
+            <td>
+              <WafRuleTooltip rule={e.rule} lookup={ruleLookup} />
+            </td>
             <td>{e.client_ip}</td>
           </tr>
         ))}
