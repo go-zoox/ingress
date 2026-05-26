@@ -25,6 +25,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ host, path }),
     }),
+  wafEvent: (id: number) => request<WAFEventDetail>(`/waf/events/${id}`),
+  wafMatch: (body: WAFTrialInput) =>
+    request<WAFTrialResult>('/waf/match', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   wafEvents: (params?: {
     action?: string
     host?: string
@@ -54,6 +60,7 @@ export const api = {
     }),
   wafHosts: () => request<string[]>('/waf/hosts'),
   wafRules: () => request<string[]>('/waf/rules'),
+  wafRulesCatalog: () => request<WAFRuleDetail[]>('/waf/rules/catalog'),
   tlsCerts: () => request<TLSCert[]>('/tls/certs'),
   tlsCheck: (domain: string) =>
     request<TLSCertCheck>('/tls/certs/check', {
@@ -103,6 +110,7 @@ export const api = {
     log?: 'access' | 'error'
     q?: string
     host?: string
+    path?: string
     status?: string
     cache_hit?: string
     waf_block?: string
@@ -113,6 +121,7 @@ export const api = {
     if (params.log) q.set('log', params.log)
     if (params.q) q.set('q', params.q)
     if (params.host) q.set('host', params.host)
+    if (params.path) q.set('path', params.path)
     if (params.status) q.set('status', params.status)
     if (params.cache_hit) q.set('cache_hit', params.cache_hit)
     if (params.waf_block) q.set('waf_block', params.waf_block)
@@ -168,6 +177,59 @@ export type WAFEvent = {
   path: string
   client_ip: string
   created_at: string
+}
+
+export type WAFTrialInput = {
+  host: string
+  path?: string
+  method?: string
+  client_ip?: string
+  query?: string
+  headers?: Record<string, string>
+  rule_index?: number
+  event_id?: number
+  expected_rule?: string
+}
+
+export type WAFTrialHit = {
+  action: string
+  rule: string
+  client_ip: string
+}
+
+export type WAFRuleDetail = {
+  id: string
+  name: string
+  phase: string
+  type: string
+  pattern?: string
+  targets?: string[]
+  source: string
+  description: string
+  log_only?: boolean
+}
+
+export type WAFEventDetail = WAFEvent & {
+  rule_detail?: WAFRuleDetail | null
+  replay_note?: string
+}
+
+export type WAFTrialResult = {
+  matched: boolean
+  would_block: boolean
+  rule_index: number
+  path_index: number
+  host: string
+  path: string
+  waf_enabled: boolean
+  config_waf_enabled: boolean
+  runtime_waf_enabled: boolean
+  log_only: boolean
+  hits: WAFTrialHit[]
+  expected_rule?: string
+  expected_rule_hit?: boolean
+  message?: string
+  hint?: string
 }
 
 export type TLSCert = {

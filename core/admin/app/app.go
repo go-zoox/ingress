@@ -25,12 +25,6 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 		return nil, err
 	}
 
-	// Wire WAF event callback so blocks/audits are persisted to the admin DB.
-	if cfg.CoreInstance != nil {
-		audit := service.NewAudit()
-		cfg.CoreInstance.SetWAFCallback(&wafEventAdapter{audit: audit})
-	}
-
 	app := defaults.Default()
 	app.SetBanner("")
 	app.Config.Port = int(cfg.Port)
@@ -39,8 +33,15 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 	g := app.Group("/api/v1")
 	api.Mount(g)
 
-	// Start the health check service and SSE broker
+	// Wire WAF event callback so blocks/audits are persisted and pushed over SSE.
+	if cfg.CoreInstance != nil {
+		audit := service.NewAudit()
+		cfg.CoreInstance.SetWAFCallback(&wafEventAdapter{audit: audit, broker: api.Broker()})
+	}
+
+	// Start the health check service, log tail SSE, and SSE broker
 	if api.Broker() != nil {
+		service.NewLogStreamer(api.LogsService(), api.Broker()).Start(2 * time.Second)
 		api.Health().Start()
 		// Note: Health check service will be stopped when the process exits.
 		// zoox Application doesn't expose OnShutdown; cleanup is handled by process signals.
@@ -90,14 +91,20 @@ func Run(app *zoox.Application, cfg *config.Config) error {
 
 // wafEventAdapter bridges the core WAFCallback interface to the audit service.
 type wafEventAdapter struct {
-	audit *service.Audit
+	audit  *service.Audit
+	broker *service.SSEBroker
 }
 
 func (a *wafEventAdapter) OnWAFEvent(action, rule, host, path, clientIP string) {
 	// Fire-and-forget to avoid blocking the request path.
 	go func() {
-		if err := a.audit.RecordWAFEvent(action, rule, host, path, clientIP); err != nil {
+		row, err := a.audit.RecordWAFEvent(action, rule, host, path, clientIP)
+		if err != nil {
 			logger.Warnf("waf event record failed: %s", err)
+			return
+		}
+		if a.broker != nil && row != nil {
+			a.broker.PublishJSON("waf", "event", row)
 		}
 	}()
 }

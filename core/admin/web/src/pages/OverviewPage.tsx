@@ -4,7 +4,9 @@ import { OverviewCharts } from '../components/OverviewCharts'
 import { PageHeader } from '../components/PageHeader'
 import { VersionConsistencyBadge } from '../components/VersionConsistencyBadge'
 import { api, type OverviewMetrics, type WAFEvent, type TLSCert, type ConfigRevisionSummary } from '../api/client'
+import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { useSSE } from '../hooks/useSSE'
+import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
 import { loadPreferences } from '../lib/preferences'
 
 export function OverviewPage() {
@@ -22,6 +24,7 @@ export function OverviewPage() {
 
   // SSE for real-time metrics
   const { data: sseData, connected: sseConnected } = useSSE(['metrics'])
+  const { lookup: ruleLookup } = useWafRuleLookup()
 
   const fetchMetrics = useCallback(() => {
     const window = loadPreferences().metricsWindow
@@ -207,7 +210,9 @@ export function OverviewPage() {
                     <td>
                       <span className={`badge badge-${e.action}`}>{e.action}</span>
                     </td>
-                    <td>{e.rule}</td>
+                    <td>
+                      <WafRuleTooltip rule={e.rule} lookup={ruleLookup} />
+                    </td>
                     <td>{e.host}</td>
                     <td>
                       <code>{e.path}</code>

@@ -24,6 +24,7 @@ type LogQuery struct {
 	Kind      LogKind
 	Q         string
 	Host      string
+	Path      string // access only: prefix match on request path
 	Status    string // access only: "", "2", "3", "4", "5"
 	CacheHit  string // access only: "", "0", "1"
 	WAFBlock  string // access only: "", "0", "1"
@@ -233,6 +234,19 @@ func matchLogLine(line string, q LogQuery) bool {
 	low := strings.ToLower(line)
 	if q.Host != "" && !strings.Contains(low, strings.ToLower(q.Host)) {
 		return false
+	}
+	if q.Path != "" && q.Kind == LogAccess {
+		entry, ok := parseAccessLine(line)
+		if !ok {
+			return false
+		}
+		if q.Path == "/" {
+			if entry.Path != "/" {
+				return false
+			}
+		} else if !strings.HasPrefix(entry.Path, q.Path) {
+			return false
+		}
 	}
 	if q.Q != "" && !strings.Contains(low, strings.ToLower(q.Q)) {
 		return false
