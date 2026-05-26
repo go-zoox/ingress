@@ -53,6 +53,7 @@ func NewAPI(cfg *config.Config) *API {
 func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/status", a.Status)
 	g.Get("/routes", a.Routes)
+	g.Get("/investigate", a.Investigate)
 	g.Post("/routes/match", a.Match)
 	g.Post("/waf/toggle", a.WAFToggle)
 	g.Get("/waf/events", a.WAFEvents)

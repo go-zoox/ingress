@@ -139,6 +139,23 @@ export const api = {
     request<RouteMetrics>(`/routes/${ri}/${pi}/metrics`),
   healthCheck: () =>
     request<{ checks: HealthCheckResult[]; summary: HealthSummary }>('/healthcheck'),
+  investigate: (params: {
+    host: string
+    path?: string
+    method?: string
+    limit?: number
+    ri?: number
+    pi?: number
+  }) => {
+    const q = new URLSearchParams()
+    q.set('host', params.host)
+    q.set('path', params.path || '/')
+    if (params.method) q.set('method', params.method)
+    if (params.limit) q.set('limit', String(params.limit))
+    if (params.ri != null) q.set('ri', String(params.ri))
+    if (params.pi != null) q.set('pi', String(params.pi))
+    return request<InvestigateResult>(`/investigate?${q.toString()}`)
+  },
   sseURL: (channels: string[] = []) => {
     const ch = channels.join(',')
     return `/api/v1/events/stream?channels=${encodeURIComponent(ch)}`
@@ -478,4 +495,35 @@ export type HealthSummary = {
   up: number
   down: number
   unknown: number
+}
+
+export type InvestigateSample = {
+  at?: string
+  client_ip?: string
+  method: string
+  path: string
+  status: number
+  duration_ms: number
+  target?: string
+  upstream_status?: number
+  upstream_duration_ms?: number
+  cache_hit: boolean
+  waf_block: boolean
+}
+
+export type InvestigateStats = {
+  count: number
+  error_rate: number
+  p95_ms: number
+  cache_hit_rate: number
+}
+
+export type InvestigateResult = {
+  query: { host: string; path: string; method?: string }
+  match: MatchPreview | null
+  route: RouteDetail | null
+  samples: InvestigateSample[]
+  stats: InvestigateStats
+  waf_recent: WAFEvent[]
+  health_checks: HealthCheckResult[]
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { Network, ScrollText, Settings2, Shield } from 'lucide-react'
-import { logsLink, routesTabLink, wafLink } from '../lib/deepLinks'
+import { Network, ScrollText, Search, Settings2, Shield } from 'lucide-react'
+import { investigateLink, logsLink, routesTabLink, wafLink } from '../lib/deepLinks'
 import { PageHeader } from '../components/PageHeader'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
@@ -86,6 +86,17 @@ export function RouteDetailPage() {
         desc={`规则 #${detail.rule_index} · 路径 #${detail.path_index}`}
         actions={
           <>
+            <Link
+              to={investigateLink({
+                host: detail.host,
+                path: detail.path,
+                ri: detail.rule_index,
+                pi: detail.path_index,
+              })}
+              className="btn btn-primary btn-sm"
+            >
+              <Search size={14} aria-hidden /> 调查此路由
+            </Link>
             <Link
               to={logsLink({ host: detail.host, log: 'access' })}
               className="btn btn-ghost btn-sm"

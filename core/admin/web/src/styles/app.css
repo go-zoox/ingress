@@ -427,6 +427,133 @@ a {
   border-top: 1px solid var(--border);
 }
 
+.investigate-page .investigate-context-form {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 8px 12px;
+  align-items: end;
+  max-width: 720px;
+}
+
+.investigate-page .investigate-context-form .field-label {
+  margin: 0;
+}
+
+.investigate-page .investigate-context-form .btn-primary {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.investigate-tag {
+  display: inline-block;
+  margin-right: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.investigate-actions {
+  margin-bottom: 16px;
+}
+
+.investigate-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(0, 1.4fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.investigate-samples-panel {
+  min-width: 0;
+}
+
+.investigate-path-cell {
+  word-break: break-all;
+}
+
+.investigate-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.investigate-policy-card h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.investigate-policy-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.investigate-policy-list li {
+  margin-bottom: 6px;
+}
+
+.investigate-stats-cards {
+  margin-bottom: 16px;
+}
+
+.investigate-latency {
+  margin-bottom: 14px;
+}
+
+.investigate-latency-labels {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.investigate-latency-track {
+  display: flex;
+  height: 10px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.investigate-latency-upstream {
+  background: var(--accent);
+  min-width: 2px;
+}
+
+.investigate-latency-gateway {
+  background: color-mix(in srgb, var(--accent) 35%, var(--border));
+  min-width: 2px;
+}
+
+.investigate-latency-hint {
+  margin-bottom: 12px;
+}
+
+.log-line-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.log-line-row .log-line-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+}
+
 .empty-state-guide {
   padding: 8px 0;
 }
@@ -3456,5 +3583,13 @@ table.data.config-revisions code {
   /* --- log toolbar --- */
   .logs-toolbar {
     gap: 6px;
+  }
+
+  .investigate-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .investigate-page .investigate-context-form {
+    grid-template-columns: 1fr;
   }
 }

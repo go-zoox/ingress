@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   ScrollText,
   Activity,
+  Search,
   ArrowLeftRight,
   HardDrive,
   Shield,
@@ -33,6 +34,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { to: '/', label: '总览', icon: LayoutDashboard, end: true, badgeKey: 'overview' },
       { to: '/events', label: '事件', icon: Activity },
+      { to: '/investigate', label: '调查', icon: Search },
       { to: '/logs', label: '日志', icon: ScrollText },
     ],
   },

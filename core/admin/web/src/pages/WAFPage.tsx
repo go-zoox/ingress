@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { FlaskConical } from 'lucide-react'
+import { investigateLink } from '../lib/deepLinks'
 import { PageHeader } from '../components/PageHeader'
 import { EmptyStateGuide } from '../components/EmptyStateGuide'
 import { Drawer } from '../components/Drawer'
@@ -412,6 +414,7 @@ export function WAFPage() {
                   <th className="col-host">Host</th>
                   <th className="col-path">Path</th>
                   <th className="col-ip">客户端 IP</th>
+                  <th className="col-actions">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -442,6 +445,18 @@ export function WAFPage() {
                       <code>{e.path}</code>
                     </td>
                     <td className="col-ip">{e.client_ip}</td>
+                    <td className="col-actions" onClick={(ev) => ev.stopPropagation()}>
+                      <Link
+                        to={investigateLink({
+                          host: e.host,
+                          path: e.path || '/',
+                          client_ip: e.client_ip,
+                        })}
+                        className="btn btn-ghost btn-sm"
+                      >
+                        调查
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -460,12 +475,22 @@ export function WAFPage() {
               <button type="button" className="btn btn-ghost" onClick={closeDrawer}>
                 关闭
               </button>
+              <Link
+                to={investigateLink({
+                  host: detail.host,
+                  path: detail.path || '/',
+                  client_ip: detail.client_ip,
+                })}
+                className="btn btn-primary"
+              >
+                调查此请求
+              </Link>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-ghost"
                 onClick={() => openTrial(detail)}
               >
-                用此请求试匹配
+                WAF 试匹配
               </button>
             </>
           ) : (

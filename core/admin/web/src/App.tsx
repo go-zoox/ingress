@@ -8,6 +8,7 @@ import { OverviewPage } from './pages/OverviewPage'
 import { RouteDetailPage } from './pages/RouteDetailPage'
 import { RoutesPage } from './pages/RoutesPage'
 import { EventsPage } from './pages/EventsPage'
+import { InvestigatePage } from './pages/InvestigatePage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TLSPage } from './pages/TLSPage'
 import { TopologyPage } from './pages/TopologyPage'
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="events" element={<EventsPage />} />
+          <Route path="investigate" element={<InvestigatePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

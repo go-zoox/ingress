@@ -1,5 +1,5 @@
 import type { HealthCheckResult, TLSCert, WAFEvent } from '../api/client'
-import { healthLink, logsLink, wafLink } from './deepLinks'
+import { healthLink, investigateLink, wafLink } from './deepLinks'
 
 export type FeedEvent = {
   id: string
@@ -31,10 +31,10 @@ export function buildEventsFeed(
       timeMs: t,
       title: `WAF block · ${e.rule}`,
       detail: `${e.host}${e.path}`,
-      href: wafLink({ action: 'block', host: e.host, path: e.path }),
+      href: investigateLink({ host: e.host, path: e.path || '/', client_ip: e.client_ip }),
       actions: [
-        { label: '查日志', href: logsLink({ host: e.host, waf_block: '1', log: 'access' }) },
-        { label: '试匹配', href: wafLink({ host: e.host, path: e.path, trial: true, eventId: e.id }) },
+        { label: '调查', href: investigateLink({ host: e.host, path: e.path || '/', client_ip: e.client_ip }) },
+        { label: 'WAF', href: wafLink({ host: e.host, path: e.path, trial: true, eventId: e.id }) },
       ],
     })
   }
@@ -50,10 +50,10 @@ export function buildEventsFeed(
       timeMs: t,
       title: `健康检查 DOWN · ${h.host}`,
       detail: h.error || h.url || h.backend,
-      href: healthLink({ status: 'down', host: h.host }),
+      href: investigateLink({ host: h.host, path: h.path || '/' }),
       actions: [
-        { label: '查日志', href: logsLink({ host: h.host, log: 'access' }) },
-        { label: '健康检查', href: healthLink({ status: 'down' }) },
+        { label: '调查', href: investigateLink({ host: h.host, path: h.path || '/' }) },
+        { label: '健康检查', href: healthLink({ status: 'down', host: h.host }) },
       ],
     })
   }

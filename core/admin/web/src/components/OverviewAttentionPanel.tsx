@@ -8,7 +8,7 @@ import {
   FileWarning,
 } from 'lucide-react'
 import type { OverviewMetrics, TLSCert, HealthCheckResult, WAFEvent } from '../api/client'
-import { healthLink, logsLink, wafLink } from '../lib/deepLinks'
+import { healthLink, investigateLink, logsLink, wafLink } from '../lib/deepLinks'
 
 export type AttentionAction = { label: string; href: string }
 
@@ -67,8 +67,8 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
                   detail={h.error || h.url || h.backend}
                   href={healthLink({ status: 'down', host: h.host })}
                   actions={[
+                    { label: '调查', href: investigateLink({ host: h.host, path: h.path || '/' }) },
                     { label: '查日志', href: logsLink({ host: h.host, log: 'access' }) },
-                    { label: '健康检查', href: healthLink({ status: 'down' }) },
                   ]}
                 />
               ))}
@@ -93,8 +93,11 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
                   detail={`${e.host}${e.path}`}
                   href={wafLink({ action: 'block', host: e.host, path: e.path })}
                   actions={[
-                    { label: '查日志', href: logsLink({ host: e.host, waf_block: '1', log: 'access' }) },
-                    { label: '试匹配', href: wafLink({ host: e.host, path: e.path, trial: true, eventId: e.id }) },
+                    {
+                      label: '调查',
+                      href: investigateLink({ host: e.host, path: e.path || '/', client_ip: e.client_ip }),
+                    },
+                    { label: 'WAF', href: wafLink({ host: e.host, path: e.path, trial: true, eventId: e.id }) },
                   ]}
                 />
               ))}
@@ -271,7 +274,13 @@ function buildOtherAttentionItems(metrics: OverviewMetrics | null, certs: TLSCer
         level: 'warn',
         title: `慢请求 ${formatMs(s.duration_ms)}`,
         detail: `${s.host} ${s.method} ${s.path}`,
-        href: logsLink({ host: s.host, path: s.path, log: 'access' }),
+        href: investigateLink({
+          host: s.host,
+          path: s.path,
+          method: s.method,
+          status: s.status,
+        }),
+        actions: [{ label: '查日志', href: logsLink({ host: s.host, path: s.path, log: 'access' }) }],
         icon: 'slow',
       })
     }
