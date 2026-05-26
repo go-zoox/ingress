@@ -34,6 +34,7 @@ RUN CGO_ENABLED=0 \
   GOOS=linux \
   GOARCH=$TARGETARCH \
   go build \
+  -tags adminui \
   -trimpath \
   -ldflags '-w -s -buildid=' \
   -v -o ingress ./cmd/ingress

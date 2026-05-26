@@ -97,7 +97,7 @@ ingress run -c ingress.yaml
 cd core/admin/web && pnpm dev
 ```
 
-The Vite dev server proxies `/api` to the admin port. Production UI is embedded via `core/admin/static` after `cd core/admin && make build`.
+The Vite dev server proxies `/api` to the admin port. Production UI is embedded at compile time after `cd core/admin && make build` (`-tags adminui`; output under `core/admin/static/dist`, not committed to git).
 
 ## HTTP API
 

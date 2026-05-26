@@ -98,4 +98,4 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 ## Verification
 
 - From repo root: `go test ./core/...` (or narrow with `-run`). If the environment cannot reach the module proxy, try `GOPROXY=off` when modules are already cached.
-- Admin: `make -C core/admin web && go build ./cmd/ingress` (release/Docker run the web build before `go build`).
+- Admin UI: `make -C core/admin web` then `go build -tags adminui ./cmd/ingress` (GoReleaser/Dockerfile run `make web` automatically; `core/admin/static/dist` is gitignored). Plain `go build` embeds a small API-only stub.

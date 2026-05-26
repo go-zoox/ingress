@@ -1,7 +1,6 @@
 package static
 
 import (
-	"embed"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -9,24 +8,17 @@ import (
 	"github.com/go-zoox/zoox"
 )
 
-//go:embed dist
-var dist embed.FS
-
-// Mount serves the built React app at / when dist is present.
 func Mount(app *zoox.Application) error {
-	sub, err := fs.Sub(dist, "dist")
+	sub, err := uiRoot()
 	if err != nil {
-		// dist not built yet — API-only mode
-		app.Get("/", func(ctx *zoox.Context) {
-			ctx.String(http.StatusOK, "ingress admin API — build web: cd core/admin/web && pnpm build")
-		})
-		return nil
+		return mountAPIOnly(app)
 	}
 
 	indexHTML, err := fs.ReadFile(sub, "index.html")
 	if err != nil {
-		return err
+		return mountAPIOnly(app)
 	}
+
 	shell := indexHTML
 	fsys := http.FS(sub)
 
@@ -51,5 +43,12 @@ func Mount(app *zoox.Application) error {
 		ctx.Data(http.StatusOK, "text/html; charset=utf-8", shell)
 	})
 	app.StaticFS("/", fsys)
+	return nil
+}
+
+func mountAPIOnly(app *zoox.Application) error {
+	app.Get("/", func(ctx *zoox.Context) {
+		ctx.String(http.StatusOK, "ingress admin API — build web: make -C core/admin web && go build -tags adminui ./cmd/ingress")
+	})
 	return nil
 }
