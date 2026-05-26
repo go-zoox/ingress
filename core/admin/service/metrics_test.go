@@ -42,3 +42,35 @@ func TestBuildTimeline_respectsAnchor(t *testing.T) {
 		t.Fatalf("latest bucket want one 5xx: %+v", buckets[2])
 	}
 }
+
+func TestAggregateOverview_timelineRatesAndHostErrors(t *testing.T) {
+	anchor := time.Date(2026, 5, 20, 12, 0, 0, 0, time.Local)
+	entries := []AccessEntry{
+		{At: anchor.Add(-10 * time.Minute), Host: "a.example.com", Status: 200, CacheHit: true},
+		{At: anchor.Add(-10 * time.Minute), Host: "a.example.com", Status: 404},
+		{At: anchor.Add(-5 * time.Minute), Host: "b.example.com", Status: 500, WAFBlock: true},
+		{At: anchor.Add(-5 * time.Minute), Host: "b.example.com", Status: 403, WAFBlock: true},
+	}
+
+	out := aggregateOverview(entries, "15m", "access_log")
+	if len(out.TopHostsError) == 0 {
+		t.Fatal("expected top_hosts_error")
+	}
+	if out.TopHostsError[0].Name != "b.example.com" || out.TopHostsError[0].ErrorRate != 100 {
+		t.Fatalf("top_hosts_error[0]=%+v", out.TopHostsError[0])
+	}
+	var sawRate bool
+	for _, b := range out.Timeline {
+		if b.Count > 0 && b.ErrorRate > 0 {
+			sawRate = true
+		}
+		if b.WAFBlocks > 0 {
+			if b.ErrorRate <= 0 {
+				t.Fatalf("bucket with waf should have error_rate: %+v", b)
+			}
+		}
+	}
+	if !sawRate {
+		t.Fatalf("timeline missing error_rate: %+v", out.Timeline)
+	}
+}

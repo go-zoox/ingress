@@ -18,24 +18,36 @@ type OverviewMetrics struct {
 	P95Ms        float64          `json:"p95_ms"`
 	CacheHitRate float64          `json:"cache_hit_rate"`
 	WAFBlocks    int              `json:"waf_blocks"`
-	StatusCounts map[string]int   `json:"status_counts"`
-	Timeline     []TimelineBucket `json:"timeline"`
-	TopHosts     []NamedCount     `json:"top_hosts"`
-	Slowest      []SlowRequest    `json:"slowest"`
+	StatusCounts   map[string]int     `json:"status_counts"`
+	Timeline       []TimelineBucket   `json:"timeline"`
+	TopHosts       []NamedCount       `json:"top_hosts"`
+	TopHostsError  []HostErrorStat    `json:"top_hosts_error"`
+	Slowest        []SlowRequest      `json:"slowest"`
 }
 
 type TimelineBucket struct {
-	Label string `json:"label"`
-	Count int    `json:"count"`
-	S2    int    `json:"2xx"`
-	S3    int    `json:"3xx"`
-	S4    int    `json:"4xx"`
-	S5    int    `json:"5xx"`
+	Label        string  `json:"label"`
+	Count        int     `json:"count"`
+	S2           int     `json:"2xx"`
+	S3           int     `json:"3xx"`
+	S4           int     `json:"4xx"`
+	S5           int     `json:"5xx"`
+	ErrorRate    float64 `json:"error_rate"`
+	CacheHitRate float64 `json:"cache_hit_rate"`
+	WAFBlocks    int     `json:"waf_blocks"`
 }
 
 type NamedCount struct {
 	Name  string `json:"name"`
 	Count int    `json:"count"`
+}
+
+// HostErrorStat ranks hosts by error share in the overview window.
+type HostErrorStat struct {
+	Name      string  `json:"name"`
+	Count     int     `json:"count"`
+	Errors    int     `json:"errors"`
+	ErrorRate float64 `json:"error_rate"`
 }
 
 type SlowRequest struct {
@@ -144,6 +156,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 		out.P50Ms, out.P95Ms = ps[0], ps[1]
 	}
 	out.TopHosts = topN(hostCounts, 8)
+	out.TopHostsError = topHostsByError(filtered, 8)
 	out.Slowest = slowest(filtered, 5)
 	out.Timeline = buildTimeline(filtered, hasTime, windowDur, 8, anchor)
 
@@ -227,6 +240,8 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 		return result
 	}
 
+	scratches := make([]timelineBucketScratch, buckets)
+
 	if hasTime {
 		start := anchor.Add(-window)
 		slot := window / time.Duration(buckets)
@@ -244,8 +259,9 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 			if idx < 0 {
 				idx = 0
 			}
-			fillBucket(&result[idx], e.Status)
+			fillBucketEntry(&result[idx], e, &scratches[idx])
 		}
+		finalizeTimelineBuckets(result, scratches)
 		return result
 	}
 
@@ -259,8 +275,9 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 		if idx >= buckets {
 			idx = buckets - 1
 		}
-		fillBucket(&result[idx], e.Status)
+		fillBucketEntry(&result[idx], e, &scratches[idx])
 	}
+	finalizeTimelineBuckets(result, scratches)
 	return result
 }
 
@@ -271,9 +288,14 @@ func formatIndexLabel(i, n int) string {
 	return "段" + strconv.Itoa(i+1)
 }
 
-func fillBucket(b *TimelineBucket, status int) {
+type timelineBucketScratch struct {
+	errors    int
+	cacheHits int
+}
+
+func fillBucketEntry(b *TimelineBucket, e AccessEntry, scratch *timelineBucketScratch) {
 	b.Count++
-	switch statusClass(status) {
+	switch statusClass(e.Status) {
 	case "2xx":
 		b.S2++
 	case "3xx":
@@ -282,6 +304,26 @@ func fillBucket(b *TimelineBucket, status int) {
 		b.S4++
 	case "5xx":
 		b.S5++
+	}
+	if e.Status >= 400 {
+		scratch.errors++
+	}
+	if e.CacheHit {
+		scratch.cacheHits++
+	}
+	if e.WAFBlock {
+		b.WAFBlocks++
+	}
+}
+
+func finalizeTimelineBuckets(buckets []TimelineBucket, scratches []timelineBucketScratch) {
+	for i := range buckets {
+		if buckets[i].Count <= 0 {
+			continue
+		}
+		sc := scratches[i]
+		buckets[i].ErrorRate = float64(sc.errors) / float64(buckets[i].Count) * 100
+		buckets[i].CacheHitRate = float64(sc.cacheHits) / float64(buckets[i].Count) * 100
 	}
 }
 
@@ -307,6 +349,47 @@ func percentiles(vals []float64, ps ...float64) (results []float64) {
 // ComputePercentiles is the exported version of percentiles for use by handlers.
 func ComputePercentiles(vals []float64, ps ...float64) []float64 {
 	return percentiles(vals, ps...)
+}
+
+func topHostsByError(entries []AccessEntry, n int) []HostErrorStat {
+	hostTotal := map[string]int{}
+	hostErrors := map[string]int{}
+	for _, e := range entries {
+		if e.Host == "" {
+			continue
+		}
+		hostTotal[e.Host]++
+		if e.Status >= 400 {
+			hostErrors[e.Host]++
+		}
+	}
+	all := make([]HostErrorStat, 0, len(hostErrors))
+	for host, errs := range hostErrors {
+		if errs == 0 {
+			continue
+		}
+		total := hostTotal[host]
+		rate := 0.0
+		if total > 0 {
+			rate = float64(errs) / float64(total) * 100
+		}
+		all = append(all, HostErrorStat{
+			Name: host, Count: total, Errors: errs, ErrorRate: rate,
+		})
+	}
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].ErrorRate == all[j].ErrorRate {
+			if all[i].Errors == all[j].Errors {
+				return all[i].Name < all[j].Name
+			}
+			return all[i].Errors > all[j].Errors
+		}
+		return all[i].ErrorRate > all[j].ErrorRate
+	})
+	if n > len(all) {
+		n = len(all)
+	}
+	return all[:n]
 }
 
 func topN(m map[string]int, n int) []NamedCount {

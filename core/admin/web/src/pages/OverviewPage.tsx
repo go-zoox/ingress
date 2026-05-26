@@ -1,38 +1,56 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { OverviewCharts } from '../components/OverviewCharts'
+import { OverviewAttentionPanel } from '../components/OverviewAttentionPanel'
 import { PageHeader } from '../components/PageHeader'
 import { VersionConsistencyBadge } from '../components/VersionConsistencyBadge'
-import { api, type OverviewMetrics, type WAFEvent, type TLSCert, type ConfigRevisionSummary } from '../api/client'
-import { WafRuleTooltip } from '../components/WafRuleTooltip'
+import {
+  api,
+  type OverviewMetrics,
+  type WAFEvent,
+  type TLSCert,
+  type ConfigRevisionSummary,
+  type HealthCheckResult,
+  type HealthSummary,
+} from '../api/client'
 import { useSSE } from '../hooks/useSSE'
-import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
-import { loadPreferences } from '../lib/preferences'
+import { loadPreferences, savePreferences } from '../lib/preferences'
+import { computeHealthScore, healthScoreClass } from '../lib/overviewHealthScore'
+
+const WINDOW_OPTIONS = [
+  { value: '5m', label: '5 分钟' },
+  { value: '15m', label: '15 分钟' },
+  { value: '1h', label: '1 小时' },
+] as const
 
 export function OverviewPage() {
   const navigate = useNavigate()
   const [status, setStatus] = useState<Record<string, unknown> | null>(null)
-  const [events, setEvents] = useState<WAFEvent[]>([])
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [err, setErr] = useState('')
   const [certs, setCerts] = useState<TLSCert[]>([])
+  const [healthChecks, setHealthChecks] = useState<HealthCheckResult[]>([])
+  const [healthSummary, setHealthSummary] = useState<HealthSummary>({
+    total: 0,
+    up: 0,
+    down: 0,
+    unknown: 0,
+  })
+  const [wafBlocks, setWafBlocks] = useState<WAFEvent[]>([])
   const [revisions, setRevisions] = useState<ConfigRevisionSummary[]>([])
+  const [metricsWindow, setMetricsWindow] = useState(() => loadPreferences().metricsWindow)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  // Track whether the first fetch has completed so we only show full-page loading once.
   const mountedRef = useRef(false)
 
-  // SSE for real-time metrics
   const { data: sseData, connected: sseConnected } = useSSE(['metrics'])
-  const { lookup: ruleLookup } = useWafRuleLookup()
 
   const fetchMetrics = useCallback(() => {
-    const window = loadPreferences().metricsWindow
     if (!mountedRef.current) {
       setMetricsLoading(true)
     }
     api
-      .overviewMetrics(window)
+      .overviewMetrics(metricsWindow)
       .then((data) => {
         setMetrics(data)
         setMetricsLoading(false)
@@ -44,8 +62,35 @@ export function OverviewPage() {
           setMetricsLoading(false)
           mountedRef.current = true
         }
-        // On subsequent errors, keep the last known metrics — no flash.
       })
+  }, [metricsWindow])
+
+  const loadAux = useCallback(() => {
+    api
+      .tlsCerts()
+      .then((d) => setCerts(Array.isArray(d) ? d : []))
+      .catch(() => setCerts([]))
+    api
+      .healthCheck()
+      .then((d) => {
+        setHealthChecks(d.checks || [])
+        setHealthSummary(d.summary || { total: 0, up: 0, down: 0, unknown: 0 })
+      })
+      .catch(() => {
+        setHealthChecks([])
+        setHealthSummary({ total: 0, up: 0, down: 0, unknown: 0 })
+      })
+    api
+      .wafEvents()
+      .then((d) => {
+        const list = Array.isArray(d) ? d : []
+        setWafBlocks(list.filter((e) => e.action === 'block').slice(0, 5))
+      })
+      .catch(() => setWafBlocks([]))
+    api
+      .configRevisions(5)
+      .then((d) => setRevisions(Array.isArray(d) ? d : []))
+      .catch(() => setRevisions([]))
   }, [])
 
   useEffect(() => {
@@ -53,24 +98,15 @@ export function OverviewPage() {
       .status()
       .then(setStatus)
       .catch((e: Error) => setErr(e.message))
-    api
-      .wafEvents()
-      .then((d) => setEvents(Array.isArray(d) ? d.slice(0, 4) : []))
-      .catch(() => setEvents([]))
-    api
-      .tlsCerts()
-      .then((d) => setCerts(Array.isArray(d) ? d : []))
-      .catch(() => setCerts([]))
-    api
-      .configRevisions(5)
-      .then((d) => setRevisions(Array.isArray(d) ? d : []))
-      .catch(() => setRevisions([]))
+    loadAux()
     fetchMetrics()
 
-    // Use SSE for metrics if connected, otherwise fall back to polling
     const refreshMs = loadPreferences().metricsRefreshMs
     if (refreshMs > 0) {
-      timerRef.current = window.setInterval(fetchMetrics, refreshMs)
+      timerRef.current = window.setInterval(() => {
+        fetchMetrics()
+        loadAux()
+      }, refreshMs)
     }
 
     return () => {
@@ -78,15 +114,39 @@ export function OverviewPage() {
         window.clearInterval(timerRef.current)
       }
     }
-  }, [fetchMetrics])
+  }, [fetchMetrics, loadAux])
 
-  // Update metrics from SSE data
   useEffect(() => {
     if (sseData.metrics) {
       setMetrics(sseData.metrics as OverviewMetrics)
       setMetricsLoading(false)
     }
   }, [sseData.metrics])
+
+  const onWindowChange = (value: string) => {
+    setMetricsWindow(value)
+    const prefs = loadPreferences()
+    savePreferences({ ...prefs, metricsWindow: value })
+    mountedRef.current = false
+    setMetricsLoading(true)
+  }
+
+  const certWarn = certs.filter((c) => c.days_remaining < 30).length
+  const certCritical = certs.filter((c) => c.days_remaining < 7).length
+
+  const healthScore = useMemo(() => {
+    if (!metrics || metrics.total === 0) return null
+    return computeHealthScore({
+      errorRate: metrics.error_rate,
+      p95Ms: metrics.p95_ms,
+      healthDown: healthSummary.down,
+      certCritical,
+      certWarn,
+      wafBlocks: metrics.waf_blocks,
+    })
+  }, [metrics, healthSummary.down, certCritical, certWarn])
+
+  const healthClass = healthScore != null ? healthScoreClass(healthScore) : 'ok'
 
   if (err) {
     return (
@@ -99,155 +159,185 @@ export function OverviewPage() {
   if (!status) {
     return (
       <div className="page">
-        <PageHeader title="总览" desc="运行状态、请求指标（access log）与近期运维事件" />
+        <PageHeader title="总览" desc="监控面板：流量、质量、异常与系统状态" />
         <p style={{ color: 'var(--text-muted)' }}>加载中…</p>
       </div>
     )
   }
 
-  // Compute cert warning count from real data
-  const certWarn = certs.filter((c) => c.days_remaining < 30).length
-  const certCritical = certs.filter((c) => c.days_remaining < 7).length
-
-  const wafLabel = status.waf_enabled ? (status.waf_log_only ? '审计' : '拦截') : '关'
-  const wafCardClass = status.waf_log_only ? 'warn' : ''
   const reloadReady = Boolean(status.reload_ready)
-
-  // Version consistency
+  const wafLabel = status.waf_enabled ? (status.waf_log_only ? 'WAF 审计' : 'WAF 拦截') : 'WAF 关'
   const runningHash = String(status.config_hash || '')
   const latestHash = revisions.length > 0 ? revisions[0].hash : ''
 
-  // SSE status indicator
-  const sseStatusClass = sseConnected ? 'ok' : ''
-
   return (
-    <div className="page">
-      <PageHeader title="总览" desc="运行状态、请求指标（access log）与近期运维事件" />
+    <div className="page overview-page">
+      <PageHeader title="总览" desc="监控面板：流量、质量、异常与系统状态" />
+
       {!reloadReady ? (
         <p className="err" style={{ marginBottom: 16 }}>
-          无法热加载：未找到可发送 SIGHUP 的 ingress 进程（pid 文件{' '}
-          <code>{String(status.pid_file || '/tmp/gozoox.ingress.pid')}</code>）。请另开终端执行{' '}
-          <code>ingress run -c {String(status.config_path)}</code>，且 <code>--pid-file</code>{' '}
-          与 admin 配置一致后再发布。
+          无法热加载：未找到可发送 SIGHUP 的 ingress 进程。请执行{' '}
+          <code>ingress run -c {String(status.config_path)}</code> 且 pid 文件与 admin 一致。
         </p>
       ) : null}
-      <div className="cards">
-        <div className={`card ${reloadReady ? 'ok' : 'warn'}`}>
-          <div className="label">热加载</div>
-          <div className="value">{reloadReady ? '就绪' : '不可用'}</div>
-          <div className="sub">{reloadReady ? '可 SIGHUP reload' : '需 ingress run'}</div>
+
+      <div className="overview-toolbar">
+        <div className="overview-window-tabs" role="tablist" aria-label="指标时间窗口">
+          {WINDOW_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="tab"
+              aria-selected={metricsWindow === opt.value}
+              className={metricsWindow === opt.value ? 'btn btn-sm active' : 'btn btn-sm btn-ghost'}
+              onClick={() => onWindowChange(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
-        <div className="card">
-          <div className="label">版本</div>
-          <div className="value">{String(status.version || 'ingress')}</div>
-          <div className="sub">
-            配置 hash {String(status.config_hash || '—')}
-            <VersionConsistencyBadge runningHash={runningHash} latestHash={latestHash} />
+        <div className="overview-toolbar-meta">
+          <span className={`overview-badge ${sseConnected ? 'ok' : ''}`}>
+            {sseConnected ? 'SSE 已连接' : '轮询刷新'}
+          </span>
+          <span className="overview-badge">数据源 {metricsSourceLabel(metrics?.source)}</span>
+        </div>
+        <div className="overview-toolbar-actions">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/logs')}>
+            日志
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/routes')}>
+            路由
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => navigate('/config')}>
+            配置
+          </button>
+        </div>
+      </div>
+
+      <OverviewCharts
+        metrics={metrics}
+        loading={metricsLoading}
+        healthScore={healthScore}
+        healthClass={healthClass}
+      />
+
+      <OverviewAttentionPanel
+        metrics={metrics}
+        certs={certs}
+        healthChecks={healthChecks}
+        wafBlocks={wafBlocks}
+      />
+
+      <div className="panel overview-system-panel">
+        <div className="panel-head">
+          <h2>系统状态</h2>
+        </div>
+        <div className="panel-body overview-system-grid">
+          <SystemBadge label="热加载" value={reloadReady ? '就绪' : '不可用'} tone={reloadReady ? 'ok' : 'warn'} />
+          <SystemBadge
+            label="版本"
+            value={String(status.version || 'ingress')}
+            sub={
+              <>
+                hash {String(status.config_hash || '—').slice(0, 8)}…
+                <VersionConsistencyBadge runningHash={runningHash} latestHash={latestHash} />
+              </>
+            }
+          />
+          <SystemBadge
+            label="监听"
+            value={String(status.listen_http)}
+            sub={`HTTPS ${String(status.listen_https || '—')}`}
+          />
+          <SystemBadge label="路由" value={String(status.rules_count)} sub="条规则" />
+          <SystemBadge label="WAF" value={wafLabel} />
+          <SystemBadge
+            label="证书"
+            value={
+              certCritical > 0
+                ? `${certCritical} 紧急`
+                : certWarn > 0
+                  ? `${certWarn} 关注`
+                  : '正常'
+            }
+            tone={certCritical > 0 ? 'danger' : certWarn > 0 ? 'warn' : 'ok'}
+          />
+          <SystemBadge
+            label="健康检查"
+            value={healthSummary.total > 0 ? `${healthSummary.up}/${healthSummary.total} UP` : '未配置'}
+            tone={healthSummary.down > 0 ? 'danger' : healthSummary.total > 0 ? 'ok' : undefined}
+          />
+          <SystemBadge label="最近 reload" value={String(status.last_reload || '—')} />
+        </div>
+      </div>
+
+      {revisions.length > 0 ? (
+        <div className="panel">
+          <div className="panel-head">
+            <h2>配置发布</h2>
+            <Link to="/config" className="btn btn-ghost btn-sm">
+              配置中心
+            </Link>
+          </div>
+          <div className="panel-body">
+            <ul className="revision-mini-list">
+              {revisions.slice(0, 3).map((r) => (
+                <li key={r.id}>
+                  <code>{r.hash.slice(0, 8)}</code>
+                  <span>{r.note || '—'}</span>
+                  <time>{formatTime(r.created_at)}</time>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
-        <div className="card">
-          <div className="label">监听</div>
-          <div className="value">{String(status.listen_http)}</div>
-          <div className="sub">HTTPS {String(status.listen_https || '—')}</div>
-        </div>
-        <div className="card">
-          <div className="label">路由规则</div>
-          <div className="value">{String(status.rules_count)}</div>
-          <div className="sub">上次 reload {String(status.last_reload || '—')}</div>
-        </div>
-        <div className={`card ${wafCardClass}`}>
-          <div className="label">WAF</div>
-          <div className="value">{wafLabel}</div>
-          <div className="sub">log_only={String(status.waf_log_only)}</div>
-        </div>
-        <div className={`card ${certCritical > 0 ? 'danger' : certWarn > 0 ? 'warn' : 'ok'}`}>
-          <div className="label">证书</div>
-          <div className="value">
-            {certCritical > 0
-              ? `${certCritical} 即将过期`
-              : certWarn > 0
-                ? `${certWarn} 需关注`
-                : '正常'}
-          </div>
-          <div className="sub">TLS 证书有效期</div>
-        </div>
-        <div className={`card ${sseStatusClass}`}>
-          <div className="label">实时推送</div>
-          <div className="value">{sseConnected ? '已连接' : '未连接'}</div>
-          <div className="sub">SSE 事件流</div>
-        </div>
-      </div>
-      <OverviewCharts metrics={metrics} loading={metricsLoading} />
-      <div className="panel">
-        <div className="panel-head">
-          <h2>最近事件</h2>
-          <Link to="/logs" className="btn btn-ghost">
-            查看全部日志
-          </Link>
-        </div>
-        <div className="panel-body panel-table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>时间</th>
-                <th>动作</th>
-                <th>规则</th>
-                <th>Host</th>
-                <th>Path</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="empty-hint">
-                    暂无 WAF 事件
-                  </td>
-                </tr>
-              ) : (
-                events.map((e) => (
-                  <tr key={e.id}>
-                    <td>{formatTime(e.created_at)}</td>
-                    <td>
-                      <span className={`badge badge-${e.action}`}>{e.action}</span>
-                    </td>
-                    <td>
-                      <WafRuleTooltip rule={e.rule} lookup={ruleLookup} />
-                    </td>
-                    <td>{e.host}</td>
-                    <td>
-                      <code>{e.path}</code>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div className="panel">
-        <div className="panel-head">
-          <h2>快捷操作</h2>
-        </div>
-        <div className="panel-body toolbar">
-          <button type="button" className="btn" onClick={() => navigate('/routes')}>
-            路由试匹配
-          </button>
-          <button type="button" className="btn" onClick={() => navigate('/config')}>
-            编辑配置
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => navigate('/config')}>
-            校验并发布
-          </button>
-        </div>
-      </div>
+      ) : null}
     </div>
   )
 }
 
+function SystemBadge({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string
+  value: string
+  sub?: ReactNode
+  tone?: 'ok' | 'warn' | 'danger'
+}) {
+  const cls = tone ? `overview-sys-badge overview-sys-${tone}` : 'overview-sys-badge'
+  return (
+    <div className={cls}>
+      <span className="overview-sys-label">{label}</span>
+      <span className="overview-sys-value">{value}</span>
+      {sub ? <span className="overview-sys-sub">{sub}</span> : null}
+    </div>
+  )
+}
+
+function metricsSourceLabel(source?: string) {
+  switch (source) {
+    case 'access_log':
+      return 'access.log'
+    case 'access_log_empty':
+      return '空文件'
+    case 'access_log_parse_fail':
+      return '解析失败'
+    case 'unconfigured':
+      return '未配置'
+    case 'error':
+      return '读取失败'
+    default:
+      return source || '—'
+  }
+}
+
 function formatTime(iso: string) {
   try {
-    const d = new Date(iso)
-    return d.toLocaleTimeString('zh-CN', { hour12: false })
+    return new Date(iso).toLocaleString('zh-CN', { hour12: false })
   } catch {
     return iso
   }
