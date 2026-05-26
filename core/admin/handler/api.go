@@ -61,7 +61,6 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/waf/hosts", a.WAFHosts)
 	g.Get("/waf/rules", a.WAFRules)
 	g.Get("/waf/rules/catalog", a.WAFRulesCatalog)
-	g.Get("/waf/rules/catalog", a.WAFRulesCatalog)
 	g.Get("/tls/certs", a.TLSCerts)
 	g.Post("/tls/certs/check", a.TLSCertCheck)
 	g.Get("/cache/overview", a.CacheOverview)

@@ -371,8 +371,17 @@ export type OverviewMetrics = {
     '3xx': number
     '4xx': number
     '5xx': number
+    error_rate: number
+    cache_hit_rate: number
+    waf_blocks: number
   }>
   top_hosts: Array<{ name: string; count: number }>
+  top_hosts_error: Array<{
+    name: string
+    count: number
+    errors: number
+    error_rate: number
+  }>
   slowest: Array<{
     host: string
     method: string
