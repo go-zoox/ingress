@@ -34,12 +34,15 @@ type HealthSummary struct {
 	Unknown int `json:"unknown"`
 }
 
+const healthHistoryMax = 48
+
 // HealthCheckService periodically probes backends that have health checks configured.
 type HealthCheckService struct {
 	ingress  *Ingress
 	broker   *SSEBroker
 	client   *http.Client
 	results  sync.Map // key -> *HealthCheckResult
+	history  sync.Map // key -> []HealthProbePoint
 	done     chan bool
 	interval time.Duration
 	timeout  time.Duration
@@ -105,6 +108,7 @@ func (h *HealthCheckService) checkAll() {
 		prev, _ := h.results.Load(t.Key)
 		statusChanged := prev == nil || prev.(*HealthCheckResult).Status != result.Status
 		h.results.Store(t.Key, result)
+		h.appendHistory(t.Key, result)
 		if statusChanged && h.broker != nil {
 			h.broker.PublishJSON("health", "update", result)
 		}
@@ -342,4 +346,42 @@ func (h *HealthCheckService) GetResult(key string) (*HealthCheckResult, bool) {
 	}
 	r, ok := val.(*HealthCheckResult)
 	return r, ok
+}
+
+func (h *HealthCheckService) appendHistory(key string, result *HealthCheckResult) {
+	if result == nil {
+		return
+	}
+	pt := HealthProbePoint{
+		At:         result.LastCheck,
+		Status:     result.Status,
+		ResponseMs: result.ResponseMs,
+	}
+	if pt.At == "" {
+		pt.At = time.Now().UTC().Format(time.RFC3339)
+	}
+	var hist []HealthProbePoint
+	if v, ok := h.history.Load(key); ok {
+		hist, _ = v.([]HealthProbePoint)
+	}
+	hist = append(hist, pt)
+	if len(hist) > healthHistoryMax {
+		hist = hist[len(hist)-healthHistoryMax:]
+	}
+	h.history.Store(key, hist)
+}
+
+// GetHistory returns recent probe samples for a health-check key.
+func (h *HealthCheckService) GetHistory(key string) []HealthProbePoint {
+	val, ok := h.history.Load(key)
+	if !ok {
+		return []HealthProbePoint{}
+	}
+	hist, ok := val.([]HealthProbePoint)
+	if !ok || len(hist) == 0 {
+		return []HealthProbePoint{}
+	}
+	out := make([]HealthProbePoint, len(hist))
+	copy(out, hist)
+	return out
 }

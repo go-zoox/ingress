@@ -535,6 +535,54 @@ export type RouteSampleRow = {
   duration_ms: number
 }
 
+export type MetricsDelta = OverviewMetrics['delta']
+
+export type RouteUpstreamStats = {
+  samples: number
+  avg_total_ms: number
+  avg_upstream_ms: number
+  avg_gateway_ms: number
+  upstream_error_pct: number
+}
+
+export type RoutePathBreakdown = {
+  path_index: number
+  path: string
+  count: number
+  error_rate: number
+}
+
+export type RouteCompareStats = {
+  site_rpm: number
+  site_error_rate: number
+  route_share_pct: number
+  error_rate_vs_site: number
+}
+
+export type RouteCacheStats = {
+  enabled: boolean
+  ttl: number
+  max_body_kb: number
+  hits: number
+  total: number
+  hit_rate: number
+}
+
+export type HealthProbePoint = {
+  at: string
+  status: string
+  response_ms: number
+}
+
+export type RelatedRouteRow = {
+  rule_index: number
+  path_index: number
+  host: string
+  path: string
+  target: string
+  relation: string
+}
+
 export type RouteMetrics = {
   window: string
   source?: string
@@ -550,6 +598,14 @@ export type RouteMetrics = {
   slowest?: RouteSampleRow[]
   error_samples?: RouteSampleRow[]
   latency_histogram?: Array<{ label: string; count: number }>
+  delta?: MetricsDelta
+  upstream?: RouteUpstreamStats
+  path_breakdown?: RoutePathBreakdown[]
+  waf_top_rules?: Array<{ name: string; count: number }>
+  health_history?: HealthProbePoint[]
+  compare?: RouteCompareStats
+  related_routes?: RelatedRouteRow[]
+  route_cache?: RouteCacheStats
 }
 
 export type HealthCheckResult = {

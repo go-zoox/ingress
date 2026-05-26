@@ -3155,6 +3155,144 @@ table.data.config-revisions code {
   font-variant-numeric: tabular-nums;
 }
 
+.route-metric-card-rich {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.route-metric-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.route-metric-delta {
+  margin-top: 4px;
+}
+
+.route-metric-card .kpi-sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 28px;
+  margin-top: 6px;
+}
+
+.route-metric-card .kpi-sparkline span {
+  flex: 1;
+  min-width: 3px;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+.route-compare-panel .route-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.route-compare-stat .label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.route-compare-stat .value {
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.upstream-latency-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upstream-latency-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.upstream-latency-row.muted {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.upstream-bar-stack {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.upstream-bar-up {
+  background: var(--accent);
+}
+
+.upstream-bar-gw {
+  background: var(--warn);
+}
+
+.health-history-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 64px;
+}
+
+.health-history-bar {
+  flex: 1;
+  min-width: 4px;
+  border-radius: 2px 2px 0 0;
+  background: var(--text-muted);
+}
+
+.health-history-bar.up {
+  background: var(--ok);
+}
+
+.health-history-bar.down {
+  background: var(--danger);
+}
+
+.related-routes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.related-route-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  text-decoration: none;
+  color: inherit;
+}
+
+.related-route-card:hover {
+  border-color: var(--accent);
+}
+
+.related-route-host {
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.related-route-target {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* Health check status dot */
 .health-status-row {
   display: flex;

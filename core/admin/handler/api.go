@@ -82,7 +82,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	// New routes for SSE, route detail, and health check
 	sseHandler := NewSSEHandler(a.broker)
 	g.Get("/events/stream", sseHandler.Stream)
-	routeDetailHandler := NewRouteDetailHandler(a.ingress, a.metrics, a.health)
+	routeDetailHandler := NewRouteDetailHandler(a.ingress, a.metrics, a.health, a.audit)
 	g.Get("/routes/:ri/:pi", routeDetailHandler.GetDetail)
 	g.Get("/routes/:ri/:pi/metrics", routeDetailHandler.GetMetrics)
 	healthHandler := NewHealthHandler(a.health)

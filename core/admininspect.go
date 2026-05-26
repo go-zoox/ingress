@@ -244,6 +244,49 @@ func RequestMatchesRoute(cfg *Config, ruleIndex, pathIndex int, requestHost, req
 	return false, nil
 }
 
+// MatchPathIndexForRule returns the path index within ruleIndex that matches requestPath,
+// or -1 when no path matches (rule-level default). Used for per-path traffic breakdown.
+func MatchPathIndexForRule(cfg *Config, ruleIndex int, requestHost, requestPath string) (int, error) {
+	if cfg == nil || ruleIndex < 0 || ruleIndex >= len(cfg.Rules) {
+		return -1, fmt.Errorf("rule index out of range")
+	}
+	matched, err := RequestMatchesRoute(cfg, ruleIndex, -1, requestHost, requestPath)
+	if err != nil || !matched {
+		return -1, err
+	}
+	r := &cfg.Rules[ruleIndex]
+	if len(r.Paths) == 0 {
+		return -1, nil
+	}
+	if err := inferBackendTypes(cfg); err != nil {
+		return -1, err
+	}
+	idx, err := compileRouterIndex(cfg.Rules, cfg.Fallback)
+	if err != nil {
+		return -1, err
+	}
+	hm, err := matchHostIndex(idx, cfg.Rules, cfg.Fallback, requestHost)
+	if err != nil {
+		return -1, err
+	}
+	if hm.ruleIndex != ruleIndex {
+		return -1, nil
+	}
+	_, mp, _, perr := matchPathWithRouter(idx, cfg.Rules, ruleIndex, requestPath, requestHost, hm.hostSubmatches)
+	if perr == ErrPathNotFound || mp == nil {
+		return -1, nil
+	}
+	if perr != nil {
+		return -1, perr
+	}
+	for j := range r.Paths {
+		if &r.Paths[j] == mp {
+			return j, nil
+		}
+	}
+	return -1, nil
+}
+
 // PreviewMatch dry-runs routing for host and path without starting a server.
 func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 	if err := inferBackendTypes(cfg); err != nil {

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-zoox/ingress/core/admin/model"
 	"github.com/go-zoox/ingress/core/admin/service"
 	ingcore "github.com/go-zoox/ingress/core"
 	coresvc "github.com/go-zoox/ingress/core/service"
@@ -17,14 +18,16 @@ type RouteDetailHandler struct {
 	ingress *service.Ingress
 	metrics *service.Metrics
 	health  *service.HealthCheckService
+	audit   *service.Audit
 }
 
 // NewRouteDetailHandler creates a new route detail handler.
-func NewRouteDetailHandler(ingress *service.Ingress, metrics *service.Metrics, health *service.HealthCheckService) *RouteDetailHandler {
+func NewRouteDetailHandler(ingress *service.Ingress, metrics *service.Metrics, health *service.HealthCheckService, audit *service.Audit) *RouteDetailHandler {
 	return &RouteDetailHandler{
 		ingress: ingress,
 		metrics: metrics,
 		health:  health,
+		audit:   audit,
 	}
 }
 
@@ -86,8 +89,8 @@ func (h *RouteDetailHandler) GetMetrics(ctx *zoox.Context) {
 	}
 
 	window := strings.TrimSpace(ctx.Query().Get("window").String())
-	metrics := h.aggregateRouteMetrics(cfg, ri, pi, window)
-	ok(ctx, metrics)
+	metrics := h.buildRouteAnalytics(cfg, ri, pi, window)
+	ok(ctx, routeAnalyticsJSON(metrics))
 }
 
 // parseRouteIndices extracts rule_index and path_index from URL params.
@@ -273,48 +276,54 @@ func getBackendTarget(b rule.Backend) string {
 	}
 }
 
-// aggregateRouteMetrics computes overview-style metrics for access log lines matching the route (ri/pi).
-func (h *RouteDetailHandler) aggregateRouteMetrics(cfg *ingcore.Config, ruleIndex, pathIndex int, window string) zoox.H {
+func (h *RouteDetailHandler) buildRouteAnalytics(cfg *ingcore.Config, ruleIndex, pathIndex int, window string) service.RouteAnalytics {
 	window = strings.TrimSpace(window)
 	if window == "" {
 		window = "15m"
 	}
 
 	logs := h.ingress.Logs()
-	source := "unconfigured"
-	if logs != nil && strings.TrimSpace(logs.AccessLogPath()) != "" {
-		source = "access_log"
-	}
-
-	lines, err := logs.TailAccess(service.TailLinesForWindow(window))
-	if err != nil {
-		return routeMetricsJSON(service.AggregateAccessEntries(nil, window, "error"))
-	}
-
-	raw := make([]service.AccessEntry, 0, len(lines))
-	for _, line := range lines {
-		if e, ok := service.ParseAccessEntry(line); ok {
-			raw = append(raw, e)
-		}
-	}
-	if source == "access_log" {
-		if len(lines) == 0 {
-			source = "access_log_empty"
-		} else if len(raw) == 0 {
-			source = "access_log_parse_fail"
+	lines := []string(nil)
+	if logs != nil {
+		var err error
+		lines, err = logs.TailAccess(service.TailLinesForWindow(window))
+		if err != nil {
+			return service.BuildRouteAnalytics(cfg, ruleIndex, pathIndex, window, nil, h.health, nil, false, 0, 0)
 		}
 	}
 
-	filtered := service.FilterAccessEntriesForRoute(cfg, ruleIndex, pathIndex, lines)
-	if source == "access_log" && len(filtered) == 0 && len(raw) > 0 {
-		source = "access_log"
+	cacheEnabled := false
+	var cacheTTL, cacheMaxBodyKB int64
+	if ruleIndex >= 0 && ruleIndex < len(cfg.Rules) {
+		r := &cfg.Rules[ruleIndex]
+		var b rule.Backend
+		if pathIndex >= 0 && pathIndex < len(r.Paths) {
+			b = r.Paths[pathIndex].Backend
+		} else {
+			b = r.Backend
+		}
+		if b.Cache.Enabled {
+			cacheEnabled = true
+			cacheTTL = b.Cache.TTL
+			cacheMaxBodyKB = b.Cache.MaxBodyBytes / 1024
+		}
 	}
-	m := service.AggregateAccessEntries(filtered, window, source)
-	return routeMetricsJSON(m)
+
+	var wafEvents []model.WAFEvent
+	if h.audit != nil {
+		rows, _ := h.audit.ListWAFEvents(service.WAFAuditFilter{Limit: 500})
+		wafEvents = rows
+		if cfg != nil && len(rows) > 0 {
+			wafEvents = service.FilterWAFEventsForRoute(cfg, ruleIndex, pathIndex, rows)
+		}
+	}
+
+	return service.BuildRouteAnalytics(cfg, ruleIndex, pathIndex, window, lines, h.health, wafEvents, cacheEnabled, cacheTTL, cacheMaxBodyKB)
 }
 
-func routeMetricsJSON(m service.OverviewMetrics) zoox.H {
-	return zoox.H{
+func routeAnalyticsJSON(a service.RouteAnalytics) zoox.H {
+	m := a.OverviewMetrics
+	out := zoox.H{
 		"window":            m.Window,
 		"source":            m.Source,
 		"total":             m.Total,
@@ -329,5 +338,24 @@ func routeMetricsJSON(m service.OverviewMetrics) zoox.H {
 		"slowest":           m.Slowest,
 		"error_samples":     m.ErrorSamples,
 		"latency_histogram": m.LatencyHistogram,
+		"delta":             a.Delta,
+		"upstream":          a.Upstream,
+		"compare":           a.Compare,
 	}
+	if len(a.PathBreakdown) > 0 {
+		out["path_breakdown"] = a.PathBreakdown
+	}
+	if len(a.WAFTopRules) > 0 {
+		out["waf_top_rules"] = a.WAFTopRules
+	}
+	if len(a.HealthHistory) > 0 {
+		out["health_history"] = a.HealthHistory
+	}
+	if len(a.RelatedRoutes) > 0 {
+		out["related_routes"] = a.RelatedRoutes
+	}
+	if a.RouteCache != nil {
+		out["route_cache"] = a.RouteCache
+	}
+	return out
 }

@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { Network, ScrollText, Search, Settings2, Shield } from 'lucide-react'
 import { investigateLink, logsLink, routesTabLink, wafLink } from '../lib/deepLinks'
 import { PageHeader } from '../components/PageHeader'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
-import { api, type RouteDetail, type RouteMetrics } from '../api/client'
+import { api, type MetricsDelta, type RouteDetail, type RouteMetrics } from '../api/client'
 import { RouteDetailCharts } from '../components/routes/RouteDetailCharts'
+import { OverviewDelta } from '../components/OverviewDelta'
 
 const METRIC_WINDOWS = [
   { value: '15m', label: '15 分钟' },
@@ -229,40 +230,7 @@ export function RouteDetailPage() {
             </div>
             <div className="panel-body">
               {metrics ? (
-                <div className="route-metrics-cards">
-                  <div className="route-metric-card">
-                    <div className="label">次/分</div>
-                    <div className="value">{metrics.rpm.toFixed(1)}</div>
-                  </div>
-                  <div className="route-metric-card">
-                    <div className="label">延迟 P50</div>
-                    <div className="value">{metrics.p50_ms.toFixed(1)}ms</div>
-                  </div>
-                  <div className="route-metric-card">
-                    <div className="label">延迟 P95</div>
-                    <div className="value">{metrics.p95_ms.toFixed(1)}ms</div>
-                  </div>
-                  <div className="route-metric-card">
-                    <div className="label">错误率</div>
-                    <div className="value" style={{ color: metrics.error_rate > 5 ? 'var(--danger)' : 'var(--text)' }}>
-                      {metrics.error_rate.toFixed(1)}%
-                    </div>
-                  </div>
-                  <div className="route-metric-card">
-                    <div className="label">缓存命中率</div>
-                    <div className="value">{metrics.cache_hit_rate.toFixed(1)}%</div>
-                  </div>
-                  <div className="route-metric-card">
-                    <div className="label">请求总数</div>
-                    <div className="value">{metrics.total}</div>
-                  </div>
-                  {(metrics.waf_blocks ?? 0) > 0 ? (
-                    <div className="route-metric-card">
-                      <div className="label">WAF 拦截</div>
-                      <div className="value">{metrics.waf_blocks}</div>
-                    </div>
-                  ) : null}
-                </div>
+                <RouteMetricsKpis metrics={metrics} />
               ) : (
                 <p className="empty-hint">暂无指标数据</p>
               )}
@@ -315,7 +283,7 @@ export function RouteDetailPage() {
             <RouteWAFTab ruleIndex={detail.rule_index} pathIndex={detail.path_index} />
           )}
           {activeTab === 'cache' && (
-            <RouteCacheTab />
+            <RouteCacheTab detail={detail} metrics={metrics} />
           )}
         </div>
       </div>
@@ -398,9 +366,122 @@ function RouteWAFTab({ ruleIndex, pathIndex }: { ruleIndex: number; pathIndex: n
   )
 }
 
+const emptyDelta: MetricsDelta = {
+  total_pct: 0,
+  rpm_pct: 0,
+  error_rate_delta: 0,
+  cache_hit_delta: 0,
+  waf_blocks_delta: 0,
+  p95_delta_ms: 0,
+  has_previous: false,
+}
+
+function RouteMetricsKpis({ metrics }: { metrics: RouteMetrics }) {
+  const delta: MetricsDelta = metrics.delta ?? emptyDelta
+  const sparkCounts = (metrics.timeline ?? []).map((b) => b.count)
+  const sparkErrors = (metrics.timeline ?? []).map((b) => b.error_rate ?? 0)
+
+  return (
+    <div className="route-metrics-cards">
+      <RouteMetricCard
+        label="次/分"
+        value={metrics.rpm.toFixed(1)}
+        spark={sparkCounts}
+        sparkTone="var(--accent)"
+        delta={<OverviewDelta delta={delta} kind="pct" value={delta.rpm_pct ?? delta.total_pct} />}
+      />
+      <RouteMetricCard
+        label="延迟 P95"
+        value={`${metrics.p95_ms.toFixed(0)}ms`}
+        sub={`P50 ${metrics.p50_ms.toFixed(0)}ms`}
+        delta={<OverviewDelta delta={delta} kind="ms" value={delta.p95_delta_ms} badIfUp />}
+      />
+      <RouteMetricCard
+        label="错误率"
+        value={`${metrics.error_rate.toFixed(1)}%`}
+        spark={sparkErrors}
+        sparkTone="var(--danger)"
+        valueTone={metrics.error_rate > 5 ? 'danger' : undefined}
+        delta={<OverviewDelta delta={delta} kind="pp" value={delta.error_rate_delta} badIfUp />}
+      />
+      <RouteMetricCard
+        label="缓存命中"
+        value={`${metrics.cache_hit_rate.toFixed(1)}%`}
+        delta={<OverviewDelta delta={delta} kind="pp" value={delta.cache_hit_delta} badIfUp={false} />}
+      />
+      <RouteMetricCard
+        label="请求总数"
+        value={String(metrics.total)}
+        spark={sparkCounts}
+        sparkTone="var(--ok)"
+        delta={<OverviewDelta delta={delta} kind="pct" value={delta.total_pct} />}
+      />
+      {(metrics.waf_blocks ?? 0) > 0 ? (
+        <RouteMetricCard
+          label="WAF 拦截"
+          value={String(metrics.waf_blocks)}
+          delta={<OverviewDelta delta={delta} kind="count" value={delta.waf_blocks_delta} badIfUp />}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function RouteMetricCard({
+  label,
+  value,
+  sub,
+  spark,
+  sparkTone,
+  valueTone,
+  delta,
+}: {
+  label: string
+  value: string
+  sub?: string
+  spark?: number[]
+  sparkTone?: string
+  valueTone?: 'danger'
+  delta?: ReactNode
+}) {
+  return (
+    <div className="route-metric-card route-metric-card-rich">
+      <div className="label">{label}</div>
+      <div className={`value${valueTone === 'danger' ? ' text-danger' : ''}`}>{value}</div>
+      {sub ? <div className="route-metric-sub">{sub}</div> : null}
+      {spark && spark.length > 1 ? (
+        <div className="kpi-sparkline" aria-hidden>
+          {spark.map((v, i) => {
+            const max = Math.max(1, ...spark)
+            return (
+              <span
+                key={i}
+                style={{
+                  height: `${Math.max(4, (v / max) * 100)}%`,
+                  background: sparkTone ?? 'var(--accent)',
+                }}
+              />
+            )
+          })}
+        </div>
+      ) : null}
+      {delta ? <div className="route-metric-delta">{delta}</div> : null}
+    </div>
+  )
+}
+
 /** Sub-component: Cache statistics */
-function RouteCacheTab() {
-  const [overview, setOverview] = useState<{ global: { enabled: boolean; engine: string; ttl: number }; stats: { hit_rate: number; total_requests: number; cache_hits: number } } | null>(null)
+function RouteCacheTab({
+  detail,
+  metrics,
+}: {
+  detail: RouteDetail
+  metrics: RouteMetrics | null
+}) {
+  const [overview, setOverview] = useState<{
+    global: { enabled: boolean; engine: string; ttl: number }
+    stats: { hit_rate: number; total_requests: number; cache_hits: number }
+  } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -413,21 +494,42 @@ function RouteCacheTab() {
     })
   }, [])
 
-  if (loading) return <p className="empty-hint">加载中…</p>
-  if (!overview) return <p className="empty-hint">暂无缓存数据</p>
+  const routeCache = metrics?.route_cache
+
+  if (!detail.cache?.enabled && !routeCache?.enabled) {
+    return <p className="empty-hint">此路由未启用 HTTP 响应缓存（backend.cache）</p>
+  }
+
+  if (loading && !routeCache) return <p className="empty-hint">加载中…</p>
 
   return (
-    <dl className="route-detail-dl">
-      <dt>缓存引擎</dt>
-      <dd>{overview.global.engine} {overview.global.enabled ? '(已启用)' : '(未启用)'}</dd>
-      <dt>全局 TTL</dt>
-      <dd>{overview.global.ttl}s</dd>
-      <dt>命中率</dt>
-      <dd>{(overview.stats.hit_rate * 100).toFixed(1)}%</dd>
-      <dt>总请求</dt>
-      <dd>{overview.stats.total_requests}</dd>
-      <dt>缓存命中</dt>
-      <dd>{overview.stats.cache_hits}</dd>
-    </dl>
+    <>
+      {routeCache ? (
+        <dl className="route-detail-dl" style={{ marginBottom: 16 }}>
+          <dt>本路由命中率</dt>
+          <dd>
+            {routeCache.hit_rate.toFixed(1)}%（{routeCache.hits}/{routeCache.total} · 窗口 {metrics?.window}）
+          </dd>
+          <dt>路由 TTL</dt>
+          <dd>{routeCache.ttl}s</dd>
+          <dt>Body 上限</dt>
+          <dd>{routeCache.max_body_kb} KB</dd>
+        </dl>
+      ) : null}
+      {overview ? (
+        <dl className="route-detail-dl">
+          <dt>缓存引擎</dt>
+          <dd>
+            {overview.global.engine} {overview.global.enabled ? '(已启用)' : '(未启用)'}
+          </dd>
+          <dt>全局 TTL</dt>
+          <dd>{overview.global.ttl}s</dd>
+          <dt>全站命中率</dt>
+          <dd>{(overview.stats.hit_rate * 100).toFixed(1)}%</dd>
+        </dl>
+      ) : (
+        <p className="empty-hint">暂无全局缓存概览</p>
+      )}
+    </>
   )
 }
