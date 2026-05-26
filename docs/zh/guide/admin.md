@@ -97,7 +97,7 @@ ingress run -c ingress.yaml
 cd core/admin/web && pnpm dev
 ```
 
-Vite 开发服务器将 `/api` 代理到 admin 端口。生产 UI 在 `cd core/admin && make build` 后嵌入 `core/admin/static`。
+Vite 开发服务器将 `/api` 代理到 admin 端口。生产 UI 在 `cd core/admin && make build` 时编译进二进制（`-tags adminui`；产物在 `core/admin/static/dist`，不提交 Git）。
 
 ## HTTP API
 
