@@ -144,8 +144,10 @@ export const api = {
   logHosts: () => request<string[]>('/logs/hosts'),
   routeDetail: (ri: number, pi: number) =>
     request<RouteDetail>(`/routes/${ri}/${pi}`),
-  routeMetrics: (ri: number, pi: number) =>
-    request<RouteMetrics>(`/routes/${ri}/${pi}/metrics`),
+  routeMetrics: (ri: number, pi: number, window?: string) => {
+    const q = window ? `?window=${encodeURIComponent(window)}` : ''
+    return request<RouteMetrics>(`/routes/${ri}/${pi}/metrics${q}`)
+  },
   healthCheck: () =>
     request<{ checks: HealthCheckResult[]; summary: HealthSummary }>('/healthcheck'),
   investigate: (params: {
@@ -511,22 +513,43 @@ export type RouteDetail = {
   } | null
 }
 
+export type MetricsTimelineBucket = {
+  label: string
+  count: number
+  '2xx': number
+  '3xx': number
+  '4xx': number
+  '5xx': number
+  error_rate?: number
+  cache_hit_rate?: number
+  waf_blocks?: number
+  p50_ms?: number
+  p95_ms?: number
+}
+
+export type RouteSampleRow = {
+  host: string
+  method: string
+  path: string
+  status: number
+  duration_ms: number
+}
+
 export type RouteMetrics = {
   window: string
+  source?: string
   rpm: number
   error_rate: number
   p50_ms: number
   p95_ms: number
   cache_hit_rate: number
+  waf_blocks?: number
   total: number
-  timeline: Array<{
-    label: string
-    count: number
-    '2xx': number
-    '3xx': number
-    '4xx': number
-    '5xx': number
-  }>
+  status_counts: Record<string, number>
+  timeline: MetricsTimelineBucket[]
+  slowest?: RouteSampleRow[]
+  error_samples?: RouteSampleRow[]
+  latency_histogram?: Array<{ label: string; count: number }>
 }
 
 export type HealthCheckResult = {

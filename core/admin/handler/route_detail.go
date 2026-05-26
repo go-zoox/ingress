@@ -85,7 +85,8 @@ func (h *RouteDetailHandler) GetMetrics(ctx *zoox.Context) {
 		return
 	}
 
-	metrics := h.aggregateRouteMetrics(cfg, ri, pi)
+	window := strings.TrimSpace(ctx.Query().Get("window").String())
+	metrics := h.aggregateRouteMetrics(cfg, ri, pi, window)
 	ok(ctx, metrics)
 }
 
@@ -272,67 +273,61 @@ func getBackendTarget(b rule.Backend) string {
 	}
 }
 
-// aggregateRouteMetrics computes metrics for access log lines matching the route (ri/pi).
-func (h *RouteDetailHandler) aggregateRouteMetrics(cfg *ingcore.Config, ruleIndex, pathIndex int) zoox.H {
-	lines, err := h.ingress.Logs().TailAccess(5000)
-	if err != nil || len(lines) == 0 {
-		return emptyRouteMetrics()
+// aggregateRouteMetrics computes overview-style metrics for access log lines matching the route (ri/pi).
+func (h *RouteDetailHandler) aggregateRouteMetrics(cfg *ingcore.Config, ruleIndex, pathIndex int, window string) zoox.H {
+	window = strings.TrimSpace(window)
+	if window == "" {
+		window = "15m"
 	}
 
-	entries := service.FilterAccessEntriesForRoute(cfg, ruleIndex, pathIndex, lines)
-
-	total := len(entries)
-	if total == 0 {
-		return emptyRouteMetrics()
+	logs := h.ingress.Logs()
+	source := "unconfigured"
+	if logs != nil && strings.TrimSpace(logs.AccessLogPath()) != "" {
+		source = "access_log"
 	}
 
-	// Aggregate metrics
-	errorCount := 0
-	cacheHits := 0
-	var durations []float64
+	lines, err := logs.TailAccess(service.TailLinesForWindow(window))
+	if err != nil {
+		return routeMetricsJSON(service.AggregateAccessEntries(nil, window, "error"))
+	}
 
-	for _, e := range entries {
-		if e.Status >= 400 {
-			errorCount++
-		}
-		if e.CacheHit {
-			cacheHits++
-		}
-		if e.DurationMs > 0 {
-			durations = append(durations, e.DurationMs)
+	raw := make([]service.AccessEntry, 0, len(lines))
+	for _, line := range lines {
+		if e, ok := service.ParseAccessEntry(line); ok {
+			raw = append(raw, e)
 		}
 	}
-
-	errorRate := float64(errorCount) / float64(total) * 100
-	cacheHitRate := float64(cacheHits) / float64(total) * 100
-	rpm := float64(total) / 15.0 // 15m window
-
-	var p50, p95 float64
-	if ps := service.ComputePercentiles(durations, 0.5, 0.95); len(ps) >= 2 {
-		p50, p95 = ps[0], ps[1]
+	if source == "access_log" {
+		if len(lines) == 0 {
+			source = "access_log_empty"
+		} else if len(raw) == 0 {
+			source = "access_log_parse_fail"
+		}
 	}
 
-	return zoox.H{
-		"window":         "15m",
-		"rpm":            rpm,
-		"error_rate":     errorRate,
-		"p50_ms":         p50,
-		"p95_ms":         p95,
-		"cache_hit_rate": cacheHitRate,
-		"total":          total,
-		"timeline":       []interface{}{},
+	filtered := service.FilterAccessEntriesForRoute(cfg, ruleIndex, pathIndex, lines)
+	if source == "access_log" && len(filtered) == 0 && len(raw) > 0 {
+		source = "access_log"
 	}
+	m := service.AggregateAccessEntries(filtered, window, source)
+	return routeMetricsJSON(m)
 }
 
-func emptyRouteMetrics() zoox.H {
+func routeMetricsJSON(m service.OverviewMetrics) zoox.H {
 	return zoox.H{
-		"window":         "15m",
-		"rpm":            0,
-		"error_rate":     0,
-		"p50_ms":         0,
-		"p95_ms":         0,
-		"cache_hit_rate": 0,
-		"total":          0,
-		"timeline":       []interface{}{},
+		"window":            m.Window,
+		"source":            m.Source,
+		"total":             m.Total,
+		"rpm":               m.RPM,
+		"error_rate":        m.ErrorRate,
+		"p50_ms":            m.P50Ms,
+		"p95_ms":            m.P95Ms,
+		"cache_hit_rate":    m.CacheHitRate,
+		"waf_blocks":        m.WAFBlocks,
+		"status_counts":     m.StatusCounts,
+		"timeline":          m.Timeline,
+		"slowest":           m.Slowest,
+		"error_samples":     m.ErrorSamples,
+		"latency_histogram": m.LatencyHistogram,
 	}
 }

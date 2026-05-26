@@ -6,6 +6,13 @@ import { PageHeader } from '../components/PageHeader'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
 import { api, type RouteDetail, type RouteMetrics } from '../api/client'
+import { RouteDetailCharts } from '../components/routes/RouteDetailCharts'
+
+const METRIC_WINDOWS = [
+  { value: '15m', label: '15 分钟' },
+  { value: '1h', label: '1 小时' },
+  { value: '24h', label: '24 小时' },
+] as const
 
 type TabKey = 'logs' | 'waf' | 'cache'
 
@@ -15,12 +22,14 @@ export function RouteDetailPage() {
   const [detail, setDetail] = useState<RouteDetail | null>(null)
   const [metrics, setMetrics] = useState<RouteMetrics | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('logs')
+  const [metricWindow, setMetricWindow] = useState('15m')
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
 
+  const ri = Number(ruleIndex)
+  const pi = Number(pathIndex)
+
   useEffect(() => {
-    const ri = Number(ruleIndex)
-    const pi = Number(pathIndex)
     if (isNaN(ri) || isNaN(pi)) {
       setErr('无效的路由索引')
       setLoading(false)
@@ -28,30 +37,31 @@ export function RouteDetailPage() {
     }
 
     setLoading(true)
-    Promise.all([
-      api.routeDetail(ri, pi).catch((e: Error) => {
+    api.routeDetail(ri, pi)
+      .catch((e: Error) => {
         setErr(e.message)
         return null
-      }),
-      api.routeMetrics(ri, pi).catch(() => null),
-    ]).then(([d, m]) => {
-      setDetail(d)
-      setMetrics(m)
-      setLoading(false)
-    })
-  }, [ruleIndex, pathIndex])
+      })
+      .then((d) => {
+        setDetail(d)
+        setLoading(false)
+      })
+  }, [ri, pi])
+
+  useEffect(() => {
+    if (isNaN(ri) || isNaN(pi)) return
+    api.routeMetrics(ri, pi, metricWindow).then(setMetrics).catch(() => setMetrics(null))
+  }, [ri, pi, metricWindow])
 
   // Refresh per-route metrics (do not use global SSE overview metrics).
   useEffect(() => {
-    const ri = Number(ruleIndex)
-    const pi = Number(pathIndex)
     if (isNaN(ri) || isNaN(pi)) return
     const tick = () => {
-      api.routeMetrics(ri, pi).then(setMetrics).catch(() => {})
+      api.routeMetrics(ri, pi, metricWindow).then(setMetrics).catch(() => {})
     }
     const id = window.setInterval(tick, 5000)
     return () => window.clearInterval(id)
-  }, [ruleIndex, pathIndex])
+  }, [ri, pi, metricWindow])
 
   if (loading) {
     return (
@@ -205,12 +215,23 @@ export function RouteDetailPage() {
           <div className="panel">
             <div className="panel-head">
               <h2>实时指标</h2>
+              <select
+                value={metricWindow}
+                onChange={(e) => setMetricWindow(e.target.value)}
+                aria-label="指标时间范围"
+              >
+                {METRIC_WINDOWS.map((w) => (
+                  <option key={w.value} value={w.value}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="panel-body">
               {metrics ? (
                 <div className="route-metrics-cards">
                   <div className="route-metric-card">
-                    <div className="label">QPS</div>
+                    <div className="label">次/分</div>
                     <div className="value">{metrics.rpm.toFixed(1)}</div>
                   </div>
                   <div className="route-metric-card">
@@ -235,6 +256,12 @@ export function RouteDetailPage() {
                     <div className="label">请求总数</div>
                     <div className="value">{metrics.total}</div>
                   </div>
+                  {(metrics.waf_blocks ?? 0) > 0 ? (
+                    <div className="route-metric-card">
+                      <div className="label">WAF 拦截</div>
+                      <div className="value">{metrics.waf_blocks}</div>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <p className="empty-hint">暂无指标数据</p>
@@ -261,6 +288,8 @@ export function RouteDetailPage() {
           )}
         </div>
       </div>
+
+      {metrics ? <RouteDetailCharts detail={detail} metrics={metrics} /> : null}
 
       {/* Bottom: Tab content */}
       <div className="panel" style={{ marginTop: 20 }}>

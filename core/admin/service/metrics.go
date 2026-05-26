@@ -24,6 +24,7 @@ type OverviewMetrics struct {
 	TopHostsError      []HostErrorStat    `json:"top_hosts_error"`
 	TopPaths           []NamedCount       `json:"top_paths"`
 	Slowest            []SlowRequest      `json:"slowest"`
+	ErrorSamples       []SlowRequest      `json:"error_samples,omitempty"`
 	LatencyHistogram   []LatencyBucket    `json:"latency_histogram"`
 	Delta              OverviewDelta      `json:"delta"`
 }
@@ -38,6 +39,8 @@ type TimelineBucket struct {
 	ErrorRate    float64 `json:"error_rate"`
 	CacheHitRate float64 `json:"cache_hit_rate"`
 	WAFBlocks    int     `json:"waf_blocks"`
+	P50Ms        float64 `json:"p50_ms"`
+	P95Ms        float64 `json:"p95_ms"`
 }
 
 type NamedCount struct {
@@ -189,6 +192,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	out.TopHostsError = topHostsByError(filtered, 8)
 	out.TopPaths = topN(pathCounts, 6)
 	out.Slowest = slowest(filtered, 5)
+	out.ErrorSamples = errorSamples(filtered, 5)
 	out.LatencyHistogram = buildLatencyHistogram(durations)
 	out.Timeline = buildTimeline(filtered, hasTime, windowDur, bucketCount, anchor)
 
@@ -209,6 +213,11 @@ func parseWindowDuration(window string) time.Duration {
 	default:
 		return 15 * time.Minute
 	}
+}
+
+// TailLinesForWindow returns how many access log lines to read for a metrics window.
+func TailLinesForWindow(window string) int {
+	return tailLinesForWindow(window)
 }
 
 func tailLinesForWindow(window string) int {
@@ -475,6 +484,7 @@ func formatIndexLabel(i, n int) string {
 type timelineBucketScratch struct {
 	errors    int
 	cacheHits int
+	durations []float64
 }
 
 func fillBucketEntry(b *TimelineBucket, e AccessEntry, scratch *timelineBucketScratch) {
@@ -498,6 +508,9 @@ func fillBucketEntry(b *TimelineBucket, e AccessEntry, scratch *timelineBucketSc
 	if e.WAFBlock {
 		b.WAFBlocks++
 	}
+	if e.DurationMs > 0 {
+		scratch.durations = append(scratch.durations, e.DurationMs)
+	}
 }
 
 func finalizeTimelineBuckets(buckets []TimelineBucket, scratches []timelineBucketScratch) {
@@ -508,6 +521,10 @@ func finalizeTimelineBuckets(buckets []TimelineBucket, scratches []timelineBucke
 		sc := scratches[i]
 		buckets[i].ErrorRate = float64(sc.errors) / float64(buckets[i].Count) * 100
 		buckets[i].CacheHitRate = float64(sc.cacheHits) / float64(buckets[i].Count) * 100
+		if ps := percentiles(sc.durations, 0.5, 0.95); len(ps) >= 2 {
+			buckets[i].P50Ms = ps[0]
+			buckets[i].P95Ms = ps[1]
+		}
 	}
 }
 
@@ -615,6 +632,41 @@ func slowest(entries []AccessEntry, n int) []SlowRequest {
 		if e.DurationMs <= 0 {
 			continue
 		}
+		out = append(out, SlowRequest{
+			Host: e.Host, Method: e.Method, Path: e.Path,
+			Status: e.Status, DurationMs: e.DurationMs,
+		})
+	}
+	return out
+}
+
+// AggregateAccessEntries builds dashboard-style metrics from parsed access log lines.
+func AggregateAccessEntries(entries []AccessEntry, window, source string) OverviewMetrics {
+	return aggregateOverview(entries, window, source)
+}
+
+func errorSamples(entries []AccessEntry, n int) []SlowRequest {
+	cp := make([]AccessEntry, 0, len(entries))
+	for _, e := range entries {
+		if e.Status >= 400 {
+			cp = append(cp, e)
+		}
+	}
+	if len(cp) == 0 {
+		return nil
+	}
+	sort.Slice(cp, func(i, j int) bool {
+		if !cp[i].At.IsZero() && !cp[j].At.IsZero() {
+			return cp[i].At.After(cp[j].At)
+		}
+		return cp[i].DurationMs > cp[j].DurationMs
+	})
+	if n > len(cp) {
+		n = len(cp)
+	}
+	out := make([]SlowRequest, 0, n)
+	for i := 0; i < n; i++ {
+		e := cp[i]
 		out = append(out, SlowRequest{
 			Host: e.Host, Method: e.Method, Path: e.Path,
 			Status: e.Status, DurationMs: e.DurationMs,
