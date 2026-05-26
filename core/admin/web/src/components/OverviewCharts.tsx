@@ -214,14 +214,14 @@ export const OverviewCharts = memo(function OverviewCharts({
               </tr>
             </thead>
             <tbody>
-              {metrics.slowest.length === 0 ? (
+              {(metrics.slowest ?? []).length === 0 ? (
                 <tr>
                   <td colSpan={4} className="empty-hint">
                     无延迟数据
                   </td>
                 </tr>
               ) : (
-                metrics.slowest.map((s, i) => (
+                (metrics.slowest ?? []).map((s, i) => (
                   <tr key={`${s.host}-${s.path}-${i}`}>
                     <td>{s.host}</td>
                     <td>

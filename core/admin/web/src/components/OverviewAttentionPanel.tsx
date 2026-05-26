@@ -268,7 +268,7 @@ function buildOtherAttentionItems(metrics: OverviewMetrics | null, certs: TLSCer
   }
 
   if (metrics) {
-    for (const s of metrics.slowest.slice(0, 2)) {
+    for (const s of (metrics.slowest ?? []).slice(0, 2)) {
       if (s.duration_ms < 1000) break
       out.push({
         level: 'warn',

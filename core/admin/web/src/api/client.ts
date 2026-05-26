@@ -481,7 +481,7 @@ export type OverviewMetrics = {
     p95_delta_ms: number
     has_previous: boolean
   }
-  slowest: Array<{
+  slowest?: Array<{
     host: string
     method: string
     path: string
