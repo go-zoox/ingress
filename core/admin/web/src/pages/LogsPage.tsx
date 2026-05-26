@@ -16,6 +16,19 @@ const REFRESH_OPTIONS = [
 
 const MAX_LINES = 500
 
+function logFiltersFromLocation() {
+  const sp = new URLSearchParams(window.location.search)
+  const log = sp.get('log')
+  return {
+    logKind: (log === 'error' ? 'error' : 'access') as 'access' | 'error',
+    q: sp.get('q') || '',
+    host: sp.get('host') || '',
+    status: sp.get('status') || '',
+    cacheHit: sp.get('cache_hit') || '',
+    wafBlock: sp.get('waf_block') || '',
+  }
+}
+
 function logLineClass(line: string) {
   const m = line.match(/"\s+(\d{3})\s/)
   if (!m) return ''
@@ -26,12 +39,13 @@ function logLineClass(line: string) {
 }
 
 export function LogsPage() {
-  const [logKind, setLogKind] = useState<'access' | 'error'>('access')
-  const [q, setQ] = useState('')
-  const [host, setHost] = useState('')
-  const [status, setStatus] = useState('')
-  const [cacheHit, setCacheHit] = useState('')
-  const [wafBlock, setWafBlock] = useState('')
+  const initFilters = logFiltersFromLocation()
+  const [logKind, setLogKind] = useState<'access' | 'error'>(initFilters.logKind)
+  const [q, setQ] = useState(initFilters.q)
+  const [host, setHost] = useState(initFilters.host)
+  const [status, setStatus] = useState(initFilters.status)
+  const [cacheHit, setCacheHit] = useState(initFilters.cacheHit)
+  const [wafBlock, setWafBlock] = useState(initFilters.wafBlock)
   const [live, setLive] = useState(false)
   const [intervalMs, setIntervalMs] = useState(() => loadPreferences().logLiveIntervalMs)
   const [lines, setLines] = useState<string[]>([])

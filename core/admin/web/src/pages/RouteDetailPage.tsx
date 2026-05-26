@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
+import { Network, ScrollText, Settings2, Shield } from 'lucide-react'
+import { logsLink, routesTabLink, wafLink } from '../lib/deepLinks'
 import { PageHeader } from '../components/PageHeader'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
@@ -82,6 +84,34 @@ export function RouteDetailPage() {
       <PageHeader
         title={`路由详情 — ${detail.host}${detail.path}`}
         desc={`规则 #${detail.rule_index} · 路径 #${detail.path_index}`}
+        actions={
+          <>
+            <Link
+              to={logsLink({ host: detail.host, log: 'access' })}
+              className="btn btn-ghost btn-sm"
+            >
+              <ScrollText size={14} aria-hidden /> 日志
+            </Link>
+            <Link
+              to={wafLink({ host: detail.host, path: detail.path })}
+              className="btn btn-ghost btn-sm"
+            >
+              <Shield size={14} aria-hidden /> WAF
+            </Link>
+            <Link
+              to={routesTabLink('topology', {
+                highlight_ri: detail.rule_index,
+                highlight_pi: detail.path_index,
+              })}
+              className="btn btn-ghost btn-sm"
+            >
+              <Network size={14} aria-hidden /> 拓扑
+            </Link>
+            <Link to="/config" className="btn btn-ghost btn-sm">
+              <Settings2 size={14} aria-hidden /> 配置
+            </Link>
+          </>
+        }
       />
 
       <div className="route-detail-grid">

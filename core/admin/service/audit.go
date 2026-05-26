@@ -119,6 +119,12 @@ func (a *Audit) WAFEventsSummary() (block int64, audit int64, err error) {
 	return block, audit, nil
 }
 
+// ClearDemoWAFEvents removes rows seeded for admin-console demos (waf-demo.example.com).
+func (a *Audit) ClearDemoWAFEvents() (int64, error) {
+	res := gormx.GetDB().Where("host = ?", "waf-demo.example.com").Delete(&model.WAFEvent{})
+	return res.RowsAffected, res.Error
+}
+
 // pruneOldWAFEvents deletes events older than the given duration string (e.g. "720h").
 func (a *Audit) PruneOldWAFEvents(olderThan string) (int64, error) {
 	dur, err := time.ParseDuration(olderThan)

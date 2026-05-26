@@ -56,6 +56,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/routes/match", a.Match)
 	g.Post("/waf/toggle", a.WAFToggle)
 	g.Get("/waf/events", a.WAFEvents)
+	g.Delete("/waf/events/demo-seed", a.ClearDemoWAFEvents)
 	g.Get("/waf/events/:id", a.WAFEventDetail)
 	g.Post("/waf/match", a.WAFMatch)
 	g.Get("/waf/hosts", a.WAFHosts)
@@ -177,6 +178,15 @@ func (a *API) WAFToggle(ctx *zoox.Context) {
 	}
 	a.cfg.CoreInstance.SetWAFOverride(body.Enabled)
 	ok(ctx, zoox.H{"ok": true})
+}
+
+func (a *API) ClearDemoWAFEvents(ctx *zoox.Context) {
+	n, err := a.audit.ClearDemoWAFEvents()
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	ok(ctx, zoox.H{"ok": true, "deleted": n})
 }
 
 func (a *API) WAFEvents(ctx *zoox.Context) {

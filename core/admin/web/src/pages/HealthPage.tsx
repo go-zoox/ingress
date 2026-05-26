@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { EmptyStateGuide } from '../components/EmptyStateGuide'
 import { api, type HealthCheckResult, type HealthSummary } from '../api/client'
 
 export function HealthPage() {
+  const [searchParams] = useSearchParams()
+  const statusFilter = searchParams.get('status') || ''
+  const hostFilter = searchParams.get('host') || ''
   const [checks, setChecks] = useState<HealthCheckResult[]>([])
   const [summary, setSummary] = useState<HealthSummary>({ total: 0, up: 0, down: 0, unknown: 0 })
   const [loading, setLoading] = useState(true)
@@ -24,6 +28,14 @@ export function HealthPage() {
         setLoading(false)
       })
   }
+
+  const displayed = useMemo(() => {
+    return checks.filter((c) => {
+      if (statusFilter && c.status !== statusFilter) return false
+      if (hostFilter && c.host !== hostFilter) return false
+      return true
+    })
+  }, [checks, statusFilter, hostFilter])
 
   useEffect(() => {
     loadChecks()
@@ -73,15 +85,19 @@ export function HealthPage() {
         <div className="panel-body panel-table-wrap">
           {loading ? (
             <p className="empty-hint">加载中…</p>
-          ) : checks.length === 0 ? (
-            <EmptyStateGuide
-              title="暂无健康检查目标"
-              configModule="healthcheck"
-              linkLabel="打开配置中心"
-            >
-              在路由的 service 上启用 <code>healthcheck.enable</code> 后，ingress 会按间隔探测后端并在此展示
-              UP/DOWN。总览与拓扑图也会引用相同状态。
-            </EmptyStateGuide>
+          ) : displayed.length === 0 ? (
+            checks.length === 0 ? (
+              <EmptyStateGuide
+                title="暂无健康检查目标"
+                configModule="healthcheck"
+                linkLabel="打开配置中心"
+              >
+                在路由的 service 上启用 <code>healthcheck.enable</code> 后，ingress 会按间隔探测后端并在此展示
+                UP/DOWN。总览与拓扑图也会引用相同状态。
+              </EmptyStateGuide>
+            ) : (
+              <p className="empty-hint">当前筛选无匹配结果</p>
+            )
           ) : (
             <table className="data">
               <thead>
@@ -97,7 +113,7 @@ export function HealthPage() {
                 </tr>
               </thead>
               <tbody>
-                {checks.map((c) => (
+                {displayed.map((c) => (
                   <tr key={c.key} className={c.status === 'down' ? 'health-row-down' : ''}>
                     <td>{c.host}</td>
                     <td><code>{c.path}</code></td>

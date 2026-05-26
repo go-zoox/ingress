@@ -26,6 +26,7 @@ interface TopologyLayout {
 interface TopologySVGProps {
   layout: TopologyLayout
   onNodeClick: (node: TopologyNode) => void
+  highlightIds?: Set<string>
 }
 
 const NODE_W = 180
@@ -53,7 +54,7 @@ function bezierPath(x1: number, y1: number, x2: number, y2: number): string {
   return `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`
 }
 
-export function TopologySVG({ layout, onNodeClick }: TopologySVGProps) {
+export function TopologySVG({ layout, onNodeClick, highlightIds }: TopologySVGProps) {
   const { nodes, edges, width, height } = layout
   const wrapRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
@@ -169,12 +170,13 @@ export function TopologySVG({ layout, onNodeClick }: TopologySVGProps) {
           })}
 
           {nodes.map((n) => {
-            const borderColor = statusColor(n.status)
+            const highlighted = highlightIds?.has(n.id)
+            const borderColor = highlighted ? 'var(--accent)' : statusColor(n.status)
             const icon = n.type === 'host' ? '◉' : n.type === 'path' ? '/' : '■'
             return (
               <g
                 key={n.id}
-                className="topology-node"
+                className={`topology-node${highlighted ? ' topology-node-highlight' : ''}`}
                 onClick={(ev) => {
                   ev.stopPropagation()
                   onNodeClick(n)
@@ -189,7 +191,7 @@ export function TopologySVG({ layout, onNodeClick }: TopologySVGProps) {
                   rx={NODE_RX}
                   fill="var(--bg-elevated)"
                   stroke={borderColor}
-                  strokeWidth={1.5}
+                  strokeWidth={highlighted ? 2.5 : 1.5}
                   className="topology-node-rect"
                 />
                 <text
