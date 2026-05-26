@@ -27,6 +27,34 @@ func TestAggregateOverview_staleLogUsesLatestWindow(t *testing.T) {
 	}
 }
 
+func TestAggregateOverview_computesQPS(t *testing.T) {
+	anchor := time.Date(2026, 5, 20, 12, 0, 0, 0, time.Local)
+	entries := make([]AccessEntry, 300)
+	for i := range entries {
+		entries[i] = AccessEntry{
+			At:     anchor.Add(-time.Duration(i) * time.Second),
+			Host:   "api.example.com",
+			Status: 200,
+		}
+	}
+	out := aggregateOverview(entries, "5m", "access_log")
+	if out.Total != 300 {
+		t.Fatalf("total=%d want 300", out.Total)
+	}
+	wantQPS := 300.0 / (5 * 60)
+	if out.QPS < wantQPS*0.99 || out.QPS > wantQPS*1.01 {
+		t.Fatalf("qps=%v want ~%v", out.QPS, wantQPS)
+	}
+	if out.RPM < out.QPS*60*0.99 || out.RPM > out.QPS*60*1.01 {
+		t.Fatalf("rpm=%v inconsistent with qps=%v", out.RPM, out.QPS)
+	}
+	for _, b := range out.Timeline {
+		if b.Count > 0 && b.QPS <= 0 {
+			t.Fatalf("bucket with count should have qps: %+v", b)
+		}
+	}
+}
+
 func TestBuildTimeline_respectsAnchor(t *testing.T) {
 	anchor := time.Date(2026, 5, 20, 10, 15, 0, 0, time.Local)
 	entries := []AccessEntry{

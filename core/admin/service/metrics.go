@@ -13,6 +13,7 @@ type OverviewMetrics struct {
 	Source       string           `json:"source"`
 	Total        int              `json:"total"`
 	RPM          float64          `json:"rpm"`
+	QPS          float64          `json:"qps"`
 	ErrorRate    float64          `json:"error_rate"`
 	P50Ms        float64          `json:"p50_ms"`
 	P95Ms        float64          `json:"p95_ms"`
@@ -32,6 +33,7 @@ type OverviewMetrics struct {
 type TimelineBucket struct {
 	Label        string  `json:"label"`
 	Count        int     `json:"count"`
+	QPS          float64 `json:"qps"`
 	S2           int     `json:"2xx"`
 	S3           int     `json:"3xx"`
 	S4           int     `json:"4xx"`
@@ -176,6 +178,9 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 		minutes := windowDur.Minutes()
 		if minutes > 0 {
 			out.RPM = float64(out.Total) / minutes
+		}
+		if sec := windowDur.Seconds(); sec > 0 {
+			out.QPS = float64(out.Total) / sec
 		}
 	}
 	if ps := percentiles(durations, 0.5, 0.95); len(ps) >= 2 {
@@ -488,6 +493,7 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 			fillBucketEntry(&result[idx], e, &scratches[idx])
 		}
 		finalizeTimelineBuckets(result, scratches)
+		applyTimelineQPS(result, window, buckets)
 		return result
 	}
 
@@ -504,7 +510,21 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 		fillBucketEntry(&result[idx], e, &scratches[idx])
 	}
 	finalizeTimelineBuckets(result, scratches)
+	applyTimelineQPS(result, window, buckets)
 	return result
+}
+
+func applyTimelineQPS(buckets []TimelineBucket, window time.Duration, n int) {
+	if n <= 0 {
+		return
+	}
+	slotSeconds := window.Seconds() / float64(n)
+	if slotSeconds <= 0 {
+		return
+	}
+	for i := range buckets {
+		buckets[i].QPS = float64(buckets[i].Count) / slotSeconds
+	}
 }
 
 func formatIndexLabel(i, n int) string {

@@ -444,6 +444,7 @@ export type OverviewMetrics = {
   source: string
   total: number
   rpm: number
+  qps: number
   error_rate: number
   p50_ms: number
   p95_ms: number
@@ -453,6 +454,7 @@ export type OverviewMetrics = {
   timeline: Array<{
     label: string
     count: number
+    qps?: number
     '2xx': number
     '3xx': number
     '4xx': number
@@ -530,6 +532,7 @@ export type RouteDetail = {
 export type MetricsTimelineBucket = {
   label: string
   count: number
+  qps?: number
   '2xx': number
   '3xx': number
   '4xx': number
@@ -601,6 +604,7 @@ export type RouteMetrics = {
   window: string
   source?: string
   rpm: number
+  qps: number
   error_rate: number
   p50_ms: number
   p95_ms: number

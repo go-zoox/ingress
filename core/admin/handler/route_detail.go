@@ -353,6 +353,7 @@ func routeAnalyticsJSON(a service.RouteAnalytics) zoox.H {
 		"source":            m.Source,
 		"total":             m.Total,
 		"rpm":               m.RPM,
+		"qps":               m.QPS,
 		"error_rate":        m.ErrorRate,
 		"p50_ms":            m.P50Ms,
 		"p95_ms":            m.P95Ms,
