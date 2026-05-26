@@ -16,11 +16,13 @@ import {
 import { useSSE } from '../hooks/useSSE'
 import { loadPreferences, savePreferences } from '../lib/preferences'
 import { computeHealthScore, healthScoreClass } from '../lib/overviewHealthScore'
+import { FileText, LayoutDashboard, Radio, Route, Settings2 } from 'lucide-react'
 
 const WINDOW_OPTIONS = [
   { value: '5m', label: '5 分钟' },
   { value: '15m', label: '15 分钟' },
   { value: '1h', label: '1 小时' },
+  { value: '24h', label: '24 小时' },
 ] as const
 
 export function OverviewPage() {
@@ -84,7 +86,7 @@ export function OverviewPage() {
       .wafEvents()
       .then((d) => {
         const list = Array.isArray(d) ? d : []
-        setWafBlocks(list.filter((e) => e.action === 'block').slice(0, 5))
+        setWafBlocks(list.filter((e) => e.action === 'block').slice(0, 8))
       })
       .catch(() => setWafBlocks([]))
     api
@@ -159,7 +161,7 @@ export function OverviewPage() {
   if (!status) {
     return (
       <div className="page">
-        <PageHeader title="总览" desc="监控面板：流量、质量、异常与系统状态" />
+        <PageHeader title="总览" desc="SRE 监控面板：流量、质量、基础设施与异常" />
         <p style={{ color: 'var(--text-muted)' }}>加载中…</p>
       </div>
     )
@@ -172,7 +174,7 @@ export function OverviewPage() {
 
   return (
     <div className="page overview-page">
-      <PageHeader title="总览" desc="监控面板：流量、质量、异常与系统状态" />
+      <PageHeader title="总览" desc="SRE 监控面板：流量、质量、基础设施与异常" />
 
       {!reloadReady ? (
         <p className="err" style={{ marginBottom: 16 }}>
@@ -198,19 +200,23 @@ export function OverviewPage() {
         </div>
         <div className="overview-toolbar-meta">
           <span className={`overview-badge ${sseConnected ? 'ok' : ''}`}>
+            <Radio size={12} aria-hidden />
             {sseConnected ? 'SSE 已连接' : '轮询刷新'}
           </span>
-          <span className="overview-badge">数据源 {metricsSourceLabel(metrics?.source)}</span>
+          <span className="overview-badge">
+            <LayoutDashboard size={12} aria-hidden />
+            数据源 {metricsSourceLabel(metrics?.source)}
+          </span>
         </div>
         <div className="overview-toolbar-actions">
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/logs')}>
-            日志
+            <FileText size={14} aria-hidden /> 日志
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/routes')}>
-            路由
+            <Route size={14} aria-hidden /> 路由
           </button>
           <button type="button" className="btn btn-primary btn-sm" onClick={() => navigate('/config')}>
-            配置
+            <Settings2 size={14} aria-hidden /> 配置
           </button>
         </div>
       </div>
@@ -220,6 +226,9 @@ export function OverviewPage() {
         loading={metricsLoading}
         healthScore={healthScore}
         healthClass={healthClass}
+        healthChecks={healthChecks}
+        healthSummary={healthSummary}
+        certs={certs}
       />
 
       <OverviewAttentionPanel

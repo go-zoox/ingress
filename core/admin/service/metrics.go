@@ -21,8 +21,11 @@ type OverviewMetrics struct {
 	StatusCounts   map[string]int     `json:"status_counts"`
 	Timeline       []TimelineBucket   `json:"timeline"`
 	TopHosts       []NamedCount       `json:"top_hosts"`
-	TopHostsError  []HostErrorStat    `json:"top_hosts_error"`
-	Slowest        []SlowRequest      `json:"slowest"`
+	TopHostsError      []HostErrorStat    `json:"top_hosts_error"`
+	TopPaths           []NamedCount       `json:"top_paths"`
+	Slowest            []SlowRequest      `json:"slowest"`
+	LatencyHistogram   []LatencyBucket    `json:"latency_histogram"`
+	Delta              OverviewDelta      `json:"delta"`
 }
 
 type TimelineBucket struct {
@@ -58,6 +61,23 @@ type SlowRequest struct {
 	DurationMs float64 `json:"duration_ms"`
 }
 
+// LatencyBucket is a histogram bucket for request duration_ms.
+type LatencyBucket struct {
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
+// OverviewDelta compares the current window to the immediately previous window of equal length.
+type OverviewDelta struct {
+	TotalPct        float64 `json:"total_pct"`
+	RpmPct          float64 `json:"rpm_pct"`
+	ErrorRateDelta  float64 `json:"error_rate_delta"`
+	CacheHitDelta   float64 `json:"cache_hit_delta"`
+	WafBlocksDelta  int     `json:"waf_blocks_delta"`
+	P95DeltaMs      float64 `json:"p95_delta_ms"`
+	HasPrevious     bool    `json:"has_previous"`
+}
+
 // Metrics aggregates access logs for overview charts.
 type Metrics struct {
 	logs *Logs
@@ -72,7 +92,7 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 	if window == "" {
 		window = "15m"
 	}
-	lines, err := m.logs.TailAccess(5000)
+	lines, err := m.logs.TailAccess(tailLinesForWindow(window))
 	if err != nil {
 		return aggregateOverview(nil, window, "error")
 	}
@@ -102,8 +122,9 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 		Source:       source,
 		StatusCounts: map[string]int{"2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0},
 	}
+	bucketCount := timelineBucketsForWindow(window)
 	if len(entries) == 0 {
-		out.Timeline = emptyTimeline(8)
+		out.Timeline = emptyTimeline(bucketCount)
 		return out
 	}
 
@@ -126,6 +147,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	var durations []float64
 	cacheHits := 0
 	hostCounts := map[string]int{}
+	pathCounts := map[string]int{}
 
 	for _, e := range filtered {
 		cls := statusClass(e.Status)
@@ -143,6 +165,14 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 			out.WAFBlocks++
 		}
 		hostCounts[e.Host]++
+		pathKey := e.Path
+		if pathKey == "" {
+			pathKey = "/"
+		}
+		if i := strings.Index(pathKey, "?"); i >= 0 {
+			pathKey = pathKey[:i]
+		}
+		pathCounts[pathKey]++
 	}
 	if out.Total > 0 {
 		out.ErrorRate = out.ErrorRate / float64(out.Total) * 100
@@ -157,14 +187,21 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	}
 	out.TopHosts = topN(hostCounts, 8)
 	out.TopHostsError = topHostsByError(filtered, 8)
+	out.TopPaths = topN(pathCounts, 6)
 	out.Slowest = slowest(filtered, 5)
-	out.Timeline = buildTimeline(filtered, hasTime, windowDur, 8, anchor)
+	out.LatencyHistogram = buildLatencyHistogram(durations)
+	out.Timeline = buildTimeline(filtered, hasTime, windowDur, bucketCount, anchor)
+
+	prevFiltered := filterEntriesInPreviousWindow(entries, anchor, windowDur, hasTime)
+	out.Delta = computeOverviewDelta(filtered, prevFiltered, windowDur)
 
 	return out
 }
 
 func parseWindowDuration(window string) time.Duration {
 	switch window {
+	case "24h":
+		return 24 * time.Hour
 	case "1h", "60m":
 		return time.Hour
 	case "5m":
@@ -172,6 +209,153 @@ func parseWindowDuration(window string) time.Duration {
 	default:
 		return 15 * time.Minute
 	}
+}
+
+func tailLinesForWindow(window string) int {
+	switch window {
+	case "24h":
+		return 50000
+	case "1h", "60m":
+		return 20000
+	default:
+		return 8000
+	}
+}
+
+func timelineBucketsForWindow(window string) int {
+	switch window {
+	case "24h":
+		return 24
+	case "1h", "60m":
+		return 12
+	default:
+		return 8
+	}
+}
+
+func filterEntriesInPreviousWindow(entries []AccessEntry, anchor time.Time, window time.Duration, requireTime bool) []AccessEntry {
+	if !requireTime || anchor.IsZero() {
+		return nil
+	}
+	start := anchor.Add(-2 * window)
+	end := anchor.Add(-window)
+	out := make([]AccessEntry, 0, len(entries)/4)
+	for _, e := range entries {
+		if e.At.IsZero() {
+			continue
+		}
+		if e.At.Before(start) || e.At.After(end) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+func computeOverviewDelta(current, previous []AccessEntry, windowDur time.Duration) OverviewDelta {
+	d := OverviewDelta{}
+	if len(previous) == 0 {
+		return d
+	}
+	d.HasPrevious = true
+
+	cur := snapshotEntries(current, windowDur)
+	prev := snapshotEntries(previous, windowDur)
+
+	if prev.total > 0 {
+		d.TotalPct = pctChange(float64(cur.total), float64(prev.total))
+		d.RpmPct = pctChange(cur.rpm, prev.rpm)
+	}
+	d.ErrorRateDelta = cur.errorRate - prev.errorRate
+	d.CacheHitDelta = cur.cacheHitRate - prev.cacheHitRate
+	d.WafBlocksDelta = cur.wafBlocks - prev.wafBlocks
+	d.P95DeltaMs = cur.p95 - prev.p95
+	return d
+}
+
+type entrySnapshot struct {
+	total        int
+	rpm          float64
+	errorRate    float64
+	cacheHitRate float64
+	wafBlocks    int
+	p95          float64
+}
+
+func snapshotEntries(entries []AccessEntry, windowDur time.Duration) entrySnapshot {
+	var snap entrySnapshot
+	if len(entries) == 0 {
+		return snap
+	}
+	snap.total = len(entries)
+	var durations []float64
+	errors := 0
+	cacheHits := 0
+	for _, e := range entries {
+		if e.Status >= 400 {
+			errors++
+		}
+		if e.CacheHit {
+			cacheHits++
+		}
+		if e.WAFBlock {
+			snap.wafBlocks++
+		}
+		if e.DurationMs > 0 {
+			durations = append(durations, e.DurationMs)
+		}
+	}
+	snap.errorRate = float64(errors) / float64(snap.total) * 100
+	snap.cacheHitRate = float64(cacheHits) / float64(snap.total) * 100
+	if minutes := windowDur.Minutes(); minutes > 0 {
+		snap.rpm = float64(snap.total) / minutes
+	}
+	if ps := percentiles(durations, 0.95); len(ps) > 0 {
+		snap.p95 = ps[0]
+	}
+	return snap
+}
+
+func pctChange(cur, prev float64) float64 {
+	if prev == 0 {
+		if cur == 0 {
+			return 0
+		}
+		return 100
+	}
+	return (cur - prev) / prev * 100
+}
+
+var latencyHistBounds = []struct {
+	label string
+	maxMs float64
+}{
+	{"<50ms", 50},
+	{"50-100", 100},
+	{"100-250", 250},
+	{"250-500", 500},
+	{"500ms-1s", 1000},
+	{"1-3s", 3000},
+	{">3s", 1e18},
+}
+
+func buildLatencyHistogram(durations []float64) []LatencyBucket {
+	out := make([]LatencyBucket, len(latencyHistBounds))
+	for i, b := range latencyHistBounds {
+		out[i].Label = b.label
+	}
+	for _, ms := range durations {
+		if ms <= 0 {
+			continue
+		}
+		for i, b := range latencyHistBounds {
+			if ms <= b.maxMs {
+				out[i].Count++
+				break
+			}
+		}
+	}
+	return out
 }
 
 func entriesHaveTimestamps(entries []AccessEntry) bool {

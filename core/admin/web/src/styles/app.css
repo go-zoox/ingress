@@ -45,29 +45,9 @@ a {
   color: var(--accent);
 }
 
-/* prototype banner */
-.proto-banner {
-  background: linear-gradient(90deg, #1a3a4a 0%, #1a2a3a 100%);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 16px;
-  font-size: 12px;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.proto-banner strong {
-  color: var(--accent);
-}
-
-.proto-banner .tag {
-  background: rgba(61, 214, 198, 0.15);
-  color: var(--accent);
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
+/* mobile-only top bar (navigation toggle) */
+.mobile-topbar {
+  display: none;
 }
 
 /* mobile hamburger - hidden on desktop */
@@ -1563,6 +1543,184 @@ table.data.tls-certs .tls-domain {
   font-size: 12px;
 }
 
+.kpi-card .kpi-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.kpi-icon {
+  color: var(--text-muted);
+  display: flex;
+}
+
+.kpi-delta-row {
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kpi-delta-good {
+  color: var(--ok);
+}
+
+.kpi-delta-bad {
+  color: var(--danger);
+}
+
+.kpi-delta-flat,
+.kpi-delta-na {
+  color: var(--text-muted);
+}
+
+.health-matrix-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.health-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.health-pill.ok {
+  color: var(--ok);
+}
+
+.health-pill.danger {
+  color: var(--danger);
+}
+
+.health-matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.health-matrix-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  font-size: 12px;
+}
+
+.health-matrix-cell.health-down {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
+}
+
+.health-matrix-cell.health-up {
+  border-color: color-mix(in srgb, var(--ok) 35%, var(--border));
+}
+
+.health-matrix-host {
+  display: block;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.health-matrix-path {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.icon-ok {
+  color: var(--ok);
+  flex-shrink: 0;
+}
+
+.icon-danger {
+  color: var(--danger);
+  flex-shrink: 0;
+}
+
+.icon-muted {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tls-expiry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tls-expiry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(80px, 2fr) 52px;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.tls-expiry-domain {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tls-expiry-track {
+  min-width: 0;
+}
+
+.tls-expiry-days.tls-ok {
+  color: var(--ok);
+}
+
+.tls-expiry-days.tls-warn {
+  color: var(--warn);
+}
+
+.tls-expiry-days.tls-danger {
+  color: var(--danger);
+}
+
+.attention-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.attention-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.attention-section-head h3 {
+  margin: 0;
+  font-size: 14px;
+  flex: 1;
+}
+
+.attention-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 .metrics-cards {
   margin-top: 0;
 }
@@ -2791,21 +2949,19 @@ table.data.config-revisions code {
     flex-shrink: 0;
   }
 
-  /* --- proto banner --- */
-  .proto-banner {
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
     padding: 8px 12px;
-    gap: 8px;
   }
-  .proto-text {
-    font-size: 11px;
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .proto-banner .tag {
-    display: none;
+
+  .mobile-topbar-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
   }
 
   /* --- sidebar drawer --- */

@@ -51,10 +51,10 @@ export function AppLayout() {
 
   return (
     <>
-      <div className="proto-banner">
+      <div className="mobile-topbar">
         <button
           className="mobile-hamburger"
-          aria-label="Toggle navigation"
+          aria-label="打开导航"
           aria-expanded={drawerOpen}
           onClick={() => setDrawerOpen((v) => !v)}
         >
@@ -62,10 +62,7 @@ export function AppLayout() {
           <span className="hamburger-line" />
           <span className="hamburger-line" />
         </button>
-        <span className="proto-text">
-          <strong>产品原型</strong> · 单机部署 · 配置落回 YAML · 连接真实 API
-        </span>
-        <span className="tag">ingress admin</span>
+        <span className="mobile-topbar-title">Ingress Console</span>
       </div>
 
       {/* Backdrop */}

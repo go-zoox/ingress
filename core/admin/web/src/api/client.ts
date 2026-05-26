@@ -382,6 +382,17 @@ export type OverviewMetrics = {
     errors: number
     error_rate: number
   }>
+  top_paths: Array<{ name: string; count: number }>
+  latency_histogram: Array<{ label: string; count: number }>
+  delta: {
+    total_pct: number
+    rpm_pct: number
+    error_rate_delta: number
+    cache_hit_delta: number
+    waf_blocks_delta: number
+    p95_delta_ms: number
+    has_previous: boolean
+  }
   slowest: Array<{
     host: string
     method: string
