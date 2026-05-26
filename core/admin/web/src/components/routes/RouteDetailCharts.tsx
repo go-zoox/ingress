@@ -12,9 +12,12 @@ import { StatusDonut } from '../charts/StatusDonut'
 type Props = {
   detail: RouteDetail
   metrics: RouteMetrics
+  scopeHost?: string
+  scopePath?: string
+  pathMatch?: string
 }
 
-export const RouteDetailCharts = memo(function RouteDetailCharts({ detail, metrics }: Props) {
+export const RouteDetailCharts = memo(function RouteDetailCharts({ detail, metrics, scopeHost, scopePath, pathMatch }: Props) {
   if (metrics.total === 0) {
     return (
       <div className="panel metrics-empty" style={{ marginTop: 16 }}>
@@ -30,6 +33,12 @@ export const RouteDetailCharts = memo(function RouteDetailCharts({ detail, metri
     cache_hit_rate: b.cache_hit_rate ?? 0,
     waf_blocks: b.waf_blocks ?? 0,
   }))
+
+  const scopedQs = new URLSearchParams()
+  if (scopeHost) scopedQs.set('host', scopeHost)
+  if (scopePath) scopedQs.set('path', scopePath)
+  if (pathMatch) scopedQs.set('path_match', pathMatch)
+  const scopeQsString = scopedQs.toString()
 
   const showPathBreakdown =
     (metrics.path_breakdown?.length ?? 0) > 1 && detail.path_index < 0
@@ -139,7 +148,7 @@ export const RouteDetailCharts = memo(function RouteDetailCharts({ detail, metri
                     <td>
                       {row.path_index >= 0 ? (
                         <Link
-                          to={`/routes/${detail.rule_index}/${row.path_index}`}
+                          to={`/routes/${detail.rule_index}/${row.path_index}${scopeQsString ? `?${scopeQsString}` : ''}`}
                           className="btn btn-ghost btn-sm"
                         >
                           详情
@@ -175,7 +184,7 @@ export const RouteDetailCharts = memo(function RouteDetailCharts({ detail, metri
             {metrics.related_routes!.map((r) => (
               <Link
                 key={`${r.rule_index}-${r.path_index}`}
-                to={`/routes/${r.rule_index}/${r.path_index}`}
+                to={`/routes/${r.rule_index}/${r.path_index}${scopeQsString ? `?${scopeQsString}` : ''}`}
                 className="related-route-card"
               >
                 <span className="badge badge-audit">{relationLabel(r.relation)}</span>
@@ -195,12 +204,14 @@ export const RouteDetailCharts = memo(function RouteDetailCharts({ detail, metri
           title="最慢请求"
           rows={metrics.slowest ?? []}
           detail={detail}
+          scopeHost={scopeHost}
           emptyHint="无延迟数据"
         />
         <SampleTable
           title="近期错误请求"
           rows={metrics.error_samples ?? []}
           detail={detail}
+          scopeHost={scopeHost}
           emptyHint="无 4xx/5xx 样本"
         />
       </div>
@@ -331,6 +342,7 @@ function SampleTable({
   title,
   rows,
   detail,
+  scopeHost,
   emptyHint,
 }: {
   title: string
@@ -342,6 +354,7 @@ function SampleTable({
     duration_ms: number
   }>
   detail: RouteDetail
+  scopeHost?: string
   emptyHint: string
 }) {
   return (
@@ -379,7 +392,7 @@ function SampleTable({
                   <td>
                     <Link
                       to={investigateLink({
-                        host: detail.host,
+                        host: scopeHost || detail.host,
                         path: s.path,
                         ri: detail.rule_index,
                         pi: detail.path_index,

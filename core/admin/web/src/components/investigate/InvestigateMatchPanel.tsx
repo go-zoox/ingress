@@ -38,7 +38,7 @@ export function InvestigateMatchPanel({ match }: Props) {
           </dl>
           {match.path_index != null && match.path_index >= 0 ? (
             <Link
-              to={routeDetailLink(match.rule_index, match.path_index)}
+              to={routeDetailLink(match.rule_index, match.path_index, { host: match.host, path: match.path })}
               className="btn btn-sm"
               style={{ marginTop: 12 }}
             >

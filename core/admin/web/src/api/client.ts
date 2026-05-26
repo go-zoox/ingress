@@ -35,6 +35,7 @@ export const api = {
     action?: string
     host?: string
     path?: string
+    path_match?: 'prefix' | 'exact'
     client_ip?: string
     rule?: string
     time_start?: string
@@ -47,6 +48,7 @@ export const api = {
     if (params?.action) q.set('action', params.action)
     if (params?.host) q.set('host', params.host)
     if (params?.path) q.set('path', params.path)
+    if (params?.path_match) q.set('path_match', params.path_match)
     if (params?.ri != null) q.set('ri', String(params.ri))
     if (params?.pi != null) q.set('pi', String(params.pi))
     if (params?.client_ip) q.set('client_ip', params.client_ip)
@@ -118,6 +120,7 @@ export const api = {
     q?: string
     host?: string
     path?: string
+    path_match?: 'prefix' | 'exact'
     status?: string
     cache_hit?: string
     waf_block?: string
@@ -131,6 +134,7 @@ export const api = {
     if (params.q) q.set('q', params.q)
     if (params.host) q.set('host', params.host)
     if (params.path) q.set('path', params.path)
+    if (params.path_match) q.set('path_match', params.path_match)
     if (params.ri != null) q.set('ri', String(params.ri))
     if (params.pi != null) q.set('pi', String(params.pi))
     if (params.status) q.set('status', params.status)
@@ -144,9 +148,19 @@ export const api = {
   logHosts: () => request<string[]>('/logs/hosts'),
   routeDetail: (ri: number, pi: number) =>
     request<RouteDetail>(`/routes/${ri}/${pi}`),
-  routeMetrics: (ri: number, pi: number, window?: string) => {
-    const q = window ? `?window=${encodeURIComponent(window)}` : ''
-    return request<RouteMetrics>(`/routes/${ri}/${pi}/metrics${q}`)
+  routeMetrics: (
+    ri: number,
+    pi: number,
+    window?: string,
+    scope?: { host?: string; path?: string; path_match?: 'prefix' | 'exact' },
+  ) => {
+    const q = new URLSearchParams()
+    if (window) q.set('window', window)
+    if (scope?.host) q.set('host', scope.host)
+    if (scope?.path) q.set('path', scope.path)
+    if (scope?.path_match) q.set('path_match', scope.path_match)
+    const qs = q.toString()
+    return request<RouteMetrics>(`/routes/${ri}/${pi}/metrics${qs ? `?${qs}` : ''}`)
   },
   healthCheck: () =>
     request<{ checks: HealthCheckResult[]; summary: HealthSummary }>('/healthcheck'),
@@ -598,6 +612,10 @@ export type RouteMetrics = {
   slowest?: RouteSampleRow[]
   error_samples?: RouteSampleRow[]
   latency_histogram?: Array<{ label: string; count: number }>
+  top_hosts?: Array<{ name: string; count: number }>
+  top_paths?: Array<{ name: string; count: number }>
+  scope_hosts?: Array<{ name: string; count: number }>
+  scope_paths?: Array<{ name: string; count: number }>
   delta?: MetricsDelta
   upstream?: RouteUpstreamStats
   path_breakdown?: RoutePathBreakdown[]

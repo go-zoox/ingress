@@ -227,6 +227,11 @@ func (a *API) ClearDemoWAFEvents(ctx *zoox.Context) {
 func (a *API) WAFEvents(ctx *zoox.Context) {
 	f := service.WAFAuditFilter{}
 
+	pathMatch := strings.ToLower(strings.TrimSpace(ctx.Query().Get("path_match").String()))
+	if pathMatch == "" {
+		pathMatch = "prefix"
+	}
+
 	// query params
 	if v := strings.TrimSpace(ctx.Query().Get("action").String()); v != "" {
 		f.Action = v
@@ -254,12 +259,15 @@ func (a *API) WAFEvents(ctx *zoox.Context) {
 			f.Limit = n
 		}
 	}
+	scopeHostOverride := strings.TrimSpace(f.Host)
+	scopePathOverride := strings.TrimSpace(f.Path)
 	if _, _, routeFilter := parseRouteQueryIndices(ctx); routeFilter {
-		// Host/path in config may be regex patterns; match events to the route after fetch.
-		f.Host = ""
-		f.Path = ""
 		if f.Limit < 500 {
 			f.Limit = 500
+		}
+		// For prefix matching we don't want DB exact-path filtering to hide matches.
+		if scopePathOverride != "" && pathMatch == "prefix" {
+			f.Path = ""
 		}
 	}
 
@@ -272,6 +280,21 @@ func (a *API) WAFEvents(ctx *zoox.Context) {
 		if icfg, err := a.ingress.LoadConfig(); err == nil {
 			rows = service.FilterWAFEventsForRoute(icfg, ri, pi, rows)
 		}
+	}
+
+	// Optional scope overrides (used by route detail page).
+	if scopeHostOverride != "" || scopePathOverride != "" {
+		scoped := rows[:0]
+		for _, row := range rows {
+			if scopeHostOverride != "" && !strings.EqualFold(strings.TrimSpace(row.Host), scopeHostOverride) {
+				continue
+			}
+			if scopePathOverride != "" && !service.MatchPathForScope(row.Path, scopePathOverride, pathMatch) {
+				continue
+			}
+			scoped = append(scoped, row)
+		}
+		rows = scoped
 	}
 	ok(ctx, rows)
 }
@@ -559,6 +582,10 @@ func (a *API) Logs(ctx *zoox.Context) {
 	if strings.TrimSpace(ctx.Query().Get("log").String()) == "error" {
 		kind = service.LogError
 	}
+	pathMatch := strings.ToLower(strings.TrimSpace(ctx.Query().Get("path_match").String()))
+	if pathMatch == "" {
+		pathMatch = "prefix"
+	}
 	q := service.LogQuery{
 		Kind:     kind,
 		Q:        strings.TrimSpace(ctx.Query().Get("q").String()),
@@ -582,6 +609,24 @@ func (a *API) Logs(ctx *zoox.Context) {
 			return
 		}
 		filtered := service.FilterAccessLinesForRoute(icfg, ri, pi, lines)
+		// Optional exact scope overrides: used by route detail page.
+		if q.Host != "" || q.Path != "" {
+			scoped := make([]string, 0, len(filtered))
+			for _, line := range filtered {
+				e, ok := service.ParseAccessEntry(line)
+				if !ok {
+					continue
+				}
+				if q.Host != "" && !strings.EqualFold(strings.TrimSpace(e.Host), q.Host) {
+					continue
+				}
+				if q.Path != "" && !service.MatchPathForScope(e.Path, q.Path, pathMatch) {
+					continue
+				}
+				scoped = append(scoped, line)
+			}
+			filtered = scoped
+		}
 		if q.Limit > 0 && len(filtered) > q.Limit {
 			filtered = filtered[len(filtered)-q.Limit:]
 		}

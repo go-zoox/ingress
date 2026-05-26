@@ -1,15 +1,19 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
-import { Network, ScrollText, Search, Settings2, Shield } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { Network, Radio, ScrollText, Search, Settings2, Shield } from 'lucide-react'
 import { investigateLink, logsLink, routesTabLink, wafLink } from '../lib/deepLinks'
 import { PageHeader } from '../components/PageHeader'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
 import { api, type MetricsDelta, type RouteDetail, type RouteMetrics } from '../api/client'
 import { RouteDetailCharts } from '../components/routes/RouteDetailCharts'
+import { RouteScopeBar } from '../components/routes/RouteScopeBar'
 import { OverviewDelta } from '../components/OverviewDelta'
+import { parseRouteScopeFromSearchParams } from '../lib/routeScope'
+import { loadPreferences, savePreferences } from '../lib/preferences'
 
-const METRIC_WINDOWS = [
+const WINDOW_OPTIONS = [
+  { value: '5m', label: '5 分钟' },
   { value: '15m', label: '15 分钟' },
   { value: '1h', label: '1 小时' },
   { value: '24h', label: '24 小时' },
@@ -20,15 +24,27 @@ type TabKey = 'logs' | 'waf' | 'cache'
 export function RouteDetailPage() {
   const { ruleIndex, pathIndex } = useParams<{ ruleIndex: string; pathIndex: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [detail, setDetail] = useState<RouteDetail | null>(null)
   const [metrics, setMetrics] = useState<RouteMetrics | null>(null)
+  const [metricsLoading, setMetricsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabKey>('logs')
-  const [metricWindow, setMetricWindow] = useState('15m')
+  const [metricWindow, setMetricWindow] = useState(() => loadPreferences().metricsWindow)
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
+  const [scopeOptions, setScopeOptions] = useState<{
+    hosts: Array<{ name: string; count: number }>
+    paths: Array<{ name: string; count: number }>
+  }>({ hosts: [], paths: [] })
+  const metricsMountedRef = useRef(false)
+  const metricsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const refreshMs = loadPreferences().metricsRefreshMs
 
   const ri = Number(ruleIndex)
   const pi = Number(pathIndex)
+
+  const scope = parseRouteScopeFromSearchParams(searchParams)
+  const { host: scopeHost, path: scopePath, pathMatch: pathMatchParam } = scope
 
   useEffect(() => {
     if (isNaN(ri) || isNaN(pi)) {
@@ -49,20 +65,58 @@ export function RouteDetailPage() {
       })
   }, [ri, pi])
 
-  useEffect(() => {
+  const fetchRouteMetrics = useCallback(() => {
     if (isNaN(ri) || isNaN(pi)) return
-    api.routeMetrics(ri, pi, metricWindow).then(setMetrics).catch(() => setMetrics(null))
-  }, [ri, pi, metricWindow])
-
-  // Refresh per-route metrics (do not use global SSE overview metrics).
-  useEffect(() => {
-    if (isNaN(ri) || isNaN(pi)) return
-    const tick = () => {
-      api.routeMetrics(ri, pi, metricWindow).then(setMetrics).catch(() => {})
+    if (!metricsMountedRef.current) {
+      setMetricsLoading(true)
     }
-    const id = window.setInterval(tick, 5000)
-    return () => window.clearInterval(id)
-  }, [ri, pi, metricWindow])
+    const scopeParams = {
+      host: scopeHost || undefined,
+      path: scopePath || undefined,
+      path_match: pathMatchParam === 'exact' ? ('exact' as const) : ('prefix' as const),
+    }
+    Promise.all([
+      api.routeMetrics(ri, pi, metricWindow, scopeParams),
+      api.routeMetrics(ri, pi, metricWindow),
+    ])
+      .then(([scoped, unscoped]) => {
+        setMetrics(scoped)
+        setScopeOptions({
+          hosts: unscoped.scope_hosts ?? unscoped.top_hosts ?? [],
+          paths: unscoped.scope_paths ?? unscoped.top_paths ?? [],
+        })
+        setMetricsLoading(false)
+        metricsMountedRef.current = true
+      })
+      .catch(() => {
+        if (!metricsMountedRef.current) {
+          setMetrics(null)
+          setMetricsLoading(false)
+          metricsMountedRef.current = true
+        }
+      })
+  }, [ri, pi, metricWindow, scopeHost, scopePath, pathMatchParam])
+
+  useEffect(() => {
+    if (isNaN(ri) || isNaN(pi)) return
+    fetchRouteMetrics()
+    if (refreshMs > 0) {
+      metricsTimerRef.current = window.setInterval(fetchRouteMetrics, refreshMs)
+    }
+    return () => {
+      if (metricsTimerRef.current != null) {
+        window.clearInterval(metricsTimerRef.current)
+      }
+    }
+  }, [fetchRouteMetrics, refreshMs, ri, pi])
+
+  const onWindowChange = (value: string) => {
+    setMetricWindow(value)
+    const prefs = loadPreferences()
+    savePreferences({ ...prefs, metricsWindow: value })
+    metricsMountedRef.current = false
+    setMetricsLoading(true)
+  }
 
   if (loading) {
     return (
@@ -85,6 +139,10 @@ export function RouteDetailPage() {
     )
   }
 
+  const viewHost = scopeHost || detail.host
+  const viewPath = scopePath || detail.path
+  const hasScope = Boolean(scopeHost || scopePath)
+
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'logs', label: '访问日志' },
     { key: 'waf', label: 'WAF 事件' },
@@ -94,14 +152,18 @@ export function RouteDetailPage() {
   return (
     <div className="page">
       <PageHeader
-        title={`路由详情 — ${detail.host}${detail.path}`}
-        desc={`规则 #${detail.rule_index} · 路径 #${detail.path_index}`}
+        title={`路由详情 — ${viewHost}${viewPath}`}
+        desc={
+          hasScope
+            ? `观测范围 · 规则 #${detail.rule_index} · 配置 Host ${detail.host}`
+            : `规则 #${detail.rule_index} · 路径 #${detail.path_index}`
+        }
         actions={
           <>
             <Link
               to={investigateLink({
-                host: detail.host,
-                path: detail.path,
+                host: viewHost,
+                path: viewPath,
                 ri: detail.rule_index,
                 pi: detail.path_index,
               })}
@@ -110,13 +172,13 @@ export function RouteDetailPage() {
               <Search size={14} aria-hidden /> 调查此路由
             </Link>
             <Link
-              to={logsLink({ host: detail.host, log: 'access' })}
+              to={logsLink({ host: viewHost, log: 'access' })}
               className="btn btn-ghost btn-sm"
             >
               <ScrollText size={14} aria-hidden /> 日志
             </Link>
             <Link
-              to={wafLink({ host: detail.host, path: detail.path })}
+              to={wafLink({ host: viewHost, path: viewPath })}
               className="btn btn-ghost btn-sm"
             >
               <Shield size={14} aria-hidden /> WAF
@@ -135,6 +197,42 @@ export function RouteDetailPage() {
             </Link>
           </>
         }
+      />
+
+      <div className="overview-toolbar">
+        <div className="overview-window-tabs" role="tablist" aria-label="指标时间窗口">
+          {WINDOW_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="tab"
+              aria-selected={metricWindow === opt.value}
+              className={metricWindow === opt.value ? 'btn btn-sm active' : 'btn btn-sm btn-ghost'}
+              onClick={() => onWindowChange(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="overview-toolbar-meta">
+          <span className="overview-badge">
+            <Radio size={12} aria-hidden />
+            轮询刷新
+          </span>
+          <span className="overview-badge">
+            数据源 {metricsSourceLabel(metrics?.source)}
+          </span>
+        </div>
+      </div>
+
+      <RouteScopeBar
+        ruleIndex={detail.rule_index}
+        pathIndex={detail.path_index}
+        ruleHost={detail.host}
+        configPath={detail.path}
+        scope={scope}
+        hostOptions={scopeOptions.hosts}
+        pathOptions={scopeOptions.paths}
       />
 
       <div className="route-detail-grid">
@@ -216,20 +314,11 @@ export function RouteDetailPage() {
           <div className="panel">
             <div className="panel-head">
               <h2>实时指标</h2>
-              <select
-                value={metricWindow}
-                onChange={(e) => setMetricWindow(e.target.value)}
-                aria-label="指标时间范围"
-              >
-                {METRIC_WINDOWS.map((w) => (
-                  <option key={w.value} value={w.value}>
-                    {w.label}
-                  </option>
-                ))}
-              </select>
             </div>
             <div className="panel-body">
-              {metrics ? (
+              {metricsLoading && !metrics ? (
+                <p className="empty-hint">加载中…</p>
+              ) : metrics ? (
                 <RouteMetricsKpis metrics={metrics} />
               ) : (
                 <p className="empty-hint">暂无指标数据</p>
@@ -257,7 +346,15 @@ export function RouteDetailPage() {
         </div>
       </div>
 
-      {metrics ? <RouteDetailCharts detail={detail} metrics={metrics} /> : null}
+      {metrics ? (
+        <RouteDetailCharts
+          detail={detail}
+          metrics={metrics}
+          scopeHost={scopeHost || undefined}
+          scopePath={scopePath || undefined}
+          pathMatch={pathMatchParam}
+        />
+      ) : null}
 
       {/* Bottom: Tab content */}
       <div className="panel" style={{ marginTop: 20 }}>
@@ -277,10 +374,24 @@ export function RouteDetailPage() {
         </div>
         <div className="panel-body">
           {activeTab === 'logs' && (
-            <RouteLogsTab ruleIndex={detail.rule_index} pathIndex={detail.path_index} />
+            <RouteLogsTab
+              ruleIndex={detail.rule_index}
+              pathIndex={detail.path_index}
+              scopeHost={scopeHost || undefined}
+              scopePath={scopePath || undefined}
+              pathMatch={pathMatchParam}
+              refreshMs={refreshMs}
+            />
           )}
           {activeTab === 'waf' && (
-            <RouteWAFTab ruleIndex={detail.rule_index} pathIndex={detail.path_index} />
+            <RouteWAFTab
+              ruleIndex={detail.rule_index}
+              pathIndex={detail.path_index}
+              scopeHost={scopeHost || undefined}
+              scopePath={scopePath || undefined}
+              pathMatch={pathMatchParam}
+              refreshMs={refreshMs}
+            />
           )}
           {activeTab === 'cache' && (
             <RouteCacheTab detail={detail} metrics={metrics} />
@@ -292,23 +403,57 @@ export function RouteDetailPage() {
 }
 
 /** Sub-component: Access logs filtered by route indices */
-function RouteLogsTab({ ruleIndex, pathIndex }: { ruleIndex: number; pathIndex: number }) {
+function RouteLogsTab({
+  ruleIndex,
+  pathIndex,
+  scopeHost,
+  scopePath,
+  pathMatch,
+  refreshMs,
+}: {
+  ruleIndex: number
+  pathIndex: number
+  scopeHost?: string
+  scopePath?: string
+  pathMatch: string
+  refreshMs: number
+}) {
   const [lines, setLines] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const mountedRef = useRef(false)
+
+  const fetchLogs = useCallback(() => {
+    if (!mountedRef.current) setLoading(true)
+    api
+      .logs({
+        ri: ruleIndex,
+        pi: pathIndex,
+        limit: 500,
+        host: scopeHost,
+        path: scopePath,
+        path_match: pathMatch === 'exact' ? 'exact' : 'prefix',
+      })
+      .then((r) => {
+        const out = r.lines || []
+        setLines(out.length > 100 ? out.slice(-100) : out)
+        setLoading(false)
+        mountedRef.current = true
+      })
+      .catch(() => {
+        setLines([])
+        setLoading(false)
+        mountedRef.current = true
+      })
+  }, [ruleIndex, pathIndex, scopeHost, scopePath, pathMatch])
 
   useEffect(() => {
-    setLoading(true)
-    api.logs({ ri: ruleIndex, pi: pathIndex, limit: 500 }).then((r) => {
-      const out = r.lines || []
-      setLines(out.length > 100 ? out.slice(-100) : out)
-      setLoading(false)
-    }).catch(() => {
-      setLines([])
-      setLoading(false)
-    })
-  }, [ruleIndex, pathIndex])
+    fetchLogs()
+    if (refreshMs <= 0) return
+    const id = window.setInterval(fetchLogs, refreshMs)
+    return () => window.clearInterval(id)
+  }, [fetchLogs, refreshMs])
 
-  if (loading) return <p className="empty-hint">加载中…</p>
+  if (loading && lines.length === 0) return <p className="empty-hint">加载中…</p>
   if (lines.length === 0) return <p className="empty-hint">暂无访问日志</p>
 
   return (
@@ -321,23 +466,57 @@ function RouteLogsTab({ ruleIndex, pathIndex }: { ruleIndex: number; pathIndex: 
 }
 
 /** Sub-component: WAF events filtered by route indices */
-function RouteWAFTab({ ruleIndex, pathIndex }: { ruleIndex: number; pathIndex: number }) {
+function RouteWAFTab({
+  ruleIndex,
+  pathIndex,
+  scopeHost,
+  scopePath,
+  pathMatch,
+  refreshMs,
+}: {
+  ruleIndex: number
+  pathIndex: number
+  scopeHost?: string
+  scopePath?: string
+  pathMatch: string
+  refreshMs: number
+}) {
   const { lookup: ruleLookup } = useWafRuleLookup()
   const [events, setEvents] = useState<{ id: number; action: string; rule: string; client_ip: string; created_at: string }[]>([])
   const [loading, setLoading] = useState(true)
+  const mountedRef = useRef(false)
+
+  const fetchEvents = useCallback(() => {
+    if (!mountedRef.current) setLoading(true)
+    api
+      .wafEvents({
+        ri: ruleIndex,
+        pi: pathIndex,
+        limit: 50,
+        host: scopeHost,
+        path: scopePath,
+        path_match: pathMatch === 'exact' ? 'exact' : 'prefix',
+      })
+      .then((data) => {
+        setEvents(Array.isArray(data) ? data.slice(0, 50) : [])
+        setLoading(false)
+        mountedRef.current = true
+      })
+      .catch(() => {
+        setEvents([])
+        setLoading(false)
+        mountedRef.current = true
+      })
+  }, [ruleIndex, pathIndex, scopeHost, scopePath, pathMatch])
 
   useEffect(() => {
-    setLoading(true)
-    api.wafEvents({ ri: ruleIndex, pi: pathIndex, limit: 50 }).then((data) => {
-      setEvents(Array.isArray(data) ? data.slice(0, 50) : [])
-      setLoading(false)
-    }).catch(() => {
-      setEvents([])
-      setLoading(false)
-    })
-  }, [ruleIndex, pathIndex])
+    fetchEvents()
+    if (refreshMs <= 0) return
+    const id = window.setInterval(fetchEvents, refreshMs)
+    return () => window.clearInterval(id)
+  }, [fetchEvents, refreshMs])
 
-  if (loading) return <p className="empty-hint">加载中…</p>
+  if (loading && events.length === 0) return <p className="empty-hint">加载中…</p>
   if (events.length === 0) return <p className="empty-hint">暂无 WAF 事件</p>
 
   return (
@@ -532,4 +711,21 @@ function RouteCacheTab({
       )}
     </>
   )
+}
+
+function metricsSourceLabel(source?: string) {
+  switch (source) {
+    case 'access_log':
+      return 'access.log'
+    case 'access_log_empty':
+      return '空文件'
+    case 'access_log_parse_fail':
+      return '解析失败'
+    case 'unconfigured':
+      return '未配置'
+    case 'error':
+      return '读取失败'
+    default:
+      return source || '—'
+  }
 }

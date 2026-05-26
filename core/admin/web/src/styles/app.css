@@ -3127,6 +3127,94 @@ table.data.config-revisions code {
   gap: 6px;
 }
 
+.route-scope-panel {
+  margin-bottom: 16px;
+}
+
+.route-scope-active {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.route-scope-active code {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.route-scope-match-tag {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.route-scope-rule-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.route-scope-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.route-scope-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+
+.route-scope-field-grow {
+  flex: 1;
+  min-width: 220px;
+}
+
+.route-scope-field-narrow {
+  min-width: 100px;
+}
+
+.route-scope-field select {
+  font-size: 13px;
+}
+
+.route-scope-select {
+  font-family: var(--mono);
+  font-size: 12px;
+  max-width: 100%;
+}
+
+.route-scope-quick {
+  margin-top: 14px;
+}
+
+.route-scope-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.route-scope-chip {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: var(--mono);
+  cursor: pointer;
+  color: inherit;
+}
+
+.route-scope-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .route-metrics-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

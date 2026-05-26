@@ -89,7 +89,13 @@ func (h *RouteDetailHandler) GetMetrics(ctx *zoox.Context) {
 	}
 
 	window := strings.TrimSpace(ctx.Query().Get("window").String())
-	metrics := h.buildRouteAnalytics(cfg, ri, pi, window)
+	scopeHost := strings.TrimSpace(ctx.Query().Get("host").String())
+	scopePath := strings.TrimSpace(ctx.Query().Get("path").String())
+	pathMatch := strings.ToLower(strings.TrimSpace(ctx.Query().Get("path_match").String()))
+	if pathMatch == "" {
+		pathMatch = "prefix"
+	}
+	metrics := h.buildRouteAnalytics(cfg, ri, pi, window, scopeHost, scopePath, pathMatch)
 	ok(ctx, routeAnalyticsJSON(metrics))
 }
 
@@ -276,7 +282,12 @@ func getBackendTarget(b rule.Backend) string {
 	}
 }
 
-func (h *RouteDetailHandler) buildRouteAnalytics(cfg *ingcore.Config, ruleIndex, pathIndex int, window string) service.RouteAnalytics {
+func (h *RouteDetailHandler) buildRouteAnalytics(
+	cfg *ingcore.Config,
+	ruleIndex, pathIndex int,
+	window string,
+	scopeHost, scopePath, pathMatch string,
+) service.RouteAnalytics {
 	window = strings.TrimSpace(window)
 	if window == "" {
 		window = "15m"
@@ -288,7 +299,14 @@ func (h *RouteDetailHandler) buildRouteAnalytics(cfg *ingcore.Config, ruleIndex,
 		var err error
 		lines, err = logs.TailAccess(service.TailLinesForWindow(window))
 		if err != nil {
-			return service.BuildRouteAnalytics(cfg, ruleIndex, pathIndex, window, nil, h.health, nil, false, 0, 0)
+			return service.BuildRouteAnalytics(
+				cfg, ruleIndex, pathIndex,
+				window, nil,
+				h.health,
+				nil,
+				false, 0, 0,
+				scopeHost, scopePath, pathMatch,
+			)
 		}
 	}
 
@@ -318,7 +336,14 @@ func (h *RouteDetailHandler) buildRouteAnalytics(cfg *ingcore.Config, ruleIndex,
 		}
 	}
 
-	return service.BuildRouteAnalytics(cfg, ruleIndex, pathIndex, window, lines, h.health, wafEvents, cacheEnabled, cacheTTL, cacheMaxBodyKB)
+	return service.BuildRouteAnalytics(
+		cfg, ruleIndex, pathIndex,
+		window, lines,
+		h.health,
+		wafEvents,
+		cacheEnabled, cacheTTL, cacheMaxBodyKB,
+		scopeHost, scopePath, pathMatch,
+	)
 }
 
 func routeAnalyticsJSON(a service.RouteAnalytics) zoox.H {
@@ -338,12 +363,20 @@ func routeAnalyticsJSON(a service.RouteAnalytics) zoox.H {
 		"slowest":           m.Slowest,
 		"error_samples":     m.ErrorSamples,
 		"latency_histogram": m.LatencyHistogram,
+		"top_hosts":         m.TopHosts,
+		"top_paths":         m.TopPaths,
 		"delta":             a.Delta,
 		"upstream":          a.Upstream,
 		"compare":           a.Compare,
 	}
 	if len(a.PathBreakdown) > 0 {
 		out["path_breakdown"] = a.PathBreakdown
+	}
+	if len(a.ScopeHosts) > 0 {
+		out["scope_hosts"] = a.ScopeHosts
+	}
+	if len(a.ScopePaths) > 0 {
+		out["scope_paths"] = a.ScopePaths
 	}
 	if len(a.WAFTopRules) > 0 {
 		out["waf_top_rules"] = a.WAFTopRules

@@ -168,14 +168,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 			out.WAFBlocks++
 		}
 		hostCounts[e.Host]++
-		pathKey := e.Path
-		if pathKey == "" {
-			pathKey = "/"
-		}
-		if i := strings.Index(pathKey, "?"); i >= 0 {
-			pathKey = pathKey[:i]
-		}
-		pathCounts[pathKey]++
+		pathCounts[accessPathKey(e.Path)]++
 	}
 	if out.Total > 0 {
 		out.ErrorRate = out.ErrorRate / float64(out.Total) * 100
@@ -202,6 +195,44 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	return out
 }
 
+func accessPathKey(path string) string {
+	pathKey := path
+	if pathKey == "" {
+		pathKey = "/"
+	}
+	if i := strings.Index(pathKey, "?"); i >= 0 {
+		pathKey = pathKey[:i]
+	}
+	return pathKey
+}
+
+// ScopeHostPathCounts lists every host and path seen in entries for the given window.
+func ScopeHostPathCounts(entries []AccessEntry, window string) (hosts, paths []NamedCount) {
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	windowDur := parseWindowDuration(window)
+	hasTime := entriesHaveTimestamps(entries)
+	anchor := time.Now()
+	filtered := filterEntriesInWindow(entries, anchor, windowDur, hasTime)
+	if hasTime && len(filtered) == 0 {
+		if latest := latestEntryTime(entries); !latest.IsZero() {
+			anchor = latest
+			filtered = filterEntriesInWindow(entries, anchor, windowDur, true)
+		}
+	}
+	if !hasTime {
+		filtered = entries
+	}
+	hostCounts := map[string]int{}
+	pathCounts := map[string]int{}
+	for _, e := range filtered {
+		hostCounts[e.Host]++
+		pathCounts[accessPathKey(e.Path)]++
+	}
+	return topN(hostCounts, len(hostCounts)), topN(pathCounts, len(pathCounts))
+}
+
 func parseWindowDuration(window string) time.Duration {
 	switch window {
 	case "24h":
@@ -226,6 +257,8 @@ func tailLinesForWindow(window string) int {
 		return 50000
 	case "1h", "60m":
 		return 20000
+	case "5m":
+		return 5000
 	default:
 		return 8000
 	}

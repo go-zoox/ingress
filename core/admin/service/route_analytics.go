@@ -15,6 +15,8 @@ type RouteAnalytics struct {
 	Delta         OverviewDelta        `json:"delta"`
 	Upstream      UpstreamLatencyStats `json:"upstream"`
 	PathBreakdown []PathBreakdownRow   `json:"path_breakdown,omitempty"`
+	ScopeHosts    []NamedCount         `json:"scope_hosts,omitempty"`
+	ScopePaths    []NamedCount         `json:"scope_paths,omitempty"`
 	WAFTopRules   []NamedCount         `json:"waf_top_rules,omitempty"`
 	HealthHistory []HealthProbePoint   `json:"health_history,omitempty"`
 	Compare       RouteCompareStats    `json:"compare"`
@@ -84,6 +86,8 @@ func BuildRouteAnalytics(
 	wafEvents []model.WAFEvent,
 	cacheEnabled bool,
 	cacheTTL, cacheMaxBodyKB int64,
+	scopeHost, scopePath string,
+	pathMatch string,
 ) RouteAnalytics {
 	window = strings.TrimSpace(window)
 	if window == "" {
@@ -103,7 +107,9 @@ func BuildRouteAnalytics(
 		source = "access_log_parse_fail"
 	}
 
-	filtered := FilterAccessEntriesForRoute(cfg, ruleIndex, pathIndex, lines)
+	routeEntries := FilterAccessEntriesForRoute(cfg, ruleIndex, pathIndex, lines)
+	scopeHosts, scopePaths := ScopeHostPathCounts(routeEntries, window)
+	filtered := filterAccessEntriesByScope(routeEntries, scopeHost, scopePath, pathMatch)
 	overview := AggregateAccessEntries(filtered, window, source)
 	site := AggregateAccessEntries(all, window, source)
 
@@ -122,11 +128,15 @@ func BuildRouteAnalytics(
 		routeShare = float64(overview.Total) / float64(site.Total) * 100
 	}
 
+	// WAF Top Rules should also respect the same scope filters.
+	wafEvents = filterWAFEventsByScope(wafEvents, scopeHost, scopePath, pathMatch)
 	out := RouteAnalytics{
 		OverviewMetrics: overview,
 		Delta:           delta,
 		Upstream:        buildUpstreamStats(filtered),
 		PathBreakdown:   buildPathBreakdown(cfg, ruleIndex, filtered),
+		ScopeHosts:      scopeHosts,
+		ScopePaths:      scopePaths,
 		WAFTopRules:     topWAFRulesFromEvents(wafEvents, 8),
 		Compare: RouteCompareStats{
 			SiteRPM:         site.RPM,
@@ -158,6 +168,48 @@ func topWAFRulesFromEvents(events []model.WAFEvent, n int) []NamedCount {
 		counts[rule]++
 	}
 	return topN(counts, n)
+}
+
+func filterAccessEntriesByScope(entries []AccessEntry, scopeHost, scopePath, pathMatch string) []AccessEntry {
+	if len(entries) == 0 {
+		return entries
+	}
+	if strings.TrimSpace(scopeHost) == "" && strings.TrimSpace(scopePath) == "" {
+		return entries
+	}
+
+	out := make([]AccessEntry, 0, len(entries))
+	for _, e := range entries {
+		if scopeHost != "" && !strings.EqualFold(strings.TrimSpace(e.Host), strings.TrimSpace(scopeHost)) {
+			continue
+		}
+		if scopePath != "" && !MatchPathForScope(e.Path, scopePath, pathMatch) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+func filterWAFEventsByScope(events []model.WAFEvent, scopeHost, scopePath, pathMatch string) []model.WAFEvent {
+	if len(events) == 0 {
+		return events
+	}
+	if strings.TrimSpace(scopeHost) == "" && strings.TrimSpace(scopePath) == "" {
+		return events
+	}
+
+	out := make([]model.WAFEvent, 0, len(events))
+	for _, e := range events {
+		if scopeHost != "" && !strings.EqualFold(strings.TrimSpace(e.Host), strings.TrimSpace(scopeHost)) {
+			continue
+		}
+		if scopePath != "" && !MatchPathForScope(e.Path, scopePath, pathMatch) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 func buildUpstreamStats(entries []AccessEntry) UpstreamLatencyStats {

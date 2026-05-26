@@ -46,8 +46,17 @@ export function healthLink(params?: { status?: string; host?: string }) {
   return `/healths${s ? `?${s}` : ''}`
 }
 
-export function routeDetailLink(ruleIndex: number, pathIndex: number) {
-  return `/routes/${ruleIndex}/${pathIndex}`
+export function routeDetailLink(
+  ruleIndex: number,
+  pathIndex: number,
+  scope?: { host?: string; path?: string; path_match?: 'prefix' | 'exact' },
+) {
+  const q = new URLSearchParams()
+  if (scope?.host) q.set('host', scope.host)
+  if (scope?.path) q.set('path', scope.path)
+  if (scope?.path_match) q.set('path_match', scope.path_match)
+  const qs = q.toString()
+  return `/routes/${ruleIndex}/${pathIndex}${qs ? `?${qs}` : ''}`
 }
 
 export function routesTabLink(
