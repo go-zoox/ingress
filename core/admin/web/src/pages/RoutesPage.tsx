@@ -79,7 +79,10 @@ export function RoutesPage() {
 
   return (
     <div className="page">
-      <PageHeader title="路由" desc="编译后的 host/path 规则表（含 host_type 推断结果）" />
+      <PageHeader
+        title="路由"
+        desc="编译后的 host/path 规则表；支持试匹配与进入路由详情（日志、WAF、缓存）"
+      />
       {matchError && <p className="err">{matchError}</p>}
 
       <div className="grid-2">

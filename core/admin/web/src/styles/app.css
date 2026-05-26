@@ -88,7 +88,7 @@ a {
 
 .layout {
   display: flex;
-  height: calc(100vh - 37px);
+  height: 100vh;
 }
 
 .sidebar {
@@ -119,6 +119,20 @@ a {
 .nav {
   flex: 1;
   padding: 8px;
+  overflow-y: auto;
+}
+
+.nav-group {
+  margin-bottom: 12px;
+}
+
+.nav-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 4px 12px 6px;
 }
 
 .nav a {
@@ -150,11 +164,37 @@ a {
 }
 
 .nav a .icon {
-  opacity: 0.7;
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 20px;
-  text-align: center;
   flex-shrink: 0;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.nav a .nav-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-badge {
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(234, 179, 8, 0.2);
+  color: var(--warn);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-badge.danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger);
 }
 
 .sidebar-footer {
@@ -164,10 +204,59 @@ a {
   color: var(--text-muted);
 }
 
+.sidebar-global-status {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-global-status .status-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.sidebar-global-status .status-line.ok {
+  color: var(--ok);
+}
+
+.sidebar-global-status .status-line.warn {
+  color: var(--warn);
+}
+
+.sidebar-global-status .status-line.muted {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.sidebar-global-status .status-label {
+  color: var(--text-muted);
+}
+
+.sidebar-global-status code {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text);
+}
+
+.sidebar-global-status .status-hint {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.sidebar-config-path {
+  margin-top: 8px;
+}
+
 .sidebar-footer code {
   font-family: var(--mono);
   font-size: 10px;
   color: var(--text);
+  word-break: break-all;
 }
 
 .main {
@@ -208,6 +297,31 @@ a {
   margin: 0;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.page-header-with-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.empty-state-guide {
+  padding: 8px 0;
+}
+
+.empty-state-guide .empty-state-title {
+  font-weight: 500;
+  margin: 0 0 8px;
+  color: var(--text);
 }
 
 .cards {
@@ -2962,6 +3076,10 @@ table.data.config-revisions code {
     font-size: 14px;
     font-weight: 600;
     color: var(--text);
+  }
+
+  .layout {
+    height: calc(100vh - 45px);
   }
 
   /* --- sidebar drawer --- */

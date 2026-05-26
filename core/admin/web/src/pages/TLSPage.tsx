@@ -186,7 +186,10 @@ export function TLSPage() {
 
   return (
     <div className="page">
-      <PageHeader title="TLS / 证书" desc="HTTPS 监听与证书有效期（读取 ingress.yaml + 证书文件）" />
+      <PageHeader
+        title="TLS / 证书"
+        desc="HTTPS 监听、证书文件路径与有效期；总览与侧栏角标会提示即将过期域名"
+      />
       {err && <p className="err">{err}</p>}
       <div className="cards">
         <div className="card">

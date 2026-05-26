@@ -87,7 +87,7 @@ export function TopologyPage() {
     <div className="page">
       <PageHeader
         title="拓扑"
-        desc="Host → Path → Backend 服务关系图；滚轮或工具栏缩放，拖拽平移"
+        desc="Host → Path → Backend 关系图；叠加健康检查与证书告警，点击进入路由详情"
       />
       {err && <p className="err">{err}</p>}
       <div className="topology-container">
