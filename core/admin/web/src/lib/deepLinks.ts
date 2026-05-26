@@ -65,3 +65,23 @@ export function configLink(params?: { focus?: string }) {
   if (!params?.focus) return '/config'
   return `/config?focus=${encodeURIComponent(params.focus)}`
 }
+
+export function investigateLink(params: {
+  host: string
+  path: string
+  method?: string
+  status?: string | number
+  ri?: number
+  pi?: number
+  client_ip?: string
+}) {
+  const q = new URLSearchParams()
+  q.set('host', params.host)
+  q.set('path', params.path)
+  if (params.method) q.set('method', params.method)
+  if (params.status != null && params.status !== '') q.set('status', String(params.status))
+  if (params.ri != null) q.set('ri', String(params.ri))
+  if (params.pi != null) q.set('pi', String(params.pi))
+  if (params.client_ip) q.set('client_ip', params.client_ip)
+  return `/investigate?${q.toString()}`
+}

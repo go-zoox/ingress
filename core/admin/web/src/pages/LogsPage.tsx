@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
+import { investigateLink } from '../lib/deepLinks'
+import { parseAccessLogLine } from '../lib/parseAccessLogLine'
 import { EmptyStateGuide } from '../components/EmptyStateGuide'
 import { api } from '../api/client'
 import { loadPreferences } from '../lib/preferences'
@@ -300,11 +303,30 @@ export function LogsPage() {
                 </EmptyStateGuide>
               )
             ) : (
-              lines.map((line, i) => (
-                <div key={`${i}-${line.slice(0, 40)}`} className={`log-line ${logLineClass(line)}`}>
-                  {line}
-                </div>
-              ))
+              lines.map((line, i) => {
+                const parsed = logKind === 'access' ? parseAccessLogLine(line) : null
+                return (
+                  <div key={`${i}-${line.slice(0, 40)}`} className={`log-line ${logLineClass(line)}`}>
+                    <div className="log-line-row">
+                      <span className="log-line-text">{line}</span>
+                      {parsed ? (
+                        <Link
+                          to={investigateLink({
+                            host: parsed.host,
+                            path: parsed.path,
+                            method: parsed.method,
+                            status: parsed.status,
+                          })}
+                          className="btn btn-ghost btn-sm"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          调查
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })
             )}
             <div ref={logEndRef} />
           </div>

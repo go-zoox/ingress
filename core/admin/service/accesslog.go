@@ -13,20 +13,27 @@ var (
 	reLogTime2  = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})\s+`)
 	reLogLev    = regexp.MustCompile(`^(DEBUG|INFO|WARN|ERROR|FATAL)\s+`)
 	reHostTag   = regexp.MustCompile(`\[host:\s*([^,\]]+)`)
-	reArrowHost = regexp.MustCompile(`^\S+\s+(\S+)\s+->`)
-	reRequest   = regexp.MustCompile(`"([A-Z]+)\s+([^\s]+)\s+HTTP/[^"]+"\s+(\d{3})\s+(\d+(?:\.\d+)?)(ms|s)?`)
+	reArrowHost     = regexp.MustCompile(`^\S+\s+(\S+)\s+->`)
+	reClientHostTarget = regexp.MustCompile(`^(\S+)\s+(\S+)\s+->\s+(\S+)`)
+	reUpstreamStatus   = regexp.MustCompile(`upstream_status=(\d+)`)
+	reUpstreamTime     = regexp.MustCompile(`upstream_response_time=(\d+)ms`)
+	reRequest          = regexp.MustCompile(`"([A-Z]+)\s+([^\s]+)\s+HTTP/[^"]+"\s+(\d{3})\s+(\d+(?:\.\d+)?)(ms|s)?`)
 )
 
 // AccessEntry is one parsed ingress access log line.
 type AccessEntry struct {
-	At         time.Time
-	Host       string
-	Method     string
-	Path       string
-	Status     int
-	DurationMs float64
-	CacheHit   bool
-	WAFBlock   bool
+	At                   time.Time
+	ClientIP             string
+	Host                 string
+	Target               string
+	Method               string
+	Path                 string
+	Status               int
+	DurationMs           float64
+	UpstreamStatus       int
+	UpstreamDurationMs   float64
+	CacheHit             bool
+	WAFBlock             bool
 }
 
 func parseAccessLine(line string) (AccessEntry, bool) {
@@ -53,11 +60,20 @@ func parseAccessLine(line string) (AccessEntry, bool) {
 	}
 	line = reLogLev.ReplaceAllString(line, "")
 
+	clientIP := ""
 	host := ""
-	if m := reHostTag.FindStringSubmatch(line); len(m) == 2 {
-		host = strings.TrimSpace(m[1])
-	} else if m := reArrowHost.FindStringSubmatch(line); len(m) == 2 {
-		host = strings.TrimSpace(m[1])
+	target := ""
+	if m := reClientHostTarget.FindStringSubmatch(line); len(m) == 4 {
+		clientIP = strings.TrimSpace(m[1])
+		host = strings.TrimSpace(m[2])
+		target = strings.TrimSpace(m[3])
+	}
+	if host == "" {
+		if m := reHostTag.FindStringSubmatch(line); len(m) == 2 {
+			host = strings.TrimSpace(m[1])
+		} else if m := reArrowHost.FindStringSubmatch(line); len(m) == 2 {
+			host = strings.TrimSpace(m[1])
+		}
 	}
 	if host == "" {
 		return AccessEntry{}, false
@@ -76,15 +92,28 @@ func parseAccessLine(line string) (AccessEntry, bool) {
 		}
 	}
 
+	upstreamStatus := 0
+	if um := reUpstreamStatus.FindStringSubmatch(line); len(um) == 2 {
+		upstreamStatus, _ = strconv.Atoi(um[1])
+	}
+	upstreamDur := 0.0
+	if um := reUpstreamTime.FindStringSubmatch(line); len(um) == 2 {
+		upstreamDur, _ = strconv.ParseFloat(um[1], 64)
+	}
+
 	return AccessEntry{
-		At:         at,
-		Host:       host,
-		Method:     m[1],
-		Path:       m[2],
-		Status:     status,
-		DurationMs: dur,
-		CacheHit:   strings.Contains(line, "cache_hit=1"),
-		WAFBlock:   strings.Contains(line, "waf_block=1"),
+		At:                 at,
+		ClientIP:           clientIP,
+		Host:               host,
+		Target:             target,
+		Method:             m[1],
+		Path:               m[2],
+		Status:             status,
+		DurationMs:         dur,
+		UpstreamStatus:     upstreamStatus,
+		UpstreamDurationMs: upstreamDur,
+		CacheHit:           strings.Contains(line, "cache_hit=1"),
+		WAFBlock:           strings.Contains(line, "waf_block=1"),
 	}, true
 }
 

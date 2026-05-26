@@ -1,6 +1,9 @@
 package service
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseAccessLine(t *testing.T) {
 	cases := []struct {
@@ -11,6 +14,10 @@ func TestParseAccessLine(t *testing.T) {
 	}{
 		{
 			`203.0.113.44 api.example.com -> api.internal:8080 "GET /api/users HTTP/1.1" 200 12ms cache_hit=0`,
+			"api.example.com", 200, 12,
+		},
+		{
+			`203.0.113.44 api.example.com -> api.internal:8080 "GET /api/users HTTP/1.1" 200 12ms cache_hit=0 waf_block=0 upstream_status=200 upstream_response_time=10ms`,
 			"api.example.com", 200, 12,
 		},
 		{
@@ -55,6 +62,11 @@ func TestParseAccessLine(t *testing.T) {
 		}
 		if e.Host != c.host || e.Status != c.code || e.DurationMs != c.ms {
 			t.Fatalf("got %+v want host=%s code=%d ms=%v", e, c.host, c.code, c.ms)
+		}
+		if strings.Contains(c.line, "upstream_response_time=10ms") {
+			if e.ClientIP != "203.0.113.44" || e.Target != "api.internal:8080" || e.UpstreamDurationMs != 10 {
+				t.Fatalf("extended fields: %+v", e)
+			}
 		}
 	}
 }
