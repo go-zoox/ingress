@@ -161,6 +161,7 @@ export function SettingsPage() {
                 <option value="5m">5 分钟</option>
                 <option value="15m">15 分钟</option>
                 <option value="1h">1 小时</option>
+                <option value="24h">24 小时</option>
               </select>
             </SettingsRow>
             <div className="toolbar" style={{ marginTop: 12 }}>

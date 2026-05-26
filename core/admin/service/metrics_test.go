@@ -74,3 +74,30 @@ func TestAggregateOverview_timelineRatesAndHostErrors(t *testing.T) {
 		t.Fatalf("timeline missing error_rate: %+v", out.Timeline)
 	}
 }
+
+func TestParseWindowDuration_24h(t *testing.T) {
+	if parseWindowDuration("24h") != 24*time.Hour {
+		t.Fatal("24h window")
+	}
+	if timelineBucketsForWindow("24h") != 24 {
+		t.Fatal("24h buckets")
+	}
+}
+
+func TestComputeOverviewDelta(t *testing.T) {
+	anchor := time.Date(2026, 5, 20, 12, 0, 0, 0, time.Local)
+	cur := []AccessEntry{
+		{At: anchor.Add(-5 * time.Minute), Status: 500, DurationMs: 200},
+		{At: anchor.Add(-4 * time.Minute), Status: 200, DurationMs: 50, CacheHit: true},
+	}
+	prev := []AccessEntry{
+		{At: anchor.Add(-20 * time.Minute), Status: 200, DurationMs: 30},
+	}
+	d := computeOverviewDelta(cur, prev, 15*time.Minute)
+	if !d.HasPrevious {
+		t.Fatal("expected has_previous")
+	}
+	if d.TotalPct <= 0 {
+		t.Fatalf("total_pct=%v want increase", d.TotalPct)
+	}
+}
