@@ -26,6 +26,8 @@ type Core interface {
 	IsWAFEnabled() bool
 	//
 	SetWAFCallback(cb WAFCallback)
+	// ConfigFingerprint is the hash of config active in the running ingress process (updated on Reload).
+	ConfigFingerprint() string
 }
 
 type core struct {
@@ -47,6 +49,8 @@ type core struct {
 	wafRuntimeOverride *bool
 	wafOverrideMu      sync.RWMutex
 	wafCallback        WAFCallback
+
+	runtimeConfigHash string
 }
 
 func New(version string, cfg *Config) (Core, error) {
@@ -69,6 +73,7 @@ func NewWithPaths(version string, cfg *Config, configFilePath, pidFilePath strin
 	if err := c.prepare(); err != nil {
 		return nil, fmt.Errorf("failed to prepare: %s", err)
 	}
+	c.refreshRuntimeConfigHash()
 
 	return c, nil
 }

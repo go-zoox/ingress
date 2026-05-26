@@ -1,14 +1,13 @@
 package service
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/go-zoox/gormx"
 	"github.com/go-zoox/ingress/core/admin/model"
+	ingcore "github.com/go-zoox/ingress/core"
 )
 
 // ConfigRevisionSummary is a list row for version history.
@@ -25,6 +24,18 @@ type ConfigRevisionDetail struct {
 	Content string `json:"content"`
 }
 
+// ConfigRouteImpact describes one routing row change between published and draft configs.
+type ConfigRouteImpact struct {
+	Kind       string   `json:"kind"` // added | removed | changed
+	Host       string   `json:"host"`
+	Path       string   `json:"path"`
+	RuleIndex  int      `json:"rule_index"`
+	PathIndex  int      `json:"path_index"`
+	Fields     []string `json:"fields,omitempty"`
+	Before     string   `json:"before,omitempty"`
+	After      string   `json:"after,omitempty"`
+}
+
 // ConfigPreview summarizes draft changes before publish.
 type ConfigPreview struct {
 	Valid          bool     `json:"valid"`
@@ -33,6 +44,8 @@ type ConfigPreview struct {
 	Changed        bool     `json:"changed"`
 	Error          string   `json:"error,omitempty"`
 	ModulesChanged []string `json:"modules_changed"`
+	GlobalTouches  []string `json:"global_touches"`
+	RouteImpacts   []ConfigRouteImpact `json:"route_impacts"`
 }
 
 // Config coordinates modular editing, preview, and revision history.
@@ -88,6 +101,14 @@ func (c *Config) Preview(draft string) (*ConfigPreview, error) {
 		return nil, err
 	}
 	out.ModulesChanged = changed
+	out.GlobalTouches = globalTouchesFromModules(changed)
+	if out.Valid {
+		impacts, err := AnalyzeRouteImpacts(c.ingress, published, draft)
+		if err != nil {
+			return nil, err
+		}
+		out.RouteImpacts = impacts
+	}
 	return out, nil
 }
 
@@ -169,8 +190,7 @@ func (c *Config) recordRevision(content, note string) string {
 }
 
 func configHash(content string) string {
-	sum := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(sum[:8])
+	return ingcore.ContentHash(content)
 }
 
 func normalizeYAML(content string) string {

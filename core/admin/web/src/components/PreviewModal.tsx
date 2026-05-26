@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api, type ConfigPreview } from '../api/client'
+import { routeDetailLink } from '../lib/deepLinks'
 import { CONFIG_MODULE_LABELS, buildDiff } from '../lib/config'
 
 export function PreviewModal({
@@ -78,6 +80,65 @@ export function PreviewModal({
                   </div>
                 </div>
               )}
+              {(preview.global_touches?.length ?? 0) > 0 && (
+                <div className="config-preview-modules">
+                  <strong>全局影响</strong>
+                  <div className="config-preview-module-tags">
+                    {preview.global_touches!.map((label) => (
+                      <span key={label} className="badge badge-warn">
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(preview.route_impacts?.length ?? 0) > 0 && (
+                <div className="config-preview-routes">
+                  <strong>路由影响（{preview.route_impacts!.length} 条）</strong>
+                  <div className="table-scroll">
+                    <table className="data config-impact-table">
+                      <thead>
+                        <tr>
+                          <th>变更</th>
+                          <th>Host</th>
+                          <th>Path</th>
+                          <th>目标</th>
+                          <th>字段</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.route_impacts!.map((r, i) => (
+                          <tr key={`${r.kind}-${r.rule_index}-${r.path_index}-${i}`}>
+                            <td>
+                              <span className={`badge impact-${r.kind}`}>{impactKindLabel(r.kind)}</span>
+                            </td>
+                            <td>
+                              <code>{r.host}</code>
+                            </td>
+                            <td>
+                              <Link to={routeDetailLink(r.rule_index, r.path_index)}>
+                                <code>{r.path}</code>
+                              </Link>
+                            </td>
+                            <td className="col-target">
+                              {r.kind === 'removed' ? (
+                                <code>{r.before}</code>
+                              ) : r.kind === 'added' ? (
+                                <code>{r.after}</code>
+                              ) : (
+                                <>
+                                  <code>{r.before}</code> → <code>{r.after}</code>
+                                </>
+                              )}
+                            </td>
+                            <td>{r.fields?.join(', ') || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
               <div>
                 <strong>Diff（已发布 → 草稿）</strong>
                 <pre className="diff" dangerouslySetInnerHTML={{ __html: diffHtml }} />
@@ -104,4 +165,17 @@ export function PreviewModal({
       </div>
     </div>
   )
+}
+
+function impactKindLabel(kind: string) {
+  switch (kind) {
+    case 'added':
+      return '新增'
+    case 'removed':
+      return '删除'
+    case 'changed':
+      return '修改'
+    default:
+      return kind
+  }
 }

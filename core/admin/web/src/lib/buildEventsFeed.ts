@@ -9,6 +9,8 @@ export type FeedEvent = {
   timeMs: number
   title: string
   detail: string
+  host?: string
+  path?: string
   href: string
   actions?: Array<{ label: string; href: string }>
 }
@@ -31,6 +33,8 @@ export function buildEventsFeed(
       timeMs: t,
       title: `WAF block · ${e.rule}`,
       detail: `${e.host}${e.path}`,
+      host: e.host,
+      path: e.path || '/',
       href: investigateLink({ host: e.host, path: e.path || '/', client_ip: e.client_ip }),
       actions: [
         { label: '调查', href: investigateLink({ host: e.host, path: e.path || '/', client_ip: e.client_ip }) },
@@ -50,6 +54,8 @@ export function buildEventsFeed(
       timeMs: t,
       title: `健康检查 DOWN · ${h.host}`,
       detail: h.error || h.url || h.backend,
+      host: h.host,
+      path: h.path || '/',
       href: investigateLink({ host: h.host, path: h.path || '/' }),
       actions: [
         { label: '调查', href: investigateLink({ host: h.host, path: h.path || '/' }) },

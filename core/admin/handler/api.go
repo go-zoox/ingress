@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"net/http"
 	"strconv"
 	"strings"
@@ -75,6 +73,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/config/modules/merge", a.MergeConfigModule)
 	g.Get("/config/revisions", a.ConfigRevisions)
 	g.Get("/config/revisions/:id", a.ConfigRevision)
+	g.Get("/audit/logs", a.AuditLogs)
 	g.Post("/reload", a.Reload)
 	g.Get("/logs", a.Logs)
 	g.Get("/logs/hosts", a.LogHosts)
@@ -101,29 +100,64 @@ func (a *API) Status(ctx *zoox.Context) {
 	if a.cfg.CoreInstance != nil {
 		wafRuntimeOn = a.cfg.CoreInstance.IsWAFEnabled()
 	}
+	fileHash := a.fileConfigHash()
+	runtimeHash := a.runtimeConfigHash()
+	revs, _ := a.config.ListRevisions(1)
+	latestRevisionHash := ""
+	if len(revs) > 0 {
+		latestRevisionHash = revs[0].Hash
+	}
 	ok(ctx, zoox.H{
-		"version":            "ingress",
-		"config_path":        a.ingress.ConfigPath(),
-		"pid_file":           a.cfg.PidFile,
-		"reload_ready":       a.ingress.ReloadReady(),
-		"listen_http":        icfg.Port,
-		"listen_https":       icfg.HTTPS.Port,
-		"rules_count":        len(icfg.Rules),
-		"waf_enabled":        wafOn,
-		"waf_log_only":       icfg.WAF.LogOnly,
-		"waf_runtime_enabled": wafRuntimeOn,
-		"last_reload":        time.Now().Format(time.RFC3339),
-		"config_hash":        a.configHash(),
+		"version":              "ingress",
+		"config_path":          a.ingress.ConfigPath(),
+		"pid_file":             a.cfg.PidFile,
+		"reload_ready":         a.ingress.ReloadReady(),
+		"listen_http":          icfg.Port,
+		"listen_https":         icfg.HTTPS.Port,
+		"rules_count":          len(icfg.Rules),
+		"waf_enabled":          wafOn,
+		"waf_log_only":         icfg.WAF.LogOnly,
+		"waf_runtime_enabled":  wafRuntimeOn,
+		"last_reload":          time.Now().Format(time.RFC3339),
+		"config_hash":          fileHash,
+		"file_hash":            fileHash,
+		"runtime_hash":         runtimeHash,
+		"latest_revision_hash": latestRevisionHash,
+		"runtime_drift":        runtimeHash != "" && fileHash != "" && runtimeHash != fileHash,
+		"revision_drift":       latestRevisionHash != "" && fileHash != "" && fileHash != latestRevisionHash,
 	})
 }
 
-func (a *API) configHash() string {
+func (a *API) fileConfigHash() string {
 	content, err := a.ingress.ReadYAML()
 	if err != nil {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(sum[:8])
+	return ingcore.ContentHash(content)
+}
+
+func (a *API) runtimeConfigHash() string {
+	if a.cfg.CoreInstance == nil {
+		return ""
+	}
+	return a.cfg.CoreInstance.ConfigFingerprint()
+}
+
+func (a *API) configHash() string {
+	return a.fileConfigHash()
+}
+
+func (a *API) AuditLogs(ctx *zoox.Context) {
+	limit, _ := strconv.Atoi(strings.TrimSpace(ctx.Query().Get("limit").String()))
+	rows, err := a.audit.List(limit)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if rows == nil {
+		rows = []service.AuditLogRow{}
+	}
+	ok(ctx, rows)
 }
 
 func (a *API) Routes(ctx *zoox.Context) {

@@ -23,6 +23,21 @@ export interface TopologyLayout {
   height: number
 }
 
+/** Path node label without a leading slash icon (topology uses ◇, not "/"). */
+export function topologyPathLabel(path: string, pathIndex: number): string {
+  const p = path.trim()
+  if (pathIndex < 0) {
+    return p === '/' || p === '' ? '规则级' : `规则级 · ${normalizeTopologyPath(p)}`
+  }
+  return normalizeTopologyPath(p)
+}
+
+function normalizeTopologyPath(path: string): string {
+  const p = path.trim()
+  if (!p || p === '/') return '/'
+  return p.startsWith('/') ? p : `/${p}`
+}
+
 export function computeTopologyLayout(
   rows: RouteRow[],
   healthMap: Map<string, string>,
@@ -75,7 +90,7 @@ export function computeTopologyLayout(
     }
 
     for (const r of hostRows) {
-      const pathLabel = r.path_index < 0 ? `${r.path} (规则级)` : r.path
+      const pathLabel = topologyPathLabel(r.path, r.path_index)
       const pathKey = `path:${host}:${r.rule_index}:${r.path_index}`
       if (!seenPaths.has(pathKey)) {
         seenPaths.add(pathKey)

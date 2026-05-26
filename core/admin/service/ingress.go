@@ -46,6 +46,37 @@ func (s *Ingress) WriteYAML(content string) error {
 	return os.WriteFile(path, []byte(content), 0o644)
 }
 
+// LoadConfigFromYAML parses and validates ingress config from YAML text (same rules as on disk).
+func (s *Ingress) LoadConfigFromYAML(content string) (*ingcore.Config, error) {
+	if err := s.ValidateYAML(content); err != nil {
+		return nil, err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(s.ConfigPath()), ".ingress-impact-*.yaml")
+	if err != nil {
+		return nil, err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if _, err := tmp.Write([]byte(content)); err != nil {
+		tmp.Close()
+		return nil, err
+	}
+	if err := tmp.Close(); err != nil {
+		return nil, err
+	}
+	var cfg ingcore.Config
+	if err := zcfg.Load(&cfg, &zcfg.LoadOptions{FilePath: tmpPath}); err != nil {
+		return nil, err
+	}
+	if err := waf.ApplyRulePatchesFromYAML([]byte(content), cfg.Rules); err != nil {
+		return nil, err
+	}
+	if err := ingcore.ResolveConfigPaths(&cfg, s.ConfigPath()); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
 func (s *Ingress) LoadConfig() (*ingcore.Config, error) {
 	path := s.ConfigPath()
 	if !fs.IsExist(path) {

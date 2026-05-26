@@ -10,7 +10,10 @@ export function AppLayout() {
   const [configPath, setConfigPath] = useState('—')
   const [reloadReady, setReloadReady] = useState(false)
   const [configHash, setConfigHash] = useState('')
+  const [runtimeHash, setRuntimeHash] = useState('')
   const [latestHash, setLatestHash] = useState('')
+  const [runtimeDrift, setRuntimeDrift] = useState(false)
+  const [revisionDrift, setRevisionDrift] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const location = useLocation()
   const badges = useNavBadges()
@@ -40,12 +43,18 @@ export function AppLayout() {
       .then((s) => {
         setConfigPath(String(s.config_path || '—'))
         setReloadReady(Boolean(s.reload_ready))
-        setConfigHash(String(s.config_hash || ''))
+        setConfigHash(String(s.file_hash || s.config_hash || ''))
+        setRuntimeHash(String(s.runtime_hash || ''))
+        setRuntimeDrift(Boolean(s.runtime_drift))
+        setRevisionDrift(Boolean(s.revision_drift))
       })
       .catch(() => {
         setConfigPath('—')
         setReloadReady(false)
         setConfigHash('')
+        setRuntimeHash('')
+        setRuntimeDrift(false)
+        setRevisionDrift(false)
       })
     api
       .configRevisions(1)
@@ -132,7 +141,10 @@ export function AppLayout() {
             <SidebarGlobalStatus
               reloadReady={reloadReady}
               configHash={configHash}
+              runtimeHash={runtimeHash}
               latestHash={latestHash}
+              runtimeDrift={runtimeDrift}
+              revisionDrift={revisionDrift}
               sseConnected={sseConnected}
             />
             <div className="sidebar-config-path">

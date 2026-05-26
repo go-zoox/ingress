@@ -18,7 +18,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  status: () => request<Record<string, unknown>>('/status'),
+  status: () => request<IngressStatus>('/status'),
   routes: () => request<RouteRow[]>('/routes'),
   match: (host: string, path: string) =>
     request<MatchPreview>('/routes/match', {
@@ -100,6 +100,7 @@ export const api = {
   configRevisions: (limit = 50) =>
     request<ConfigRevisionSummary[]>(`/config/revisions?limit=${limit}`),
   configRevision: (id: number) => request<ConfigRevisionDetail>(`/config/revisions/${id}`),
+  auditLogs: (limit = 50) => request<AuditLogRow[]>(`/audit/logs?limit=${limit}`),
   validateConfig: (content: string) =>
     request<{ valid: boolean }>('/config/validate', {
       method: 'POST',
@@ -286,11 +287,42 @@ export type LogResult = {
   offset: number
 }
 
+export type IngressStatus = {
+  version?: string
+  config_path?: string
+  pid_file?: string
+  reload_ready?: boolean
+  config_hash?: string
+  file_hash?: string
+  runtime_hash?: string
+  latest_revision_hash?: string
+  runtime_drift?: boolean
+  revision_drift?: boolean
+  listen_http?: number | string
+  listen_https?: number | string
+  rules_count?: number
+  waf_enabled?: boolean
+  waf_log_only?: boolean
+  waf_runtime_enabled?: boolean
+  last_reload?: string
+}
+
 export type ConfigModule = {
   id: string
   label: string
   keys: string[]
   yaml: string
+}
+
+export type ConfigRouteImpact = {
+  kind: 'added' | 'removed' | 'changed'
+  host: string
+  path: string
+  rule_index: number
+  path_index: number
+  fields?: string[]
+  before?: string
+  after?: string
 }
 
 export type ConfigPreview = {
@@ -300,6 +332,16 @@ export type ConfigPreview = {
   changed: boolean
   error?: string
   modules_changed: string[]
+  global_touches?: string[]
+  route_impacts?: ConfigRouteImpact[]
+}
+
+export type AuditLogRow = {
+  id: number
+  action: string
+  detail: string
+  actor: string
+  created_at: string
 }
 
 export type ConfigRevisionSummary = {
