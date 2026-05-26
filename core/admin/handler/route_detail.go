@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-zoox/ingress/core/admin/service"
+	ingcore "github.com/go-zoox/ingress/core"
 	coresvc "github.com/go-zoox/ingress/core/service"
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/zoox"
@@ -84,16 +85,7 @@ func (h *RouteDetailHandler) GetMetrics(ctx *zoox.Context) {
 		return
 	}
 
-	r := &cfg.Rules[ri]
-
-	// Determine host and path filter
-	host := r.Host
-	path := "/"
-	if pi >= 0 && pi < len(r.Paths) {
-		path = r.Paths[pi].Path
-	}
-
-	metrics := h.aggregateRouteMetrics(host, path)
+	metrics := h.aggregateRouteMetrics(cfg, ri, pi)
 	ok(ctx, metrics)
 }
 
@@ -101,7 +93,24 @@ func (h *RouteDetailHandler) GetMetrics(ctx *zoox.Context) {
 func parseRouteIndices(ctx *zoox.Context) (int, int, error) {
 	riStr := strings.TrimSpace(ctx.Param().Get("ri").String())
 	piStr := strings.TrimSpace(ctx.Param().Get("pi").String())
+	return parseRouteIndexStrings(riStr, piStr)
+}
 
+// parseRouteQueryIndices reads optional ri/pi query params for log/WAF route filtering.
+func parseRouteQueryIndices(ctx *zoox.Context) (int, int, bool) {
+	riStr := strings.TrimSpace(ctx.Query().Get("ri").String())
+	piStr := strings.TrimSpace(ctx.Query().Get("pi").String())
+	if riStr == "" || piStr == "" {
+		return 0, 0, false
+	}
+	ri, pi, err := parseRouteIndexStrings(riStr, piStr)
+	if err != nil {
+		return 0, 0, false
+	}
+	return ri, pi, true
+}
+
+func parseRouteIndexStrings(riStr, piStr string) (int, int, error) {
 	ri, err := strconv.Atoi(riStr)
 	if err != nil {
 		return 0, 0, fmtInvalidIndex("rule")
@@ -263,52 +272,18 @@ func getBackendTarget(b rule.Backend) string {
 	}
 }
 
-// aggregateRouteMetrics computes metrics filtered by host and path.
-func (h *RouteDetailHandler) aggregateRouteMetrics(host, path string) zoox.H {
+// aggregateRouteMetrics computes metrics for access log lines matching the route (ri/pi).
+func (h *RouteDetailHandler) aggregateRouteMetrics(cfg *ingcore.Config, ruleIndex, pathIndex int) zoox.H {
 	lines, err := h.ingress.Logs().TailAccess(5000)
 	if err != nil || len(lines) == 0 {
-		return zoox.H{
-			"window":         "15m",
-			"rpm":            0,
-			"error_rate":     0,
-			"p50_ms":         0,
-			"p95_ms":         0,
-			"cache_hit_rate": 0,
-			"total":          0,
-			"timeline":       []interface{}{},
-		}
+		return emptyRouteMetrics()
 	}
 
-	// Parse and filter access log entries by host and path
-	var entries []service.AccessEntry
-	for _, line := range lines {
-		e, ok := service.ParseAccessEntry(line)
-		if !ok {
-			continue
-		}
-		// Filter by host (case-insensitive)
-		if host != "" && !strings.EqualFold(e.Host, host) {
-			continue
-		}
-		// Filter by path (prefix match)
-		if path != "" && path != "/" && !strings.HasPrefix(e.Path, path) {
-			continue
-		}
-		entries = append(entries, e)
-	}
+	entries := service.FilterAccessEntriesForRoute(cfg, ruleIndex, pathIndex, lines)
 
 	total := len(entries)
 	if total == 0 {
-		return zoox.H{
-			"window":         "15m",
-			"rpm":            0,
-			"error_rate":     0,
-			"p50_ms":         0,
-			"p95_ms":         0,
-			"cache_hit_rate": 0,
-			"total":          0,
-			"timeline":       []interface{}{},
-		}
+		return emptyRouteMetrics()
 	}
 
 	// Aggregate metrics
@@ -345,6 +320,19 @@ func (h *RouteDetailHandler) aggregateRouteMetrics(host, path string) zoox.H {
 		"p95_ms":         p95,
 		"cache_hit_rate": cacheHitRate,
 		"total":          total,
+		"timeline":       []interface{}{},
+	}
+}
+
+func emptyRouteMetrics() zoox.H {
+	return zoox.H{
+		"window":         "15m",
+		"rpm":            0,
+		"error_rate":     0,
+		"p50_ms":         0,
+		"p95_ms":         0,
+		"cache_hit_rate": 0,
+		"total":          0,
 		"timeline":       []interface{}{},
 	}
 }

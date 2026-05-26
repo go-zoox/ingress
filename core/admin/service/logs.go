@@ -160,6 +160,18 @@ func fileSize(path string) (int64, error) {
 	return fi.Size(), nil
 }
 
+// LogFileSize returns the byte size of a log file (0 if missing).
+func LogFileSize(path string) (int64, error) {
+	if strings.TrimSpace(path) == "" {
+		return 0, nil
+	}
+	size, err := fileSize(path)
+	if err != nil && os.IsNotExist(err) {
+		return 0, nil
+	}
+	return size, err
+}
+
 func tailLogFile(path string, limit int) ([]string, error) {
 	if limit <= 0 {
 		limit = 200

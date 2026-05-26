@@ -254,11 +254,24 @@ func (a *API) WAFEvents(ctx *zoox.Context) {
 			f.Limit = n
 		}
 	}
+	if _, _, routeFilter := parseRouteQueryIndices(ctx); routeFilter {
+		// Host/path in config may be regex patterns; match events to the route after fetch.
+		f.Host = ""
+		f.Path = ""
+		if f.Limit < 500 {
+			f.Limit = 500
+		}
+	}
 
 	rows, err := a.audit.ListWAFEvents(f)
 	if err != nil {
 		fail(ctx, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if ri, pi, ok := parseRouteQueryIndices(ctx); ok {
+		if icfg, err := a.ingress.LoadConfig(); err == nil {
+			rows = service.FilterWAFEventsForRoute(icfg, ri, pi, rows)
+		}
 	}
 	ok(ctx, rows)
 }
@@ -557,6 +570,31 @@ func (a *API) Logs(ctx *zoox.Context) {
 		Limit:    limit,
 		Offset:   offset,
 	}
+	if ri, pi, routeFilter := parseRouteQueryIndices(ctx); routeFilter && q.Offset == 0 {
+		icfg, err := a.ingress.LoadConfig()
+		if err != nil {
+			fail(ctx, http.StatusInternalServerError, err.Error())
+			return
+		}
+		lines, err := a.logs.TailAccess(5000)
+		if err != nil {
+			fail(ctx, http.StatusInternalServerError, err.Error())
+			return
+		}
+		filtered := service.FilterAccessLinesForRoute(icfg, ri, pi, lines)
+		if q.Limit > 0 && len(filtered) > q.Limit {
+			filtered = filtered[len(filtered)-q.Limit:]
+		}
+		var logOffset int64
+		if path := a.logs.AccessLogPath(); path != "" {
+			if size, err := service.LogFileSize(path); err == nil {
+				logOffset = size
+			}
+		}
+		ok(ctx, service.LogResult{Lines: filtered, Count: len(filtered), Offset: logOffset})
+		return
+	}
+
 	result, err := a.logs.Search(q)
 	if err != nil {
 		fail(ctx, http.StatusInternalServerError, err.Error())

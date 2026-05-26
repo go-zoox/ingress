@@ -31,6 +31,7 @@ type WAFEventDetail struct {
 	Host      string `json:"host"`
 	Path      string `json:"path"`
 	ClientIP  string `json:"client_ip"`
+	UserAgent string `json:"user_agent"`
 	CreatedAt string `json:"created_at"`
 	RuleDetail *WAFRuleDetail `json:"rule_detail"`
 	ReplayNote string         `json:"replay_note"`
@@ -253,6 +254,7 @@ func BuildWAFEventDetail(cfg *ingcore.Config, ev *model.WAFEvent) WAFEventDetail
 		Host:       ev.Host,
 		Path:       ev.Path,
 		ClientIP:   ev.ClientIP,
+		UserAgent:  ev.UserAgent,
 		CreatedAt:  ev.CreatedAt.Format(time.RFC3339),
 		RuleDetail: detail,
 		ReplayNote: note,

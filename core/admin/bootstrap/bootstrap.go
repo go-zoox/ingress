@@ -29,5 +29,8 @@ func Init(cfg *config.Config) error {
 	if err := seedSampleDataIfEmpty(); err != nil {
 		return fmt.Errorf("bootstrap: sample data: %w", err)
 	}
+	if err := seedAccessLogIfEmpty(cfg); err != nil {
+		return fmt.Errorf("bootstrap: access log: %w", err)
+	}
 	return nil
 }

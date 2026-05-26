@@ -525,6 +525,14 @@ export function WAFPage() {
               </dd>
               <dt>客户端 IP</dt>
               <dd>{detail.client_ip || '—'}</dd>
+              <dt>User Agent</dt>
+              <dd>
+                {detail.user_agent ? (
+                  <code className="waf-user-agent">{detail.user_agent}</code>
+                ) : (
+                  '—'
+                )}
+              </dd>
             </dl>
             {detail.rule_detail ? (
               <div className="waf-rule-detail-box">

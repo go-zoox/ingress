@@ -1827,6 +1827,20 @@ table.data.tls-certs .tls-domain {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.charts-grid-3 > .chart-panel {
+  min-width: 0;
+}
+
+/* Give Top Host panels more width before squeezing values in a 3-column row */
+@media (max-width: 1280px) {
+  .charts-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .charts-grid-3 > .chart-panel:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 .uplot-wrap {
   width: 100%;
   min-height: 200px;
@@ -2353,11 +2367,13 @@ table.data.tls-certs .tls-domain {
 }
 
 .bar-row.host-rank {
-  grid-template-columns: 220px minmax(48px, 1fr) 120px;
+  grid-template-columns: minmax(0, 1fr) minmax(40px, 1.25fr) auto;
+  gap: 8px;
 }
 
 .bar-row.path-rank {
-  grid-template-columns: 280px minmax(48px, 1fr) 120px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(40px, 1fr) auto;
+  gap: 8px;
 }
 
 .bar-row:last-child {
@@ -2385,12 +2401,6 @@ table.data.tls-certs .tls-domain {
   text-overflow: ellipsis;
 }
 
-.bar-row.host-rank .bar-label.host-label,
-.bar-row.path-rank .bar-label.path-label {
-  overflow: visible;
-  text-overflow: clip;
-}
-
 .bar-track {
   height: 8px;
   background: var(--bg-hover);
@@ -2407,12 +2417,17 @@ table.data.tls-certs .tls-domain {
 }
 
 .bar-val {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  overflow: visible;
+  flex-shrink: 0;
+  padding-left: 4px;
+}
+
+.chart-panel .panel-body:has(.host-rank) {
+  overflow-x: auto;
 }
 
 .config-panel-head {
@@ -3250,6 +3265,16 @@ table.data.config-revisions code {
   font-size: 12px;
 }
 
+.waf-user-agent {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  line-height: 1.45;
+  max-height: 8em;
+  overflow-y: auto;
+}
+
 .waf-replay-note,
 .waf-trial-hint {
   margin-top: 12px;
@@ -3831,14 +3856,10 @@ table.data.config-revisions code {
   }
 
   /* --- bar rows (overview) --- */
-  .bar-row.host-rank {
-    grid-template-columns: 120px minmax(0, 1fr) 48px;
-  }
+  .bar-row.host-rank,
   .bar-row.path-rank {
-    grid-template-columns: 140px minmax(0, 1fr) 48px;
-  }
-  .bar-val {
-    font-size: 11px;
+    grid-template-columns: minmax(0, 1fr) minmax(32px, 1fr) auto;
+    gap: 6px;
   }
 
   /* --- match result --- */

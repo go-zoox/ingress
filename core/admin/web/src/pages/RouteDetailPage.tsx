@@ -6,7 +6,6 @@ import { PageHeader } from '../components/PageHeader'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
 import { api, type RouteDetail, type RouteMetrics } from '../api/client'
-import { useSSE } from '../hooks/useSSE'
 
 type TabKey = 'logs' | 'waf' | 'cache'
 
@@ -18,9 +17,6 @@ export function RouteDetailPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('logs')
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
-
-  // SSE for real-time metrics
-  const { data: sseData } = useSSE(['metrics'])
 
   useEffect(() => {
     const ri = Number(ruleIndex)
@@ -45,12 +41,17 @@ export function RouteDetailPage() {
     })
   }, [ruleIndex, pathIndex])
 
-  // Update metrics from SSE
+  // Refresh per-route metrics (do not use global SSE overview metrics).
   useEffect(() => {
-    if (sseData.metrics) {
-      setMetrics(sseData.metrics as RouteMetrics)
+    const ri = Number(ruleIndex)
+    const pi = Number(pathIndex)
+    if (isNaN(ri) || isNaN(pi)) return
+    const tick = () => {
+      api.routeMetrics(ri, pi).then(setMetrics).catch(() => {})
     }
-  }, [sseData.metrics])
+    const id = window.setInterval(tick, 5000)
+    return () => window.clearInterval(id)
+  }, [ruleIndex, pathIndex])
 
   if (loading) {
     return (
@@ -279,10 +280,10 @@ export function RouteDetailPage() {
         </div>
         <div className="panel-body">
           {activeTab === 'logs' && (
-            <RouteLogsTab host={detail.host} path={detail.path} />
+            <RouteLogsTab ruleIndex={detail.rule_index} pathIndex={detail.path_index} />
           )}
           {activeTab === 'waf' && (
-            <RouteWAFTab host={detail.host} path={detail.path} />
+            <RouteWAFTab ruleIndex={detail.rule_index} pathIndex={detail.path_index} />
           )}
           {activeTab === 'cache' && (
             <RouteCacheTab />
@@ -293,21 +294,22 @@ export function RouteDetailPage() {
   )
 }
 
-/** Sub-component: Access logs filtered by host/path */
-function RouteLogsTab({ host, path }: { host: string; path: string }) {
+/** Sub-component: Access logs filtered by route indices */
+function RouteLogsTab({ ruleIndex, pathIndex }: { ruleIndex: number; pathIndex: number }) {
   const [lines, setLines] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    api.logs({ host, path, limit: 100 }).then((r) => {
-      setLines(r.lines || [])
+    api.logs({ ri: ruleIndex, pi: pathIndex, limit: 500 }).then((r) => {
+      const out = r.lines || []
+      setLines(out.length > 100 ? out.slice(-100) : out)
       setLoading(false)
     }).catch(() => {
       setLines([])
       setLoading(false)
     })
-  }, [host, path])
+  }, [ruleIndex, pathIndex])
 
   if (loading) return <p className="empty-hint">加载中…</p>
   if (lines.length === 0) return <p className="empty-hint">暂无访问日志</p>
@@ -321,22 +323,22 @@ function RouteLogsTab({ host, path }: { host: string; path: string }) {
   )
 }
 
-/** Sub-component: WAF events filtered by host/path */
-function RouteWAFTab({ host, path }: { host: string; path: string }) {
+/** Sub-component: WAF events filtered by route indices */
+function RouteWAFTab({ ruleIndex, pathIndex }: { ruleIndex: number; pathIndex: number }) {
   const { lookup: ruleLookup } = useWafRuleLookup()
   const [events, setEvents] = useState<{ id: number; action: string; rule: string; client_ip: string; created_at: string }[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    api.wafEvents({ host, path, limit: 50 }).then((data) => {
-      setEvents(Array.isArray(data) ? data : [])
+    api.wafEvents({ ri: ruleIndex, pi: pathIndex, limit: 50 }).then((data) => {
+      setEvents(Array.isArray(data) ? data.slice(0, 50) : [])
       setLoading(false)
     }).catch(() => {
       setEvents([])
       setLoading(false)
     })
-  }, [host, path])
+  }, [ruleIndex, pathIndex])
 
   if (loading) return <p className="empty-hint">加载中…</p>
   if (events.length === 0) return <p className="empty-hint">暂无 WAF 事件</p>

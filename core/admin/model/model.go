@@ -28,6 +28,7 @@ type WAFEvent struct {
 	Host      string    `gorm:"size:255;index" json:"host"`
 	Path      string    `gorm:"type:text" json:"path"`
 	ClientIP  string    `gorm:"size:64" json:"client_ip"`
+	UserAgent string    `gorm:"size:512" json:"user_agent"`
 	CreatedAt time.Time `gorm:"index" json:"created_at"`
 }
 

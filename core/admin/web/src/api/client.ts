@@ -40,11 +40,15 @@ export const api = {
     time_start?: string
     time_end?: string
     limit?: number
+    ri?: number
+    pi?: number
   }) => {
     const q = new URLSearchParams()
     if (params?.action) q.set('action', params.action)
     if (params?.host) q.set('host', params.host)
     if (params?.path) q.set('path', params.path)
+    if (params?.ri != null) q.set('ri', String(params.ri))
+    if (params?.pi != null) q.set('pi', String(params.pi))
     if (params?.client_ip) q.set('client_ip', params.client_ip)
     if (params?.rule) q.set('rule', params.rule)
     if (params?.time_start) q.set('time_start', params.time_start)
@@ -119,12 +123,16 @@ export const api = {
     waf_block?: string
     offset?: number
     limit?: number
+    ri?: number
+    pi?: number
   }) => {
     const q = new URLSearchParams()
     if (params.log) q.set('log', params.log)
     if (params.q) q.set('q', params.q)
     if (params.host) q.set('host', params.host)
     if (params.path) q.set('path', params.path)
+    if (params.ri != null) q.set('ri', String(params.ri))
+    if (params.pi != null) q.set('pi', String(params.pi))
     if (params.status) q.set('status', params.status)
     if (params.cache_hit) q.set('cache_hit', params.cache_hit)
     if (params.waf_block) q.set('waf_block', params.waf_block)
@@ -196,6 +204,7 @@ export type WAFEvent = {
   host: string
   path: string
   client_ip: string
+  user_agent?: string
   created_at: string
 }
 

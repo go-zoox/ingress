@@ -66,13 +66,14 @@ func (a *Audit) Record(action, detail, actor string) error {
 	return gormx.GetDB().Create(row).Error
 }
 
-func (a *Audit) RecordWAFEvent(action, rule, host, path, clientIP string) (*model.WAFEvent, error) {
+func (a *Audit) RecordWAFEvent(action, rule, host, path, clientIP, userAgent string) (*model.WAFEvent, error) {
 	row := &model.WAFEvent{
 		Action:    action,
 		Rule:      rule,
 		Host:      host,
 		Path:      path,
 		ClientIP:  clientIP,
+		UserAgent: userAgent,
 		CreatedAt: time.Now(),
 	}
 	if err := gormx.GetDB().Create(row).Error; err != nil {

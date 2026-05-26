@@ -95,10 +95,10 @@ type wafEventAdapter struct {
 	broker *service.SSEBroker
 }
 
-func (a *wafEventAdapter) OnWAFEvent(action, rule, host, path, clientIP string) {
+func (a *wafEventAdapter) OnWAFEvent(action, rule, host, path, clientIP, userAgent string) {
 	// Fire-and-forget to avoid blocking the request path.
 	go func() {
-		row, err := a.audit.RecordWAFEvent(action, rule, host, path, clientIP)
+		row, err := a.audit.RecordWAFEvent(action, rule, host, path, clientIP, userAgent)
 		if err != nil {
 			logger.Warnf("waf event record failed: %s", err)
 			return

@@ -82,7 +82,11 @@ func (c *core) build() error {
 		}
 		if wafProf != nil && c.IsWAFEnabled() && waf.CheckRequest(wafProf, ctx.Request, hostname, path, method, func(action, rule, clientIP string) {
 			if c.wafCallback != nil {
-				c.wafCallback.OnWAFEvent(action, rule, hostname, path, clientIP)
+				ua := ""
+				if ctx.Request != nil {
+					ua = ctx.Request.UserAgent()
+				}
+				c.wafCallback.OnWAFEvent(action, rule, hostname, path, clientIP, ua)
 			}
 		}) {
 			ctx.SetHeader("Content-Type", wafProf.BlockContentType)

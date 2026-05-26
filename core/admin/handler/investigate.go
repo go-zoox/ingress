@@ -94,21 +94,56 @@ func (a *API) Investigate(ctx *zoox.Context) {
 	}
 
 	lines, _ := a.logs.TailAccess(5000)
-	entries := service.FilterAccessEntries(lines, host, path, method, limit)
+	var entries []service.AccessEntry
+	if useRI >= 0 {
+		entries = service.FilterAccessEntriesForRoute(icfg, useRI, usePI, lines)
+		if method != "" {
+			var filtered []service.AccessEntry
+			for _, e := range entries {
+				if e.Method == method {
+					filtered = append(filtered, e)
+				}
+			}
+			entries = filtered
+		}
+		if limit > 0 && len(entries) > limit {
+			entries = entries[len(entries)-limit:]
+		}
+	} else {
+		entries = service.FilterAccessEntries(lines, host, path, method, limit)
+	}
 	samples := service.EntriesToSamples(entries)
 	stats := service.StatsFromEntries(entries)
 
-	wafRows, _ := a.audit.ListWAFEvents(service.WAFAuditFilter{
-		Action: "block",
-		Host:   host,
-		Path:   path,
-		Limit:  8,
-	})
+	wafFilter := service.WAFAuditFilter{Action: "block", Limit: 500}
+	wafRows, _ := a.audit.ListWAFEvents(wafFilter)
+	if useRI >= 0 {
+		wafRows = service.FilterWAFEventsForRoute(icfg, useRI, usePI, wafRows)
+	} else if host != "" {
+		wafRows, _ = a.audit.ListWAFEvents(service.WAFAuditFilter{
+			Action: "block",
+			Host:   host,
+			Path:   path,
+			Limit:  8,
+		})
+	}
+	if len(wafRows) > 8 {
+		wafRows = wafRows[:8]
+	}
 
 	var healthChecks []service.HealthCheckResult
 	if a.health != nil {
 		checks, _ := a.health.ListResults()
-		healthChecks = service.FilterHealthChecks(checks, host, path)
+		if useRI >= 0 && useRI < len(icfg.Rules) {
+			r := &icfg.Rules[useRI]
+			pathStr := path
+			if usePI >= 0 && usePI < len(r.Paths) {
+				pathStr = r.Paths[usePI].Path
+			}
+			healthChecks = service.FilterHealthChecks(checks, r.Host, pathStr)
+		} else {
+			healthChecks = service.FilterHealthChecks(checks, host, path)
+		}
 	}
 
 	ok(ctx, zoox.H{

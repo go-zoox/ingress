@@ -192,6 +192,58 @@ func healthCheckLabelFromService(s *service.Service) string {
 	return "✓"
 }
 
+// RequestMatchesRoute reports whether requestHost and requestPath are routed to the
+// flattened route identified by ruleIndex and pathIndex (-1 = rule-level backend).
+func RequestMatchesRoute(cfg *Config, ruleIndex, pathIndex int, requestHost, requestPath string) (bool, error) {
+	if cfg == nil || ruleIndex < 0 || ruleIndex >= len(cfg.Rules) {
+		return false, nil
+	}
+	if err := inferBackendTypes(cfg); err != nil {
+		return false, err
+	}
+	idx, err := compileRouterIndex(cfg.Rules, cfg.Fallback)
+	if err != nil {
+		return false, err
+	}
+
+	hm, err := matchHostIndex(idx, cfg.Rules, cfg.Fallback, requestHost)
+	if err != nil {
+		if err == ErrHostNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+	if hm.ruleIndex != ruleIndex {
+		return false, nil
+	}
+
+	// Rule-level row (path_index -1): all traffic for this host rule.
+	if pathIndex < 0 {
+		return true, nil
+	}
+
+	if !hm.IsPathsExist {
+		return false, nil
+	}
+
+	_, mp, _, perr := matchPathWithRouter(idx, cfg.Rules, ruleIndex, requestPath, requestHost, hm.hostSubmatches)
+	if perr == ErrPathNotFound {
+		return false, nil
+	}
+	if perr != nil {
+		return false, perr
+	}
+	if mp == nil {
+		return false, nil
+	}
+	for j := range cfg.Rules[ruleIndex].Paths {
+		if &cfg.Rules[ruleIndex].Paths[j] == mp {
+			return j == pathIndex, nil
+		}
+	}
+	return false, nil
+}
+
 // PreviewMatch dry-runs routing for host and path without starting a server.
 func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 	if err := inferBackendTypes(cfg); err != nil {

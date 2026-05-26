@@ -159,9 +159,9 @@ func FilterHealthChecks(checks []HealthCheckResult, host, path string) []HealthC
 	return out
 }
 
-// MatchForInvestigate runs PreviewMatch unless ri/pi are provided.
+// MatchForInvestigate runs PreviewMatch unless rule index ri is provided (pi may be -1).
 func MatchForInvestigate(cfg *ingcore.Config, host, path string, ri, pi int) (*ingcore.MatchPreview, int, int, error) {
-	if ri >= 0 && pi >= 0 {
+	if ri >= 0 {
 		return nil, ri, pi, nil
 	}
 	preview, err := ingcore.PreviewMatch(cfg, host, path)
