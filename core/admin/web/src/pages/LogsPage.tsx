@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
+import { EmptyStateGuide } from '../components/EmptyStateGuide'
 import { api } from '../api/client'
 import { loadPreferences } from '../lib/preferences'
 import { useSSE } from '../hooks/useSSE'
@@ -184,8 +185,8 @@ export function LogsPage() {
         title="日志"
         desc={
           logKind === 'access'
-            ? '访问日志：实时 tail、条件监控与过滤'
-            : '错误日志：实时 tail 与关键字过滤'
+            ? '访问日志 tail：支持实时 SSE、Host/状态码/WAF/缓存过滤'
+            : '错误日志 tail：关键字过滤与实时刷新'
         }
       />
       {err && <p className="err">{err}</p>}
@@ -275,7 +276,15 @@ export function LogsPage() {
         <div className="panel-body panel-table-wrap">
           <div className="log-lines log-lines-live">
             {lines.length === 0 ? (
-              <div className="empty-hint">无匹配日志</div>
+              q || host || status || cacheHit || wafBlock ? (
+                <div className="empty-hint">无匹配日志，请放宽筛选条件</div>
+              ) : (
+                <EmptyStateGuide title="暂无日志输出" configModule="logging" linkLabel="配置日志路径">
+                  在 <code>ingress.yaml</code> 的 <code>logging.transports</code> 配置文件输出，或启用{' '}
+                  <code>admin.enabled</code> 使用默认同目录 <code>access.log</code> / <code>error.log</code>。
+                  总览指标也依赖访问日志。
+                </EmptyStateGuide>
+              )
             ) : (
               lines.map((line, i) => (
                 <div key={`${i}-${line.slice(0, 40)}`} className={`log-line ${logLineClass(line)}`}>

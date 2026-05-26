@@ -1,31 +1,24 @@
 import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api } from '../api/client'
-
-const nav = [
-  { to: '/', label: '总览', icon: '◉', end: true },
-  { to: '/routes', label: '路由', icon: '⇄' },
-  { to: '/topology', label: '拓扑', icon: '◈' },
-  { to: '/healths', label: '健康检查', icon: '♥' },
-  { to: '/cache', label: '缓存', icon: '◫' },
-  { to: '/waf', label: 'WAF', icon: '⛨' },
-  { to: '/tls', label: 'TLS', icon: '🔒' },
-  { to: '/logs', label: '日志', icon: '≡' },
-  { to: '/config', label: '配置', icon: '⌘' },
-  { to: '/settings', label: '设置', icon: '⚙' },
-]
+import { navGroups } from './navConfig'
+import { useNavBadges } from '../hooks/useNavBadges'
+import { SidebarGlobalStatus } from '../components/SidebarGlobalStatus'
+import { useSSE } from '../hooks/useSSE'
 
 export function AppLayout() {
   const [configPath, setConfigPath] = useState('—')
+  const [reloadReady, setReloadReady] = useState(false)
+  const [configHash, setConfigHash] = useState('')
+  const [latestHash, setLatestHash] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const location = useLocation()
+  const badges = useNavBadges()
 
-  // Close drawer on route change
   useEffect(() => {
     setDrawerOpen(false)
   }, [location.pathname])
 
-  // Close drawer on Escape key
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setDrawerOpen(false)
@@ -34,20 +27,42 @@ export function AppLayout() {
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
-  // Lock body scroll when drawer is open
   useEffect(() => {
     document.body.style.overflow = drawerOpen ? 'hidden' : ''
-    return () => { document.body.style.overflow = '' }
+    return () => {
+      document.body.style.overflow = ''
+    }
   }, [drawerOpen])
 
-  useEffect(() => {
+  const loadStatus = useCallback(() => {
     api
       .status()
-      .then((s) => setConfigPath(String(s.config_path || '—')))
-      .catch(() => setConfigPath('—'))
+      .then((s) => {
+        setConfigPath(String(s.config_path || '—'))
+        setReloadReady(Boolean(s.reload_ready))
+        setConfigHash(String(s.config_hash || ''))
+      })
+      .catch(() => {
+        setConfigPath('—')
+        setReloadReady(false)
+        setConfigHash('')
+      })
+    api
+      .configRevisions(1)
+      .then((revs) => {
+        setLatestHash(revs.length > 0 ? revs[0].hash : '')
+      })
+      .catch(() => setLatestHash(''))
   }, [])
 
+  useEffect(() => {
+    loadStatus()
+    const timer = window.setInterval(loadStatus, 30_000)
+    return () => window.clearInterval(timer)
+  }, [loadStatus])
+
   const close = useCallback(() => setDrawerOpen(false), [])
+  const { connected: sseConnected } = useSSE(['metrics'])
 
   return (
     <>
@@ -65,35 +80,66 @@ export function AppLayout() {
         <span className="mobile-topbar-title">Ingress Console</span>
       </div>
 
-      {/* Backdrop */}
-      {drawerOpen && (
-        <div className="sidebar-backdrop" onClick={close} />
-      )}
+      {drawerOpen ? <div className="sidebar-backdrop" onClick={close} /> : null}
 
       <div className="layout">
         <aside className={`sidebar${drawerOpen ? ' open' : ''}`}>
           <div className="brand">
             Ingress Console
-            <span>单机运维管理</span>
+            <span>运维控制台</span>
           </div>
-          <nav className="nav">
-            {nav.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) => (isActive ? 'active' : '')}
-                onClick={close}
-              >
-                <span className="icon">{item.icon}</span>
-                {item.label}
-              </NavLink>
+          <nav className="nav" aria-label="主导航">
+            {navGroups.map((group) => (
+              <div key={group.label} className="nav-group">
+                <div className="nav-group-label">{group.label}</div>
+                {group.items.map((item) => {
+                  const Icon = item.icon
+                  const badge =
+                    item.badgeKey && badges[item.badgeKey] > 0
+                      ? badges[item.badgeKey]
+                      : 0
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) => (isActive ? 'active' : '')}
+                      onClick={close}
+                    >
+                      <span className="icon" aria-hidden>
+                        <Icon size={18} strokeWidth={1.75} />
+                      </span>
+                      <span className="nav-label">{item.label}</span>
+                      {badge > 0 ? (
+                        <span
+                          className={`nav-badge${
+                            item.badgeKey === 'healths' ||
+                            (item.badgeKey === 'overview' && badges.healths > 0)
+                              ? ' danger'
+                              : ' warn'
+                          }`}
+                        >
+                          {badge > 99 ? '99+' : badge}
+                        </span>
+                      ) : null}
+                    </NavLink>
+                  )
+                })}
+              </div>
             ))}
           </nav>
           <div className="sidebar-footer">
-            配置路径
-            <br />
-            <code>{configPath}</code>
+            <SidebarGlobalStatus
+              reloadReady={reloadReady}
+              configHash={configHash}
+              latestHash={latestHash}
+              sseConnected={sseConnected}
+            />
+            <div className="sidebar-config-path">
+              配置路径
+              <br />
+              <code title={configPath}>{configPath}</code>
+            </div>
           </div>
         </aside>
         <main className="main">

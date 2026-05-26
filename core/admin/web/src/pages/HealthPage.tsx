@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
+import { EmptyStateGuide } from '../components/EmptyStateGuide'
 import { api, type HealthCheckResult, type HealthSummary } from '../api/client'
 
 export function HealthPage() {
@@ -32,7 +34,15 @@ export function HealthPage() {
 
   return (
     <div className="page">
-      <PageHeader title="健康检查" desc="定期探测配置了 healthcheck 的后端服务状态" />
+      <PageHeader
+        title="健康检查"
+        desc="探测路由 backend.service.healthcheck 配置的后端可用性"
+        actions={
+          <button type="button" className="btn btn-sm" onClick={loadChecks}>
+            <RefreshCw size={14} aria-hidden /> 刷新
+          </button>
+        }
+      />
       {err && <p className="err">{err}</p>}
 
       {/* Summary Cards */}
@@ -59,15 +69,19 @@ export function HealthPage() {
       <div className="panel">
         <div className="panel-head">
           <h2>探测结果</h2>
-          <button type="button" className="btn btn-sm" onClick={loadChecks}>
-            刷新
-          </button>
         </div>
         <div className="panel-body panel-table-wrap">
           {loading ? (
             <p className="empty-hint">加载中…</p>
           ) : checks.length === 0 ? (
-            <p className="empty-hint">暂无配置了健康检查的后端</p>
+            <EmptyStateGuide
+              title="暂无健康检查目标"
+              configModule="healthcheck"
+              linkLabel="打开配置中心"
+            >
+              在路由的 service 上启用 <code>healthcheck.enable</code> 后，ingress 会按间隔探测后端并在此展示
+              UP/DOWN。总览与拓扑图也会引用相同状态。
+            </EmptyStateGuide>
           ) : (
             <table className="data">
               <thead>

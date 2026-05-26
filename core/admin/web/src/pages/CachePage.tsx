@@ -69,7 +69,10 @@ export function CachePage() {
 
   return (
     <div className="page">
-      <PageHeader title="缓存" desc="全局 cache 引擎、路由级 HTTP 响应缓存与 access log 命中统计" />
+      <PageHeader
+        title="缓存"
+        desc="全局 cache 后端、路由级 HTTP 响应缓存策略与 access log 命中统计"
+      />
       {err && <p className="err">{err}</p>}
       <div className="cards">
         <div className="card">

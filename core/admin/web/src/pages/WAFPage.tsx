@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { FlaskConical } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
+import { EmptyStateGuide } from '../components/EmptyStateGuide'
 import { Drawer } from '../components/Drawer'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { api, type WAFEvent, type WAFEventDetail, type WAFTrialResult } from '../api/client'
@@ -213,7 +215,15 @@ export function WAFPage() {
 
   return (
     <div className="page">
-      <PageHeader title="WAF" desc="全局基线、事件审计；列表行点击查看详情，右上角可规则试匹配" />
+      <PageHeader
+        title="WAF"
+        desc="全局规则、运行时开关与 block/audit 事件；行点击查看详情"
+        actions={
+          <button type="button" className="btn btn-sm btn-primary" onClick={() => openTrial()}>
+            <FlaskConical size={14} aria-hidden /> 规则试匹配
+          </button>
+        }
+      />
       {err && <p className="err">{err}</p>}
 
       <div className="cards">
@@ -344,15 +354,13 @@ export function WAFPage() {
       <div className="panel">
         <div className="panel-head">
           <h2>事件列表 ({events.length})</h2>
-          <div className="filter-actions">
-            <button type="button" className="btn btn-sm btn-primary" onClick={() => openTrial()}>
-              规则试匹配
-            </button>
-          </div>
         </div>
         <div className="panel-body panel-table-wrap">
           {events.length === 0 ? (
-            <p className="empty">暂无事件</p>
+            <EmptyStateGuide title="暂无 WAF 事件" configModule="waf">
+              开启全局 WAF 并产生真实流量后，block/audit 会写入事件表。若曾看到大量事件而 WAF 为关闭，多为 admin
+              演示种子，可忽略或清空数据库后重启。
+            </EmptyStateGuide>
           ) : (
             <table className="data">
               <thead>
