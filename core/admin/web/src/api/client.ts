@@ -58,6 +58,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ enabled }),
     }),
+  clearDemoWafEvents: () =>
+    request<{ ok: boolean; deleted: number }>('/waf/events/demo-seed', { method: 'DELETE' }),
   wafHosts: () => request<string[]>('/waf/hosts'),
   wafRules: () => request<string[]>('/waf/rules'),
   wafRulesCatalog: () => request<WAFRuleDetail[]>('/waf/rules/catalog'),

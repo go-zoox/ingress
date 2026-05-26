@@ -7,6 +7,7 @@ import { LogsPage } from './pages/LogsPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { RouteDetailPage } from './pages/RouteDetailPage'
 import { RoutesPage } from './pages/RoutesPage'
+import { EventsPage } from './pages/EventsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TLSPage } from './pages/TLSPage'
 import { TopologyPage } from './pages/TopologyPage'
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="config" element={<ConfigPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="logs" element={<LogsPage />} />
+          <Route path="events" element={<EventsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

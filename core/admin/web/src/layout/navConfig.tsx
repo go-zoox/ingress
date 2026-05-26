@@ -2,8 +2,8 @@ import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard,
   ScrollText,
+  Activity,
   ArrowLeftRight,
-  Network,
   HardDrive,
   Shield,
   Lock,
@@ -32,6 +32,7 @@ export const navGroups: NavGroup[] = [
     label: '监控',
     items: [
       { to: '/', label: '总览', icon: LayoutDashboard, end: true, badgeKey: 'overview' },
+      { to: '/events', label: '事件', icon: Activity },
       { to: '/logs', label: '日志', icon: ScrollText },
     ],
   },
@@ -39,7 +40,6 @@ export const navGroups: NavGroup[] = [
     label: '流量',
     items: [
       { to: '/routes', label: '路由', icon: ArrowLeftRight },
-      { to: '/topology', label: '拓扑', icon: Network },
       { to: '/cache', label: '缓存', icon: HardDrive },
     ],
   },

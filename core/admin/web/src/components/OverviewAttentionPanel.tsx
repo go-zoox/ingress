@@ -8,12 +8,16 @@ import {
   FileWarning,
 } from 'lucide-react'
 import type { OverviewMetrics, TLSCert, HealthCheckResult, WAFEvent } from '../api/client'
+import { healthLink, logsLink, wafLink } from '../lib/deepLinks'
+
+export type AttentionAction = { label: string; href: string }
 
 export type AttentionItem = {
   level: 'danger' | 'warn' | 'info'
   title: string
   detail: string
   href?: string
+  actions?: AttentionAction[]
   icon?: 'cert' | 'error' | 'slow'
 }
 
@@ -31,7 +35,7 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
   wafBlocks,
 }: Props) {
   const downs = healthChecks.filter((h) => h.status === 'down')
-  const otherItems = buildOtherAttentionItems(metrics, certs, wafBlocks)
+  const otherItems = buildOtherAttentionItems(metrics, certs)
   const totalCount = downs.length + wafBlocks.length + otherItems.length
 
   return (
@@ -41,13 +45,15 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
           <AlertTriangle size={18} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />
           需要关注
         </h2>
-        <span className="chart-hint">{totalCount === 0 ? '当前无告警项' : `${totalCount} 项`}</span>
+        <Link to="/events" className="btn btn-ghost btn-sm">
+          事件流
+        </Link>
       </div>
       <div className="panel-body attention-sections">
         <AttentionSection
           title="健康检查"
           icon={<HeartPulse size={16} />}
-          href="/healths"
+          href={healthLink({ status: 'down' })}
           emptyText="全部后端探测正常"
           emptyOk
         >
@@ -59,7 +65,11 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
                   level="danger"
                   title={`DOWN · ${h.host}`}
                   detail={h.error || h.url || h.backend}
-                  href="/healths"
+                  href={healthLink({ status: 'down', host: h.host })}
+                  actions={[
+                    { label: '查日志', href: logsLink({ host: h.host, log: 'access' }) },
+                    { label: '健康检查', href: healthLink({ status: 'down' }) },
+                  ]}
                 />
               ))}
             </ul>
@@ -69,7 +79,7 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
         <AttentionSection
           title="WAF 拦截"
           icon={<ShieldBan size={16} />}
-          href="/waf"
+          href={wafLink({ action: 'block' })}
           emptyText="近期无 block 事件"
           emptyOk
         >
@@ -81,7 +91,11 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
                   level="warn"
                   title={`block · ${e.rule}`}
                   detail={`${e.host}${e.path}`}
-                  href="/waf"
+                  href={wafLink({ action: 'block', host: e.host, path: e.path })}
+                  actions={[
+                    { label: '查日志', href: logsLink({ host: e.host, waf_block: '1', log: 'access' }) },
+                    { label: '试匹配', href: wafLink({ host: e.host, path: e.path, trial: true, eventId: e.id }) },
+                  ]}
                 />
               ))}
             </ul>
@@ -98,6 +112,7 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
                   title={item.title}
                   detail={item.detail}
                   href={item.href}
+                  actions={item.actions}
                   icon={
                     item.icon === 'slow' ? (
                       <Clock size={14} />
@@ -160,12 +175,14 @@ function AttentionRow({
   title,
   detail,
   href,
+  actions,
   icon,
 }: {
   level: 'danger' | 'warn' | 'info'
   title: string
   detail: string
   href?: string
+  actions?: AttentionAction[]
   icon?: ReactNode
 }) {
   return (
@@ -178,22 +195,24 @@ function AttentionRow({
           <div className="attention-detail">{detail}</div>
         </div>
       </div>
-      {href ? (
-        <Link to={href} className="btn btn-ghost btn-sm">
-          查看
-        </Link>
-      ) : null}
+      <div className="attention-actions">
+        {href ? (
+          <Link to={href} className="btn btn-ghost btn-sm">
+            查看
+          </Link>
+        ) : null}
+        {actions?.map((a) => (
+          <Link key={a.href} to={a.href} className="btn btn-ghost btn-sm">
+            {a.label}
+          </Link>
+        ))}
+      </div>
     </li>
   )
 }
 
-function buildOtherAttentionItems(
-  metrics: OverviewMetrics | null,
-  certs: TLSCert[],
-  wafBlocks: WAFEvent[],
-): AttentionItem[] {
+function buildOtherAttentionItems(metrics: OverviewMetrics | null, certs: TLSCert[]): AttentionItem[] {
   const out: AttentionItem[] = []
-  void wafBlocks
 
   const criticalCerts = certs.filter((c) => c.days_remaining < 7)
   const warnCerts = certs.filter((c) => c.days_remaining >= 7 && c.days_remaining < 30)
@@ -221,7 +240,8 @@ function buildOtherAttentionItems(
       level: 'danger',
       title: '错误率偏高',
       detail: `${metrics.error_rate.toFixed(1)}%（窗口 ${metrics.window}）`,
-      href: '/logs',
+      href: logsLink({ log: 'access', status: '5' }),
+      actions: [{ label: '全部日志', href: logsLink({ log: 'access' }) }],
       icon: 'error',
     })
   } else if (metrics && metrics.error_rate > 5) {
@@ -229,7 +249,7 @@ function buildOtherAttentionItems(
       level: 'warn',
       title: '错误率上升',
       detail: `${metrics.error_rate.toFixed(1)}%`,
-      href: '/logs',
+      href: logsLink({ log: 'access' }),
       icon: 'error',
     })
   }
@@ -239,7 +259,7 @@ function buildOtherAttentionItems(
       level: 'warn',
       title: 'P95 延迟较高',
       detail: formatMs(metrics.p95_ms),
-      href: '/logs',
+      href: logsLink({ log: 'access' }),
       icon: 'slow',
     })
   }
@@ -251,7 +271,7 @@ function buildOtherAttentionItems(
         level: 'warn',
         title: `慢请求 ${formatMs(s.duration_ms)}`,
         detail: `${s.host} ${s.method} ${s.path}`,
-        href: '/logs',
+        href: logsLink({ host: s.host, path: s.path, log: 'access' }),
         icon: 'slow',
       })
     }

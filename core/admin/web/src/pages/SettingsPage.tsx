@@ -36,6 +36,8 @@ export function SettingsPage() {
   const [prefs, setPrefs] = useState<UIPreferences>(() => loadPreferences())
   const [saved, setSaved] = useState('')
   const [err, setErr] = useState('')
+  const [demoClearing, setDemoClearing] = useState(false)
+  const [demoMsg, setDemoMsg] = useState('')
 
   useEffect(() => {
     api
@@ -55,6 +57,20 @@ export function SettingsPage() {
     savePreferences(DEFAULT_PREFERENCES)
     setSaved('已恢复默认偏好')
     window.setTimeout(() => setSaved(''), 2500)
+  }
+
+  const clearDemoWaf = () => {
+    setDemoMsg('')
+    setDemoClearing(true)
+    api
+      .clearDemoWafEvents()
+      .then((r) => {
+        setDemoMsg(`已删除 ${r.deleted ?? 0} 条 waf-demo.example.com 样例事件`)
+        return api.settings()
+      })
+      .then(setData)
+      .catch((e: Error) => setDemoMsg(e.message))
+      .finally(() => setDemoClearing(false))
   }
 
   return (
@@ -127,9 +143,23 @@ export function SettingsPage() {
             <SettingsRow label="审计日志">{data?.database.audit_logs ?? '—'}</SettingsRow>
             <SettingsRow label="配置版本">{data?.database.config_revisions ?? '—'}</SettingsRow>
             <p className="settings-note">
-              清空样例数据：<code>rm -f examples/admin-console/admin.db</code> 后重启 ingress（空库会
+              完全重置库文件：<code>rm -f examples/admin-console/admin.db</code> 后重启 ingress（空库会
               bootstrap seed）。
             </p>
+            <div className="settings-demo-clear">
+              <p className="settings-note">
+                仅清除演示主机 <code>waf-demo.example.com</code> 的 WAF 事件，不影响其他 seed 数据。
+              </p>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={demoClearing}
+                onClick={clearDemoWaf}
+              >
+                {demoClearing ? '清理中…' : '清除演示 WAF 事件'}
+              </button>
+              {demoMsg ? <p className="settings-saved">{demoMsg}</p> : null}
+            </div>
           </div>
         </div>
 

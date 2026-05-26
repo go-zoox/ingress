@@ -11,7 +11,21 @@ import { formatWafRuleTooltip, resolveWafRule } from '../lib/wafRuleTooltip'
 
 type DrawerMode = 'detail' | 'trial' | null
 
+function wafFiltersFromLocation() {
+  const sp = new URLSearchParams(window.location.search)
+  return {
+    action: sp.get('action') || 'all',
+    host: sp.get('host') || '',
+    path: sp.get('path') || '',
+    rule: sp.get('rule') || '',
+    trial: sp.get('trial') === '1',
+    eventId: sp.get('event_id'),
+  }
+}
+
 export function WAFPage() {
+  const urlInit = wafFiltersFromLocation()
+  const urlInitRef = useRef(false)
   const [status, setStatus] = useState<Record<string, unknown> | null>(null)
   const [events, setEvents] = useState<WAFEvent[]>([])
   const [err, setErr] = useState('')
@@ -22,11 +36,11 @@ export function WAFPage() {
   const [trialEventId, setTrialEventId] = useState<number | null>(null)
   const [trialExpectedRule, setTrialExpectedRule] = useState('')
 
-  const [filterAction, setFilterAction] = useState('all')
-  const [filterHost, setFilterHost] = useState('')
-  const [filterPath, setFilterPath] = useState('')
+  const [filterAction, setFilterAction] = useState(urlInit.action)
+  const [filterHost, setFilterHost] = useState(urlInit.host)
+  const [filterPath, setFilterPath] = useState(urlInit.path)
   const [filterClientIP, setFilterClientIP] = useState('')
-  const [filterRule, setFilterRule] = useState('')
+  const [filterRule, setFilterRule] = useState(urlInit.rule)
   const [filterTimeStart, setFilterTimeStart] = useState('')
   const [filterTimeEnd, setFilterTimeEnd] = useState('')
 
@@ -99,6 +113,33 @@ export function WAFPage() {
     setTrialEventId(null)
     setTrialExpectedRule('')
   }
+
+  useEffect(() => {
+    if (urlInitRef.current) return
+    urlInitRef.current = true
+    const { host, path, rule, trial, eventId } = urlInit
+    if (!trial && !eventId) return
+    const seed: Partial<WAFEvent> = {
+      host: host || 'api.example.com',
+      path: path || '/search?q=test',
+      client_ip: '',
+      rule: rule || '',
+      id: Number(eventId) || 0,
+      action: 'block',
+      created_at: '',
+    }
+    if (eventId) {
+      const id = Number(eventId)
+      if (!Number.isNaN(id) && id > 0) {
+        api
+          .wafEvent(id)
+          .then((ev) => openTrial(ev))
+          .catch(() => openTrial(seed as WAFEvent))
+        return
+      }
+    }
+    openTrial(seed as WAFEvent)
+  }, [])
 
   useEffect(() => {
     loadStatus()

@@ -14,17 +14,8 @@ cache:
   # host: 127.0.0.1
   # port: 6379
   prefix: "ingress:"
-# zoox Config.Logger (YAML key `logging`): console + local log files (no /var/log/ingress required)
-# logging:
-#   enable: true
-#   level: warn
-#   transports:
-#     - type: file
-#       path: ./access.log
-#       levels:
-#         error: ./error.log
 waf:
-  enabled: false
+  enabled: true
   log_only: false
   builtin: true
 healthcheck:
