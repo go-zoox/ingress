@@ -9,40 +9,40 @@ import (
 
 // OverviewMetrics is aggregated access-log stats for the admin dashboard.
 type OverviewMetrics struct {
-	Window       string           `json:"window"`
-	Source       string           `json:"source"`
-	Total        int              `json:"total"`
-	RPM          float64          `json:"rpm"`
-	QPS          float64          `json:"qps"`
-	ErrorRate    float64          `json:"error_rate"`
-	P50Ms        float64          `json:"p50_ms"`
-	P95Ms        float64          `json:"p95_ms"`
-	CacheHitRate float64          `json:"cache_hit_rate"`
-	WAFBlocks    int              `json:"waf_blocks"`
-	StatusCounts   map[string]int     `json:"status_counts"`
-	Timeline       []TimelineBucket   `json:"timeline"`
-	TopHosts       []NamedCount       `json:"top_hosts"`
-	TopHostsError      []HostErrorStat    `json:"top_hosts_error"`
-	TopPaths           []NamedCount       `json:"top_paths"`
-	Slowest            []SlowRequest      `json:"slowest"`
-	ErrorSamples       []SlowRequest      `json:"error_samples,omitempty"`
-	LatencyHistogram   []LatencyBucket    `json:"latency_histogram"`
-	Delta              OverviewDelta      `json:"delta"`
+	Window           string           `json:"window"`
+	Source           string           `json:"source"`
+	Total            int              `json:"total"`
+	RPM              float64          `json:"rpm"`
+	ErrorRate        float64          `json:"error_rate"`
+	P50Ms            float64          `json:"p50_ms"`
+	P95Ms            float64          `json:"p95_ms"`
+	CacheHitRate     float64          `json:"cache_hit_rate"`
+	WAFBlocks        int              `json:"waf_blocks"`
+	StatusCounts     map[string]int   `json:"status_counts"`
+	Timeline         []TimelineBucket `json:"timeline"`
+	TopHosts         []NamedCount     `json:"top_hosts"`
+	TopHostsError    []HostErrorStat  `json:"top_hosts_error"`
+	TopPaths         []NamedCount     `json:"top_paths"`
+	TopBackends      []BackendStat    `json:"top_backends"`
+	Slowest          []SlowRequest    `json:"slowest"`
+	ErrorSamples     []SlowRequest    `json:"error_samples,omitempty"`
+	LatencyHistogram []LatencyBucket  `json:"latency_histogram"`
+	Delta            OverviewDelta    `json:"delta"`
 }
 
 type TimelineBucket struct {
-	Label        string  `json:"label"`
-	Count        int     `json:"count"`
-	QPS          float64 `json:"qps"`
-	S2           int     `json:"2xx"`
-	S3           int     `json:"3xx"`
-	S4           int     `json:"4xx"`
-	S5           int     `json:"5xx"`
-	ErrorRate    float64 `json:"error_rate"`
-	CacheHitRate float64 `json:"cache_hit_rate"`
-	WAFBlocks    int     `json:"waf_blocks"`
-	P50Ms        float64 `json:"p50_ms"`
-	P95Ms        float64 `json:"p95_ms"`
+	Label         string  `json:"label"`
+	Count         int     `json:"count"`
+	S2            int     `json:"2xx"`
+	S3            int     `json:"3xx"`
+	S4            int     `json:"4xx"`
+	S5            int     `json:"5xx"`
+	ErrorRate     float64 `json:"error_rate"`
+	CacheHitRate  float64 `json:"cache_hit_rate"`
+	WAFBlocks     int     `json:"waf_blocks"`
+	P50Ms         float64 `json:"p50_ms"`
+	P95Ms         float64 `json:"p95_ms"`
+	UpstreamP95Ms float64 `json:"upstream_p95_ms"`
 }
 
 type NamedCount struct {
@@ -56,6 +56,15 @@ type HostErrorStat struct {
 	Count     int     `json:"count"`
 	Errors    int     `json:"errors"`
 	ErrorRate float64 `json:"error_rate"`
+}
+
+// BackendStat aggregates traffic and upstream latency for one backend target.
+type BackendStat struct {
+	Name             string  `json:"name"`
+	Count            int     `json:"count"`
+	RPM              float64 `json:"rpm"`
+	UpstreamP95Ms    float64 `json:"upstream_p95_ms"`
+	UpstreamErrorPct float64 `json:"upstream_error_pct"`
 }
 
 type SlowRequest struct {
@@ -74,13 +83,13 @@ type LatencyBucket struct {
 
 // OverviewDelta compares the current window to the immediately previous window of equal length.
 type OverviewDelta struct {
-	TotalPct        float64 `json:"total_pct"`
-	RpmPct          float64 `json:"rpm_pct"`
-	ErrorRateDelta  float64 `json:"error_rate_delta"`
-	CacheHitDelta   float64 `json:"cache_hit_delta"`
-	WafBlocksDelta  int     `json:"waf_blocks_delta"`
-	P95DeltaMs      float64 `json:"p95_delta_ms"`
-	HasPrevious     bool    `json:"has_previous"`
+	TotalPct       float64 `json:"total_pct"`
+	RpmPct         float64 `json:"rpm_pct"`
+	ErrorRateDelta float64 `json:"error_rate_delta"`
+	CacheHitDelta  float64 `json:"cache_hit_delta"`
+	WafBlocksDelta int     `json:"waf_blocks_delta"`
+	P95DeltaMs     float64 `json:"p95_delta_ms"`
+	HasPrevious    bool    `json:"has_previous"`
 }
 
 // Metrics aggregates access logs for overview charts.
@@ -179,9 +188,6 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 		if minutes > 0 {
 			out.RPM = float64(out.Total) / minutes
 		}
-		if sec := windowDur.Seconds(); sec > 0 {
-			out.QPS = float64(out.Total) / sec
-		}
 	}
 	if ps := percentiles(durations, 0.5, 0.95); len(ps) >= 2 {
 		out.P50Ms, out.P95Ms = ps[0], ps[1]
@@ -189,6 +195,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	out.TopHosts = topN(hostCounts, 8)
 	out.TopHostsError = topHostsByError(filtered, 8)
 	out.TopPaths = topN(pathCounts, 6)
+	out.TopBackends = topBackends(filtered, windowDur, 8)
 	out.Slowest = slowest(filtered, 5)
 	out.ErrorSamples = errorSamples(filtered, 5)
 	out.LatencyHistogram = buildLatencyHistogram(durations)
@@ -493,7 +500,6 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 			fillBucketEntry(&result[idx], e, &scratches[idx])
 		}
 		finalizeTimelineBuckets(result, scratches)
-		applyTimelineQPS(result, window, buckets)
 		return result
 	}
 
@@ -510,21 +516,7 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 		fillBucketEntry(&result[idx], e, &scratches[idx])
 	}
 	finalizeTimelineBuckets(result, scratches)
-	applyTimelineQPS(result, window, buckets)
 	return result
-}
-
-func applyTimelineQPS(buckets []TimelineBucket, window time.Duration, n int) {
-	if n <= 0 {
-		return
-	}
-	slotSeconds := window.Seconds() / float64(n)
-	if slotSeconds <= 0 {
-		return
-	}
-	for i := range buckets {
-		buckets[i].QPS = float64(buckets[i].Count) / slotSeconds
-	}
 }
 
 func formatIndexLabel(i, n int) string {
@@ -535,9 +527,10 @@ func formatIndexLabel(i, n int) string {
 }
 
 type timelineBucketScratch struct {
-	errors    int
-	cacheHits int
-	durations []float64
+	errors            int
+	cacheHits         int
+	durations         []float64
+	upstreamDurations []float64
 }
 
 func fillBucketEntry(b *TimelineBucket, e AccessEntry, scratch *timelineBucketScratch) {
@@ -564,6 +557,12 @@ func fillBucketEntry(b *TimelineBucket, e AccessEntry, scratch *timelineBucketSc
 	if e.DurationMs > 0 {
 		scratch.durations = append(scratch.durations, e.DurationMs)
 	}
+	if !e.CacheHit {
+		up := effectiveUpstreamDurationMs(e)
+		if up > 0 {
+			scratch.upstreamDurations = append(scratch.upstreamDurations, up)
+		}
+	}
 }
 
 func finalizeTimelineBuckets(buckets []TimelineBucket, scratches []timelineBucketScratch) {
@@ -578,7 +577,24 @@ func finalizeTimelineBuckets(buckets []TimelineBucket, scratches []timelineBucke
 			buckets[i].P50Ms = ps[0]
 			buckets[i].P95Ms = ps[1]
 		}
+		if ps := percentiles(sc.upstreamDurations, 0.95); len(ps) >= 1 {
+			buckets[i].UpstreamP95Ms = ps[0]
+		}
 	}
+}
+
+func effectiveUpstreamDurationMs(e AccessEntry) float64 {
+	if e.UpstreamDurationMs > 0 {
+		return e.UpstreamDurationMs
+	}
+	return 0
+}
+
+func effectiveUpstreamStatus(e AccessEntry) int {
+	if e.UpstreamStatus > 0 {
+		return e.UpstreamStatus
+	}
+	return e.Status
 }
 
 func percentiles(vals []float64, ps ...float64) (results []float64) {
@@ -669,6 +685,67 @@ func topN(m map[string]int, n int) []NamedCount {
 		out[i] = NamedCount{Name: all[i].name, Count: all[i].count}
 	}
 	return out
+}
+
+type backendScratch struct {
+	count          int
+	proxyRequests  int
+	upstreamErrors int
+	upstreamDurs   []float64
+}
+
+func topBackends(entries []AccessEntry, windowDur time.Duration, n int) []BackendStat {
+	scratches := map[string]*backendScratch{}
+	for _, e := range entries {
+		target := strings.TrimSpace(e.Target)
+		if target == "" || target == "handler" {
+			continue
+		}
+		s := scratches[target]
+		if s == nil {
+			s = &backendScratch{}
+			scratches[target] = s
+		}
+		s.count++
+		if e.CacheHit {
+			continue
+		}
+		s.proxyRequests++
+		if up := effectiveUpstreamDurationMs(e); up > 0 {
+			s.upstreamDurs = append(s.upstreamDurs, up)
+		}
+		if effectiveUpstreamStatus(e) >= 500 {
+			s.upstreamErrors++
+		}
+	}
+	all := make([]BackendStat, 0, len(scratches))
+	minutes := windowDur.Minutes()
+	for name, s := range scratches {
+		st := BackendStat{
+			Name:  name,
+			Count: s.count,
+		}
+		if minutes > 0 {
+			st.RPM = float64(s.count) / minutes
+		}
+		if s.proxyRequests > 0 {
+			st.UpstreamErrorPct = float64(s.upstreamErrors) / float64(s.proxyRequests) * 100
+		}
+		if ps := percentiles(s.upstreamDurs, 0.95); len(ps) >= 1 {
+			st.UpstreamP95Ms = ps[0]
+		}
+		all = append(all, st)
+	}
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].Count == all[j].Count {
+			return all[i].Name < all[j].Name
+		}
+		return all[i].Count > all[j].Count
+	})
+	if n > len(all) {
+		n = len(all)
+	}
+	return all[:n]
 }
 
 func slowest(entries []AccessEntry, n int) []SlowRequest {

@@ -27,34 +27,6 @@ func TestAggregateOverview_staleLogUsesLatestWindow(t *testing.T) {
 	}
 }
 
-func TestAggregateOverview_computesQPS(t *testing.T) {
-	anchor := time.Date(2026, 5, 20, 12, 0, 0, 0, time.Local)
-	entries := make([]AccessEntry, 300)
-	for i := range entries {
-		entries[i] = AccessEntry{
-			At:     anchor.Add(-time.Duration(i) * time.Second),
-			Host:   "api.example.com",
-			Status: 200,
-		}
-	}
-	out := aggregateOverview(entries, "5m", "access_log")
-	if out.Total != 300 {
-		t.Fatalf("total=%d want 300", out.Total)
-	}
-	wantQPS := 300.0 / (5 * 60)
-	if out.QPS < wantQPS*0.99 || out.QPS > wantQPS*1.01 {
-		t.Fatalf("qps=%v want ~%v", out.QPS, wantQPS)
-	}
-	if out.RPM < out.QPS*60*0.99 || out.RPM > out.QPS*60*1.01 {
-		t.Fatalf("rpm=%v inconsistent with qps=%v", out.RPM, out.QPS)
-	}
-	for _, b := range out.Timeline {
-		if b.Count > 0 && b.QPS <= 0 {
-			t.Fatalf("bucket with count should have qps: %+v", b)
-		}
-	}
-}
-
 func TestBuildTimeline_respectsAnchor(t *testing.T) {
 	anchor := time.Date(2026, 5, 20, 10, 15, 0, 0, time.Local)
 	entries := []AccessEntry{
@@ -100,6 +72,53 @@ func TestAggregateOverview_timelineRatesAndHostErrors(t *testing.T) {
 	}
 	if !sawRate {
 		t.Fatalf("timeline missing error_rate: %+v", out.Timeline)
+	}
+}
+
+func TestAggregateOverview_upstreamP95AndBackends(t *testing.T) {
+	anchor := time.Date(2026, 5, 20, 12, 0, 0, 0, time.Local)
+	entries := []AccessEntry{
+		{
+			At: anchor.Add(-5 * time.Minute), Host: "api.example.com", Target: "api.internal:8080",
+			Status: 200, DurationMs: 20, UpstreamDurationMs: 15,
+		},
+		{
+			At: anchor.Add(-4 * time.Minute), Host: "api.example.com", Target: "api.internal:8080",
+			Status: 200, DurationMs: 40, UpstreamDurationMs: 35,
+		},
+		{
+			At: anchor.Add(-3 * time.Minute), Host: "api.example.com", Target: "api.internal:8080",
+			Status: 200, DurationMs: 60, UpstreamDurationMs: 55,
+		},
+		{
+			At: anchor.Add(-2 * time.Minute), Host: "cdn.example.com", Target: "minio.internal:9000",
+			Status: 200, DurationMs: 5, UpstreamDurationMs: 3, CacheHit: true,
+		},
+		{
+			At: anchor.Add(-1 * time.Minute), Host: "cdn.example.com", Target: "minio.internal:9000",
+			Status: 502, DurationMs: 100, UpstreamDurationMs: 95, UpstreamStatus: 502,
+		},
+	}
+
+	out := aggregateOverview(entries, "15m", "access_log")
+	if len(out.TopBackends) != 2 {
+		t.Fatalf("top_backends=%d want 2: %+v", len(out.TopBackends), out.TopBackends)
+	}
+	if out.TopBackends[0].Name != "api.internal:8080" || out.TopBackends[0].Count != 3 {
+		t.Fatalf("top backend=%+v", out.TopBackends[0])
+	}
+	if out.TopBackends[0].UpstreamP95Ms <= 0 {
+		t.Fatalf("api backend upstream p95=%v", out.TopBackends[0].UpstreamP95Ms)
+	}
+
+	var sawUpstreamP95 bool
+	for _, b := range out.Timeline {
+		if b.UpstreamP95Ms > 0 {
+			sawUpstreamP95 = true
+		}
+	}
+	if !sawUpstreamP95 {
+		t.Fatalf("timeline missing upstream_p95_ms: %+v", out.Timeline)
 	}
 }
 

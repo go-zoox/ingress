@@ -5,7 +5,6 @@ import { investigateLink } from '../../lib/deepLinks'
 import { TrafficTimelineChart } from '../charts/TrafficTimelineChart'
 import { QualityTimelineChart } from '../charts/QualityTimelineChart'
 import { LatencyTrendChart } from '../charts/LatencyTrendChart'
-import { QPSTimelineChart } from '../charts/QPSTimelineChart'
 import { CacheTimelineChart } from '../charts/CacheTimelineChart'
 import { LatencyHistogramChart } from '../charts/LatencyHistogramChart'
 import { StatusDonut } from '../charts/StatusDonut'
@@ -69,27 +68,24 @@ export const RouteDetailCharts = memo(function RouteDetailCharts({ detail, metri
       ) : null}
 
       <div className="charts-grid charts-grid-2" style={{ marginTop: 16 }}>
-        <ChartPanel title="QPS 趋势" hint="每时间桶 req/s">
-          <QPSTimelineChart timeline={timeline} />
-        </ChartPanel>
         <ChartPanel title="流量趋势" hint="堆叠状态码">
           <TrafficTimelineChart timeline={overviewTimeline} />
         </ChartPanel>
-      </div>
-
-      <div className="charts-grid charts-grid-2">
         <ChartPanel title="质量趋势" hint="错误率 · WAF">
           <QualityTimelineChart timeline={overviewTimeline} />
         </ChartPanel>
+      </div>
+
+      <div className="charts-grid charts-grid-2">
         <ChartPanel title="状态码分布">
           <StatusDonut counts={metrics.status_counts} />
+        </ChartPanel>
+        <ChartPanel title="延迟趋势" hint="P50 · P95">
+          <LatencyTrendChart timeline={timeline} />
         </ChartPanel>
       </div>
 
       <div className="charts-grid charts-grid-2">
-        <ChartPanel title="延迟趋势" hint="P50 · P95">
-          <LatencyTrendChart timeline={timeline} />
-        </ChartPanel>
         {showCacheTrend ? (
           <ChartPanel title="缓存命中趋势" hint="按时间桶 %">
             <CacheTimelineChart timeline={overviewTimeline} />

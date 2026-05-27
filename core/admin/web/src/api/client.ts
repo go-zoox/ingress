@@ -439,12 +439,19 @@ export type CacheOverview = {
   }
 }
 
+export type BackendStat = {
+  name: string
+  count: number
+  rpm: number
+  upstream_p95_ms: number
+  upstream_error_pct: number
+}
+
 export type OverviewMetrics = {
   window: string
   source: string
   total: number
   rpm: number
-  qps: number
   error_rate: number
   p50_ms: number
   p95_ms: number
@@ -454,7 +461,6 @@ export type OverviewMetrics = {
   timeline: Array<{
     label: string
     count: number
-    qps?: number
     '2xx': number
     '3xx': number
     '4xx': number
@@ -462,6 +468,9 @@ export type OverviewMetrics = {
     error_rate: number
     cache_hit_rate: number
     waf_blocks: number
+    p50_ms?: number
+    p95_ms?: number
+    upstream_p95_ms?: number
   }>
   top_hosts: Array<{ name: string; count: number }>
   top_hosts_error: Array<{
@@ -471,6 +480,7 @@ export type OverviewMetrics = {
     error_rate: number
   }>
   top_paths: Array<{ name: string; count: number }>
+  top_backends?: BackendStat[]
   latency_histogram: Array<{ label: string; count: number }>
   delta: {
     total_pct: number
@@ -532,7 +542,6 @@ export type RouteDetail = {
 export type MetricsTimelineBucket = {
   label: string
   count: number
-  qps?: number
   '2xx': number
   '3xx': number
   '4xx': number
@@ -542,6 +551,7 @@ export type MetricsTimelineBucket = {
   waf_blocks?: number
   p50_ms?: number
   p95_ms?: number
+  upstream_p95_ms?: number
 }
 
 export type RouteSampleRow = {
@@ -604,7 +614,6 @@ export type RouteMetrics = {
   window: string
   source?: string
   rpm: number
-  qps: number
   error_rate: number
   p50_ms: number
   p95_ms: number

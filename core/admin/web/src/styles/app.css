@@ -1753,6 +1753,15 @@ table.data.tls-certs .tls-domain {
   color: var(--warn);
 }
 
+.text-danger {
+  color: var(--danger);
+}
+
+.backend-perf-table .backend-target {
+  font-size: 12px;
+  word-break: break-all;
+}
+
 .tls-status-ok {
   color: var(--ok);
 }

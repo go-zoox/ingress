@@ -6,15 +6,16 @@ import {
   HardDrive,
   Shield,
   Timer,
-  Zap,
   Heart,
+  Zap,
 } from 'lucide-react'
 import type { OverviewMetrics, HealthCheckResult, HealthSummary, TLSCert } from '../api/client'
 import { TrafficTimelineChart } from './charts/TrafficTimelineChart'
 import { QualityTimelineChart } from './charts/QualityTimelineChart'
-import { QPSTimelineChart } from './charts/QPSTimelineChart'
 import { CacheTimelineChart } from './charts/CacheTimelineChart'
 import { LatencyHistogramChart } from './charts/LatencyHistogramChart'
+import { UpstreamLatencyTrendChart } from './charts/UpstreamLatencyTrendChart'
+import { BackendPerformancePanel } from './BackendPerformancePanel'
 import { StatusDonut } from './charts/StatusDonut'
 import { OverviewDelta } from './OverviewDelta'
 import { OverviewHealthMatrix } from './OverviewHealthMatrix'
@@ -63,17 +64,10 @@ export const OverviewCharts = memo(function OverviewCharts({
           tone={healthClass}
         />
         <KpiCard
-          icon={<Zap size={18} />}
-          label="QPS"
-          value={formatQPS(metrics.qps ?? metrics.rpm / 60)}
-          sub={`≈ ${metrics.rpm.toFixed(1)} 次/分 · ${metrics.window}`}
-          delta={<OverviewDelta delta={delta} kind="pct" value={delta.rpm_pct ?? delta.total_pct} />}
-        />
-        <KpiCard
           icon={<Activity size={18} />}
           label="请求量"
           value={String(metrics.total)}
-          sub={`${metrics.window}`}
+          sub={`≈ ${metrics.rpm.toFixed(1)} 次/分 · ${metrics.window}`}
           delta={<OverviewDelta delta={delta} kind="pct" value={delta.total_pct} />}
         />
         <KpiCard
@@ -116,26 +110,29 @@ export const OverviewCharts = memo(function OverviewCharts({
       </div>
 
       <div className="charts-grid charts-grid-2">
-        <ChartPanel title="QPS 趋势" hint="每时间桶 req/s">
-          <QPSTimelineChart timeline={metrics.timeline} />
-        </ChartPanel>
         <ChartPanel title="流量趋势" hint="堆叠状态码">
           <TrafficTimelineChart timeline={metrics.timeline} />
         </ChartPanel>
-      </div>
-
-      <div className="charts-grid charts-grid-2">
         <ChartPanel title="质量趋势" hint="错误率 · WAF">
           <QualityTimelineChart timeline={metrics.timeline} />
         </ChartPanel>
+      </div>
+
+      <div className="charts-grid charts-grid-2">
         <ChartPanel title="缓存命中趋势" hint="按时间桶 %">
           <CacheTimelineChart timeline={metrics.timeline} />
+        </ChartPanel>
+        <ChartPanel title="延迟分布" hint="直方图">
+          <LatencyHistogramChart histogram={metrics.latency_histogram ?? []} />
         </ChartPanel>
       </div>
 
       <div className="charts-grid charts-grid-2">
-        <ChartPanel title="延迟分布" hint="直方图">
-          <LatencyHistogramChart histogram={metrics.latency_histogram ?? []} />
+        <ChartPanel title="上游延迟趋势" hint="upstream_response_time P95 · 不含缓存命中">
+          <UpstreamLatencyTrendChart timeline={metrics.timeline} />
+        </ChartPanel>
+        <ChartPanel title="后端性能" hint="按 target 聚合 · 不含 handler">
+          <BackendPerformancePanel backends={metrics.top_backends ?? []} />
         </ChartPanel>
       </div>
 
@@ -350,11 +347,4 @@ function MetricsEmptyMessage({ metrics }: { metrics: OverviewMetrics | null }) {
 function formatMs(ms: number) {
   if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`
   return `${Math.round(ms)}ms`
-}
-
-function formatQPS(qps: number) {
-  if (qps >= 100) return qps.toFixed(0)
-  if (qps >= 10) return qps.toFixed(1)
-  if (qps >= 1) return qps.toFixed(2)
-  return qps.toFixed(3)
 }

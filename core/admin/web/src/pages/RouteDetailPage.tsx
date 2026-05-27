@@ -555,35 +555,19 @@ const emptyDelta: MetricsDelta = {
   has_previous: false,
 }
 
-function formatQPS(qps: number) {
-  if (qps >= 100) return qps.toFixed(0)
-  if (qps >= 10) return qps.toFixed(1)
-  if (qps >= 1) return qps.toFixed(2)
-  return qps.toFixed(3)
-}
-
 function RouteMetricsKpis({ metrics }: { metrics: RouteMetrics }) {
   const delta: MetricsDelta = metrics.delta ?? emptyDelta
   const sparkCounts = (metrics.timeline ?? []).map((b) => b.count)
-  const sparkQPS = (metrics.timeline ?? []).map((b) => b.qps ?? 0)
   const sparkErrors = (metrics.timeline ?? []).map((b) => b.error_rate ?? 0)
-  const qps = metrics.qps ?? metrics.rpm / 60
 
   return (
     <div className="route-metrics-cards">
       <RouteMetricCard
-        label="QPS"
-        value={formatQPS(qps)}
-        sub={`≈ ${metrics.rpm.toFixed(1)} 次/分`}
-        spark={sparkQPS}
-        sparkTone="var(--accent)"
-        delta={<OverviewDelta delta={delta} kind="pct" value={delta.rpm_pct ?? delta.total_pct} />}
-      />
-      <RouteMetricCard
         label="次/分"
         value={metrics.rpm.toFixed(1)}
         spark={sparkCounts}
-        sparkTone="var(--ok)"
+        sparkTone="var(--accent)"
+        delta={<OverviewDelta delta={delta} kind="pct" value={delta.rpm_pct ?? delta.total_pct} />}
       />
       <RouteMetricCard
         label="延迟 P95"
