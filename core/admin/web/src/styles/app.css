@@ -2792,8 +2792,9 @@ table.data.config-revisions code {
 .config-waf-rules-table {
   font-size: 12px;
   margin-top: 4px;
-  table-layout: auto;
-  min-width: 560px;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 720px;
 }
 
 .config-waf-rules-table th,
@@ -2802,9 +2803,58 @@ table.data.config-revisions code {
   vertical-align: top;
 }
 
+.config-waf-rules-table .col-name {
+  white-space: normal;
+  width: 22%;
+  min-width: 140px;
+}
+
 .config-waf-rules-table .col-pattern {
-  max-width: 0;
-  width: auto;
+  width: 24%;
+  min-width: 120px;
+}
+
+.config-waf-rules-table .col-targets {
+  width: 12%;
+  min-width: 72px;
+}
+
+.config-waf-rules-table .col-actions {
+  width: 72px;
+}
+
+.config-waf-rules-table--compact {
+  min-width: 520px;
+}
+
+.config-waf-rules-table--compact .col-enable {
+  width: 56px;
+  padding-left: 8px;
+  padding-right: 4px;
+}
+
+.config-waf-rules-table--compact .col-name {
+  width: 34%;
+  min-width: 140px;
+}
+
+.config-waf-rules-table--compact .col-name,
+.config-waf-rules-table--compact .col-desc {
+  overflow: hidden;
+}
+
+.config-waf-rules-table--compact .col-actions {
+  width: 68px;
+  padding-right: 8px;
+}
+
+.ellipsis-tooltip {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  cursor: default;
 }
 
 .config-waf-rules-table .path-cell {
@@ -2815,6 +2865,27 @@ table.data.config-revisions code {
   white-space: nowrap;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.waf-rule-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.waf-rule-toggle input {
+  margin: 0;
+}
+
+.config-waf-rules-table tr.row-muted td {
+  opacity: 0.55;
+}
+
+.config-waf-rules-table tr.row-muted .path-cell {
+  opacity: 1;
 }
 
 /* Wrap tables so they scroll instead of overflowing the form */

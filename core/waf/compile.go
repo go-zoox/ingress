@@ -63,8 +63,6 @@ func compileProfile(ruleIndex int, merged rule.WAF) (*Profile, error) {
 		BlockBody:        "Forbidden\n",
 	}
 
-	useBuiltin := !merged.DisableBuiltin
-
 	if merged.BlockStatusCode > 0 {
 		p.BlockStatus = int(merged.BlockStatusCode)
 	}
@@ -106,9 +104,7 @@ func compileProfile(ruleIndex int, merged rule.WAF) (*Profile, error) {
 
 	custom := merged.Rules
 	var combined []rule.WAFRule
-	if useBuiltin {
-		combined = append(combined, StarterRules()...)
-	}
+	combined = append(combined, filterStarterRules(merged)...)
 	combined = append(combined, custom...)
 
 	rLabel := fmt.Sprintf("rules[%d]", ruleIndex)
@@ -119,6 +115,9 @@ func compileProfile(ruleIndex int, merged rule.WAF) (*Profile, error) {
 
 	for i := range combined {
 		r := &combined[i]
+		if !RuleActive(*r) {
+			continue
+		}
 		if strings.TrimSpace(r.ID) == "" {
 			return nil, fmt.Errorf("%s.waf.rules[%d]: id is required", rLabel, i)
 		}

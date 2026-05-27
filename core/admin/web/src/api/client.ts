@@ -252,6 +252,8 @@ export type WAFRuleDetail = {
   source: string
   description: string
   log_only?: boolean
+  enabled: boolean
+  builtin?: boolean
 }
 
 export type WAFEventDetail = WAFEvent & {

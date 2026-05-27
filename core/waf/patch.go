@@ -112,6 +112,20 @@ func MergePatch(base rule.WAF, patch map[string]any, ruleIdx int) (rule.WAF, err
 		}
 		out.DisableBuiltin = b
 	}
+	if v, ok := patch["builtin_rules"]; ok {
+		m, err := boolMap(v, qual(rLoc, "builtin_rules"))
+		if err != nil {
+			return out, err
+		}
+		if len(m) > 0 {
+			if out.BuiltinRules == nil {
+				out.BuiltinRules = make(map[string]bool, len(m))
+			}
+			for k, val := range m {
+				out.BuiltinRules[k] = val
+			}
+		}
+	}
 	if v, ok := patch["deny"]; ok {
 		sl, err := strSlice(v, qual(rLoc, "deny"))
 		if err != nil {
@@ -232,6 +246,29 @@ func patchRulesSlice(v any, ctx string) ([]rule.WAFRule, error) {
 	return out, nil
 }
 
+func boolMap(v any, ctx string) (map[string]bool, error) {
+	if v == nil {
+		return nil, nil
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s: expected mapping", ctx)
+	}
+	out := make(map[string]bool, len(m))
+	for k, elt := range m {
+		key := strings.TrimSpace(k)
+		if key == "" {
+			return nil, fmt.Errorf("%s: empty key", ctx)
+		}
+		b, err := asBool(elt, fmt.Sprintf("%s[%q]", ctx, key))
+		if err != nil {
+			return nil, err
+		}
+		out[key] = b
+	}
+	return out, nil
+}
+
 func patchRuleFromMap(m map[string]any, ctx string) (rule.WAFRule, error) {
 	var r rule.WAFRule
 
@@ -257,6 +294,14 @@ func patchRuleFromMap(m map[string]any, ctx string) (rule.WAFRule, error) {
 			return r, err
 		}
 		r.LogOnly = b
+	}
+
+	if v, ok := m["enabled"]; ok {
+		b, err := asBool(v, ctx+".enabled")
+		if err != nil {
+			return r, err
+		}
+		r.Enabled = &b
 	}
 
 	if v, ok := m["type"]; ok {

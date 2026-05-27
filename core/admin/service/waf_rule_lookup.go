@@ -21,6 +21,8 @@ type WAFRuleDetail struct {
 	Source      string   `json:"source"` // config | builtin | phase | demo
 	Description string   `json:"description"`
 	LogOnly     bool     `json:"log_only,omitempty"`
+	Enabled     bool     `json:"enabled"`
+	Builtin     bool     `json:"builtin,omitempty"`
 }
 
 // WAFEventDetail is a WAF event plus resolved rule metadata.
@@ -102,7 +104,7 @@ func LookupWAFRule(cfg *ingcore.Config, ruleField string) *WAFRuleDetail {
 		}
 		for _, wr := range waf.StarterRules() {
 			if wr.ID == id {
-				return ruleDetailFromStarter(wr)
+				return ruleDetailFromStarter(wr, cfg)
 			}
 		}
 	}
@@ -136,12 +138,17 @@ func ruleDetailFromConfig(wr rule.WAFRule) *WAFRuleDetail {
 		Targets:     targets,
 		Source:      "config",
 		LogOnly:     wr.LogOnly,
+		Enabled:     waf.RuleActive(wr),
 		Description: "配置 waf.rules 中的自定义规则",
 	}
 }
 
-func ruleDetailFromStarter(wr rule.WAFRule) *WAFRuleDetail {
+func ruleDetailFromStarter(wr rule.WAFRule, cfg *ingcore.Config) *WAFRuleDetail {
 	targets := append([]string(nil), wr.Targets...)
+	enabled := true
+	if cfg != nil {
+		enabled = waf.BuiltinRuleEnabled(cfg.WAF.DisableBuiltin, cfg.WAF.BuiltinRules, wr.ID)
+	}
 	return &WAFRuleDetail{
 		ID:          wr.ID,
 		Name:        wr.Name,
@@ -150,7 +157,9 @@ func ruleDetailFromStarter(wr rule.WAFRule) *WAFRuleDetail {
 		Pattern:     wr.Pattern,
 		Targets:     targets,
 		Source:      "builtin",
-		Description: "内置 starter 规则（未设置 disable_builtin: true 时生效）",
+		Builtin:     true,
+		Enabled:     enabled,
+		Description: "内置 starter 规则；可通过 waf.builtin_rules 或 disable_builtin 控制",
 	}
 }
 
@@ -173,14 +182,12 @@ func ListWAFRulesCatalog(cfg *ingcore.Config) []WAFRuleDetail {
 		for _, wr := range cfg.WAF.Rules {
 			add(*ruleDetailFromConfig(wr))
 		}
-		if !cfg.WAF.DisableBuiltin {
-			for _, wr := range waf.StarterRules() {
-				add(*ruleDetailFromStarter(wr))
-			}
+		for _, wr := range waf.StarterRules() {
+			add(*ruleDetailFromStarter(wr, cfg))
 		}
 	} else {
 		for _, wr := range waf.StarterRules() {
-			add(*ruleDetailFromStarter(wr))
+			add(*ruleDetailFromStarter(wr, nil))
 		}
 	}
 
@@ -215,14 +222,12 @@ func WAFRulesCatalog(cfg *ingcore.Config) []WAFRuleDetail {
 		for _, wr := range cfg.WAF.Rules {
 			add(*ruleDetailFromConfig(wr))
 		}
-		if !cfg.WAF.DisableBuiltin {
-			for _, wr := range waf.StarterRules() {
-				add(*ruleDetailFromStarter(wr))
-			}
+		for _, wr := range waf.StarterRules() {
+			add(*ruleDetailFromStarter(wr, cfg))
 		}
 	} else {
 		for _, wr := range waf.StarterRules() {
-			add(*ruleDetailFromStarter(wr))
+			add(*ruleDetailFromStarter(wr, nil))
 		}
 	}
 

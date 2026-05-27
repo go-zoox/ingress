@@ -20,6 +20,10 @@ type WAF struct {
 
 	DisableBuiltin bool `config:"disable_builtin"`
 
+	// BuiltinRules optionally enables/disables individual starter rules by id.
+	// When a key is absent, the rule follows disable_builtin (off when true, on when false).
+	BuiltinRules map[string]bool `config:"builtin_rules"`
+
 	Deny  []string  `config:"deny"`
 	Allow []string  `config:"allow"`
 	Rules []WAFRule `config:"rules"`
@@ -30,6 +34,7 @@ type WAFRule struct {
 	ID      string   `config:"id"`
 	Name    string   `config:"name"`
 	LogOnly bool     `config:"log_only"`
+	Enabled *bool    `config:"enabled"`
 	Type    string   `config:"type"`
 	Pattern string   `config:"pattern"`
 	Targets []string `config:"targets"`

@@ -13,6 +13,7 @@ export type WAFRuleForm = {
   target_headers: boolean
   target_extra: string
   log_only: boolean
+  enabled: boolean
 }
 
 const STANDARD_TARGETS = new Set(['path', 'query', 'uri', 'headers'])
@@ -69,6 +70,7 @@ export function wafRuleToForm(row: Record<string, unknown>): WAFRuleForm {
     target_headers: targets.includes('headers'),
     target_extra: extra.join(', '),
     log_only: bool(row.log_only),
+    enabled: row.enabled === undefined ? true : bool(row.enabled),
   }
 }
 
@@ -84,6 +86,7 @@ export function emptyWAFRuleForm(): WAFRuleForm {
     target_headers: false,
     target_extra: '',
     log_only: false,
+    enabled: true,
   }
 }
 
@@ -109,6 +112,7 @@ export function wafRuleToRow(form: WAFRuleForm): Record<string, unknown> {
   if (form.name.trim()) row.name = form.name.trim()
   if (form.type !== 'regex') row.type = form.type
   if (form.log_only) row.log_only = true
+  if (!form.enabled) row.enabled = false
   return row
 }
 
@@ -118,7 +122,8 @@ export function wafRuleSummary(row: Record<string, unknown>): string {
   const pattern = str(row.pattern)
   const targets = arr<string>(row.targets).join(', ') || '—'
   const short = pattern.length > 28 ? `${pattern.slice(0, 28)}…` : pattern
-  return `${id} · ${typ} · ${short} → [${targets}]`
+  const off = row.enabled === false ? ' · 已禁用' : ''
+  return `${id} · ${typ} · ${short} → [${targets}]${off}`
 }
 
 export function wafRuleSaveDisabled(form: WAFRuleForm): boolean {
@@ -131,5 +136,23 @@ export function patchWafRules(
   rules: Record<string, unknown>[],
 ): Record<string, unknown> {
   const waf = { ...obj(doc.waf), rules }
-  return { waf }
+  return { ...doc, waf }
+}
+
+export function patchCustomRuleEnabled(
+  doc: Record<string, unknown>,
+  index: number,
+  enabled: boolean,
+): Record<string, unknown> {
+  const rules = wafRulesFromDoc(doc).map((row, i) => {
+    if (i !== index) return row
+    const next = { ...row }
+    if (enabled) {
+      delete next.enabled
+    } else {
+      next.enabled = false
+    }
+    return next
+  })
+  return patchWafRules(doc, rules)
 }
