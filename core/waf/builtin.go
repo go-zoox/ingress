@@ -23,7 +23,7 @@ func StarterRules() []rule.WAFRule {
 			ID:      "builtin:xss-lite",
 			Name:    "Reflected scripting probes (lite)",
 			Type:    PatternTypeRegex,
-			Pattern: `(?is)(<\s*script\b|javascript:\s*|on\w+\s*=)`,
+			Pattern: `(?is)(<\s*script\b|javascript:\s*|\bon[a-z]+\s*=)`,
 			Targets: []string{TargetURI},
 		},
 	}

@@ -32,7 +32,7 @@ builtin:path-traversal
 (?:\.\./|\.\.\\|%2e%2e%2f|%2e%2e\\\\|etc/passwd\b)
 
 builtin:xss-lite
-(?is)(<\s*script\b|javascript:\s*|on\w+\s*=)
+(?is)(<\s*script\b|javascript:\s*|\bon[a-z]+\s*=)
 ```
 
 内置规则可能对正常流量误报，可先用 **`log_only`** 观察，或 **`disable_builtin: true`** 后仅靠自定义规则。

@@ -325,6 +325,43 @@ func TestCheckRequest_BuiltinPathTraversal_whenNotDisabled(t *testing.T) {
 	}
 }
 
+func TestCheckRequest_BuiltinXSSLite_FalsePositivePhoneQuery(t *testing.T) {
+	t.Parallel()
+	m := rule.WAF{Enabled: true, DisableBuiltin: false}
+	prof, err := compileProfile(0, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawQuery := "odtype=6&ordersn=&phone=&goods_title=&cretime=&paytime=&use_time=&nickname=&consultor_name=&this_order_sharer_name=&is_kefu=&page=1&limit="
+	req := httptest.NewRequest(http.MethodGet, "http://x/order/od_list?"+rawQuery, nil)
+	req.URL.RawQuery = rawQuery
+	req.RemoteAddr = "127.0.0.1:1"
+	if CheckRequest(prof, req, "x", "/order/od_list", http.MethodGet, nil) {
+		t.Fatal("common query param phone= must not trigger xss-lite")
+	}
+}
+
+func TestCheckRequest_BuiltinXSSLite_EventHandlerInQuery(t *testing.T) {
+	t.Parallel()
+	m := rule.WAF{Enabled: true, DisableBuiltin: false}
+	prof, err := compileProfile(0, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "http://x/p", nil)
+	req.URL.RawQuery = "q=<script>alert(1)"
+	req.RemoteAddr = "127.0.0.1:1"
+	if !CheckRequest(prof, req, "x", "/p", http.MethodGet, nil) {
+		t.Fatal("expected block on script probe in query")
+	}
+	req2 := httptest.NewRequest(http.MethodGet, "http://x/p", nil)
+	req2.URL.RawQuery = "x=onclick=alert(1)"
+	req2.RemoteAddr = "127.0.0.1:1"
+	if !CheckRequest(prof, req2, "x", "/p", http.MethodGet, nil) {
+		t.Fatal("expected block on onclick= in query")
+	}
+}
+
 func TestCheckRequest_TrustProxy_UnparseableXFF_UsesRemoteAddr(t *testing.T) {
 	t.Parallel()
 	m := rule.WAF{

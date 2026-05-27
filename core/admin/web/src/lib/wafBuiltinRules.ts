@@ -27,7 +27,7 @@ export const WAF_BUILTIN_RULES: BuiltinWAFRule[] = [
     id: 'builtin:xss-lite',
     name: 'Reflected scripting probes (lite)',
     type: 'regex',
-    pattern: `(?is)(<\\s*script\\b|javascript:\\s*|on\\w+\\s*=)`,
+    pattern: `(?is)(<\\s*script\\b|javascript:\\s*|\\bon[a-z]+\\s*=)`,
     targets: ['uri'],
   },
 ]

@@ -47,7 +47,7 @@ builtin:path-traversal
 (?:\.\./|\.\.\\|%2e%2e%2f|%2e%2e\\\\|etc/passwd\b)
 
 builtin:xss-lite
-(?is)(<\s*script\b|javascript:\s*|on\w+\s*=)
+(?is)(<\s*script\b|javascript:\s*|\bon[a-z]+\s*=)
 ```
 
 Starters can false-positive on unusual but legitimate traffic — use **`log_only`** or **`disable_builtin: true`** and replace with stricter custom rules as needed.
