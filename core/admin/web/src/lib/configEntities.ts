@@ -39,7 +39,19 @@ ctx.SetHeader("Content-Type", "application/json")
 ctx.String(200, ctx.Method+" "+ctx.Path)`,
 }
 
-export type AuthFormType = '' | 'basic' | 'bearer' | 'oauth2'
+export type AuthFormType = '' | 'basic' | 'bearer' | 'oauth2' | 'jwt' | 'oidc'
+
+export type RateLimitKey = 'global' | 'route' | 'ip' | 'header'
+
+export type RateLimitFormSlice = {
+  rate_limit_enabled: boolean | undefined
+  rate_limit_requests: number
+  rate_limit_period: number
+  rate_limit_key: RateLimitKey | ''
+  rate_limit_header: string
+  rate_limit_trust_proxy: boolean
+  rate_limit_xff_index: number
+}
 
 export type AuthBasicUserForm = {
   username: string
@@ -107,6 +119,18 @@ export type BackendForm = {
   auth_oauth2_connect_jwt_secret: string
   auth_oauth2_connect_jwt_algorithm: string
   auth_oauth2_connect_jwt_expires_in: string
+  auth_jwt_secret: string
+  auth_jwt_public_key: string
+  auth_jwt_algorithm: string
+  auth_jwt_issuer: string
+  auth_jwt_audience: string
+  auth_oidc_provider: string
+  auth_oidc_client_id: string
+  auth_oidc_client_secret: string
+  auth_oidc_redirect_url: string
+  auth_oidc_scopes: string
+  auth_oidc_issuer: string
+  auth_oidc_audience: string
   // healthcheck fields
   health_check_enable: boolean
   health_check_method: string
@@ -123,7 +147,7 @@ export type RuleForm = {
   host: string
   host_type: string
   paths: PathForm[]
-} & BackendForm
+} & BackendForm & RateLimitFormSlice
 
 export type FallbackForm = {
   backend_type: 'service' | 'redirect'
@@ -244,12 +268,69 @@ function cacheToForm(backend: Record<string, unknown>): Pick<
   }
 }
 
+function rateLimitToForm(rateLimit: Record<string, unknown>): RateLimitFormSlice {
+  const rl = obj(rateLimit)
+  let enabled: boolean | undefined
+  if (rl.enabled !== undefined && rl.enabled !== null) {
+    enabled = bool(rl.enabled)
+  }
+  const key = str(rl.key, 'ip') || 'ip'
+  return {
+    rate_limit_enabled: enabled,
+    rate_limit_requests: num(rl.requests),
+    rate_limit_period: num(rl.period),
+    rate_limit_key: (key === 'global' || key === 'route' || key === 'header' ? key : 'ip') as RateLimitKey,
+    rate_limit_header: str(rl.header),
+    rate_limit_trust_proxy: bool(rl.trust_proxy),
+    rate_limit_xff_index: num(rl.xff_index),
+  }
+}
+
+function emptyRateLimitForm(): RateLimitFormSlice {
+  return {
+    rate_limit_enabled: undefined,
+    rate_limit_requests: 0,
+    rate_limit_period: 60,
+    rate_limit_key: 'ip',
+    rate_limit_header: '',
+    rate_limit_trust_proxy: false,
+    rate_limit_xff_index: 0,
+  }
+}
+
+function buildRateLimit(form: RateLimitFormSlice): Record<string, unknown> | undefined {
+  if (form.rate_limit_enabled === false) {
+    return undefined
+  }
+  if (form.rate_limit_requests <= 0 && form.rate_limit_enabled !== true) {
+    return undefined
+  }
+
+  const rl: Record<string, unknown> = {
+    requests: form.rate_limit_requests,
+    period: form.rate_limit_period,
+  }
+  const key = form.rate_limit_key || 'ip'
+  if (key !== 'ip') rl.key = key
+  if (key === 'header' && form.rate_limit_header.trim()) {
+    rl.header = form.rate_limit_header.trim()
+  }
+  if (form.rate_limit_trust_proxy) rl.trust_proxy = true
+  if (form.rate_limit_xff_index !== 0) rl.xff_index = form.rate_limit_xff_index
+  if (form.rate_limit_enabled === true) rl.enabled = true
+  return rl
+}
+
 function authToForm(service: Record<string, unknown>): Pick<BackendForm,
   'auth_enabled' | 'auth_type' | 'auth_basic_users' | 'auth_bearer_tokens' |
   'auth_oauth2_provider' | 'auth_oauth2_client_id' | 'auth_oauth2_client_secret' |
   'auth_oauth2_redirect_url' | 'auth_oauth2_scopes' |
   'auth_oauth2_connect_enabled' | 'auth_oauth2_connect_jwt_secret' |
-  'auth_oauth2_connect_jwt_algorithm' | 'auth_oauth2_connect_jwt_expires_in'
+  'auth_oauth2_connect_jwt_algorithm' | 'auth_oauth2_connect_jwt_expires_in' |
+  'auth_jwt_secret' | 'auth_jwt_public_key' | 'auth_jwt_algorithm' |
+  'auth_jwt_issuer' | 'auth_jwt_audience' |
+  'auth_oidc_provider' | 'auth_oidc_client_id' | 'auth_oidc_client_secret' |
+  'auth_oidc_redirect_url' | 'auth_oidc_scopes' | 'auth_oidc_issuer' | 'auth_oidc_audience'
 > {
   const auth = obj(service.auth)
   const authType = str(auth.type) as AuthFormType
@@ -272,7 +353,11 @@ function authToForm(service: Record<string, unknown>): Pick<BackendForm,
   // oauth2
   const oauth2 = obj(auth.oauth2)
   const connect = obj(oauth2.connect)
-  const jwt = obj(connect.jwt)
+  const jwtConnect = obj(connect.jwt)
+  const jwtAuth = obj(auth.jwt)
+  const oidc = obj(auth.oidc)
+
+  const jwtSecret = str(jwtAuth.secret) || str(auth.secret)
 
   return {
     auth_enabled: authEnabled,
@@ -285,9 +370,21 @@ function authToForm(service: Record<string, unknown>): Pick<BackendForm,
     auth_oauth2_redirect_url: str(oauth2.redirect_url),
     auth_oauth2_scopes: arr<string>(oauth2.scopes).join(', '),
     auth_oauth2_connect_enabled: bool(connect.enabled),
-    auth_oauth2_connect_jwt_secret: str(jwt.secret),
-    auth_oauth2_connect_jwt_algorithm: str(jwt.algorithm, 'hs256') || 'hs256',
-    auth_oauth2_connect_jwt_expires_in: str(jwt.expires_in, '5m') || '5m',
+    auth_oauth2_connect_jwt_secret: str(jwtConnect.secret),
+    auth_oauth2_connect_jwt_algorithm: str(jwtConnect.algorithm, 'hs256') || 'hs256',
+    auth_oauth2_connect_jwt_expires_in: str(jwtConnect.expires_in, '5m') || '5m',
+    auth_jwt_secret: jwtSecret,
+    auth_jwt_public_key: str(jwtAuth.public_key),
+    auth_jwt_algorithm: str(jwtAuth.algorithm, 'HS256') || 'HS256',
+    auth_jwt_issuer: str(jwtAuth.issuer),
+    auth_jwt_audience: str(jwtAuth.audience),
+    auth_oidc_provider: str(oidc.provider),
+    auth_oidc_client_id: str(oidc.client_id),
+    auth_oidc_client_secret: str(oidc.client_secret),
+    auth_oidc_redirect_url: str(oidc.redirect_url),
+    auth_oidc_scopes: arr<string>(oidc.scopes).join(', '),
+    auth_oidc_issuer: str(oidc.issuer),
+    auth_oidc_audience: str(oidc.audience),
   }
 }
 
@@ -335,7 +432,7 @@ export function emptyBackendForm(): BackendForm {
     service_mode: '',
     service_strip_prefix: false,
     redirect_url: '',
-    redirect_permanent: true,
+    redirect_permanent: false,
     handler_type: 'static_response',
     handler_status_code: 200,
     handler_content_type: 'text/plain; charset=utf-8',
@@ -367,6 +464,18 @@ export function emptyBackendForm(): BackendForm {
     auth_oauth2_connect_jwt_secret: '',
     auth_oauth2_connect_jwt_algorithm: 'hs256',
     auth_oauth2_connect_jwt_expires_in: '5m',
+    auth_jwt_secret: '',
+    auth_jwt_public_key: '',
+    auth_jwt_algorithm: 'HS256',
+    auth_jwt_issuer: '',
+    auth_jwt_audience: '',
+    auth_oidc_provider: '',
+    auth_oidc_client_id: '',
+    auth_oidc_client_secret: '',
+    auth_oidc_redirect_url: '',
+    auth_oidc_scopes: '',
+    auth_oidc_issuer: '',
+    auth_oidc_audience: '',
     health_check_enable: false,
     health_check_method: '',
     health_check_path: '',
@@ -395,6 +504,7 @@ export function ruleToForm(rule: Record<string, unknown>): RuleForm {
     host_type: str(rule.host_type, 'auto'),
     paths: arr<Record<string, unknown>>(rule.paths).map(pathToForm),
     ...backendToForm(obj(rule.backend)),
+    ...rateLimitToForm(obj(rule.rate_limit)),
   }
 }
 
@@ -404,6 +514,7 @@ export function emptyRuleForm(): RuleForm {
     host_type: 'exact',
     paths: [],
     ...emptyBackendForm(),
+    ...emptyRateLimitForm(),
   }
 }
 
@@ -556,6 +667,34 @@ function buildAuth(form: BackendForm): Record<string, unknown> | undefined {
     auth.oauth2 = oauth2
   }
 
+  if (form.auth_type === 'jwt') {
+    const jwtObj: Record<string, unknown> = {}
+    const secret = form.auth_jwt_secret.trim()
+    if (secret) {
+      auth.secret = secret
+      jwtObj.secret = secret
+    }
+    if (form.auth_jwt_public_key.trim()) jwtObj.public_key = form.auth_jwt_public_key.trim()
+    const alg = form.auth_jwt_algorithm.trim()
+    if (alg && alg !== 'HS256') jwtObj.algorithm = alg
+    if (form.auth_jwt_issuer.trim()) jwtObj.issuer = form.auth_jwt_issuer.trim()
+    if (form.auth_jwt_audience.trim()) jwtObj.audience = form.auth_jwt_audience.trim()
+    auth.jwt = jwtObj
+  }
+
+  if (form.auth_type === 'oidc') {
+    const oidc: Record<string, unknown> = {}
+    if (form.auth_oidc_provider.trim()) oidc.provider = form.auth_oidc_provider.trim()
+    if (form.auth_oidc_client_id.trim()) oidc.client_id = form.auth_oidc_client_id.trim()
+    if (form.auth_oidc_client_secret.trim()) oidc.client_secret = form.auth_oidc_client_secret.trim()
+    if (form.auth_oidc_redirect_url.trim()) oidc.redirect_url = form.auth_oidc_redirect_url.trim()
+    const scopes = form.auth_oidc_scopes.split(',').map(s => s.trim()).filter(Boolean)
+    if (scopes.length > 0) oidc.scopes = scopes
+    if (form.auth_oidc_issuer.trim()) oidc.issuer = form.auth_oidc_issuer.trim()
+    if (form.auth_oidc_audience.trim()) oidc.audience = form.auth_oidc_audience.trim()
+    auth.oidc = oidc
+  }
+
   return auth
 }
 
@@ -634,6 +773,9 @@ export function formToRule(form: RuleForm, original?: Record<string, unknown>): 
   if (form.host_type && form.host_type !== 'auto') next.host_type = form.host_type
   else delete next.host_type
   next.backend = formToBackend(form, obj(original?.backend))
+  const rlBlock = buildRateLimit(form)
+  if (rlBlock) next.rate_limit = rlBlock
+  else delete next.rate_limit
   const origPaths = arr<Record<string, unknown>>(original?.paths)
   next.paths = form.paths.map((p, i) => formToPath(p, origPaths[i]))
   return next
@@ -688,6 +830,13 @@ export function backendSummary(backend: Record<string, unknown>): string {
   if (authType === 'basic') base += ' · auth:basic'
   else if (authType === 'bearer') base += ' · auth:bearer'
   else if (authType === 'oauth2') base += ` · auth:oauth2(${str(obj(auth.oauth2).provider)})`
+  else if (authType === 'jwt') base += ' · auth:jwt'
+  else if (authType === 'oidc') {
+    const oidc = obj(auth.oidc)
+    if (str(oidc.provider)) base += ` · auth:oidc(${str(oidc.provider)})`
+    else if (str(oidc.issuer)) base += ` · auth:oidc(${str(oidc.issuer)})`
+    else base += ' · auth:oidc'
+  }
   if (authType && auth.enabled === false) base += ' (disabled)'
   const hc = obj(service.healthcheck)
   if (bool(hc.ok)) base += ' · HC: ✓(ok)'
@@ -700,7 +849,26 @@ export function pathSummary(row: Record<string, unknown>): string {
 }
 
 export function ruleSummary(rule: Record<string, unknown>): string {
-  return backendSummary(obj(rule.backend))
+  let base = backendSummary(obj(rule.backend))
+  const rl = obj(rule.rate_limit)
+  if (num(rl.requests) > 0 || rl.enabled === true) {
+    base += ` · RL ${num(rl.requests)}/${num(rl.period, 1)}s`
+    const key = str(rl.key, 'ip')
+    if (key && key !== 'ip') base += `(${key})`
+  }
+  return base
+}
+
+export function rateLimitFromDoc(doc: Record<string, unknown>): RateLimitFormSlice {
+  return rateLimitToForm(obj(doc.rate_limit))
+}
+
+export function patchGlobalRateLimit(doc: Record<string, unknown>, form: RateLimitFormSlice): Record<string, unknown> {
+  const next = { ...doc }
+  const rlBlock = buildRateLimit(form)
+  if (rlBlock) next.rate_limit = rlBlock
+  else delete next.rate_limit
+  return next
 }
 
 export function fallbackToForm(doc: Record<string, unknown>): FallbackForm {
@@ -715,7 +883,7 @@ export function fallbackToForm(doc: Record<string, unknown>): FallbackForm {
     service_port: num(service.port, 8080),
     service_protocol: str(service.protocol, 'http') || 'http',
     redirect_url: str(redirect.url),
-    redirect_permanent: bool(redirect.permanent, true),
+    redirect_permanent: bool(redirect.permanent),
   }
 }
 

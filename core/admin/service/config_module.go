@@ -28,6 +28,7 @@ var configModuleDefs = []configModuleDef{
 	{ID: "cache", Label: "缓存", Keys: []string{"cache"}},
 	{ID: "logging", Label: "日志", Keys: []string{"logging"}},
 	{ID: "waf", Label: "WAF", Keys: []string{"waf"}},
+	{ID: "rate_limit", Label: "限流", Keys: []string{"rate_limit"}},
 	{ID: "healthcheck", Label: "健康检查", Keys: []string{"healthcheck"}},
 	{ID: "https", Label: "HTTPS / TLS", Keys: []string{"https"}},
 	{ID: "fallback", Label: "Fallback", Keys: []string{"fallback"}},

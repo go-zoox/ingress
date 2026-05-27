@@ -30,8 +30,7 @@ healthcheck:
 https:
   port: 8443
   redirect_from_http:
-    enabled: false
-    # permanent: true
+    permanent: true
   ssl:
     - domain: api.example.com
       cert:

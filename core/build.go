@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/go-zoox/ingress/core/rule"
+	"github.com/go-zoox/ingress/core/ratelimit"
 	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/zoox"
@@ -74,6 +75,28 @@ func (c *core) build() error {
 					false, "", "", "", "")
 			}
 			return false, true, nil
+		}
+
+		if c.rateLimits != nil {
+			var ruleRL *ratelimit.Policy
+			if ruleIdx >= 0 && ruleIdx < len(c.rateLimits.ByRule) {
+				ruleRL = c.rateLimits.ByRule[ruleIdx]
+			}
+			if blocked, retryAfter := ratelimit.Check(ctx.Request, c.rateLimits.Global, ruleRL, ruleIdx); blocked {
+				ctx.SetHeader("Retry-After", ratelimit.ParseRetryAfter(retryAfter))
+				ctx.Status(http.StatusTooManyRequests)
+				ctx.String(http.StatusTooManyRequests, "Too Many Requests")
+				target := "-"
+				if serviceIns != nil {
+					target = serviceIns.Target()
+				}
+				ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, target, method, path, ctx.Request.Proto, http.StatusTooManyRequests, time.Since(reqStart), accessLogMeta{
+					RateLimitBlock:         true,
+					UpstreamStatus:         http.StatusTooManyRequests,
+					UpstreamResponseLength: -1,
+				}))
+				return false, true, nil
+			}
 		}
 
 		wafProf := c.wafFallback
@@ -338,24 +361,37 @@ func (c *core) build() error {
 			return false, false, proxy.NewHTTPError(500, "Service configuration is invalid")
 		}
 
-		// Handle OAuth2 authentication flow (redirects, callbacks, session).
-		// This must run before the stateless ValidateAuth check because OAuth2
-		// uses a redirect-based flow that writes its own response.
-		if serviceIns.Auth.Type == authTypeOAuth2 && serviceIns.Auth.IsEnabled() {
-			redirected, err := serviceIns.ValidateOAuth2(ctx)
-			if err != nil {
-				c.app.Logger().Warnf("oauth2 authentication failed for host: %s: %s", hostname, err)
-				ctx.Status(http.StatusUnauthorized)
-				ctx.String(http.StatusUnauthorized, "Unauthorized")
-				return false, true, nil
-			}
-			if redirected {
-				return false, true, nil
-			}
-			// OAuth2 authenticated — inject connect headers to upstream if enabled.
-			if serviceIns.Auth.OAuth2.Connect.Enabled {
-				if err := serviceIns.InjectConnectHeaders(ctx); err != nil {
-					c.app.Logger().Warnf("failed to inject connect headers: %v", err)
+		// Handle OAuth2 / OIDC session authentication (redirect flow).
+		if serviceIns.Auth.IsEnabled() {
+			switch serviceIns.Auth.Type {
+			case authTypeOAuth2:
+				redirected, err := serviceIns.ValidateOAuth2(ctx)
+				if err != nil {
+					c.app.Logger().Warnf("oauth2 authentication failed for host: %s: %s", hostname, err)
+					ctx.Status(http.StatusUnauthorized)
+					ctx.String(http.StatusUnauthorized, "Unauthorized")
+					return false, true, nil
+				}
+				if redirected {
+					return false, true, nil
+				}
+				if serviceIns.Auth.OAuth2.Connect.Enabled {
+					if err := serviceIns.InjectConnectHeaders(ctx); err != nil {
+						c.app.Logger().Warnf("failed to inject connect headers: %v", err)
+					}
+				}
+			case authTypeOIDC:
+				if strings.TrimSpace(serviceIns.Auth.OIDC.Provider) != "" {
+					redirected, err := serviceIns.ValidateOIDCSession(ctx)
+					if err != nil {
+						c.app.Logger().Warnf("oidc authentication failed for host: %s: %s", hostname, err)
+						ctx.Status(http.StatusUnauthorized)
+						ctx.String(http.StatusUnauthorized, "Unauthorized")
+						return false, true, nil
+					}
+					if redirected {
+						return false, true, nil
+					}
 				}
 			}
 		}
@@ -367,7 +403,7 @@ func (c *core) build() error {
 			// Set WWW-Authenticate header based on auth type
 			if serviceIns.Auth.Type == authTypeBasic {
 				ctx.Writer.Header().Set(headerWWWAuthenticate, authChallengeBasic)
-			} else if serviceIns.Auth.Type == authTypeBearer {
+			} else if serviceIns.Auth.Type == authTypeBearer || serviceIns.Auth.Type == authTypeJWT || serviceIns.Auth.Type == authTypeOIDC {
 				ctx.Writer.Header().Set(headerWWWAuthenticate, authChallengeBearer)
 			}
 

@@ -78,8 +78,25 @@ rules:
 | `fallback` | object | Fallback backend | - |
 | `rules` | array | Routing rules | `[]` |
 | `waf` | object | Optional WAF baseline; route patches use **`rules[].waf`** YAML maps ([WAF guide](waf.md)) | _(inactive when omitted or `enabled: false`)_ |
+| `rate_limit` | object | Optional global request throttling; per-route overrides use **`rules[].rate_limit`** | off when omitted |
 | `logging` | object | Zoox logger config (console + optional file transports); see [Logging](#logging-logging) | console only when omitted |
 | `admin` | object | Embedded operations console ([Admin guide](admin.md)) | disabled when omitted |
+
+### Rate limit (`rate_limit` / `rules[].rate_limit`)
+
+Fixed-window counters evaluated after route match (global then per-rule). Exceeded limits return **429** with **`Retry-After`**. Uses in-memory counters by default; when top-level **`cache.engine: redis`** host is set, limiters share the same Redis settings.
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `enabled` | bool | Explicit on/off; omit ⇒ on when `requests` > 0 | — |
+| `requests` | int | Max requests per window | — |
+| `period` | int | Window length in seconds | — |
+| `key` | string | `global`, `route`, `ip`, or `header` | `ip` |
+| `header` | string | Header name when `key: header` | — |
+| `trust_proxy` | bool | Use `X-Forwarded-For` for `key: ip` | `false` |
+| `xff_index` | int | XFF segment index (`0` = leftmost) | `0` |
+
+Access logs append `rate_limit_block=1` on 429 responses.
 
 ### WAF (`waf` / `rules[].waf`)
 

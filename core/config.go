@@ -31,6 +31,7 @@ type Config struct {
 	//
 	Admin Admin `config:"admin"`
 	//
+	RateLimit rule.RateLimit `config:"rate_limit"`
 	// Match func(host string, path string) (cfg *service.Service, err error)
 }
 

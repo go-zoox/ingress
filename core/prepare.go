@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/go-zoox/ingress/core/waf"
+	"github.com/go-zoox/ingress/core/ratelimit"
 	"github.com/go-zoox/kv"
 	"github.com/go-zoox/kv/redis"
 )
@@ -43,6 +44,20 @@ func (c *core) prepare() error {
 	c.wafByRuleIdx, c.wafFallback, err = waf.CompileIngress(c.cfg.WAF, c.cfg.Rules)
 	if err != nil {
 		return fmt.Errorf("compile waf: %w", err)
+	}
+
+	c.rateLimits, err = ratelimit.Compile(
+		c.cfg.RateLimit,
+		c.cfg.Rules,
+		c.cfg.Cache.Host,
+		c.cfg.Cache.Port,
+		c.cfg.Cache.Username,
+		c.cfg.Cache.Password,
+		c.cfg.Cache.DB,
+		c.cfg.Cache.Prefix,
+	)
+	if err != nil {
+		return fmt.Errorf("compile rate_limit: %w", err)
 	}
 
 	return nil

@@ -58,6 +58,8 @@ export function AuthFormFields<T extends BackendForm>({
         <option value="basic">Basic Auth</option>
         <option value="bearer">Bearer Token</option>
         <option value="oauth2">OAuth2</option>
+        <option value="jwt">JWT</option>
+        <option value="oidc">OIDC</option>
       </FormSelectField>
 
       {form.auth_type !== '' && (
@@ -191,6 +193,110 @@ export function AuthFormFields<T extends BackendForm>({
               />
             </>
           )}
+        </>
+      )}
+
+      {form.auth_type === 'jwt' && (
+        <>
+          <FormField
+            label="JWT Secret（HS256/384/512）"
+            keyName={`${idPrefix}service.auth.jwt.secret`}
+            type="password"
+            hint="对称密钥；也可写在 auth.secret（旧写法）"
+            value={form.auth_jwt_secret}
+            onChange={(e) => patch((n) => { n.auth_jwt_secret = e.target.value })}
+          />
+          <FormField
+            label="Public Key PEM（RS*/ES*，可选）"
+            keyName={`${idPrefix}service.auth.jwt.public_key`}
+            hint="非对称验签时使用"
+            value={form.auth_jwt_public_key}
+            onChange={(e) => patch((n) => { n.auth_jwt_public_key = e.target.value })}
+          />
+          <FormSelectField
+            label="Algorithm"
+            keyName={`${idPrefix}service.auth.jwt.algorithm`}
+            value={form.auth_jwt_algorithm}
+            onChange={(e) => patch((n) => { n.auth_jwt_algorithm = e.target.value })}
+          >
+            <option value="HS256">HS256</option>
+            <option value="HS384">HS384</option>
+            <option value="HS512">HS512</option>
+          </FormSelectField>
+          <FormField
+            label="Issuer（可选）"
+            keyName={`${idPrefix}service.auth.jwt.issuer`}
+            value={form.auth_jwt_issuer}
+            onChange={(e) => patch((n) => { n.auth_jwt_issuer = e.target.value })}
+          />
+          <FormField
+            label="Audience（可选）"
+            keyName={`${idPrefix}service.auth.jwt.audience`}
+            value={form.auth_jwt_audience}
+            onChange={(e) => patch((n) => { n.auth_jwt_audience = e.target.value })}
+          />
+          <p className="form-hint">客户端在 Authorization: Bearer &lt;token&gt; 中携带 JWT。</p>
+        </>
+      )}
+
+      {form.auth_type === 'oidc' && (
+        <>
+          <p className="form-hint">
+            配置 <strong>Provider</strong> 启用浏览器重定向登录；配置 <strong>Issuer</strong> 启用 Bearer Token（JWKS）校验 API。
+          </p>
+          <FormSelectField
+            label="OIDC Provider（会话模式）"
+            keyName={`${idPrefix}service.auth.oidc.provider`}
+            value={form.auth_oidc_provider}
+            onChange={(e) => patch((n) => { n.auth_oidc_provider = e.target.value })}
+          >
+            {OAUTH2_PROVIDERS.map(p => (
+              <option key={p.value || 'none'} value={p.value}>{p.label}</option>
+            ))}
+          </FormSelectField>
+          {form.auth_oidc_provider && (
+            <>
+              <FormField
+                label="Client ID"
+                keyName={`${idPrefix}service.auth.oidc.client_id`}
+                value={form.auth_oidc_client_id}
+                onChange={(e) => patch((n) => { n.auth_oidc_client_id = e.target.value })}
+              />
+              <FormField
+                label="Client Secret"
+                keyName={`${idPrefix}service.auth.oidc.client_secret`}
+                type="password"
+                value={form.auth_oidc_client_secret}
+                onChange={(e) => patch((n) => { n.auth_oidc_client_secret = e.target.value })}
+              />
+              <FormField
+                label="Redirect URL（可选）"
+                keyName={`${idPrefix}service.auth.oidc.redirect_url`}
+                value={form.auth_oidc_redirect_url}
+                onChange={(e) => patch((n) => { n.auth_oidc_redirect_url = e.target.value })}
+              />
+              <FormField
+                label="Scopes（可选，逗号分隔）"
+                keyName={`${idPrefix}service.auth.oidc.scopes`}
+                hint="未填时自动包含 openid"
+                value={form.auth_oidc_scopes}
+                onChange={(e) => patch((n) => { n.auth_oidc_scopes = e.target.value })}
+              />
+            </>
+          )}
+          <FormField
+            label="Issuer URL（Bearer 模式）"
+            keyName={`${idPrefix}service.auth.oidc.issuer`}
+            hint="如 https://accounts.example.com — 通过 OIDC Discovery + JWKS 验签"
+            value={form.auth_oidc_issuer}
+            onChange={(e) => patch((n) => { n.auth_oidc_issuer = e.target.value })}
+          />
+          <FormField
+            label="Audience（Bearer 模式，可选）"
+            keyName={`${idPrefix}service.auth.oidc.audience`}
+            value={form.auth_oidc_audience}
+            onChange={(e) => patch((n) => { n.auth_oidc_audience = e.target.value })}
+          />
         </>
       )}
     </FormSection>

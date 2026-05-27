@@ -1,0 +1,30 @@
+port: 8080
+
+# Global: 1000 req/min across all routes (by client IP)
+rate_limit:
+  requests: 1000
+  period: 60
+  key: ip
+
+rules:
+  - host: api.example.com
+    # Per-route: 10 req/sec per IP (stricter than global)
+    rate_limit:
+      requests: 10
+      period: 1
+      key: ip
+    backend:
+      service:
+        name: 127.0.0.1
+        port: 8081
+
+  - host: partner.example.com
+    rate_limit:
+      requests: 100
+      period: 60
+      key: header
+      header: X-API-Key
+    backend:
+      service:
+        name: 127.0.0.1
+        port: 8082

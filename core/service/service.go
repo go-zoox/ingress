@@ -75,13 +75,13 @@ type Auth struct {
 
 	// type: jwt
 	Secret string `config:"secret"`
+	JWT    JWTAuth `config:"jwt"`
 
 	// type: oauth2
 	OAuth2 OAuth2Auth `config:"oauth2"`
 
 	// type: oidc
-
-	// type: service
+	OIDC OIDCAuth `config:"oidc"`
 }
 
 type BasicAuth struct {
@@ -95,6 +95,28 @@ type BasicUser struct {
 
 type BearerAuth struct {
 	Tokens []string `config:"tokens"`
+}
+
+type JWTAuth struct {
+	// Secret for HS256/384/512. When empty, auth.secret is used (legacy YAML).
+	Secret string `config:"secret"`
+	// PublicKey PEM for RS*/ES* algorithms.
+	PublicKey string `config:"public_key"`
+	Algorithm string `config:"algorithm,default=HS256"`
+	Issuer    string `config:"issuer"`
+	Audience  string `config:"audience"`
+}
+
+type OIDCAuth struct {
+	// Provider enables redirect-based OIDC using built-in OAuth2 providers (github, google, …).
+	Provider     string   `config:"provider"`
+	ClientID     string   `config:"client_id"`
+	ClientSecret string   `config:"client_secret"`
+	RedirectURL  string   `config:"redirect_url"`
+	Scopes       []string `config:"scopes"`
+	// Issuer enables Bearer token validation via OIDC discovery + JWKS (API mode).
+	Issuer   string `config:"issuer"`
+	Audience string `config:"audience"`
 }
 
 type OAuth2Auth struct {

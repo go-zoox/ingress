@@ -52,6 +52,8 @@ const (
 	authTypeBasic  = "basic"
 	authTypeBearer = "bearer"
 	authTypeOAuth2 = "oauth2"
+	authTypeJWT    = "jwt"
+	authTypeOIDC   = "oidc"
 
 	// WWW-Authenticate challenge values
 	authChallengeBasic  = "Basic realm=\"Restricted\""

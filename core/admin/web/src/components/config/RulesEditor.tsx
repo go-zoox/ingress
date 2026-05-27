@@ -9,6 +9,7 @@ import {
   EntityTableToolbar,
 } from '../ConfigEntityModal'
 import { BackendFormGrid, backendFormWide } from './BackendFormFields'
+import { RateLimitFormFields } from './RateLimitFormFields'
 import { RulePathsModal } from './RulePathsModal'
 import {
   emptyRuleForm,
@@ -56,6 +57,12 @@ function RuleFormFields({
 
       <p className="form-section-label">Host 级 Backend</p>
       <BackendFormGrid<RuleForm> form={form} onChange={onChange} />
+
+      <RateLimitFormFields<RuleForm>
+        form={form}
+        onChange={onChange}
+        title="路由限流 rules[].rate_limit"
+      />
 
       {form.paths.length > 0 && (
         <p className="form-hint">

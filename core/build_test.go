@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-zoox/jwt"
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/service"
 )
@@ -1713,5 +1714,186 @@ func TestBuild_NoAuth_StillWorksWithOAuth2RoutesPresent(t *testing.T) {
 
 	if rec2.Code < 300 || rec2.Code >= 400 {
 		t.Fatalf("expected 3xx redirect for oauth2 route, got %d", rec2.Code)
+	}
+}
+
+func TestBuild_RateLimit_Returns429(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "limited.example.com",
+				RateLimit: rule.RateLimit{
+					Requests: 1,
+					Period:   60,
+					Key:      "ip",
+				},
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{
+						Body: "ok",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://limited.example.com/", nil)
+	req.RemoteAddr = "198.51.100.1:1234"
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first request expected 200, got %d", rec.Code)
+	}
+
+	rec2 := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec2, req)
+	if rec2.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request expected 429, got %d", rec2.Code)
+	}
+	if rec2.Header().Get("Retry-After") == "" {
+		t.Fatal("expected Retry-After header")
+	}
+}
+
+func TestBuild_GlobalRateLimit_Returns429(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		RateLimit: rule.RateLimit{
+			Requests: 1,
+			Period:   60,
+			Key:      "global",
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "open.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeHandler,
+					Handler: rule.Handler{Body: "ok"},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://open.example.com/", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first request expected 200, got %d", rec.Code)
+	}
+
+	rec2 := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec2, req)
+	if rec2.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request expected 429, got %d", rec2.Code)
+	}
+}
+
+func TestBuild_JWTAuth_ValidToken_PassesAuth(t *testing.T) {
+	secret := "integration-jwt-secret"
+	j := jwt.New(secret, &jwt.Options{
+		Algorithm: jwt.AlgHS256,
+		IssuedAt:  time.Now().Unix(),
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	})
+	token, err := j.Sign(map[string]interface{}{"sub": "tester"})
+	if err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "jwt-pass.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     9999,
+						Protocol: "http",
+						Auth: service.Auth{
+							Type: "jwt",
+							JWT:  service.JWTAuth{Secret: secret},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://jwt-pass.example.com/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusUnauthorized {
+		t.Fatalf("valid jwt should pass auth, got 401")
+	}
+}
+
+func TestBuild_JWTAuth_InvalidToken_Returns401(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "jwt.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     9999,
+						Protocol: "http",
+						Auth: service.Auth{
+							Type: "jwt",
+							JWT: service.JWTAuth{
+								Secret: "jwt-test-secret",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://jwt.example.com/", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without token, got %d", rec.Code)
 	}
 }

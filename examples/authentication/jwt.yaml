@@ -1,0 +1,14 @@
+port: 8080
+
+rules:
+  - host: jwt.example.com
+    backend:
+      service:
+        name: 127.0.0.1
+        port: 8081
+        auth:
+          type: jwt
+          secret: change-me-in-production
+          jwt:
+            issuer: ingress-demo
+            audience: api.example.com

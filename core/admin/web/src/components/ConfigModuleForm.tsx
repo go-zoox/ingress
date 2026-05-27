@@ -7,6 +7,7 @@ import {
 } from './Form'
 import { FallbackEditor } from './config/FallbackEditor'
 import { RulesEditor } from './config/RulesEditor'
+import { RateLimitFormFields } from './config/RateLimitFormFields'
 import { SslCertsEditor } from './config/SslCertsEditor'
 import { WafRulesEditor } from './config/WafRulesEditor'
 import {
@@ -21,6 +22,11 @@ import {
   str,
   stringifyModuleDoc,
 } from '../lib/ingressModuleForms'
+import {
+  patchGlobalRateLimit,
+  rateLimitFromDoc,
+  type RateLimitFormSlice,
+} from '../lib/configEntities'
 
 function GeneralModuleForm({
   doc,
@@ -133,6 +139,27 @@ function CacheModuleForm({
         />
       </FormSection>
     </FormGrid>
+  )
+}
+
+function RateLimitModuleForm({
+  doc,
+  onChange,
+}: {
+  doc: Record<string, unknown>
+  onChange: (doc: Record<string, unknown>) => void
+}) {
+  const form = rateLimitFromDoc(doc)
+  const onFormChange = (next: RateLimitFormSlice) => {
+    onChange(patchGlobalRateLimit(doc, next))
+  }
+
+  return (
+    <RateLimitFormFields
+      form={form}
+      onChange={onFormChange}
+      title="全局限流 rate_limit"
+    />
   )
 }
 
@@ -464,18 +491,6 @@ function HTTPSModuleForm({
       />
       <FormSection title="HTTP → HTTPS 重定向">
         <FormCheckbox
-          label="301/308 永久重定向"
-          checked={bool(redirect.permanent, true)}
-          onChange={(v) =>
-            patchHttps((n) => {
-              const r = { ...obj(n.redirect_from_http) }
-              if (v) r.permanent = true
-              else delete r.permanent
-              n.redirect_from_http = r
-            })
-          }
-        />
-        <FormCheckbox
           label="启用强制重定向"
           checked={bool(redirect.enabled)}
           onChange={(v) =>
@@ -486,6 +501,19 @@ function HTTPSModuleForm({
             })
           }
         />
+        {bool(redirect.enabled) && (
+          <FormCheckbox
+            label="301/308 永久重定向（默认 302/307）"
+            checked={bool(redirect.permanent)}
+            onChange={(v) =>
+              patchHttps((n) => {
+                const r = { ...obj(n.redirect_from_http) }
+                setBool(r, 'permanent', v)
+                n.redirect_from_http = r
+              })
+            }
+          />
+        )}
       </FormSection>
       <FormSection title="HTTP/3">
         <FormCheckbox
@@ -578,6 +606,8 @@ export function ConfigModuleForm({
       return <LoggingModuleForm doc={doc} onChange={onDocChange} />
     case 'waf':
       return <WAFModuleForm doc={doc} onChange={onDocChange} />
+    case 'rate_limit':
+      return <RateLimitModuleForm doc={doc} onChange={onDocChange} />
     case 'healthcheck':
       return <HealthcheckModuleForm doc={doc} onChange={onDocChange} />
     case 'https':
@@ -588,7 +618,7 @@ export function ConfigModuleForm({
           <RulesModuleForm doc={doc} onChange={onDocChange} />
           {onSwitchToYaml && (
             <button type="button" className="btn btn-ghost config-yaml-link" onClick={onSwitchToYaml}>
-              高级：在 YAML 模式中编辑 rules[].waf、request 等
+              高级：在 YAML 模式中编辑 rules[].waf、rules[].rate_limit、request 等
             </button>
           )}
         </>

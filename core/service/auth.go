@@ -29,6 +29,17 @@ func (s *Service) ValidateAuth(req *http.Request) error {
 		return s.validateBasicAuth(req)
 	case "bearer":
 		return s.validateBearerAuth(req)
+	case "jwt":
+		return s.validateJWTAuth(req)
+	case "oidc":
+		if strings.TrimSpace(s.Auth.OIDC.Provider) != "" {
+			// Session flow validated in ValidateOIDCSession (core/build.go).
+			return nil
+		}
+		if strings.TrimSpace(s.Auth.OIDC.Issuer) != "" {
+			return s.validateOIDCBearer(req)
+		}
+		return fmt.Errorf("oidc requires provider (session) or issuer (bearer)")
 	case "oauth2":
 		// OAuth2 is handled entirely in ValidateOAuth2 (core/build.go),
 		// which runs before this switch. If we reach here, the user

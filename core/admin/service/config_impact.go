@@ -13,6 +13,7 @@ var globalModuleLabels = map[string]string{
 	"cache":        "全局缓存",
 	"logging":      "日志",
 	"waf":          "WAF",
+	"rate_limit":   "限流",
 	"healthcheck":  "健康检查",
 	"https":        "TLS / HTTPS",
 	"fallback":     "Fallback",

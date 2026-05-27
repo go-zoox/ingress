@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-zoox/ingress/core/ratelimit"
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/waf"
 )
@@ -22,6 +23,13 @@ func ValidateConfig(cfg *Config) error {
 
 	if _, _, err := waf.CompileIngress(cfg.WAF, cfg.Rules); err != nil {
 		return fmt.Errorf("waf: %w", err)
+	}
+
+	if err := validateRateLimit(cfg.RateLimit, "rate_limit"); err != nil {
+		return err
+	}
+	if _, err := ratelimit.Compile(cfg.RateLimit, cfg.Rules, cfg.Cache.Host, cfg.Cache.Port, cfg.Cache.Username, cfg.Cache.Password, cfg.Cache.DB, cfg.Cache.Prefix); err != nil {
+		return fmt.Errorf("rate_limit: %w", err)
 	}
 
 	if cfg.HTTPS.Port != 0 && len(cfg.HTTPS.SSL) == 0 {
@@ -42,6 +50,9 @@ func ValidateConfig(cfg *Config) error {
 
 	for i := range cfg.Rules {
 		r := cfg.Rules[i]
+		if err := validateRateLimit(r.RateLimit, fmt.Sprintf("rules[%d]", i)); err != nil {
+			return err
+		}
 		if err := validateBackend(r.Backend, i, r.Host, "/"); err != nil {
 			return err
 		}
@@ -136,6 +147,9 @@ func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string
 		}
 		if err := backend.Service.Validate(); err != nil {
 			return fmt.Errorf("%s.service: %w", ruleBackendLoc(ruleIdx, host, pathPattern), err)
+		}
+		if err := validateServiceAuth(backend.Service.Auth, ruleBackendLoc(ruleIdx, host, pathPattern)+".service"); err != nil {
+			return err
 		}
 	case backendTypeRedirect:
 		if !hr {

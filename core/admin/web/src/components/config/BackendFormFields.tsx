@@ -94,7 +94,7 @@ export function BackendFormFields<T extends BackendForm>({
             onChange={(e) => patch((n) => { n.redirect_url = e.target.value })}
           />
           <FormCheckbox
-            label="永久重定向 (301/308)"
+            label="永久重定向 (301/308)（默认 302/307）"
             checked={form.redirect_permanent}
             onChange={(v) => patch((n) => { n.redirect_permanent = v })}
           />

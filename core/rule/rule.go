@@ -11,6 +11,8 @@ type Rule struct {
 	Backend  Backend        `config:"backend"`
 	//
 	Paths []Path `config:"paths"`
+	// RateLimit optional per-route throttling; global rate_limit in config also applies.
+	RateLimit RateLimit `config:"rate_limit"`
 	// HostType is the host match type: exact, regex, wildcard, or auto (empty).
 	// Empty or "auto" selects exact vs regex vs wildcard from Host at compile time.
 	// Set "exact" explicitly to match Host as a literal string even if it looks like a pattern.
