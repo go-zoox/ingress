@@ -17,6 +17,7 @@ import {
   type SSLForm,
 } from '../../lib/configEntities'
 import { obj, str } from '../../lib/ingressModuleForms'
+import { moveAdjacent } from '../../lib/arrayMove'
 
 function SSLFormFields({
   form,
@@ -99,6 +100,10 @@ export function SslCertsEditor({
     patchSSL(ssl.filter((_, i) => i !== index))
   }
 
+  const moveCert = (index: number, delta: -1 | 1) => {
+    patchSSL(moveAdjacent(ssl, index, delta))
+  }
+
   return (
     <>
       <FormSection title={`证书列表 (${ssl.length})`}>
@@ -128,7 +133,14 @@ export function SslCertsEditor({
                       <code className="path-cell">{str(cert.certificate)}</code>
                     </td>
                     <td>
-                      <EntityRowActions onEdit={() => openEdit(i)} onDelete={() => remove(i)} />
+                      <EntityRowActions
+                        onEdit={() => openEdit(i)}
+                        onDelete={() => remove(i)}
+                        onMoveUp={() => moveCert(i, -1)}
+                        onMoveDown={() => moveCert(i, 1)}
+                        disableMoveUp={i === 0}
+                        disableMoveDown={i === ssl.length - 1}
+                      />
                     </td>
                   </tr>
                 )

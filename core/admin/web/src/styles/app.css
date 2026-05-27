@@ -1557,8 +1557,28 @@ table.data.tls-certs .tls-actions {
   cursor: pointer;
 }
 
-.action-menu-item:hover {
+.action-menu-item:hover:not(:disabled) {
   background: var(--bg-hover);
+}
+
+.action-menu-item:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.action-menu-item.action-danger {
+  color: var(--danger, #f07178);
+}
+
+.action-menu-item.action-danger:hover:not(:disabled) {
+  color: #ff8a90;
+  background: rgba(240, 113, 120, 0.12);
+}
+
+.action-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
 }
 
 .tls-check-modal .content {
@@ -2930,7 +2950,7 @@ table.data.config-revisions code {
 }
 
 .config-paths-host {
-  margin: 6px 0 0;
+  margin: 0 0 16px;
   font-size: 12px;
   color: var(--text-muted);
 }

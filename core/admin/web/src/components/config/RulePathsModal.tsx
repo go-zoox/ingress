@@ -3,6 +3,7 @@ import {
   FormField,
   FormGrid,
 } from '../Form'
+import { Drawer } from '../Drawer'
 import {
   ConfigEntityModal,
   EntityRowActions,
@@ -18,6 +19,7 @@ import {
   pathsFromRule,
   type PathForm,
 } from '../../lib/configEntities'
+import { moveAdjacent } from '../../lib/arrayMove'
 
 function PathFormFields({
   form,
@@ -73,7 +75,9 @@ export function RulePathsModal({
     if (open) setPaths(pathsFromRule(rule))
   }, [open, rule])
 
-  if (!open) return null
+  useEffect(() => {
+    if (!open) setPathModalOpen(false)
+  }, [open])
 
   const openAdd = () => {
     setEditIndex(null)
@@ -102,6 +106,10 @@ export function RulePathsModal({
     setPaths(paths.filter((_, i) => i !== index))
   }
 
+  const movePath = (index: number, delta: -1 | 1) => {
+    setPaths(moveAdjacent(paths, index, delta))
+  }
+
   const saveAll = () => {
     onSave(applyPathsToRule(rule, paths))
     onClose()
@@ -111,57 +119,65 @@ export function RulePathsModal({
 
   return (
     <>
-      <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="modal config-entity-modal config-entity-modal--wide config-paths-modal" role="dialog">
-          <header>
-            <h2>Path 配置</h2>
-            <p className="config-paths-host">
-              Host: <code>{host || '—'}</code>
-            </p>
-          </header>
-          <div className="content">
-            <EntityTableToolbar label="rules[].paths" onAdd={openAdd} />
-            <table className="data config-paths-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Path</th>
-                  <th>Backend</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paths.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="empty-hint">
-                      无 path 规则，点击「添加」；未配置时使用 Host 级 backend
-                    </td>
-                  </tr>
-                ) : (
-                  paths.map((row, i) => (
-                    <tr key={`${row.path}-${i}`}>
-                      <td>{i + 1}</td>
-                      <td><code>{row.path}</code></td>
-                      <td>{pathSummary(formToPath(row, origPaths[i]))}</td>
-                      <td>
-                        <EntityRowActions onEdit={() => openEdit(i)} onDelete={() => removePath(i)} />
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          <footer>
+      <Drawer
+        open={open}
+        title="Path 配置"
+        onClose={onClose}
+        width={720}
+        footer={(
+          <>
             <button type="button" className="btn" onClick={onClose}>
               取消
             </button>
             <button type="button" className="btn btn-primary" onClick={saveAll}>
               保存 Paths
             </button>
-          </footer>
-        </div>
-      </div>
+          </>
+        )}
+      >
+        <p className="config-paths-host">
+          Host: <code>{host || '—'}</code>
+        </p>
+        <EntityTableToolbar label="rules[].paths" onAdd={openAdd} />
+        <p className="form-hint">Path 按列表顺序匹配，排在前面的优先。</p>
+        <table className="data config-paths-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Path</th>
+              <th>Backend</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paths.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="empty-hint">
+                  无 path 规则，点击「添加」；未配置时使用 Host 级 backend
+                </td>
+              </tr>
+            ) : (
+              paths.map((row, i) => (
+                <tr key={`${row.path}-${i}`}>
+                  <td>{i + 1}</td>
+                  <td><code>{row.path}</code></td>
+                  <td>{pathSummary(formToPath(row, origPaths[i]))}</td>
+                  <td>
+                    <EntityRowActions
+                      onEdit={() => openEdit(i)}
+                      onDelete={() => removePath(i)}
+                      onMoveUp={() => movePath(i, -1)}
+                      onMoveDown={() => movePath(i, 1)}
+                      disableMoveUp={i === 0}
+                      disableMoveDown={i === paths.length - 1}
+                    />
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </Drawer>
 
       <ConfigEntityModal
         open={pathModalOpen}

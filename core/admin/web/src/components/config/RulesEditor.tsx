@@ -6,6 +6,7 @@ import {
 } from '../Form'
 import {
   ConfigEntityModal,
+  EntityRowActions,
   EntityTableToolbar,
 } from '../ConfigEntityModal'
 import { BackendFormGrid, backendFormWide } from './BackendFormFields'
@@ -21,6 +22,7 @@ import {
   type RuleForm,
 } from '../../lib/configEntities'
 import { arr, str } from '../../lib/ingressModuleForms'
+import { moveAdjacent } from '../../lib/arrayMove'
 
 function RuleFormFields({
   form,
@@ -122,6 +124,14 @@ export function RulesEditor({
     patchRules(rules.filter((_, i) => i !== index))
   }
 
+  const moveRule = (index: number, delta: -1 | 1) => {
+    const j = index + delta
+    if (j < 0 || j >= rules.length) return
+    patchRules(moveAdjacent(rules, index, delta))
+    if (pathsModalIndex === index) setPathsModalIndex(j)
+    else if (pathsModalIndex === j) setPathsModalIndex(index)
+  }
+
   const savePaths = (nextRule: Record<string, unknown>) => {
     if (pathsModalIndex == null) return
     const next = [...rules]
@@ -134,6 +144,7 @@ export function RulesEditor({
   return (
     <>
       <EntityTableToolbar label="rules" onAdd={openAdd} />
+      <p className="form-hint">列表顺序即匹配优先级，排在前面的规则优先匹配。</p>
       <table className="data config-rules-table">
         <thead>
           <tr>
@@ -173,17 +184,15 @@ export function RulesEditor({
                     </button>
                   </td>
                   <td>
-                    <div className="row-actions">
-                      <button type="button" className="action-link" onClick={() => openEdit(i)}>
-                        编辑
-                      </button>
-                      <button type="button" className="action-link" onClick={() => openPaths(i)}>
-                        Paths
-                      </button>
-                      <button type="button" className="action-link action-danger" onClick={() => remove(i)}>
-                        删除
-                      </button>
-                    </div>
+                    <EntityRowActions
+                      onEdit={() => openEdit(i)}
+                      onDelete={() => remove(i)}
+                      onMoveUp={() => moveRule(i, -1)}
+                      onMoveDown={() => moveRule(i, 1)}
+                      disableMoveUp={i === 0}
+                      disableMoveDown={i === rules.length - 1}
+                      menuItems={[{ label: 'Paths', onClick: () => openPaths(i) }]}
+                    />
                   </td>
                 </tr>
               )

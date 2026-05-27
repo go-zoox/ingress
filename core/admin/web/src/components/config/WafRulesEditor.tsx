@@ -36,6 +36,7 @@ import {
 import { Drawer } from '../Drawer'
 import { EllipsisTooltip } from '../EllipsisTooltip'
 import { obj, str } from '../../lib/ingressModuleForms'
+import { moveAdjacent } from '../../lib/arrayMove'
 
 function WAFRuleFormFields({
   form,
@@ -305,6 +306,10 @@ export function WafRulesEditor({
     patchRules(rules.filter((_, i) => i !== index))
   }
 
+  const moveRule = (index: number, delta: -1 | 1) => {
+    patchRules(moveAdjacent(rules, index, delta))
+  }
+
   const enabledBuiltinCount = WAF_BUILTIN_RULES.filter((r) => isBuiltinRuleEnabled(doc, r.id)).length
 
   return (
@@ -380,6 +385,7 @@ export function WafRulesEditor({
 
       <FormSection title={`自定义规则 (${rules.length})`}>
         <EntityTableToolbar label="waf.rules" onAdd={openAdd} />
+        <p className="form-hint">自定义规则按列表顺序评估，排在前面的优先命中。</p>
         <div className="table-scroll">
         <table className="data config-waf-rules-table">
           <thead>
@@ -415,7 +421,14 @@ export function WafRulesEditor({
                     <td className="col-pattern"><code className="path-cell">{str(rule.pattern)}</code></td>
                     <td>{arrTargets(rule)}</td>
                     <td>
-                      <EntityRowActions onEdit={() => openEdit(i)} onDelete={() => remove(i)} />
+                      <EntityRowActions
+                        onEdit={() => openEdit(i)}
+                        onDelete={() => remove(i)}
+                        onMoveUp={() => moveRule(i, -1)}
+                        onMoveDown={() => moveRule(i, 1)}
+                        disableMoveUp={i === 0}
+                        disableMoveDown={i === rules.length - 1}
+                      />
                     </td>
                   </tr>
                 )
