@@ -5,6 +5,7 @@ import {
   FormSection,
   FormSelectField,
 } from './Form'
+import { AdminDatabaseFormFields } from './config/AdminDatabaseFormFields'
 import { FallbackEditor } from './config/FallbackEditor'
 import { RulesEditor } from './config/RulesEditor'
 import { RateLimitFormFields } from './config/RateLimitFormFields'
@@ -205,24 +206,14 @@ function AdminModuleForm({
         />
       </FormSection>
       <FormSection title="数据库">
-        <FormField
-          label="Driver"
-          value={str(database.driver, 'sqlite')}
-          onChange={(e) =>
+        <AdminDatabaseFormFields
+          driver={str(database.driver, 'sqlite')}
+          dsn={str(database.dsn, 'file:./admin.db?cache=shared&_fk=1')}
+          onChange={({ driver: nextDriver, dsn: nextDsn }) =>
             patchAdmin((n) => {
               const nextDB = { ...obj(n.database) }
-              setStr(nextDB, 'driver', e.target.value)
-              n.database = nextDB
-            })
-          }
-        />
-        <FormField
-          label="DSN"
-          value={str(database.dsn, 'file:./admin.db?cache=shared&_fk=1')}
-          onChange={(e) =>
-            patchAdmin((n) => {
-              const nextDB = { ...obj(n.database) }
-              setStr(nextDB, 'dsn', e.target.value)
+              setStr(nextDB, 'driver', nextDriver)
+              setStr(nextDB, 'dsn', nextDsn)
               n.database = nextDB
             })
           }

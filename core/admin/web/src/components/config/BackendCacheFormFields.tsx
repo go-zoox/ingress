@@ -8,7 +8,7 @@ import {
   FormSelectField,
 } from '../Form'
 import type { BackendForm, CachePathRuleForm } from '../../lib/configEntities'
-import { emptyCachePathRule } from '../../lib/configEntities'
+import { DEFAULT_CACHE_KEY_HEADERS, emptyCachePathRule } from '../../lib/configEntities'
 
 const CACHE_BACKEND_METHOD_OPTIONS = ['GET', 'HEAD'] as const
 const CACHE_PATH_METHOD_OPTIONS = ['GET', 'HEAD', 'POST'] as const
@@ -41,7 +41,7 @@ function CacheKeyHeadersFields<T extends BackendForm>({
   return (
     <FormItem
       label="key_headers"
-      hint="参与缓存键的请求头；留空表示不按任何请求头区分。常用：Authorization、Cookie、User-Agent、Token 等（名称不区分大小写）"
+      hint="参与缓存键的请求头；留空表示不按任何请求头区分。启用缓存时默认填入 Authorization、Cookie、Token、X-API-Key、Api-Key、X-Tenant-ID，可删除或修改（名称不区分大小写）"
     >
       {headers.length > 0 && (
         <div className="form-list-rows">
@@ -190,7 +190,12 @@ export function BackendCacheFormFields<T extends BackendForm>({
       <FormCheckbox
         label="启用 backend.cache"
         checked={form.cache_enabled}
-        onChange={(v) => patch((n) => { n.cache_enabled = v })}
+        onChange={(v) => patch((n) => {
+          n.cache_enabled = v
+          if (v && n.cache_key_headers.length === 0) {
+            n.cache_key_headers = [...DEFAULT_CACHE_KEY_HEADERS]
+          }
+        })}
       />
       {form.cache_enabled && (
         <>

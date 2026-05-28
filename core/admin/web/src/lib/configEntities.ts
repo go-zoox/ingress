@@ -175,6 +175,16 @@ function splitConfigList(s: string): string[] {
   return s.split(/[,\n]/).map((x) => x.trim()).filter(Boolean)
 }
 
+/** UI default when enabling backend.cache; not applied by the ingress runtime unless saved. */
+export const DEFAULT_CACHE_KEY_HEADERS = [
+  'Authorization',
+  'Cookie',
+  'Token',
+  'X-API-Key',
+  'Api-Key',
+  'X-Tenant-ID',
+] as const
+
 /** Dedupe cache key header names case-insensitively; preserve first spelling. */
 export function normalizeCacheKeyHeaders(headers: string[]): string[] {
   const seen = new Set<string>()
