@@ -15,6 +15,12 @@ type BackendCachePathRule struct {
 	TTL int64 `config:"ttl"`
 	// MaxBodyBytes overrides backend.cache.max_body_bytes for cache actions when > 0.
 	MaxBodyBytes int64 `config:"max_body_bytes"`
+	// Methods overrides backend.cache.methods for this path when non-empty (e.g. POST for JSON APIs).
+	Methods []string `config:"methods"`
+	// KeyJSON lists dot paths into the request JSON object for cache fingerprint (POST rules).
+	KeyJSON []string `config:"key_json"`
+	// KeyBodyMaxBytes limits request body bytes read for JSON key extraction (0 → default at compile).
+	KeyBodyMaxBytes int64 `config:"key_body_max_bytes"`
 }
 
 // BackendCachePathRuleCompiled is the load-time matcher for BackendCachePathRule (config:"-" only).
@@ -24,8 +30,11 @@ type BackendCachePathRuleCompiled struct {
 	Prefix       string
 	Re           *regexp.Regexp
 	Cache        bool
-	TTL          int64
-	MaxBodyBytes int64
+	TTL               int64
+	MaxBodyBytes      int64
+	Methods           []string
+	KeyJSON           []string
+	KeyBodyMaxBytes   int64
 }
 
 // BackendCache configures HTTP response caching for service, handler, and redirect backends.

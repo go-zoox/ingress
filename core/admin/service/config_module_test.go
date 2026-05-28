@@ -37,6 +37,35 @@ func TestSplitAndMergeConfigModules(t *testing.T) {
 	}
 }
 
+func TestSplitConfigModules_OmitsEmptyOtherModule(t *testing.T) {
+	modules, err := SplitConfigModules("version: v1\nport: 8080\nrules: []\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range modules {
+		if m.ID == "other" {
+			t.Fatalf("expected no empty other module, got yaml=%q", m.YAML)
+		}
+	}
+}
+
+func TestSplitConfigModules_IncludesOtherWhenUnknownKeys(t *testing.T) {
+	modules, err := SplitConfigModules("port: 8080\nexperimental_flag: true\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var other *ConfigModule
+	for i := range modules {
+		if modules[i].ID == "other" {
+			other = &modules[i]
+			break
+		}
+	}
+	if other == nil || !strings.Contains(other.YAML, "experimental_flag") {
+		t.Fatalf("expected other module with unknown key, modules=%v", modules)
+	}
+}
+
 func TestMergeConfigModuleUpdatesWAF(t *testing.T) {
 	base := "version: v1\nport: 8080\nwaf:\n  enabled: true\n"
 	patch := "waf:\n  enabled: false\n  log_only: true\n"
@@ -66,10 +95,13 @@ func TestChangedConfigModules(t *testing.T) {
 
 func TestMergeConfigModulePreservesKeyOrder(t *testing.T) {
 	base := "version: v1\nport: 8080\n\n# Shared cache engine\ncache:\n  ttl: 300\n  host: 127.0.0.1\n"
-	patch := "version: v1\nport: 8080\nenable_h2c: true\n"
+	patch := "port: 8080\nenable_h2c: true\n"
 	out, err := MergeConfigModule(base, "general", patch)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if strings.Contains(out, "version:") {
+		t.Fatalf("legacy version key should be removed: %q", out)
 	}
 	if !strings.Contains(out, "enable_h2c: true") {
 		t.Fatalf("expected enable_h2c: %q", out)

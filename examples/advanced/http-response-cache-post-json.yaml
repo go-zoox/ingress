@@ -1,0 +1,42 @@
+# POST JSON response cache: whitelist paths + key_json dot fields (httpcache:v2 keys).
+#
+# Validate:
+#   ingress validate -c examples/advanced/http-response-cache-post-json.yaml
+#
+# Only paths listed below use HTTP cache; other POST requests bypass cache (default: bypass).
+
+version: v1
+port: 8080
+
+cache:
+  ttl: 300
+
+rules:
+  - host: post-cache.example.com
+    backend:
+      service:
+        name: backend.internal
+        port: 8080
+      cache:
+        enabled: true
+        ttl: 300
+        default: bypass
+        paths:
+          - match: /api/product/getDetail
+            match_type: exact
+            action: cache
+            methods: [POST]
+            key_json:
+              - product.id
+              - lang
+            ttl: 120
+            key_body_max_bytes: 32768
+          - match: /api/goods/search
+            match_type: exact
+            action: cache
+            methods: [POST]
+            key_json:
+              - filters.categoryId
+              - page
+              - pageSize
+            ttl: 60

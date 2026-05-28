@@ -9,12 +9,16 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
+	"errors"
 	"strings"
 	"time"
 
@@ -22,9 +26,17 @@ import (
 	"github.com/go-zoox/zoox"
 )
 
+var keyJSONPathSegmentRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
 // Bump httpCacheKeyPrefix version suffix if the canonical serialization or semantics change.
 const (
-	httpCacheKeyPrefix = "httpcache:v1:"
+	httpCacheKeyPrefixV1 = "httpcache:v1:"
+	httpCacheKeyPrefixV2 = "httpcache:v2:"
+
+	defaultHTTPCacheKeyBodyMaxBytes = 65536
+	maxHTTPCacheKeyBodyMaxBytes     = 1 << 20
+	maxHTTPCacheKeyJSONPathLen      = 256
+	maxHTTPCacheKeyJSONSegments     = 32
 
 	// Canonical HTTP header names used for cache eligibility, keys, and bypass.
 	headerCacheControl   = "Cache-Control"
@@ -106,7 +118,11 @@ type httpCacheRuntime struct {
 	SkipSetCookie bool
 	SkipVary      bool
 	PathDefaultCache bool
-	PathRules     []rule.BackendCachePathRuleCompiled
+	PathRules        []rule.BackendCachePathRuleCompiled
+	// Per-request (service/handler/redirect): populated by httpCachePrepareRequest when KeyJSON is set.
+	JSONKeyLines []string
+	KeyJSON      []string
+	KeyBodyMaxBytes int64
 }
 
 // effectiveRouteBackend returns the backend block that applies: path-level overrides host-level when present.
@@ -225,11 +241,38 @@ func compileBackendCachePathRules(bc *rule.BackendCache) error {
 		if pr.MaxBodyBytes < 0 {
 			return fmt.Errorf("backend.cache.paths[%d].max_body_bytes must be >= 0", i)
 		}
+		if pr.KeyBodyMaxBytes < 0 {
+			return fmt.Errorf("backend.cache.paths[%d].key_body_max_bytes must be >= 0", i)
+		}
+		if pr.KeyBodyMaxBytes > maxHTTPCacheKeyBodyMaxBytes {
+			return fmt.Errorf("backend.cache.paths[%d].key_body_max_bytes must be <= %d", i, maxHTTPCacheKeyBodyMaxBytes)
+		}
+		keyJSON := make([]string, 0, len(pr.KeyJSON))
+		for j, p := range pr.KeyJSON {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				return fmt.Errorf("backend.cache.paths[%d].key_json[%d] must be non-empty", i, j)
+			}
+			if err := validateKeyJSONDotPath(p); err != nil {
+				return fmt.Errorf("backend.cache.paths[%d].key_json[%d]: %w", i, j, err)
+			}
+			keyJSON = append(keyJSON, p)
+		}
+		if len(keyJSON) > 0 && action != cachePathActionCache {
+			return fmt.Errorf("backend.cache.paths[%d].key_json requires action cache", i)
+		}
+		methods := normalizeCacheMethodsList(pr.Methods)
+		if len(keyJSON) > 0 && pr.KeyBodyMaxBytes == 0 {
+			pr.KeyBodyMaxBytes = defaultHTTPCacheKeyBodyMaxBytes
+		}
 		compiled := rule.BackendCachePathRuleCompiled{
-			MatchType:    matchType,
-			Cache:        action == cachePathActionCache,
-			TTL:          pr.TTL,
-			MaxBodyBytes: pr.MaxBodyBytes,
+			MatchType:       matchType,
+			Cache:           action == cachePathActionCache,
+			TTL:             pr.TTL,
+			MaxBodyBytes:    pr.MaxBodyBytes,
+			Methods:         methods,
+			KeyJSON:         keyJSON,
+			KeyBodyMaxBytes: pr.KeyBodyMaxBytes,
 		}
 		switch matchType {
 		case cachePathMatchExact:
@@ -311,34 +354,55 @@ func cachePathRuleMatches(pr rule.BackendCachePathRuleCompiled, path string) boo
 	}
 }
 
-func httpCachePathDecision(path string, pc *httpCacheRuntime) (allowCache bool, ttl time.Duration, maxBody int64) {
+type httpCachePathOverrides struct {
+	TTL             time.Duration
+	MaxBodyBytes    int64
+	Methods         map[string]struct{} // non-nil replaces MethodAllow on effective policy
+	KeyJSON         []string
+	KeyBodyMaxBytes int64
+}
+
+func httpCachePathDecision(path string, pc *httpCacheRuntime) (allowCache bool, ov httpCachePathOverrides) {
 	if pc == nil {
-		return false, 0, 0
+		return false, ov
 	}
-	ttl = pc.TTL
-	maxBody = pc.MaxBodyBytes
+	ov.TTL = pc.TTL
+	ov.MaxBodyBytes = pc.MaxBodyBytes
 	if len(pc.PathRules) == 0 {
-		return true, ttl, maxBody
+		return true, ov
 	}
 	for _, pr := range pc.PathRules {
 		if !cachePathRuleMatches(pr, path) {
 			continue
 		}
 		if !pr.Cache {
-			return false, 0, 0
+			return false, ov
 		}
 		if pr.TTL > 0 {
-			ttl = time.Duration(pr.TTL) * time.Second
+			ov.TTL = time.Duration(pr.TTL) * time.Second
 		}
 		if pr.MaxBodyBytes > 0 {
-			maxBody = pr.MaxBodyBytes
+			ov.MaxBodyBytes = pr.MaxBodyBytes
 		}
-		return true, ttl, maxBody
+		if len(pr.Methods) > 0 {
+			ov.Methods = make(map[string]struct{}, len(pr.Methods))
+			for _, m := range pr.Methods {
+				ov.Methods[m] = struct{}{}
+			}
+		}
+		if len(pr.KeyJSON) > 0 {
+			ov.KeyJSON = append([]string(nil), pr.KeyJSON...)
+			ov.KeyBodyMaxBytes = pr.KeyBodyMaxBytes
+			if ov.KeyBodyMaxBytes <= 0 {
+				ov.KeyBodyMaxBytes = defaultHTTPCacheKeyBodyMaxBytes
+			}
+		}
+		return true, ov
 	}
 	if pc.PathDefaultCache {
-		return true, ttl, maxBody
+		return true, ov
 	}
-	return false, 0, 0
+	return false, ov
 }
 
 // httpCachePolicyForRequest returns nil when caching is disabled or bypassed for the request path.
@@ -347,16 +411,32 @@ func httpCachePolicyForRequest(path string, pc *httpCacheRuntime) *httpCacheRunt
 	if pc == nil {
 		return nil
 	}
-	allow, ttl, maxBody := httpCachePathDecision(path, pc)
+	allow, ov := httpCachePathDecision(path, pc)
 	if !allow {
 		return nil
 	}
-	if ttl == pc.TTL && maxBody == pc.MaxBodyBytes {
+	eff := *pc
+	changed := false
+	if ov.TTL != pc.TTL {
+		eff.TTL = ov.TTL
+		changed = true
+	}
+	if ov.MaxBodyBytes != pc.MaxBodyBytes {
+		eff.MaxBodyBytes = ov.MaxBodyBytes
+		changed = true
+	}
+	if ov.Methods != nil {
+		eff.MethodAllow = ov.Methods
+		changed = true
+	}
+	if len(ov.KeyJSON) > 0 {
+		eff.KeyJSON = ov.KeyJSON
+		eff.KeyBodyMaxBytes = ov.KeyBodyMaxBytes
+		changed = true
+	}
+	if !changed {
 		return pc
 	}
-	eff := *pc
-	eff.TTL = ttl
-	eff.MaxBodyBytes = maxBody
 	return &eff
 }
 
@@ -431,7 +511,17 @@ func buildHTTPCacheCanonical(r *http.Request, hostname, path string, pc *httpCac
 		}
 		fmt.Fprintf(&b, "%s\n", headerValuesFingerprint(name, vals))
 	}
+	for _, line := range pc.JSONKeyLines {
+		fmt.Fprintf(&b, "%s\n", line)
+	}
 	return b.String()
+}
+
+func httpCacheStorageKeyPrefix(pc *httpCacheRuntime) string {
+	if pc != nil && len(pc.KeyJSON) > 0 {
+		return httpCacheKeyPrefixV2
+	}
+	return httpCacheKeyPrefixV1
 }
 
 // buildHTTPCacheStorageKey returns the full ctx.Cache key (prefix + hex digest per pc.KeyHash).
@@ -446,13 +536,25 @@ func buildHTTPCacheStorageKey(r *http.Request, hostname, path string, pc *httpCa
 		h := md5.Sum([]byte(canonical))
 		sum = h[:]
 	}
-	return httpCacheKeyPrefix + hex.EncodeToString(sum)
+	return httpCacheStorageKeyPrefix(pc) + hex.EncodeToString(sum)
 }
 
 // httpCacheMethodAllowed enforces backend.cache.methods (default GET and HEAD).
 func httpCacheMethodAllowed(method string, pc *httpCacheRuntime) bool {
 	_, ok := pc.MethodAllow[strings.ToUpper(method)]
 	return ok
+}
+
+// httpCacheShouldCaptureHandlerResponse decides whether to tee handler output for cache storage.
+func httpCacheShouldCaptureHandlerResponse(method string, pc *httpCacheRuntime) bool {
+	if pc == nil {
+		return false
+	}
+	m := strings.ToUpper(method)
+	if m == http.MethodGet {
+		return httpCacheMethodAllowed(method, pc)
+	}
+	return len(pc.KeyJSON) > 0 && m == http.MethodPost && httpCacheMethodAllowed(method, pc)
 }
 
 // httpCacheRequestBypasses forces origin/handling when the client asks not to use a cached copy (or sends Range).
@@ -742,4 +844,193 @@ func writeHTTPCacheHit(ctx *zoox.Context, entry *httpCacheEntry, pc *httpCacheRu
 
 func statusWriter(ctx *zoox.Context, code int) {
 	ctx.Status(code)
+}
+
+var errHTTPCacheKeyBodyTooLarge = errors.New("http cache request body too large for key_json")
+
+func normalizeCacheMethodsList(methods []string) []string {
+	if len(methods) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(methods))
+	for _, m := range methods {
+		m = strings.ToUpper(strings.TrimSpace(m))
+		if m != "" {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func methodSetIncludes(allow map[string]struct{}, method string) bool {
+	if allow == nil {
+		return false
+	}
+	_, ok := allow[strings.ToUpper(method)]
+	return ok
+}
+
+func effectiveCacheMethodsForPathRule(pr rule.BackendCachePathRule, backendMethods []string) map[string]struct{} {
+	methods := pr.Methods
+	if len(methods) == 0 {
+		methods = backendMethods
+	}
+	if len(methods) == 0 {
+		methods = []string{http.MethodGet, http.MethodHead}
+	}
+	allow := make(map[string]struct{}, len(methods))
+	for _, m := range methods {
+		m = strings.ToUpper(strings.TrimSpace(m))
+		if m != "" {
+			allow[m] = struct{}{}
+		}
+	}
+	return allow
+}
+
+func validateKeyJSONDotPath(path string) error {
+	if len(path) > maxHTTPCacheKeyJSONPathLen {
+		return fmt.Errorf("must be at most %d characters", maxHTTPCacheKeyJSONPathLen)
+	}
+	segs := strings.Split(path, ".")
+	if len(segs) == 0 || len(segs) > maxHTTPCacheKeyJSONSegments {
+		return fmt.Errorf("must have 1-%d dot-separated segments", maxHTTPCacheKeyJSONSegments)
+	}
+	for _, s := range segs {
+		if !keyJSONPathSegmentRe.MatchString(s) {
+			return fmt.Errorf("segment %q must match [A-Za-z_][A-Za-z0-9_]*", s)
+		}
+	}
+	return nil
+}
+
+func requestContentTypeIsJSON(req *http.Request) bool {
+	if req == nil {
+		return false
+	}
+	ct := req.Header.Get("Content-Type")
+	if ct == "" {
+		return true
+	}
+	mediaType, _, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return strings.Contains(strings.ToLower(ct), "application/json")
+	}
+	return mediaType == "application/json"
+}
+
+func buildJSONKeyCanonicalLines(body []byte, paths []string) ([]string, bool) {
+	var root any
+	if err := json.Unmarshal(body, &root); err != nil {
+		return nil, false
+	}
+	top, ok := root.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	sorted := append([]string(nil), paths...)
+	sort.Strings(sorted)
+	lines := make([]string, 0, len(sorted))
+	for _, p := range sorted {
+		val, ok := jsonScalarAtDotPath(top, p)
+		if !ok {
+			return nil, false
+		}
+		lines = append(lines, fmt.Sprintf("jsonkey:%s=%s", p, val))
+	}
+	return lines, true
+}
+
+func jsonScalarAtDotPath(root map[string]any, dotPath string) (string, bool) {
+	var cur any = root
+	for _, seg := range strings.Split(dotPath, ".") {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return "", false
+		}
+		cur, ok = m[seg]
+		if !ok {
+			return "", false
+		}
+	}
+	return formatJSONScalar(cur)
+}
+
+func formatJSONScalar(v any) (string, bool) {
+	switch x := v.(type) {
+	case nil:
+		return "", false
+	case string:
+		return x, true
+	case bool:
+		if x {
+			return "true", true
+		}
+		return "false", true
+	case float64:
+		return strconv.FormatFloat(x, 'f', -1, 64), true
+	case json.Number:
+		return x.String(), true
+	default:
+		return "", false
+	}
+}
+
+func readAndReplayRequestBody(req *http.Request, limit int64) ([]byte, error) {
+	if req == nil {
+		return nil, nil
+	}
+	if req.Body == nil {
+		return []byte{}, nil
+	}
+	defer req.Body.Close()
+	lr := io.LimitReader(req.Body, limit+1)
+	buf, err := io.ReadAll(lr)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(buf)) > limit {
+		return nil, errHTTPCacheKeyBodyTooLarge
+	}
+	cloned := bytes.Clone(buf)
+	req.Body = io.NopCloser(bytes.NewReader(cloned))
+	req.ContentLength = int64(len(cloned))
+	req.Header.Del("Transfer-Encoding")
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(cloned)), nil
+	}
+	return cloned, nil
+}
+
+// httpCachePrepareRequest reads JSON key fields and replays the request body for upstream proxying.
+// skip=true means do not use HTTP cache for this request (still forward to origin).
+func httpCachePrepareRequest(ctx *zoox.Context, pc *httpCacheRuntime) (*httpCacheRuntime, bool) {
+	if pc == nil || len(pc.KeyJSON) == 0 {
+		return pc, false
+	}
+	limit := pc.KeyBodyMaxBytes
+	if limit <= 0 {
+		limit = defaultHTTPCacheKeyBodyMaxBytes
+	}
+	if !requestContentTypeIsJSON(ctx.Request) {
+		ctx.Logger.Debugf("http cache skip: content-type not json")
+		return nil, true
+	}
+	body, err := readAndReplayRequestBody(ctx.Request, limit)
+	if err != nil {
+		if errors.Is(err, errHTTPCacheKeyBodyTooLarge) {
+			ctx.Logger.Debugf("http cache skip: request body exceeds key_body_max_bytes")
+		} else {
+			ctx.Logger.Debugf("http cache skip: request body read failed: %v", err)
+		}
+		return nil, true
+	}
+	lines, ok := buildJSONKeyCanonicalLines(body, pc.KeyJSON)
+	if !ok {
+		ctx.Logger.Debugf("http cache skip: key_json extraction failed")
+		return nil, true
+	}
+	eff := *pc
+	eff.JSONKeyLines = lines
+	return &eff, false
 }

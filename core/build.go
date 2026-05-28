@@ -154,6 +154,13 @@ func (c *core) build() error {
 			redirectCacheStart := time.Now()
 			var mayStoreRedirect bool
 			if policyRedirect != nil && httpCacheMethodAllowed(method, policyRedirect) && !httpCacheRequestBypasses(ctx.Request, policyRedirect) {
+				if prepared, skip := httpCachePrepareRequest(ctx, policyRedirect); skip {
+					policyRedirect = nil
+				} else {
+					policyRedirect = prepared
+				}
+			}
+			if policyRedirect != nil && httpCacheMethodAllowed(method, policyRedirect) && !httpCacheRequestBypasses(ctx.Request, policyRedirect) {
 				redirectCacheKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, policyRedirect)
 				if hit, code, ulen := tryServeHTTPCache(ctx, policyRedirect, redirectCacheKey); hit {
 					rdDur := time.Since(redirectCacheStart)
@@ -232,6 +239,13 @@ func (c *core) build() error {
 			var captureBuf *bytes.Buffer
 			handlerCacheStart := time.Now()
 			if policyHandler != nil && httpCacheMethodAllowed(method, policyHandler) && !httpCacheRequestBypasses(ctx.Request, policyHandler) {
+				if prepared, skip := httpCachePrepareRequest(ctx, policyHandler); skip {
+					policyHandler = nil
+				} else {
+					policyHandler = prepared
+				}
+			}
+			if policyHandler != nil && httpCacheMethodAllowed(method, policyHandler) && !httpCacheRequestBypasses(ctx.Request, policyHandler) {
 				handlerCacheKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, policyHandler)
 				if hit, code, ulen := tryServeHTTPCache(ctx, policyHandler, handlerCacheKey); hit {
 					hDur := time.Since(handlerCacheStart)
@@ -243,7 +257,7 @@ func (c *core) build() error {
 					}))
 					return false, true, nil
 				}
-				if method == http.MethodGet {
+				if httpCacheShouldCaptureHandlerResponse(method, policyHandler) {
 					captureBuf = &bytes.Buffer{}
 					ctx.Writer = &zooxHTTPCacheCaptureRW{ResponseWriter: origWriter, buf: captureBuf}
 				}
@@ -478,6 +492,13 @@ func (c *core) build() error {
 		var httpCacheMayStore bool
 		if pc != nil {
 			if httpCacheMethodAllowed(method, pc) && !httpCacheRequestBypasses(ctx.Request, pc) {
+				if prepared, skip := httpCachePrepareRequest(ctx, pc); skip {
+					pc = nil
+				} else {
+					pc = prepared
+				}
+			}
+			if pc != nil && httpCacheMethodAllowed(method, pc) && !httpCacheRequestBypasses(ctx.Request, pc) {
 				httpCacheStoreKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, pc)
 				if hit, code, ulen := tryServeHTTPCache(ctx, pc, httpCacheStoreKey); hit {
 					hitDur := time.Since(proxyStart)
@@ -553,8 +574,8 @@ func (c *core) build() error {
 
 			res.Header.Set("X-Powered-By", fmt.Sprintf("gozoox-ingress/%s", c.version))
 
-			// Service HTTP cache write: headers are final after plugins; only client GET may extend the shared ctx.Cache.
-			if pc != nil && httpCacheMayStore && httpCacheStoreKey != "" && inReq.Method == http.MethodGet {
+			// Service HTTP cache write: headers are final after plugins; allowed methods may extend the shared ctx.Cache.
+			if pc != nil && httpCacheMayStore && httpCacheStoreKey != "" && httpCacheMethodAllowed(inReq.Method, pc) {
 				body, err := io.ReadAll(res.Body)
 				_ = res.Body.Close()
 				if err != nil {

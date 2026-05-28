@@ -134,7 +134,7 @@ func TestHTTPCacheRequestBypassesRange(t *testing.T) {
 
 func TestHTTPCache_MemoryBackendSetGet(t *testing.T) {
 	c := cache.New()
-	key := httpCacheKeyPrefix + "mem-roundtrip"
+	key := httpCacheKeyPrefixV1 + "mem-roundtrip"
 	want := &httpCacheEntry{
 		StatusCode: http.StatusOK,
 		Header:     map[string][]string{"Content-Type": {"text/plain"}, "X-Echo": {"a", "b"}},
@@ -186,7 +186,7 @@ func TestHTTPCache_EntryJSONRoundTrip(t *testing.T) {
 
 func TestHTTPCache_TryServeHit_ZooxMemoryCache(t *testing.T) {
 	app := zoox.New()
-	cacheKey := httpCacheKeyPrefix + "zoox-hit"
+	cacheKey := httpCacheKeyPrefixV1 + "zoox-hit"
 	stored := &httpCacheEntry{
 		StatusCode: http.StatusOK,
 		Header: map[string][]string{
@@ -236,7 +236,7 @@ func TestHTTPCache_TryServeHit_ZooxMemoryCache(t *testing.T) {
 
 func TestHTTPCache_TryServeMiss_ZooxMemoryCache(t *testing.T) {
 	app := zoox.New()
-	cacheKey := httpCacheKeyPrefix + "zoox-missing"
+	cacheKey := httpCacheKeyPrefixV1 + "zoox-missing"
 	var miss bool
 	app.Use(func(ctx *zoox.Context) {
 		pc := normalizeHTTPCache(rule.BackendCache{Enabled: true, TTL: 300})
@@ -258,7 +258,7 @@ func TestHTTPCache_TryServeMiss_ZooxMemoryCache(t *testing.T) {
 
 func TestHTTPCache_TryServeBypassWithCachedEntry_Zoox(t *testing.T) {
 	app := zoox.New()
-	cacheKey := httpCacheKeyPrefix + "zoox-bypass"
+	cacheKey := httpCacheKeyPrefixV1 + "zoox-bypass"
 	if err := app.Cache().Set(cacheKey, &httpCacheEntry{
 		StatusCode: http.StatusOK,
 		Header:     map[string][]string{"Content-Type": {"text/plain"}},
@@ -292,7 +292,7 @@ func TestHTTPCache_TryServeBypassWithCachedEntry_Zoox(t *testing.T) {
 
 func TestHTTPCache_TryServeRedirectHit_Zoox(t *testing.T) {
 	app := zoox.New()
-	cacheKey := httpCacheKeyPrefix + "zoox-redirect"
+	cacheKey := httpCacheKeyPrefixV1 + "zoox-redirect"
 	if err := app.Cache().Set(cacheKey, &httpCacheEntry{
 		StatusCode: http.StatusFound,
 		Header:     map[string][]string{"Location": {"https://example.com/after"}},
@@ -320,7 +320,7 @@ func TestHTTPCache_TryServeRedirectHit_Zoox(t *testing.T) {
 
 func TestHTTPCache_TryServeHEADFromGETEntry_Zoox(t *testing.T) {
 	app := zoox.New()
-	cacheKey := httpCacheKeyPrefix + "zoox-head"
+	cacheKey := httpCacheKeyPrefixV1 + "zoox-head"
 	body := []byte(`full`)
 	if err := app.Cache().Set(cacheKey, &httpCacheEntry{
 		StatusCode: http.StatusOK,
@@ -353,9 +353,9 @@ func TestHTTPCache_TryServeHEADFromGETEntry_Zoox(t *testing.T) {
 
 func TestHTTPCachePathDecision_NoRulesCachesAll(t *testing.T) {
 	pc := normalizeHTTPCache(rule.BackendCache{Enabled: true, TTL: 300})
-	allow, ttl, maxBody := httpCachePathDecision("/any", pc)
-	if !allow || ttl != pc.TTL || maxBody != pc.MaxBodyBytes {
-		t.Fatalf("got allow=%v ttl=%v maxBody=%d", allow, ttl, maxBody)
+	allow, ov := httpCachePathDecision("/any", pc)
+	if !allow || ov.TTL != pc.TTL || ov.MaxBodyBytes != pc.MaxBodyBytes {
+		t.Fatalf("got allow=%v ov=%+v", allow, ov)
 	}
 }
 

@@ -5,7 +5,6 @@ Ingress uses YAML configuration files to define routing rules, authentication, S
 ## Configuration Structure
 
 ```yaml
-version: v1                    # Configuration version
 port: 8080                     # HTTP port (default: 8080)
 # enable_h2c: false            # Optional: cleartext HTTP/2 (h2c) on port; unsafe on public networks
 
@@ -69,7 +68,6 @@ rules:
 
 | Field | Type | Description | Default |
 |-------|------|-------------|---------|
-| `version` | string | Configuration version | `v1` |
 | `port` | int | HTTP port to listen on | `8080` |
 | `enable_h2c` | bool | Cleartext HTTP/2 (h2c) on the HTTP port | `false` |
 | `cache` | object | Application `ctx.Cache()` engine (memory or Redis); backs matcher data and optional **`backend.cache`** entries | - |
@@ -269,8 +267,8 @@ Effective **`internal` / `external`** for **`Host`** rewrite is **`backend.servi
 #### `backend.cache` (HTTP response cache)
 
 - **Default off** unless `cache.enabled: true`.
-- **Storage** uses the same Zoox application cache as matcher caching (`ctx.Cache()`): the top-level `cache` block configures Redis/memory (`core/prepare.go`). Entries use key prefix `httpcache:v1:` plus an MD5 or SHA-256 fingerprint of a canonical request line (method, scheme, host, path, sorted query, and configured request headers with values hashed).
-- **HEAD** shares the same cache key as **GET** for the same URL; **GET** round-trips populate the cache for **service** (proxy), **handler** (response capture), and **redirect** (final `Location` after template expansion). Avoids replacing a full GET entry with an empty HEAD body.
+- **Storage** uses the same Zoox application cache as matcher caching (`ctx.Cache()`): the top-level `cache` block configures Redis/memory (`core/prepare.go`). Entries use key prefix **`httpcache:v1:`** (or **`httpcache:v2:`** when a matched path rule sets **`key_json`**) plus an MD5 or SHA-256 fingerprint of a canonical request line (method, scheme, host, path, sorted query, configured request headers with values hashed, and optional **`jsonkey:`** lines from POST JSON fields).
+- **HEAD** shares the same cache key as **GET** for the same URL; **GET** (and path-allowed **POST**) round-trips populate the cache for **service** (proxy), **handler** (response capture when configured), and **redirect** (final `Location` after template expansion; redirect store remains **GET**-only). Avoids replacing a full GET entry with an empty HEAD body.
 - **Client bypass** (no cache read/write): `Cache-Control` containing `no-cache`, `no-store`, or `max-age=0` (configurable), `Pragma: no-cache` when `honor_pragma_no_cache` is true (default), or any **`Range`** request header.
 - **Not stored** (service / handler bodies): non-200; **non-empty `Vary`** blocks storage unless **`cache.skip_vary: true`** (then **`Vary` is not stored** and **not sent** on hits; you still serve a single variant—see [Caching](caching.md)); `Cache-Control: no-store`; `Cache-Control: private` (unless `ignore_response_private: true`); **`Set-Cookie`** on the response when `skip_when_set_cookie` is true (default); body larger than `max_body_bytes`. **Redirect** entries store 301/302/303/307/308 with a `Location` header (no body; same header rules where applicable). Many public httpbin mirrors send `Vary: Origin` on common paths (e.g. `/ip`); use **`skip_vary: true`** only if you accept treating that path as one shared variant.
 - **Verifying hits**: send the same **GET** twice without bypass headers; the second response should be served from cache. Access log lines from cached responses append **`cache_hit=1`** (service proxy, handler, redirect).
@@ -281,7 +279,7 @@ Effective **`internal` / `external`** for **`Host`** rewrite is **`backend.servi
 | `ttl` | int | Max freshness in **seconds** when the origin omits a stricter `max-age` / `s-maxage` | `300` |
 | `max_body_bytes` | int | Do not store bodies larger than this (0 or unset → **2MiB** in code) | `2097152` |
 | `key_hash` | string | Fingerprint algorithm: `md5` or `sha256` | `md5` |
-| `methods` | string array | Cacheable methods (normalized to uppercase) | `GET`, `HEAD` |
+| `methods` | string array | Cacheable methods (normalized to uppercase). **Must not include `POST`** — use per-path `paths[].methods` + `key_json` for POST APIs. | `GET`, `HEAD` |
 | `key_headers` | string array | Request header names in the fingerprint (values are hashed, not stored raw) | `Authorization`, `Cookie`, `Accept-Encoding` |
 | `bypass_request_directives` | string array | `Cache-Control` tokens that force origin/handling (token match; see code for `max-age=0`) | `no-cache`, `no-store`, `max-age=0` |
 | `honor_pragma_no_cache` | bool | Treat `Pragma: no-cache` like `Cache-Control: no-cache` for bypass | `true` |
@@ -300,10 +298,13 @@ Effective **`internal` / `external`** for **`Host`** rewrite is **`backend.servi
 | `action` | string | `cache` (read/write cache) or `bypass` (skip cache entirely) | `cache` |
 | `ttl` | int | Override backend `ttl` for this rule when `action: cache` and `> 0` | inherit |
 | `max_body_bytes` | int | Override backend `max_body_bytes` for this rule when `action: cache` and `> 0` | inherit |
+| `methods` | string array | Override backend `methods` for this path when non-empty (e.g. `[POST]`) | inherit |
+| `key_json` | string array | Dot paths into the **request** JSON object for the fingerprint (e.g. `product.id`). Requires **`methods`** to include **`POST`** on this rule. Implies **`httpcache:v2:`** keys. | — |
+| `key_body_max_bytes` | int | Max request body bytes read for JSON parsing when `key_json` is set (`0` → **65536** at compile) | `65536` when `key_json` set |
 
 **`match_type: auto`** (same idea as `host_type: auto`): regexp metacharacters `( ) [ ] ^ $ | + ? \` → **regex**; trailing `/` → **prefix**; otherwise **exact**. Rules are evaluated top to bottom; put narrower patterns before broader ones (e.g. bypass `/static/private` before cache `/static/`). When **`paths` is omitted**, all paths on the backend use cache when `enabled: true` (unchanged).
 
-Examples: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml) (in-memory `ctx.Cache()`), [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml) (Redis + `backend.cache`), [`examples/advanced/http-response-cache-paths.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-paths.yaml) (per-path rules).
+Examples: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml) (in-memory `ctx.Cache()`), [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml) (Redis + `backend.cache`), [`examples/advanced/http-response-cache-paths.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-paths.yaml) (per-path rules), [`examples/advanced/http-response-cache-post-json.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-post-json.yaml) (POST + `key_json`).
 
 See `core/rule/backend_cache.go`, `core/http_cache.go`, and `core/build.go`.
 

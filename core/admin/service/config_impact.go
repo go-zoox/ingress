@@ -15,7 +15,7 @@ var globalModuleLabels = map[string]string{
 	"waf":          "WAF",
 	"rate_limit":   "限流",
 	"healthcheck":  "健康检查",
-	"https":        "TLS / HTTPS",
+	"https":        "HTTPS",
 	"fallback":     "Fallback",
 	"other":        "其他",
 }

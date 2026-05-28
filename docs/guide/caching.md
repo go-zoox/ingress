@@ -148,7 +148,20 @@ When **`cache.enabled: true`**:
 
 When **`paths`** is configured on a backend, Ingress evaluates rules **in order** (first match wins). Each rule can **`cache`** or **`bypass`** HTTP response caching for matching request paths. Unmatched paths follow **`default`** (`cache` or `bypass`; default **`cache`**). Optional per-rule **`ttl`** and **`max_body_bytes`** override the backend defaults for that path only. Omit **`paths`** to cache all paths on the backend (previous behavior).
 
-Details, bypass rules, and field reference: [Configuration — `backend.cache`](configuration.md#backendcache-http-response-cache). Runnable YAML: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml), Redis-backed storage: [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml), path rules: [`examples/advanced/http-response-cache-paths.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-paths.yaml).
+### POST + JSON body cache keys (`key_json`)
+
+For legacy APIs that use **POST + JSON** for read-only queries, whitelist specific paths under **`cache.paths`** instead of enabling POST globally:
+
+- Set **`default: bypass`** so only listed paths use HTTP cache.
+- On a path rule: **`methods: [POST]`**, **`key_json: [dot.paths]`** (e.g. `product.id`, `filters.categoryId`). Only scalar JSON fields are used; extra body fields (`timestamp`, `traceId`) are ignored for the fingerprint.
+- Top-level **`cache.methods` must not include POST** (validation error if it does).
+- Cache keys use prefix **`httpcache:v2:`** when **`key_json`** is set (GET-only rules keep **`httpcache:v1:`**).
+- The request body is **cloned and replayed** to the upstream after key extraction; cache lookup does not drain the proxy body.
+- Skip cache (pass through to origin) when: body is not JSON, JSON parse fails, any **`key_json`** path is missing or non-scalar, body exceeds **`key_body_max_bytes`** (default **65536** when `key_json` is set), or body is **`{}`** with required fields absent.
+
+**Service** backends may **store** upstream responses for allowed methods (including POST) when storage rules pass. **Redirect** population remains **GET**-only.
+
+Details, bypass rules, and field reference: [Configuration — `backend.cache`](configuration.md#backendcache-http-response-cache). Runnable YAML: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml), Redis-backed storage: [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml), path rules: [`examples/advanced/http-response-cache-paths.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-paths.yaml), POST + JSON keys: [`examples/advanced/http-response-cache-post-json.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-post-json.yaml).
 
 ## Cache Invalidation
 

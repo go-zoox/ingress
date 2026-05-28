@@ -69,7 +69,7 @@ export const CONFIG_MODULE_LABELS: Record<string, string> = {
   logging: '日志',
   waf: 'WAF',
   healthcheck: '健康检查',
-  https: 'HTTPS / TLS',
+  https: 'HTTPS',
   fallback: 'Fallback',
   rules: '路由规则',
   other: '其他',

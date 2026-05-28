@@ -22,17 +22,22 @@ type configModuleDef struct {
 	Keys  []string
 }
 
+// deprecatedConfigKeys are ignored by ingress core; stripped on module split/merge (legacy YAML).
+var deprecatedConfigKeys = map[string]struct{}{
+	"version": {},
+}
+
 var configModuleDefs = []configModuleDef{
-	{ID: "general", Label: "基础", Keys: []string{"version", "port", "enable_h2c", "error_page_expose_details"}},
+	{ID: "general", Label: "基础", Keys: []string{"port", "enable_h2c", "error_page_expose_details"}},
+	{ID: "rules", Label: "路由规则", Keys: []string{"rules"}},
 	{ID: "admin", Label: "Admin 控制台", Keys: []string{"admin"}},
 	{ID: "cache", Label: "缓存", Keys: []string{"cache"}},
 	{ID: "logging", Label: "日志", Keys: []string{"logging"}},
 	{ID: "waf", Label: "WAF", Keys: []string{"waf"}},
 	{ID: "rate_limit", Label: "限流", Keys: []string{"rate_limit"}},
 	{ID: "healthcheck", Label: "健康检查", Keys: []string{"healthcheck"}},
-	{ID: "https", Label: "HTTPS / TLS", Keys: []string{"https"}},
+	{ID: "https", Label: "HTTPS", Keys: []string{"https"}},
 	{ID: "fallback", Label: "Fallback", Keys: []string{"fallback"}},
-	{ID: "rules", Label: "路由规则", Keys: []string{"rules"}},
 }
 
 func moduleKeysSet() map[string]string {
@@ -77,14 +82,21 @@ func SplitConfigModules(content string) ([]ConfigModule, error) {
 		if assigned[key] {
 			continue
 		}
+		if _, legacy := deprecatedConfigKeys[key]; legacy {
+			assigned[key] = true
+			continue
+		}
 		otherPairs = append(otherPairs, root.Content[i], root.Content[i+1])
 	}
-	modules = append(modules, ConfigModule{
-		ID:    "other",
-		Label: "其他",
-		Keys:  otherKeys(otherPairs),
-		YAML:  encodeMappingPairs(otherPairs),
-	})
+	// "其他" only when there are top-level keys outside known modules (edit in UI or YAML tab).
+	if len(otherPairs) > 0 {
+		modules = append(modules, ConfigModule{
+			ID:    "other",
+			Label: "其他",
+			Keys:  otherKeys(otherPairs),
+			YAML:  encodeMappingPairs(otherPairs),
+		})
+	}
 
 	return modules, nil
 }
@@ -202,7 +214,13 @@ func moduleRemovalKeys(moduleID string, root *yaml.Node) []string {
 	}
 	for _, def := range configModuleDefs {
 		if def.ID == moduleID {
-			return append([]string(nil), def.Keys...)
+			keys := append([]string(nil), def.Keys...)
+			if moduleID == "general" {
+				for k := range deprecatedConfigKeys {
+					keys = append(keys, k)
+				}
+			}
+			return keys
 		}
 	}
 	return nil

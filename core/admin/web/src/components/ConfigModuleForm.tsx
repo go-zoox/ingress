@@ -44,12 +44,6 @@ function GeneralModuleForm({
   return (
     <FormGrid>
       <FormField
-        label="配置版本"
-        keyName="version"
-        value={str(doc.version, 'v1')}
-        onChange={(e) => patch((n) => setStr(n, 'version', e.target.value))}
-      />
-      <FormField
         label="HTTP 端口"
         keyName="port"
         hint="明文 HTTP 监听端口"

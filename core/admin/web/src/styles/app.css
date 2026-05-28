@@ -1628,6 +1628,32 @@ table.data tr:last-child td {
   white-space: pre-wrap;
 }
 
+.config-validate-banner {
+  margin: 0;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.config-validate-banner--loading {
+  border-left: 3px solid var(--accent-dim);
+}
+
+.config-validate-banner--ok {
+  border-left: 3px solid var(--ok);
+  background: rgba(52, 211, 153, 0.08);
+}
+
+.config-validate-banner--err {
+  border-left: 3px solid var(--danger);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.config-validate-banner-text {
+  margin: 0;
+  line-height: 1.5;
+}
+
 .empty-hint {
   color: var(--text-muted);
   font-size: 13px;
@@ -3167,6 +3193,24 @@ table.data.tls-certs .tls-domain {
   color: var(--text-muted);
 }
 
+.config-module-sync {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--ok);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+}
+
+.config-module-sync--pending {
+  color: var(--warn);
+}
+
+.config-module-sync--busy {
+  color: var(--accent-dim);
+}
+
 .config-form-key {
   margin-left: 8px;
   font-size: 11px;
@@ -3431,6 +3475,69 @@ table.data.config-revisions code {
   font-size: 12px;
   color: var(--text-muted);
   line-height: 1.45;
+}
+
+.form-multi-select {
+  position: relative;
+}
+
+.form-multi-select-summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.form-multi-select-summary::-webkit-details-marker {
+  display: none;
+}
+
+.form-multi-select-summary::after {
+  content: '▾';
+  float: right;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.form-multi-select-panel {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  padding: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-check--inline {
+  margin-top: 0;
+  padding: 8px 10px;
+}
+
+.form-check--inline + .form-check--inline {
+  margin-top: 0;
+}
+
+.form-list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-list-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.form-list-row .form-item {
+  flex: 1;
+  margin: 0;
 }
 
 .form-section {

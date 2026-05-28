@@ -1,9 +1,12 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { api, type ConfigModule } from '../api/client'
 import { ConfigModuleForm } from './ConfigModuleForm'
 
+const AUTO_APPLY_DEBOUNCE_MS = 400
+
 export interface ConfigModulesPanelHandle {
-  autoApplyIfDirty: () => Promise<void>
+  /** Merges the active module into draft YAML when dirty; returns merged content or null. */
+  autoApplyIfDirty: () => Promise<string | null>
 }
 
 export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
@@ -18,12 +21,38 @@ export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
   const [dirty, setDirty] = useState(false)
   const [applying, setApplying] = useState(false)
   const dirtyRef = useRef(false)
+  const moduleYAMLRef = useRef(moduleYAML)
+  const contentRef = useRef(content)
+  const activeIdRef = useRef(activeId)
+  const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const applyingRef = useRef(false)
 
   useEffect(() => {
+    moduleYAMLRef.current = moduleYAML
+  }, [moduleYAML])
+
+  useEffect(() => {
+    contentRef.current = content
+  }, [content])
+
+  useEffect(() => {
+    activeIdRef.current = activeId
+  }, [activeId])
+
+  useEffect(() => {
+    return () => {
+      if (applyTimerRef.current) clearTimeout(applyTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (applyTimerRef.current) clearTimeout(applyTimerRef.current)
     api
       .configModules(content)
       .then((rows) => {
-        setModules(Array.isArray(rows) ? rows : [])
+        const list = Array.isArray(rows) ? rows : []
+        // Hide empty catch-all module; unknown keys still appear when non-empty.
+        setModules(list.filter((m) => m.id !== 'other' || m.yaml.trim() !== ''))
       })
       .catch((e: Error) => onError(e.message))
   }, [content, onError])
@@ -35,53 +64,79 @@ export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
     dirtyRef.current = false
   }, [modules, activeId])
 
-  const doApply = async (targetId: string): Promise<void> => {
+  const doApply = useCallback(async (targetId: string, yaml: string, baseContent: string): Promise<string | null> => {
     const mod = modules.find((m) => m.id === targetId)
-    if (!mod) return
+    if (!mod) return null
     setApplying(true)
+    applyingRef.current = true
     onError('')
     try {
-      const res = await api.mergeConfigModule(content, targetId, moduleYAML)
+      const res = await api.mergeConfigModule(baseContent, targetId, yaml)
       onContentChange(res.content)
       setDirty(false)
       dirtyRef.current = false
-    } catch (e) {
-      throw e
+      return res.content
     } finally {
       setApplying(false)
+      applyingRef.current = false
     }
-  }
+  }, [modules, onContentChange, onError])
 
-  const applyModule = async () => {
+  const runAutoApply = useCallback(async (): Promise<string | null> => {
+    if (!dirtyRef.current || applyingRef.current) return null
     try {
-      await doApply(activeId)
+      return await doApply(activeIdRef.current, moduleYAMLRef.current, contentRef.current)
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))
+      return null
     }
-  }
+  }, [doApply, onError])
 
-  const autoApplyIfDirty = async (): Promise<void> => {
-    if (!dirtyRef.current) return
-    await doApply(activeId)
-  }
+  const cancelScheduledApply = useCallback(() => {
+    if (applyTimerRef.current) {
+      clearTimeout(applyTimerRef.current)
+      applyTimerRef.current = null
+    }
+  }, [])
 
-  useImperativeHandle(ref, () => ({ autoApplyIfDirty }), [activeId, moduleYAML, content])
+  const scheduleAutoApply = useCallback(() => {
+    cancelScheduledApply()
+    applyTimerRef.current = setTimeout(() => {
+      applyTimerRef.current = null
+      void runAutoApply()
+    }, AUTO_APPLY_DEBOUNCE_MS)
+  }, [cancelScheduledApply, runAutoApply])
+
+  const flushAutoApply = useCallback(async (): Promise<string | null> => {
+    cancelScheduledApply()
+    return runAutoApply()
+  }, [cancelScheduledApply, runAutoApply])
+
+  useImperativeHandle(ref, () => ({
+    autoApplyIfDirty: flushAutoApply,
+  }), [flushAutoApply])
 
   const handleTabClick = async (newId: string) => {
     if (newId === activeId) return
-    if (applying) return
+    if (applyingRef.current) return
+    cancelScheduledApply()
     if (dirtyRef.current) {
-      try {
-        await doApply(activeId)
-      } catch (e) {
-        onError(e instanceof Error ? e.message : String(e))
-        return // stay on current tab on error
+      const merged = await flushAutoApply()
+      if (dirtyRef.current) return // apply failed; stay on tab
+      if (merged != null) {
+        contentRef.current = merged
       }
     }
     setActiveId(newId)
   }
 
   const active = modules.find((m) => m.id === activeId)
+
+  const syncLabel = applying
+    ? '正在同步到草稿…'
+    : dirty
+      ? '等待同步…'
+      : '已同步到草稿'
 
   return (
     <div className="config-modules">
@@ -91,7 +146,7 @@ export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
             key={m.id}
             type="button"
             className={`config-module-tab ${activeId === m.id ? 'active' : ''}`}
-            onClick={() => handleTabClick(m.id)}
+            onClick={() => void handleTabClick(m.id)}
             disabled={applying}
           >
             <span>{m.label}</span>
@@ -104,19 +159,16 @@ export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
           <div>
             <h3>{active?.label || '模块'}</h3>
             <p className="config-module-keys">
-              {dirty
-                ? '模块有未应用的变更，切换 Tab 时将自动应用。'
-                : '切换 Tab 时自动应用变更；也可手动点击应用。'}
+              修改后会自动合并到草稿 YAML，可用「查看变更」「校验」确认后再保存或发布。
             </p>
           </div>
-          <button
-            type="button"
-            className={`btn ${dirty ? 'btn-primary' : ''}`}
-            disabled={!dirty || applying}
-            onClick={applyModule}
+          <span
+            className={`config-module-sync ${dirty ? 'config-module-sync--pending' : ''} ${applying ? 'config-module-sync--busy' : ''}`}
+            role="status"
+            aria-live="polite"
           >
-            {applying ? '应用中…' : dirty ? '应用模块' : '已保存'}
-          </button>
+            {syncLabel}
+          </span>
         </div>
         <ConfigModuleForm
           moduleId={activeId}
@@ -125,12 +177,10 @@ export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
             setModuleYAML(yaml)
             setDirty(true)
             dirtyRef.current = true
+            scheduleAutoApply()
           }}
           onSwitchToYaml={onSwitchToYaml}
         />
-        <p className="config-module-hint">
-          修改表单后切换左侧模块 Tab、或点击「保存到 YAML」/「发布」时将自动应用变更。
-        </p>
       </div>
     </div>
   )

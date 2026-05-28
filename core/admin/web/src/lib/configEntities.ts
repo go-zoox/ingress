@@ -151,6 +151,11 @@ export type CachePathRuleForm = {
   action: 'cache' | 'bypass'
   ttl: number
   max_body_bytes: number
+  /** Path-level HTTP methods (e.g. POST). Empty inherits backend.cache.methods. */
+  methods: string[]
+  /** Dot paths into request JSON for cache fingerprint when POST is selected. */
+  key_json: string[]
+  key_body_max_bytes: number
 }
 
 export function emptyCachePathRule(): CachePathRuleForm {
@@ -160,7 +165,14 @@ export function emptyCachePathRule(): CachePathRuleForm {
     action: 'cache',
     ttl: 0,
     max_body_bytes: 0,
+    methods: [],
+    key_json: [],
+    key_body_max_bytes: 0,
   }
+}
+
+function splitConfigList(s: string): string[] {
+  return s.split(/[,\n]/).map((x) => x.trim()).filter(Boolean)
 }
 
 function cachePathRulesToForm(cache: Record<string, unknown>): CachePathRuleForm[] {
@@ -170,6 +182,9 @@ function cachePathRulesToForm(cache: Record<string, unknown>): CachePathRuleForm
     action: str(row.action, 'cache') === 'bypass' ? 'bypass' : 'cache',
     ttl: num(row.ttl, 0),
     max_body_bytes: num(row.max_body_bytes, 0),
+    methods: arr<string>(row.methods).map((m) => m.toUpperCase()),
+    key_json: arr<string>(row.key_json),
+    key_body_max_bytes: num(row.key_body_max_bytes, 0),
   }))
 }
 
@@ -623,7 +638,9 @@ function buildCache(form: BackendForm, original?: Record<string, unknown>): Reco
   if (keyHeaders.length) cache.key_headers = keyHeaders
   else delete cache.key_headers
 
-  const methods = form.cache_methods.split(',').map((s) => s.trim()).filter(Boolean)
+  const methods = splitConfigList(form.cache_methods)
+    .map((m) => m.toUpperCase())
+    .filter((m) => m !== 'POST')
   if (methods.length) cache.methods = methods
   else delete cache.methods
 
@@ -634,6 +651,9 @@ function buildCache(form: BackendForm, original?: Record<string, unknown>): Reco
       action: r.action,
       ttl: r.ttl,
       max_body_bytes: r.max_body_bytes,
+      methods: r.methods.map((m) => m.toUpperCase()).filter(Boolean),
+      key_json: r.key_json.map((p) => p.trim()).filter(Boolean),
+      key_body_max_bytes: r.key_body_max_bytes,
     }))
     .filter((r) => r.match !== '')
   if (pathRules.length) {
@@ -645,6 +665,9 @@ function buildCache(form: BackendForm, original?: Record<string, unknown>): Reco
       if (r.match_type && r.match_type !== 'auto') row.match_type = r.match_type
       if (r.ttl > 0) row.ttl = r.ttl
       if (r.max_body_bytes > 0) row.max_body_bytes = r.max_body_bytes
+      if (r.methods.length) row.methods = r.methods
+      if (r.key_json.length) row.key_json = r.key_json
+      if (r.key_body_max_bytes > 0) row.key_body_max_bytes = r.key_body_max_bytes
       return row
     })
     if (form.cache_default === 'bypass') cache.default = 'bypass'

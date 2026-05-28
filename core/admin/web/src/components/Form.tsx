@@ -144,6 +144,63 @@ export function FormSelectField({
   )
 }
 
+/** Checkbox multi-select in a dropdown panel (details/summary). */
+export function FormMultiSelectField({
+  label,
+  keyName,
+  hint,
+  options,
+  value,
+  onChange,
+  placeholder = '点击选择…',
+}: {
+  label: string
+  keyName?: string
+  hint?: string
+  options: readonly string[]
+  value: string[]
+  onChange: (next: string[]) => void
+  placeholder?: string
+}) {
+  const selected = value.map((v) => v.toUpperCase())
+  const summary =
+    selected.length > 0 ? selected.join(', ') : placeholder
+
+  const toggle = (opt: string, checked: boolean) => {
+    const u = opt.toUpperCase()
+    if (checked) {
+      if (selected.includes(u)) return
+      onChange([...selected, u])
+      return
+    }
+    onChange(selected.filter((x) => x !== u))
+  }
+
+  return (
+    <FormItem label={label} keyName={keyName} hint={hint}>
+      <details className="form-multi-select">
+        <summary className="form-control form-multi-select-summary">{summary}</summary>
+        <div className="form-multi-select-panel">
+          {options.map((opt) => {
+            const u = opt.toUpperCase()
+            return (
+              <label key={opt} className="form-check form-check--inline">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(u)}
+                  onChange={(e) => toggle(opt, e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <span>{opt}</span>
+              </label>
+            )
+          })}
+        </div>
+      </details>
+    </FormItem>
+  )
+}
+
 /** Link FormItem label to a control when the control manages its own id. */
 export function useFormControlId() {
   return useId()

@@ -148,7 +148,20 @@ Ingress 缓存：
 
 配置了 **`paths`** 时，Ingress **按列表顺序**匹配（先匹配先生效）。每条规则可对路径 **`cache`** 或 **`bypass`** HTTP 响应缓存；未命中任何规则的路径遵循 **`default`**（`cache` 或 `bypass`；默认 **`cache`**）。规则上可选 **`ttl`**、**`max_body_bytes`** 覆盖 backend 默认值。省略 **`paths`** 时与旧行为一致：该 backend 下所有路径在 `enabled: true` 时参与缓存。
 
-字段、绕过规则与默认值见 [配置参考 — `backend.cache`](configuration.md#backendcache-http-响应缓存)。可运行示例：[`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml)、Redis 存储：[`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml)、路径规则：[`examples/advanced/http-response-cache-paths.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-paths.yaml)。
+### POST + JSON 缓存键（`key_json`）
+
+针对用 **POST + JSON** 做查询的遗留接口，应在 **`cache.paths`** 白名单路径上开启，**不要**在全局 `cache.methods` 写 POST：
+
+- 建议 **`default: bypass`**，仅列出的 API 走缓存。
+- 路径规则上配置 **`methods: [POST]`**、**`key_json: [点分路径]`**（如 `product.id`）。body 里多余的 `timestamp`、`traceId` 等不参与指纹。
+- 顶层 **`cache.methods` 不得包含 POST**（校验报错）。
+- 配置了 **`key_json`** 时使用缓存键前缀 **`httpcache:v2:`**（仅 GET 的规则仍为 **`httpcache:v1:`**）。
+- 读取 body 算键后会 **克隆并回放** 给上游，不影响反代。
+- 以下情况 **跳过缓存**（直接回源）：非 JSON、解析失败、任一 `key_json` 缺失或非标量、body 超过 **`key_body_max_bytes`**（配置 `key_json` 时默认 **65536**）、或 `{}` 且必填字段缺失。
+
+**service** 在允许的方法（含 POST）下可按既有规则 **写入** 上游响应缓存；**redirect** 的填充仍仅 **GET**。
+
+字段、绕过规则与默认值见 [配置参考 — `backend.cache`](configuration.md#backendcache-http-响应缓存)。可运行示例：[`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml)、Redis：[`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml)、路径规则：[`examples/advanced/http-response-cache-paths.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-paths.yaml)、POST + JSON：[`examples/advanced/http-response-cache-post-json.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-post-json.yaml)。
 
 ## 缓存失效
 

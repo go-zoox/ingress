@@ -10,7 +10,7 @@ import { DiffModal } from '../components/DiffModal'
 import { PreviewModal } from '../components/PreviewModal'
 import { PublishModal } from '../components/PublishModal'
 import { ToastContainer, useToast } from '../components/Toast'
-import { buildDiff, escapeHtml } from '../lib/config'
+import { buildDiff } from '../lib/config'
 import { useUndo } from '../hooks/useUndo'
 
 type ConfigView = 'modules' | 'yaml' | 'versions'
@@ -20,7 +20,8 @@ export function ConfigPage() {
   const [saved, setSaved] = useState('')
   const [path, setPath] = useState('')
   const [view, setView] = useState<ConfigView>('modules')
-  const [validateOut, setValidateOut] = useState('')
+  const [validateState, setValidateState] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle')
+  const [validateMessage, setValidateMessage] = useState('')
   const [err, setErr] = useState('')
   const [publishOpen, setPublishOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -68,14 +69,16 @@ export function ConfigPage() {
         const val = undoState.undo()
         if (val !== '') {
           setContent(val)
-          setValidateOut('')
+          setValidateState('idle')
+          setValidateMessage('')
         }
       } else if (isRedo) {
         e.preventDefault()
         const val = undoState.redo()
         if (val !== '') {
           setContent(val)
-          setValidateOut('')
+          setValidateState('idle')
+          setValidateMessage('')
         }
       }
     }
@@ -84,25 +87,49 @@ export function ConfigPage() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [view, undoState])
 
-  const validate = () => {
+  const clearValidate = () => {
+    setValidateState('idle')
+    setValidateMessage('')
+  }
+
+  const validate = async () => {
     setErr('')
-    setValidateOut('')
-    api
-      .validateConfig(content)
-      .then(() => setValidateOut('<p class="validate-ok">✓ 校验通过</p>'))
-      .catch((e: Error) => {
-        setValidateOut('<p class="validate-err">' + escapeHtml(e.message) + '</p>')
-      })
+    setValidateState('loading')
+    setValidateMessage('')
+    try {
+      const merged = await modulesRef.current?.autoApplyIfDirty()
+      const yamlToValidate = merged ?? content
+      if (merged != null && merged !== content) {
+        setContent(merged)
+        undoState.push(merged)
+      }
+      await api.validateConfig(yamlToValidate)
+      setValidateState('ok')
+      setValidateMessage('配置校验通过，可以保存或发布。')
+      show('配置校验通过', 'success')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setValidateState('err')
+      setValidateMessage(msg)
+      setErr(msg)
+      show(msg, 'error')
+    }
   }
 
   const save = async () => {
     setErr('')
     try {
-      await modulesRef.current?.autoApplyIfDirty()
-      await api.validateConfig(content)
-      await api.putConfig(content, 'save')
-      setSaved(content)
-      undoState.reset(content)
+      const merged = await modulesRef.current?.autoApplyIfDirty()
+      const yaml = merged ?? content
+      if (merged != null && merged !== content) {
+        setContent(merged)
+        undoState.push(merged)
+      }
+      await api.validateConfig(yaml)
+      await api.putConfig(yaml, 'save')
+      setSaved(yaml)
+      undoState.reset(yaml)
+      clearValidate()
       show('已保存到 ' + path)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -111,10 +138,22 @@ export function ConfigPage() {
     }
   }
 
-  const showDiff = () => {
-    setDiffTitle('配置变更（草稿 vs 已发布）')
-    setDiffHtml(buildDiff(saved, content))
-    setDiffOpen(true)
+  const showDiff = async () => {
+    try {
+      const merged = await modulesRef.current?.autoApplyIfDirty()
+      const draft = merged ?? content
+      if (merged != null && merged !== content) {
+        setContent(merged)
+        undoState.push(merged)
+      }
+      setDiffTitle('配置变更（草稿 vs 已发布）')
+      setDiffHtml(buildDiff(saved, draft))
+      setDiffOpen(true)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setErr(msg)
+      show(msg, 'error')
+    }
   }
 
   const compareRevision = async (revision: ConfigRevisionSummary) => {
@@ -127,7 +166,7 @@ export function ConfigPage() {
   const restoreDraft = (next: string) => {
     setContent(next)
     undoState.reset(next)
-    setValidateOut('')
+    clearValidate()
     show('已加载历史版本到草稿（尚未保存）')
     setView('yaml')
   }
@@ -200,7 +239,7 @@ export function ConfigPage() {
                 const val = undoState.undo()
                 if (val !== '') {
                   setContent(val)
-                  setValidateOut('')
+                  clearValidate()
                 }
               }}
               title="撤销 (Ctrl+Z)"
@@ -215,20 +254,42 @@ export function ConfigPage() {
                 const val = undoState.redo()
                 if (val !== '') {
                   setContent(val)
-                  setValidateOut('')
+                  clearValidate()
                 }
               }}
               title="重做 (Ctrl+Shift+Z)"
             >
               ↪ 重做
             </button>
-            <button type="button" className="btn" onClick={validate}>
-              校验
+            <button
+              type="button"
+              className="btn"
+              disabled={validateState === 'loading'}
+              onClick={() => void validate()}
+            >
+              {validateState === 'loading' ? '校验中…' : '校验'}
             </button>
-            <button type="button" className="btn" onClick={showDiff}>
+            <button type="button" className="btn" onClick={() => void showDiff()}>
               查看变更
             </button>
-            <button type="button" className="btn" onClick={() => setPreviewOpen(true)}>
+            <button
+              type="button"
+              className="btn"
+              onClick={async () => {
+                try {
+                  const merged = await modulesRef.current?.autoApplyIfDirty()
+                  if (merged != null && merged !== content) {
+                    setContent(merged)
+                    undoState.push(merged)
+                  }
+                  setPreviewOpen(true)
+                } catch (e: unknown) {
+                  const msg = e instanceof Error ? e.message : String(e)
+                  setErr(msg)
+                  show(msg, 'error')
+                }
+              }}
+            >
               预览
             </button>
             <button type="button" className="btn" onClick={save}>
@@ -242,6 +303,21 @@ export function ConfigPage() {
             </button>
           </div>
         </div>
+        {(validateState === 'loading' || validateState === 'ok' || validateState === 'err') && (
+          <div
+            className={`config-validate-banner config-validate-banner--${validateState}`}
+            role="status"
+            aria-live="polite"
+          >
+            {validateState === 'loading' && <p className="config-validate-banner-text">正在校验配置…</p>}
+            {validateState === 'ok' && (
+              <p className="validate-ok config-validate-banner-text">✓ {validateMessage}</p>
+            )}
+            {validateState === 'err' && (
+              <pre className="validate-err config-validate-banner-text">{validateMessage}</pre>
+            )}
+          </div>
+        )}
         <div className="panel-body">
           {view === 'modules' && (
             <ConfigModulesPanel
@@ -250,7 +326,7 @@ export function ConfigPage() {
               onContentChange={(next) => {
                 setContent(next)
                 undoState.push(next)
-                if (loaded.current) setValidateOut('')
+                if (loaded.current) clearValidate()
               }}
               onError={setErr}
               onSwitchToYaml={() => setView('yaml')}
@@ -266,10 +342,9 @@ export function ConfigPage() {
                   const val = e.target.value
                   setContent(val)
                   undoState.push(val)
-                  if (loaded.current) setValidateOut('')
+                  if (loaded.current) clearValidate()
                 }}
               />
-              <div style={{ marginTop: 12 }} dangerouslySetInnerHTML={{ __html: validateOut }} />
             </>
           )}
           {view === 'versions' && (

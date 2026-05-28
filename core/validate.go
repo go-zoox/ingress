@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -199,8 +200,12 @@ func validateBackendCache(cache rule.BackendCache, ruleIdx int, host, pathPatter
 		return fmt.Errorf("%s: backend.cache.max_body_bytes must be >= 0", loc)
 	}
 	for _, m := range cache.Methods {
-		if strings.TrimSpace(m) == "" {
+		m = strings.ToUpper(strings.TrimSpace(m))
+		if m == "" {
 			return fmt.Errorf("%s: backend.cache.methods entries must be non-empty", loc)
+		}
+		if m == http.MethodPost {
+			return fmt.Errorf("%s: backend.cache.methods must not include POST; use cache.paths[].methods and key_json", loc)
 		}
 	}
 	for _, h := range cache.KeyHeaders {
@@ -242,6 +247,43 @@ func validateBackendCache(cache rule.BackendCache, ruleIdx int, host, pathPatter
 		}
 		if pr.MaxBodyBytes < 0 {
 			return fmt.Errorf("%s: backend.cache.paths[%d].max_body_bytes must be >= 0", loc, i)
+		}
+		if pr.KeyBodyMaxBytes < 0 {
+			return fmt.Errorf("%s: backend.cache.paths[%d].key_body_max_bytes must be >= 0", loc, i)
+		}
+		if pr.KeyBodyMaxBytes > maxHTTPCacheKeyBodyMaxBytes {
+			return fmt.Errorf("%s: backend.cache.paths[%d].key_body_max_bytes must be <= %d", loc, i, maxHTTPCacheKeyBodyMaxBytes)
+		}
+		keyJSON := make([]string, 0, len(pr.KeyJSON))
+		for j, p := range pr.KeyJSON {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				return fmt.Errorf("%s: backend.cache.paths[%d].key_json[%d] must be non-empty", loc, i, j)
+			}
+			if err := validateKeyJSONDotPath(p); err != nil {
+				return fmt.Errorf("%s: backend.cache.paths[%d].key_json[%d]: %w", loc, i, j, err)
+			}
+			keyJSON = append(keyJSON, p)
+		}
+		if len(keyJSON) > 0 && action != cachePathActionCache {
+			return fmt.Errorf("%s: backend.cache.paths[%d].key_json requires action cache", loc, i)
+		}
+		effMethods := effectiveCacheMethodsForPathRule(pr, cache.Methods)
+		if len(keyJSON) > 0 && !methodSetIncludes(effMethods, http.MethodPost) {
+			return fmt.Errorf("%s: backend.cache.paths[%d].key_json requires paths[%d].methods to include POST", loc, i, i)
+		}
+		pathMethods := normalizeCacheMethodsList(pr.Methods)
+		if len(pathMethods) > 0 && len(keyJSON) == 0 {
+			postOnly := true
+			for _, m := range pathMethods {
+				if m != http.MethodPost {
+					postOnly = false
+					break
+				}
+			}
+			if postOnly {
+				return fmt.Errorf("%s: backend.cache.paths[%d].methods includes POST but key_json is empty", loc, i)
+			}
 		}
 	}
 	if err := compileBackendCachePathRules(&cache); err != nil {
