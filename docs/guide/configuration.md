@@ -288,8 +288,22 @@ Effective **`internal` / `external`** for **`Host`** rewrite is **`backend.servi
 | `ignore_response_private` | bool | Allow storing `Cache-Control: private` responses | `false` |
 | `skip_when_set_cookie` | bool | When **true** (default), do not store responses that include **`Set-Cookie`**; set **`false`** only in advanced cases (risk of caching personalized/session responses). | `true` |
 | `skip_vary` | bool | When **true**, allow storing responses with **`Vary`** (unsafe unless the origin is single-variant for this URL); **`Vary` is omitted** from stored entries and **not sent** on cache hits | `false` |
+| `default` | string | When **`paths`** is non-empty: behavior for requests that match **no** rule — `cache` or `bypass` | `cache` |
+| `paths` | array | Ordered path rules (**first match wins**); see below | — |
 
-Examples: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml) (in-memory `ctx.Cache()`), [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml) (Redis + `backend.cache`).
+**`backend.cache.paths[]`** (optional):
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `match` | string | Path pattern (required) | — |
+| `match_type` | string | `auto`, `prefix`, `exact`, or `regex` | `auto` |
+| `action` | string | `cache` (read/write cache) or `bypass` (skip cache entirely) | `cache` |
+| `ttl` | int | Override backend `ttl` for this rule when `action: cache` and `> 0` | inherit |
+| `max_body_bytes` | int | Override backend `max_body_bytes` for this rule when `action: cache` and `> 0` | inherit |
+
+**`match_type: auto`** (same idea as `host_type: auto`): regexp metacharacters `( ) [ ] ^ $ | + ? \` → **regex**; trailing `/` → **prefix**; otherwise **exact**. Rules are evaluated top to bottom; put narrower patterns before broader ones (e.g. bypass `/static/private` before cache `/static/`). When **`paths` is omitted**, all paths on the backend use cache when `enabled: true` (unchanged).
+
+Examples: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml) (in-memory `ctx.Cache()`), [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml) (Redis + `backend.cache`), [`examples/advanced/http-response-cache-paths.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-paths.yaml) (per-path rules).
 
 See `core/rule/backend_cache.go`, `core/http_cache.go`, and `core/build.go`.
 

@@ -105,6 +105,8 @@ export type BackendForm = {
   cache_honor_pragma_no_cache: boolean
   cache_key_headers: string
   cache_methods: string
+  cache_default: 'cache' | 'bypass'
+  cache_path_rules: CachePathRuleForm[]
   // auth fields
   auth_enabled: boolean | undefined  // undefined = not set (default by type), true = explicit enable, false = explicit disable
   auth_type: AuthFormType
@@ -142,6 +144,34 @@ export type BackendForm = {
 export type PathForm = {
   path: string
 } & BackendForm
+
+export type CachePathRuleForm = {
+  match: string
+  match_type: 'auto' | 'prefix' | 'exact' | 'regex' | ''
+  action: 'cache' | 'bypass'
+  ttl: number
+  max_body_bytes: number
+}
+
+export function emptyCachePathRule(): CachePathRuleForm {
+  return {
+    match: '',
+    match_type: 'auto',
+    action: 'cache',
+    ttl: 0,
+    max_body_bytes: 0,
+  }
+}
+
+function cachePathRulesToForm(cache: Record<string, unknown>): CachePathRuleForm[] {
+  return arr<Record<string, unknown>>(cache.paths).map((row) => ({
+    match: str(row.match),
+    match_type: (str(row.match_type, 'auto') || 'auto') as CachePathRuleForm['match_type'],
+    action: str(row.action, 'cache') === 'bypass' ? 'bypass' : 'cache',
+    ttl: num(row.ttl, 0),
+    max_body_bytes: num(row.max_body_bytes, 0),
+  }))
+}
 
 export type RuleForm = {
   host: string
@@ -250,10 +280,13 @@ function cacheToForm(backend: Record<string, unknown>): Pick<
   | 'cache_honor_pragma_no_cache'
   | 'cache_key_headers'
   | 'cache_methods'
+  | 'cache_default'
+  | 'cache_path_rules'
 > {
   const c = obj(backend.cache)
   const keyHeaders = arr<string>(c.key_headers)
   const methods = arr<string>(c.methods)
+  const defaultAction = str(c.default, 'cache')
   return {
     cache_enabled: bool(c.enabled),
     cache_ttl: num(c.ttl, 300),
@@ -265,6 +298,8 @@ function cacheToForm(backend: Record<string, unknown>): Pick<
     cache_honor_pragma_no_cache: c.honor_pragma_no_cache === undefined ? true : bool(c.honor_pragma_no_cache, true),
     cache_key_headers: keyHeaders.join(', '),
     cache_methods: methods.length ? methods.join(', ') : '',
+    cache_default: defaultAction === 'bypass' ? 'bypass' : 'cache',
+    cache_path_rules: cachePathRulesToForm(c),
   }
 }
 
@@ -451,6 +486,8 @@ export function emptyBackendForm(): BackendForm {
     cache_honor_pragma_no_cache: true,
     cache_key_headers: '',
     cache_methods: '',
+    cache_default: 'cache',
+    cache_path_rules: [],
     auth_enabled: undefined,
     auth_type: '' as AuthFormType,
     auth_basic_users: [],
@@ -589,6 +626,33 @@ function buildCache(form: BackendForm, original?: Record<string, unknown>): Reco
   const methods = form.cache_methods.split(',').map((s) => s.trim()).filter(Boolean)
   if (methods.length) cache.methods = methods
   else delete cache.methods
+
+  const pathRules = form.cache_path_rules
+    .map((r) => ({
+      match: r.match.trim(),
+      match_type: r.match_type,
+      action: r.action,
+      ttl: r.ttl,
+      max_body_bytes: r.max_body_bytes,
+    }))
+    .filter((r) => r.match !== '')
+  if (pathRules.length) {
+    cache.paths = pathRules.map((r) => {
+      const row: Record<string, unknown> = {
+        match: r.match,
+        action: r.action,
+      }
+      if (r.match_type && r.match_type !== 'auto') row.match_type = r.match_type
+      if (r.ttl > 0) row.ttl = r.ttl
+      if (r.max_body_bytes > 0) row.max_body_bytes = r.max_body_bytes
+      return row
+    })
+    if (form.cache_default === 'bypass') cache.default = 'bypass'
+    else delete cache.default
+  } else {
+    delete cache.paths
+    delete cache.default
+  }
 
   return cache
 }
@@ -824,7 +888,11 @@ export function backendSummary(backend: Record<string, unknown>): string {
   }
   else if (redirect.url) base = `redirect → ${str(redirect.url)}`
   else base = str(backend.type, 'service')
-  if (bool(cache.enabled)) base += ` · cache ${num(cache.ttl, 300)}s`
+  if (bool(cache.enabled)) {
+    base += ` · cache ${num(cache.ttl, 300)}s`
+    const paths = arr<unknown>(cache.paths)
+    if (paths.length) base += ` · ${paths.length} path rules`
+  }
   const auth = obj(service.auth)
   const authType = str(auth.type)
   if (authType === 'basic') base += ' · auth:basic'

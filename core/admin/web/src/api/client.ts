@@ -526,6 +526,8 @@ export type RouteDetail = {
     ttl: number
     max_body_kb: number
     key_hash: string
+    default?: string
+    path_rules?: number
   } | null
   health_check: {
     enabled: boolean

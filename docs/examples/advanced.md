@@ -42,6 +42,10 @@ Per-backend response caching (proxy, handler, **and** redirect) uses the same `c
 
 <<< @/../examples/advanced/http-response-cache.yaml
 
+Per-path **`cache` / `bypass`** rules (`default`, ordered **`paths[]`**, optional per-rule TTL):
+
+<<< @/../examples/advanced/http-response-cache-paths.yaml
+
 ## Application cache engine (memory / Redis)
 
 Top-level **`cache`** selects Redis or in-memory storage for matcher data **and** HTTP cache entries. The sample below adds **`backend.cache`** on a **service** backend so response bodies can be shared across instances when Redis is enabled.

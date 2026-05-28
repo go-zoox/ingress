@@ -4,7 +4,8 @@ import {
   FormSection,
   FormSelectField,
 } from '../Form'
-import type { BackendForm } from '../../lib/configEntities'
+import type { BackendForm, CachePathRuleForm } from '../../lib/configEntities'
+import { emptyCachePathRule } from '../../lib/configEntities'
 
 export function BackendCacheFormFields<T extends BackendForm>({
   form,
@@ -19,6 +20,13 @@ export function BackendCacheFormFields<T extends BackendForm>({
     const next = { ...form }
     fn(next)
     onChange(next)
+  }
+
+  const updatePathRule = (idx: number, fn: (row: CachePathRuleForm) => void) => {
+    const rules = [...form.cache_path_rules]
+    rules[idx] = { ...rules[idx] }
+    fn(rules[idx])
+    patch((n) => { n.cache_path_rules = rules })
   }
 
   return (
@@ -89,6 +97,100 @@ export function BackendCacheFormFields<T extends BackendForm>({
             value={form.cache_methods}
             onChange={(e) => patch((n) => { n.cache_methods = e.target.value })}
           />
+
+          <FormSection title="路径规则 cache.paths（可选，自上而下先匹配先生效）">
+            <FormSelectField
+              label="未命中任何规则时 default"
+              keyName={`${idPrefix}cache.default`}
+              value={form.cache_default}
+              onChange={(e) => patch((n) => {
+                n.cache_default = e.target.value === 'bypass' ? 'bypass' : 'cache'
+              })}
+            >
+              <option value="cache">cache（缓存）</option>
+              <option value="bypass">bypass（跳过缓存）</option>
+            </FormSelectField>
+            <p className="form-hint">
+              留空规则列表时，该 backend 下所有路径在启用缓存时均参与缓存（与旧行为一致）。
+            </p>
+            {form.cache_path_rules.map((row, idx) => (
+              <div key={idx} className="form-section" style={{ marginTop: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                  <strong>规则 #{idx + 1}</strong>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => {
+                      patch((n) => {
+                        n.cache_path_rules = n.cache_path_rules.filter((_, i) => i !== idx)
+                      })
+                    }}
+                  >
+                    删除
+                  </button>
+                </div>
+                <FormField
+                  label="match"
+                  keyName={`${idPrefix}cache.paths[${idx}].match`}
+                  hint="路径模式，如 /static/ 或 ^/api/v[0-9]+/public/"
+                  value={row.match}
+                  onChange={(e) => updatePathRule(idx, (r) => { r.match = e.target.value })}
+                />
+                <FormSelectField
+                  label="match_type"
+                  keyName={`${idPrefix}cache.paths[${idx}].match_type`}
+                  value={row.match_type || 'auto'}
+                  onChange={(e) => updatePathRule(idx, (r) => {
+                    r.match_type = e.target.value as CachePathRuleForm['match_type']
+                  })}
+                >
+                  <option value="auto">auto</option>
+                  <option value="prefix">prefix</option>
+                  <option value="exact">exact</option>
+                  <option value="regex">regex</option>
+                </FormSelectField>
+                <FormSelectField
+                  label="action"
+                  keyName={`${idPrefix}cache.paths[${idx}].action`}
+                  value={row.action}
+                  onChange={(e) => updatePathRule(idx, (r) => {
+                    r.action = e.target.value === 'bypass' ? 'bypass' : 'cache'
+                  })}
+                >
+                  <option value="cache">cache</option>
+                  <option value="bypass">bypass</option>
+                </FormSelectField>
+                {row.action === 'cache' && (
+                  <>
+                    <FormField
+                      label="ttl 覆盖（秒，0=继承 backend TTL）"
+                      keyName={`${idPrefix}cache.paths[${idx}].ttl`}
+                      type="number"
+                      value={row.ttl}
+                      onChange={(e) => updatePathRule(idx, (r) => { r.ttl = Number(e.target.value) })}
+                    />
+                    <FormField
+                      label="max_body_bytes 覆盖（0=继承）"
+                      keyName={`${idPrefix}cache.paths[${idx}].max_body_bytes`}
+                      type="number"
+                      value={row.max_body_bytes}
+                      onChange={(e) => updatePathRule(idx, (r) => { r.max_body_bytes = Number(e.target.value) })}
+                    />
+                  </>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => patch((n) => {
+                n.cache_path_rules = [...n.cache_path_rules, emptyCachePathRule()]
+              })}
+            >
+              + 添加路径规则
+            </button>
+          </FormSection>
+
           <p className="form-hint">
             适用于 service / handler / redirect backend；需顶层 <code>cache</code> 引擎（Redis/内存）。
             命中时访问日志附加 <code>cache_hit=1</code>。

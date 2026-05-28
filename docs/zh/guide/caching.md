@@ -144,7 +144,11 @@ Ingress 缓存：
 
 **为何不存某些响应：** 默认 **不缓存**带非空 **`Vary`** 的响应（未按 `Vary` 拆子键）。若 **`cache.skip_vary: true`**，则写入/命中时**不保留**、**不下发** `Vary`。另：在 **`skip_when_set_cookie: true`**（默认）时会跳过含 **`Set-Cookie`** 的响应。许多 httpbin 接口带 **`Vary: Origin`**；若可接受「单变体」共享缓存，可显式开启 **`skip_vary`**（见 [配置说明](configuration.md#backendcache-http-响应缓存)）。
 
-字段、绕过规则与默认值见 [配置参考 — `backend.cache`](configuration.md#backendcache-http-响应缓存)。可运行示例：[`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml)、Redis 存储：[`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml)。
+### 按路径规则（`backend.cache.paths`）
+
+配置了 **`paths`** 时，Ingress **按列表顺序**匹配（先匹配先生效）。每条规则可对路径 **`cache`** 或 **`bypass`** HTTP 响应缓存；未命中任何规则的路径遵循 **`default`**（`cache` 或 `bypass`；默认 **`cache`**）。规则上可选 **`ttl`**、**`max_body_bytes`** 覆盖 backend 默认值。省略 **`paths`** 时与旧行为一致：该 backend 下所有路径在 `enabled: true` 时参与缓存。
+
+字段、绕过规则与默认值见 [配置参考 — `backend.cache`](configuration.md#backendcache-http-响应缓存)。可运行示例：[`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml)、Redis 存储：[`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml)、路径规则：[`examples/advanced/http-response-cache-paths.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-paths.yaml)。
 
 ## 缓存失效
 

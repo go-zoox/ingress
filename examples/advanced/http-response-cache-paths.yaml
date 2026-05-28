@@ -1,0 +1,67 @@
+# Per-path HTTP response cache rules (`backend.cache.paths`).
+#
+# When `paths` is non-empty, rules are evaluated in order (first match wins).
+# Unmatched paths follow `default` (`cache` or `bypass`; default `cache`).
+#
+# Validate:
+#   ingress validate -c examples/advanced/http-response-cache-paths.yaml
+#
+# Demo (handler on /cached only — repeat GET to see cache_hit=1):
+#   ingress run -c examples/advanced/http-response-cache-paths.yaml
+#   curl -s -H "Host: paths-demo.example.com" http://127.0.0.1:8080/cached
+#   curl -s -H "Host: paths-demo.example.com" http://127.0.0.1:8080/cached
+#   curl -s -H "Host: paths-demo.example.com" http://127.0.0.1:8080/live   # never cached
+
+version: v1
+port: 8080
+
+cache:
+  ttl: 300
+
+rules:
+  - host: paths-demo.example.com
+    backend:
+      type: handler
+      handler:
+        headers:
+          Content-Type: text/plain; charset=utf-8
+        body: |
+          Dynamic handler — path rules decide whether backend.cache applies.
+      cache:
+        enabled: true
+        ttl: 300
+        default: bypass
+        paths:
+          - match: /cached
+            match_type: exact
+            action: cache
+            ttl: 60
+          - match: /static/
+            match_type: prefix
+            action: cache
+            ttl: 3600
+          - match: ^/api/v[0-9]+/public/
+            match_type: regex
+            action: cache
+          - match: /health
+            action: bypass
+
+  # Same upstream, whitelist-only caching with per-path TTL
+  - host: api-selective.example.com
+    backend:
+      service:
+        name: backend.internal
+        port: 8080
+      cache:
+        enabled: true
+        ttl: 120
+        default: bypass
+        paths:
+          - match: /assets/
+            match_type: prefix
+            action: cache
+            ttl: 86400
+            max_body_bytes: 5242880
+          - match: /api/public/
+            match_type: prefix
+            action: cache

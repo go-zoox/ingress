@@ -270,8 +270,22 @@ rules:
 | `ignore_response_private` | bool | 是否允许缓存标为 `Cache-Control: private` 的响应 | `false` |
 | `skip_when_set_cookie` | bool | 为 **true**（默认）时，**不缓存**含 **`Set-Cookie`** 的响应；仅在高阶场景下可设为 `false`（可能缓存到带会话的个性化内容，需谨慎）。 | `true` |
 | `skip_vary` | bool | 为 **true** 时允许缓存带 **`Vary`** 的响应（**不写入**也**不返回** `Vary` 头）；仅当上游对该 URL 实际可视为单变体时使用 | `false` |
+| `default` | string | 配置了 **`paths`** 时，未命中任何规则的路径：`cache` 或 `bypass` | `cache` |
+| `paths` | array | 有序路径规则（**先匹配先生效**）；见下表 | — |
 
-示例：[`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml)（内存 `ctx.Cache()`）、[`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml)（Redis + `backend.cache`）。
+**`backend.cache.paths[]`**（可选）：
+
+| 字段 | 类型 | 描述 | 默认值 |
+|------|------|------|--------|
+| `match` | string | 路径模式（必填） | — |
+| `match_type` | string | `auto`、`prefix`、`exact` 或 `regex` | `auto` |
+| `action` | string | `cache`（读写缓存）或 `bypass`（完全跳过缓存） | `cache` |
+| `ttl` | int | `action: cache` 且 `> 0` 时覆盖 backend 的 `ttl` | 继承 |
+| `max_body_bytes` | int | `action: cache` 且 `> 0` 时覆盖 backend 的 `max_body_bytes` | 继承 |
+
+**`match_type: auto`**（与 `host_type: auto` 同类推断）：含 `( ) [ ] ^ $ | + ? \` → **regex**；以 `/` 结尾 → **prefix**；否则 **exact**。规则按列表顺序匹配；更窄的模式应写在更宽的前面（例如先 `bypass` `/static/private`，再 `cache` `/static/`）。**未配置 `paths`** 时，行为与原先一致：`enabled: true` 则该 backend 下所有路径参与缓存。
+
+示例：[`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml)（内存 `ctx.Cache()`）、[`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml)（Redis + `backend.cache`）、[`examples/advanced/http-response-cache-paths.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-paths.yaml)（按路径规则）。
 
 实现见 `core/rule/backend_cache.go`、`core/http_cache.go`、`core/build.go`。
 

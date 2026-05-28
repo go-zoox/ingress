@@ -149,7 +149,7 @@ func (c *core) build() error {
 		if hasRedirect {
 			// Optional HTTP cache: same fingerprint as handler/service; store GET redirects after URL expansion (see http_cache.go).
 			rb := effectiveRouteBackend(matchedRule, pathBackend)
-			policyRedirect := normalizeHTTPCache(rb.Cache)
+			policyRedirect := httpCachePolicyForRequest(path, normalizeHTTPCache(rb.Cache))
 			var redirectCacheKey string
 			redirectCacheStart := time.Now()
 			var mayStoreRedirect bool
@@ -227,7 +227,7 @@ func (c *core) build() error {
 			}
 
 			rb := effectiveRouteBackend(matchedRule, pathBackend)
-			policyHandler := normalizeHTTPCache(rb.Cache)
+			policyHandler := httpCachePolicyForRequest(path, normalizeHTTPCache(rb.Cache))
 			var handlerCacheKey string
 			var captureBuf *bytes.Buffer
 			handlerCacheStart := time.Now()
@@ -473,7 +473,7 @@ func (c *core) build() error {
 
 		// Service HTTP cache: read before RoundTrip; write in OnResponse after buffering (GET upstream responses only for populate).
 		routeBackend := effectiveRouteBackend(matchedRule, pathBackend)
-		pc := normalizeHTTPCache(routeBackend.Cache)
+		pc := httpCachePolicyForRequest(path, normalizeHTTPCache(routeBackend.Cache))
 		var httpCacheStoreKey string
 		var httpCacheMayStore bool
 		if pc != nil {

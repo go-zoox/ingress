@@ -273,6 +273,9 @@ export function RouteDetailPage() {
                     <dd>
                       <span className="badge badge-exact">已启用</span>{' '}
                       TTL {detail.cache.ttl}s · {detail.cache.max_body_kb}KB 上限
+                      {detail.cache.path_rules ? (
+                        <> · {detail.cache.path_rules} 条路径规则（default={detail.cache.default || 'cache'}）</>
+                      ) : null}
                     </dd>
                   </>
                 )}

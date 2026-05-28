@@ -144,7 +144,11 @@ When **`cache.enabled: true`**:
 
 **Rationale for skipping some responses:** Ingress does **not** store responses with a non-empty **`Vary`** header unless **`cache.skip_vary: true`** (then **`Vary` is dropped** when storing and on cache hits). Without `skip_vary`, Ingress does not compute separate cache keys per `Vary`—see the [Configuration](configuration.md#backendcache-http-response-cache) note. It also skips responses that include **`Set-Cookie`** when **`skip_when_set_cookie`** is **true** (default), to avoid caching session-specific payloads. Many public httpbin endpoints return **`Vary: Origin`**, so they will not populate the cache unless you opt in with **`skip_vary`** and accept a single shared variant.
 
-Details, bypass rules, and field reference: [Configuration — `backend.cache`](configuration.md#backendcache-http-response-cache). Runnable YAML: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml), Redis-backed storage: [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml).
+### Per-path rules (`backend.cache.paths`)
+
+When **`paths`** is configured on a backend, Ingress evaluates rules **in order** (first match wins). Each rule can **`cache`** or **`bypass`** HTTP response caching for matching request paths. Unmatched paths follow **`default`** (`cache` or `bypass`; default **`cache`**). Optional per-rule **`ttl`** and **`max_body_bytes`** override the backend defaults for that path only. Omit **`paths`** to cache all paths on the backend (previous behavior).
+
+Details, bypass rules, and field reference: [Configuration — `backend.cache`](configuration.md#backendcache-http-response-cache). Runnable YAML: [`examples/advanced/http-response-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache.yaml), Redis-backed storage: [`examples/advanced/redis-cache.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/redis-cache.yaml), path rules: [`examples/advanced/http-response-cache-paths.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/advanced/http-response-cache-paths.yaml).
 
 ## Cache Invalidation
 

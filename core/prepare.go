@@ -41,6 +41,10 @@ func (c *core) prepare() error {
 		return fmt.Errorf("compile router: %w", err)
 	}
 
+	if err := compileAllBackendCachePathRules(c.cfg); err != nil {
+		return fmt.Errorf("compile backend.cache paths: %w", err)
+	}
+
 	c.wafByRuleIdx, c.wafFallback, err = waf.CompileIngress(c.cfg.WAF, c.cfg.Rules)
 	if err != nil {
 		return fmt.Errorf("compile waf: %w", err)

@@ -213,6 +213,40 @@ func validateBackendCache(cache rule.BackendCache, ruleIdx int, host, pathPatter
 			return fmt.Errorf("%s: backend.cache.bypass_request_directives entries must be non-empty", loc)
 		}
 	}
+	switch strings.ToLower(strings.TrimSpace(cache.Default)) {
+	case "", cachePathDefaultCache, cachePathDefaultBypass:
+	default:
+		return fmt.Errorf("%s: backend.cache.default must be cache or bypass", loc)
+	}
+	for i, pr := range cache.Paths {
+		if strings.TrimSpace(pr.Match) == "" {
+			return fmt.Errorf("%s: backend.cache.paths[%d].match must be non-empty", loc, i)
+		}
+		mt := strings.ToLower(strings.TrimSpace(pr.MatchType))
+		switch mt {
+		case "", cachePathMatchAuto, cachePathMatchPrefix, cachePathMatchExact, cachePathMatchRegex:
+		default:
+			return fmt.Errorf("%s: backend.cache.paths[%d].match_type must be auto, prefix, exact, or regex", loc, i)
+		}
+		action := strings.ToLower(strings.TrimSpace(pr.Action))
+		if action == "" {
+			action = cachePathActionCache
+		}
+		switch action {
+		case cachePathActionCache, cachePathActionBypass:
+		default:
+			return fmt.Errorf("%s: backend.cache.paths[%d].action must be cache or bypass", loc, i)
+		}
+		if pr.TTL < 0 {
+			return fmt.Errorf("%s: backend.cache.paths[%d].ttl must be >= 0", loc, i)
+		}
+		if pr.MaxBodyBytes < 0 {
+			return fmt.Errorf("%s: backend.cache.paths[%d].max_body_bytes must be >= 0", loc, i)
+		}
+	}
+	if err := compileBackendCachePathRules(&cache); err != nil {
+		return fmt.Errorf("%s: %w", loc, err)
+	}
 	return nil
 }
 

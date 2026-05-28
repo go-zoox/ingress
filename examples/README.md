@@ -26,6 +26,6 @@ Several files **mix explicit `backend.type` and omission on purpose** (for examp
 
 Compose production configs by merging patterns from these files; there is no longer a single monolithic sample in-repo.
 
-**HTTP response cache** (`backend.cache`): `examples/advanced/http-response-cache.yaml` (service/handler/redirect; live **`skip_vary`** demo against **`https://httpbin.zcorky.com`** on host `api-cached.httpbin.work`). **`cache` engine + Redis**: `examples/advanced/redis-cache.yaml`.
+**HTTP response cache** (`backend.cache`): `examples/advanced/http-response-cache.yaml` (service/handler/redirect; live **`skip_vary`** demo against **`https://httpbin.zcorky.com`** on host `api-cached.httpbin.work`). **Per-path rules**: `examples/advanced/http-response-cache-paths.yaml`. **`cache` engine + Redis**: `examples/advanced/redis-cache.yaml`.
 
 The documentation site (`docs/examples/`) embeds these files via VitePress code snippets so examples stay in one place.

@@ -179,12 +179,17 @@ func buildRouteDetail(ri, pi int, r *rule.Rule, path string, b rule.Backend, hea
 
 	// Cache info
 	if b.Cache.Enabled {
-		detail["cache"] = zoox.H{
+		cacheDetail := zoox.H{
 			"enabled":     true,
 			"ttl":         b.Cache.TTL,
 			"max_body_kb": b.Cache.MaxBodyBytes / 1024,
 			"key_hash":    b.Cache.KeyHash,
 		}
+		if len(b.Cache.Paths) > 0 {
+			cacheDetail["default"] = b.Cache.Default
+			cacheDetail["path_rules"] = len(b.Cache.Paths)
+		}
+		detail["cache"] = cacheDetail
 	} else {
 		detail["cache"] = nil
 	}

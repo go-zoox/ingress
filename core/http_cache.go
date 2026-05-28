@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,6 +47,17 @@ const (
 
 	httpCacheKeyHashMD5    = "md5"
 	httpCacheKeyHashSHA256 = "sha256"
+
+	cachePathMatchAuto   = "auto"
+	cachePathMatchPrefix = "prefix"
+	cachePathMatchExact  = "exact"
+	cachePathMatchRegex  = "regex"
+
+	cachePathActionCache  = "cache"
+	cachePathActionBypass = "bypass"
+
+	cachePathDefaultCache  = "cache"
+	cachePathDefaultBypass = "bypass"
 
 	// Hop-by-hop header names (lowercase; lookup uses CanonicalHeaderKey then strings.ToLower).
 	hopHeaderConnection         = "connection"
@@ -93,6 +105,8 @@ type httpCacheRuntime struct {
 	IgnorePrivate bool
 	SkipSetCookie bool
 	SkipVary      bool
+	PathDefaultCache bool
+	PathRules     []rule.BackendCachePathRuleCompiled
 }
 
 // effectiveRouteBackend returns the backend block that applies: path-level overrides host-level when present.
@@ -169,7 +183,181 @@ func normalizeHTTPCache(bc rule.BackendCache) *httpCacheRuntime {
 		IgnorePrivate: bc.IgnoreResponsePrivate,
 		SkipSetCookie: skipCookie,
 		SkipVary:      bc.SkipVary,
+		PathDefaultCache: httpCachePathDefaultAllowsCache(bc.Default),
+		PathRules:     append([]rule.BackendCachePathRuleCompiled(nil), bc.CompiledPathRules...),
 	}
+}
+
+func httpCachePathDefaultAllowsCache(defaultAction string) bool {
+	switch strings.ToLower(strings.TrimSpace(defaultAction)) {
+	case cachePathDefaultBypass:
+		return false
+	default:
+		return true
+	}
+}
+
+// compileBackendCachePathRules validates and compiles backend.cache.paths for runtime matching.
+func compileBackendCachePathRules(bc *rule.BackendCache) error {
+	if bc == nil || len(bc.Paths) == 0 {
+		bc.CompiledPathRules = nil
+		return nil
+	}
+	out := make([]rule.BackendCachePathRuleCompiled, 0, len(bc.Paths))
+	for i, pr := range bc.Paths {
+		match := strings.TrimSpace(pr.Match)
+		if match == "" {
+			return fmt.Errorf("backend.cache.paths[%d].match must be non-empty", i)
+		}
+		matchType := effectiveCachePathMatchType(pr.MatchType, match)
+		action := strings.ToLower(strings.TrimSpace(pr.Action))
+		if action == "" {
+			action = cachePathActionCache
+		}
+		switch action {
+		case cachePathActionCache, cachePathActionBypass:
+		default:
+			return fmt.Errorf("backend.cache.paths[%d].action must be cache or bypass", i)
+		}
+		if pr.TTL < 0 {
+			return fmt.Errorf("backend.cache.paths[%d].ttl must be >= 0", i)
+		}
+		if pr.MaxBodyBytes < 0 {
+			return fmt.Errorf("backend.cache.paths[%d].max_body_bytes must be >= 0", i)
+		}
+		compiled := rule.BackendCachePathRuleCompiled{
+			MatchType:    matchType,
+			Cache:        action == cachePathActionCache,
+			TTL:          pr.TTL,
+			MaxBodyBytes: pr.MaxBodyBytes,
+		}
+		switch matchType {
+		case cachePathMatchExact:
+			compiled.Exact = normalizeHTTPCacheRequestPath(match)
+		case cachePathMatchPrefix:
+			compiled.Prefix = normalizeHTTPCacheRequestPath(match)
+		case cachePathMatchRegex:
+			re, err := regexp.Compile(match)
+			if err != nil {
+				return fmt.Errorf("backend.cache.paths[%d].match regex: %w", i, err)
+			}
+			compiled.Re = re
+		default:
+			return fmt.Errorf("backend.cache.paths[%d].match_type must be auto, prefix, exact, or regex", i)
+		}
+		out = append(out, compiled)
+	}
+	bc.CompiledPathRules = out
+	return nil
+}
+
+func compileAllBackendCachePathRules(cfg *Config) error {
+	for i := range cfg.Rules {
+		r := &cfg.Rules[i]
+		if err := compileBackendCachePathRules(&r.Backend.Cache); err != nil {
+			return fmt.Errorf("rules[%d]: %w", i, err)
+		}
+		for j := range r.Paths {
+			if err := compileBackendCachePathRules(&r.Paths[j].Backend.Cache); err != nil {
+				return fmt.Errorf("rules[%d].paths[%d]: %w", i, j, err)
+			}
+		}
+	}
+	return nil
+}
+
+func effectiveCachePathMatchType(declared, match string) string {
+	switch strings.ToLower(strings.TrimSpace(declared)) {
+	case cachePathMatchPrefix, cachePathMatchExact, cachePathMatchRegex:
+		return strings.ToLower(strings.TrimSpace(declared))
+	case "", cachePathMatchAuto:
+		if hostLooksLikeRegexp(match) {
+			return cachePathMatchRegex
+		}
+		if strings.HasSuffix(match, "/") {
+			return cachePathMatchPrefix
+		}
+		return cachePathMatchExact
+	default:
+		return strings.ToLower(strings.TrimSpace(declared))
+	}
+}
+
+func normalizeHTTPCacheRequestPath(path string) string {
+	p := strings.TrimSpace(path)
+	if p == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return p
+}
+
+func cachePathRuleMatches(pr rule.BackendCachePathRuleCompiled, path string) bool {
+	p := normalizeHTTPCacheRequestPath(path)
+	switch pr.MatchType {
+	case cachePathMatchExact:
+		return p == pr.Exact
+	case cachePathMatchPrefix:
+		return strings.HasPrefix(p, pr.Prefix)
+	case cachePathMatchRegex:
+		if pr.Re == nil {
+			return false
+		}
+		return pr.Re.MatchString(p)
+	default:
+		return false
+	}
+}
+
+func httpCachePathDecision(path string, pc *httpCacheRuntime) (allowCache bool, ttl time.Duration, maxBody int64) {
+	if pc == nil {
+		return false, 0, 0
+	}
+	ttl = pc.TTL
+	maxBody = pc.MaxBodyBytes
+	if len(pc.PathRules) == 0 {
+		return true, ttl, maxBody
+	}
+	for _, pr := range pc.PathRules {
+		if !cachePathRuleMatches(pr, path) {
+			continue
+		}
+		if !pr.Cache {
+			return false, 0, 0
+		}
+		if pr.TTL > 0 {
+			ttl = time.Duration(pr.TTL) * time.Second
+		}
+		if pr.MaxBodyBytes > 0 {
+			maxBody = pr.MaxBodyBytes
+		}
+		return true, ttl, maxBody
+	}
+	if pc.PathDefaultCache {
+		return true, ttl, maxBody
+	}
+	return false, 0, 0
+}
+
+// httpCachePolicyForRequest returns nil when caching is disabled or bypassed for the request path.
+// Per-path TTL and max_body_bytes overrides are applied on the returned policy copy.
+func httpCachePolicyForRequest(path string, pc *httpCacheRuntime) *httpCacheRuntime {
+	if pc == nil {
+		return nil
+	}
+	allow, ttl, maxBody := httpCachePathDecision(path, pc)
+	if !allow {
+		return nil
+	}
+	if ttl == pc.TTL && maxBody == pc.MaxBodyBytes {
+		return pc
+	}
+	eff := *pc
+	eff.TTL = ttl
+	eff.MaxBodyBytes = maxBody
+	return &eff
 }
 
 // requestScheme prefers TLS on the connection, then X-Forwarded-Proto behind a terminating proxy.

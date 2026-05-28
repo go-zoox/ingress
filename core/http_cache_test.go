@@ -350,3 +350,69 @@ func TestHTTPCache_TryServeHEADFromGETEntry_Zoox(t *testing.T) {
 		t.Fatalf("Content-Length %q", rec.Header().Get("Content-Length"))
 	}
 }
+
+func TestHTTPCachePathDecision_NoRulesCachesAll(t *testing.T) {
+	pc := normalizeHTTPCache(rule.BackendCache{Enabled: true, TTL: 300})
+	allow, ttl, maxBody := httpCachePathDecision("/any", pc)
+	if !allow || ttl != pc.TTL || maxBody != pc.MaxBodyBytes {
+		t.Fatalf("got allow=%v ttl=%v maxBody=%d", allow, ttl, maxBody)
+	}
+}
+
+func TestHTTPCachePathDecision_FirstMatchWins(t *testing.T) {
+	bc := rule.BackendCache{
+		Enabled: true,
+		TTL:     300,
+		Default: cachePathDefaultBypass,
+		Paths: []rule.BackendCachePathRule{
+			{Match: "/static/private", MatchType: cachePathMatchPrefix, Action: cachePathActionBypass},
+			{Match: "/static/", MatchType: cachePathMatchPrefix, Action: cachePathActionCache, TTL: 60},
+		},
+	}
+	if err := compileBackendCachePathRules(&bc); err != nil {
+		t.Fatal(err)
+	}
+	pc := normalizeHTTPCache(bc)
+	if policy := httpCachePolicyForRequest("/static/app.js", pc); policy == nil || policy.TTL != 60*time.Second {
+		t.Fatalf("static policy=%v", policy)
+	}
+	if httpCachePolicyForRequest("/static/private/x", pc) != nil {
+		t.Fatal("expected bypass for more specific prefix rule")
+	}
+	if httpCachePolicyForRequest("/api/x", pc) != nil {
+		t.Fatal("expected default bypass")
+	}
+}
+
+func TestHTTPCachePathDecision_RegexAndExact(t *testing.T) {
+	bc := rule.BackendCache{
+		Enabled: true,
+		Paths: []rule.BackendCachePathRule{
+			{Match: "/health", Action: cachePathActionBypass},
+			{Match: `^/api/v[0-9]+/public/`, MatchType: cachePathMatchRegex, Action: cachePathActionCache, MaxBodyBytes: 1024},
+		},
+	}
+	if err := compileBackendCachePathRules(&bc); err != nil {
+		t.Fatal(err)
+	}
+	pc := normalizeHTTPCache(bc)
+	if httpCachePolicyForRequest("/health", pc) != nil {
+		t.Fatal("exact bypass")
+	}
+	pol := httpCachePolicyForRequest("/api/v2/public/x", pc)
+	if pol == nil || pol.MaxBodyBytes != 1024 {
+		t.Fatalf("regex cache policy=%v", pol)
+	}
+}
+
+func TestCompileBackendCachePathRules_AutoInfersPrefix(t *testing.T) {
+	bc := rule.BackendCache{
+		Paths: []rule.BackendCachePathRule{{Match: "/assets/", Action: cachePathActionCache}},
+	}
+	if err := compileBackendCachePathRules(&bc); err != nil {
+		t.Fatal(err)
+	}
+	if bc.CompiledPathRules[0].MatchType != cachePathMatchPrefix {
+		t.Fatalf("got %q", bc.CompiledPathRules[0].MatchType)
+	}
+}

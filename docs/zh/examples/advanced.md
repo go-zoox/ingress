@@ -42,6 +42,10 @@
 
 <<< @/../examples/advanced/http-response-cache.yaml
 
+按路径 **`cache` / `bypass`**（`default`、有序 **`paths[]`**、可选 per-rule TTL）：
+
+<<< @/../examples/advanced/http-response-cache-paths.yaml
+
 ## 应用缓存引擎（内存 / Redis）
 
 顶层 **`cache`** 决定匹配器等数据用 Redis 还是内存；**HTTP 响应**条目在开启 **`backend.cache`** 时也写入同一后端。下例在 **service** 上启用 **`backend.cache`**，多实例时可共享缓存。

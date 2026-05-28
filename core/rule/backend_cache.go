@@ -1,5 +1,33 @@
 package rule
 
+import "regexp"
+
+// BackendCachePathRule selects cache vs bypass for request paths under a backend.cache block.
+// Rules are evaluated in list order; the first match wins. When no rule matches, backend.cache.default applies.
+type BackendCachePathRule struct {
+	// Match is the path pattern (prefix, exact, or regex depending on match_type / auto).
+	Match string `config:"match"`
+	// MatchType is auto, prefix, exact, or regex. Empty or auto infers from match.
+	MatchType string `config:"match_type"`
+	// Action is cache or bypass.
+	Action string `config:"action"`
+	// TTL overrides backend.cache.ttl for cache actions when > 0.
+	TTL int64 `config:"ttl"`
+	// MaxBodyBytes overrides backend.cache.max_body_bytes for cache actions when > 0.
+	MaxBodyBytes int64 `config:"max_body_bytes"`
+}
+
+// BackendCachePathRuleCompiled is the load-time matcher for BackendCachePathRule (config:"-" only).
+type BackendCachePathRuleCompiled struct {
+	MatchType    string
+	Exact        string
+	Prefix       string
+	Re           *regexp.Regexp
+	Cache        bool
+	TTL          int64
+	MaxBodyBytes int64
+}
+
 // BackendCache configures HTTP response caching for service, handler, and redirect backends.
 // It uses the application cache (Zoox ctx.Cache()) — same Redis/memory as matcher caching when configured.
 //
@@ -30,4 +58,10 @@ type BackendCache struct {
 	// SkipVary allows storing responses that include Vary (default false). When true, the Vary
 	// header is not persisted and is not sent on cache hits—clients see a single variant only.
 	SkipVary bool `config:"skip_vary"`
+	// Default is cache or bypass when paths rules exist but none match. Empty means cache.
+	Default string `config:"default"`
+	// Paths lists ordered path rules (first match wins). When empty, all paths use cache when enabled.
+	Paths []BackendCachePathRule `config:"paths"`
+	// CompiledPathRules is populated at validate/prepare; not loaded from YAML.
+	CompiledPathRules []BackendCachePathRuleCompiled `config:"-"`
 }
