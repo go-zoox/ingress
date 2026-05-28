@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-zoox/ingress"
 	"github.com/go-zoox/ingress/core/admin/config"
 	"github.com/go-zoox/ingress/core/admin/service"
 	ingcore "github.com/go-zoox/ingress/core"
@@ -25,6 +26,8 @@ type API struct {
 	config   *service.Config
 	broker   *service.SSEBroker
 	health   *service.HealthCheckService
+	system   *service.SystemMetrics
+	parseIssues *service.ParseIssues
 }
 
 func NewAPI(cfg *config.Config) *API {
@@ -33,11 +36,13 @@ func NewAPI(cfg *config.Config) *API {
 	audit := service.NewAudit()
 	broker := service.NewSSEBroker()
 	healthSvc := service.NewHealthCheckService(ingress, broker)
+	systemSvc := service.NewSystemMetrics()
+	parseIssues := service.NewParseIssues()
 	return &API{
 		cfg:      cfg,
 		ingress:  ingress,
 		logs:     logs,
-		metrics:  service.NewMetrics(logs),
+		metrics:  service.NewMetrics(logs, parseIssues),
 		audit:    audit,
 		tls:      service.NewTLS(ingress),
 		cache:    service.NewCache(ingress, logs),
@@ -45,6 +50,8 @@ func NewAPI(cfg *config.Config) *API {
 		config:   service.NewConfig(ingress, audit),
 		broker:   broker,
 		health:   healthSvc,
+		system:   systemSvc,
+		parseIssues: parseIssues,
 	}
 }
 
@@ -78,6 +85,10 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/logs", a.Logs)
 	g.Get("/logs/hosts", a.LogHosts)
 	g.Get("/metrics/overview", a.OverviewMetrics)
+	g.Get("/metrics/system", a.SystemMetrics)
+	g.Get("/logs/parse-issues", a.ListParseIssues)
+	g.Get("/logs/parse-issues/:id", a.GetParseIssue)
+	g.Post("/logs/parse-issues/:id/status", a.UpdateParseIssueStatus)
 	g.Get("/settings", a.Settings)
 	// New routes for SSE, route detail, and health check
 	sseHandler := NewSSEHandler(a.broker)
@@ -108,7 +119,7 @@ func (a *API) Status(ctx *zoox.Context) {
 		latestRevisionHash = revs[0].Hash
 	}
 	ok(ctx, zoox.H{
-		"version":              "ingress",
+		"version":              ingress.Version,
 		"config_path":          a.ingress.ConfigPath(),
 		"pid_file":             a.cfg.PidFile,
 		"reload_ready":         a.ingress.ReloadReady(),
@@ -665,6 +676,69 @@ func (a *API) OverviewMetrics(ctx *zoox.Context) {
 	ok(ctx, a.metrics.Overview(window))
 }
 
+func (a *API) SystemMetrics(ctx *zoox.Context) {
+	window := strings.TrimSpace(ctx.Query().Get("window").String())
+	ok(ctx, a.system.Snapshot(window))
+}
+
+func (a *API) ListParseIssues(ctx *zoox.Context) {
+	status := strings.TrimSpace(ctx.Query().Get("status").String())
+	if status == "" {
+		status = "open"
+	}
+	limit := 20
+	if v := strings.TrimSpace(ctx.Query().Get("limit").String()); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	rows, err := a.parseIssues.List(status, limit)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if rows == nil {
+		rows = []service.AccessLogParseIssueRow{}
+	}
+	ok(ctx, rows)
+}
+
+func (a *API) GetParseIssue(ctx *zoox.Context) {
+	id, err := strconv.ParseUint(strings.TrimSpace(ctx.Param().Get("id").String()), 10, 64)
+	if err != nil || id == 0 {
+		fail(ctx, http.StatusBadRequest, "invalid id")
+		return
+	}
+	row, err := a.parseIssues.GetDetail(uint(id), a.logs)
+	if err != nil {
+		fail(ctx, http.StatusNotFound, err.Error())
+		return
+	}
+	ok(ctx, row)
+}
+
+func (a *API) UpdateParseIssueStatus(ctx *zoox.Context) {
+	id, err := strconv.ParseUint(strings.TrimSpace(ctx.Param().Get("id").String()), 10, 64)
+	if err != nil || id == 0 {
+		fail(ctx, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Status string `json:"status"`
+		Note   string `json:"note"`
+	}
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	row, err := a.parseIssues.SetStatus(uint(id), body.Status, body.Note)
+	if err != nil {
+		fail(ctx, http.StatusNotFound, err.Error())
+		return
+	}
+	ok(ctx, row)
+}
+
 func (a *API) Settings(ctx *zoox.Context) {
 	ok(ctx, a.settings.Get(a.configHash()))
 }
@@ -682,4 +756,9 @@ func (a *API) LogsService() *service.Logs {
 // Health returns the health check service instance.
 func (a *API) Health() *service.HealthCheckService {
 	return a.health
+}
+
+// SystemMetricsService returns the process metrics sampler.
+func (a *API) SystemMetricsService() *service.SystemMetrics {
+	return a.system
 }

@@ -14,14 +14,17 @@ type TimelineItem = {
 export function ConfigChangeTimeline({
   onRestore,
   onRollback,
+  onCompare,
 }: {
   onRestore?: (content: string) => void
   onRollback?: (revision: ConfigRevisionSummary) => void
+  onCompare?: (revision: ConfigRevisionSummary) => void
 }) {
   const [revisions, setRevisions] = useState<ConfigRevisionSummary[]>([])
   const [audits, setAudits] = useState<AuditLogRow[]>([])
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
+  const [comparingId, setComparingId] = useState<number | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -93,6 +96,25 @@ export function ConfigChangeTimeline({
               </div>
               {it.kind === 'revision' && it.revisionId != null ? (
                 <div className="config-timeline-actions">
+                  {onCompare ? (
+                    <button
+                      type="button"
+                      className="action-link"
+                      disabled={comparingId === it.revisionId}
+                      onClick={async () => {
+                        const rev = revisions.find((r) => r.id === it.revisionId)
+                        if (!rev) return
+                        setComparingId(rev.id)
+                        try {
+                          await onCompare(rev)
+                        } finally {
+                          setComparingId(null)
+                        }
+                      }}
+                    >
+                      {comparingId === it.revisionId ? '对比中…' : '对比'}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="action-link"

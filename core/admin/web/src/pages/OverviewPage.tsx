@@ -2,11 +2,13 @@ import { useEffect, useState, useRef, useCallback, useMemo, type ReactNode } fro
 import { Link, useNavigate } from 'react-router-dom'
 import { OverviewCharts } from '../components/OverviewCharts'
 import { OverviewAttentionPanel } from '../components/OverviewAttentionPanel'
-import { PageHeader } from '../components/PageHeader'
 import { ConfigGovernanceBadges } from '../components/ConfigGovernanceBadges'
+import { SystemResourceStrip } from '../components/SystemResourceStrip'
 import {
   api,
   type OverviewMetrics,
+  type SystemMetrics,
+  type AccessLogParseIssue,
   type WAFEvent,
   type TLSCert,
   type ConfigRevisionSummary,
@@ -30,6 +32,8 @@ export function OverviewPage() {
   const navigate = useNavigate()
   const [status, setStatus] = useState<IngressStatus | null>(null)
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null)
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null)
+  const [parseIssues, setParseIssues] = useState<AccessLogParseIssue[]>([])
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [err, setErr] = useState('')
   const [certs, setCerts] = useState<TLSCert[]>([])
@@ -48,25 +52,47 @@ export function OverviewPage() {
 
   const { data: sseData, connected: sseConnected } = useSSE(['metrics'])
 
+  const loadParseIssues = useCallback(() => {
+    api
+      .parseIssues('open', 10)
+      .then((d) => setParseIssues(Array.isArray(d) ? d : []))
+      .catch(() => setParseIssues([]))
+  }, [])
+
   const fetchMetrics = useCallback(() => {
     if (!mountedRef.current) {
       setMetricsLoading(true)
     }
-    api
-      .overviewMetrics(metricsWindow)
-      .then((data) => {
-        setMetrics(data)
+    Promise.all([api.overviewMetrics(metricsWindow), api.systemMetrics(metricsWindow)])
+      .then(([overview, system]) => {
+        setMetrics(overview)
+        setSystemMetrics(system)
         setMetricsLoading(false)
         mountedRef.current = true
+        loadParseIssues()
       })
       .catch(() => {
         if (!mountedRef.current) {
           setMetrics(null)
+          setSystemMetrics(null)
           setMetricsLoading(false)
           mountedRef.current = true
         }
       })
-  }, [metricsWindow])
+  }, [metricsWindow, loadParseIssues])
+
+  const handleParseIssueStatus = useCallback(
+    async (id: number, status: 'ignored' | 'resolved') => {
+      try {
+        await api.updateParseIssueStatus(id, status)
+        loadParseIssues()
+        fetchMetrics()
+      } catch {
+        // keep current list on failure
+      }
+    },
+    [loadParseIssues, fetchMetrics],
+  )
 
   const loadAux = useCallback(() => {
     api
@@ -162,7 +188,6 @@ export function OverviewPage() {
   if (!status) {
     return (
       <div className="page">
-        <PageHeader title="总览" desc="SRE 监控面板：流量、质量、基础设施与异常" />
         <p style={{ color: 'var(--text-muted)' }}>加载中…</p>
       </div>
     )
@@ -176,8 +201,6 @@ export function OverviewPage() {
 
   return (
     <div className="page overview-page">
-      <PageHeader title="总览" desc="SRE 监控面板：流量、质量、基础设施与异常" />
-
       {!reloadReady ? (
         <p className="err" style={{ marginBottom: 16 }}>
           无法热加载：未找到可发送 SIGHUP 的 ingress 进程。请执行{' '}
@@ -233,61 +256,71 @@ export function OverviewPage() {
         certs={certs}
       />
 
+      <div className="panel overview-system-panel">
+        <div className="panel-head">
+          <h2>系统状态</h2>
+        </div>
+        <div className="panel-body">
+          <SystemResourceStrip
+            system={systemMetrics}
+            metrics={metrics}
+            loading={metricsLoading}
+          />
+          <div className="overview-system-divider" />
+          <div className="overview-system-grid">
+            <SystemBadge label="热加载" value={reloadReady ? '就绪' : '不可用'} tone={reloadReady ? 'ok' : 'warn'} />
+            <SystemBadge
+              label="版本"
+              value={String(status.version || '—')}
+              sub={
+                <>
+                  hash {fileHash.slice(0, 8)}…
+                  <ConfigGovernanceBadges
+                    fileHash={fileHash}
+                    runtimeHash={runtimeHash}
+                    latestRevisionHash={latestHash}
+                    runtimeDrift={status.runtime_drift}
+                    revisionDrift={status.revision_drift}
+                  />
+                </>
+              }
+            />
+            <SystemBadge
+              label="监听"
+              value={String(status.listen_http)}
+              sub={`HTTPS ${String(status.listen_https || '—')}`}
+            />
+            <SystemBadge label="路由" value={String(status.rules_count)} sub="条规则" />
+            <SystemBadge label="WAF" value={wafLabel} />
+            <SystemBadge
+              label="证书"
+              value={
+                certCritical > 0
+                  ? `${certCritical} 紧急`
+                  : certWarn > 0
+                    ? `${certWarn} 关注`
+                    : '正常'
+              }
+              tone={certCritical > 0 ? 'danger' : certWarn > 0 ? 'warn' : 'ok'}
+            />
+            <SystemBadge
+              label="健康检查"
+              value={healthSummary.total > 0 ? `${healthSummary.up}/${healthSummary.total} UP` : '未配置'}
+              tone={healthSummary.down > 0 ? 'danger' : healthSummary.total > 0 ? 'ok' : undefined}
+            />
+            <SystemBadge label="最近 reload" value={String(status.last_reload || '—')} />
+          </div>
+        </div>
+      </div>
+
       <OverviewAttentionPanel
         metrics={metrics}
         certs={certs}
         healthChecks={healthChecks}
         wafBlocks={wafBlocks}
+        parseIssues={parseIssues}
+        onParseIssueStatus={handleParseIssueStatus}
       />
-
-      <div className="panel overview-system-panel">
-        <div className="panel-head">
-          <h2>系统状态</h2>
-        </div>
-        <div className="panel-body overview-system-grid">
-          <SystemBadge label="热加载" value={reloadReady ? '就绪' : '不可用'} tone={reloadReady ? 'ok' : 'warn'} />
-          <SystemBadge
-            label="版本"
-            value={String(status.version || 'ingress')}
-            sub={
-              <>
-                hash {fileHash.slice(0, 8)}…
-                <ConfigGovernanceBadges
-                  fileHash={fileHash}
-                  runtimeHash={runtimeHash}
-                  latestRevisionHash={latestHash}
-                  runtimeDrift={status.runtime_drift}
-                  revisionDrift={status.revision_drift}
-                />
-              </>
-            }
-          />
-          <SystemBadge
-            label="监听"
-            value={String(status.listen_http)}
-            sub={`HTTPS ${String(status.listen_https || '—')}`}
-          />
-          <SystemBadge label="路由" value={String(status.rules_count)} sub="条规则" />
-          <SystemBadge label="WAF" value={wafLabel} />
-          <SystemBadge
-            label="证书"
-            value={
-              certCritical > 0
-                ? `${certCritical} 紧急`
-                : certWarn > 0
-                  ? `${certWarn} 关注`
-                  : '正常'
-            }
-            tone={certCritical > 0 ? 'danger' : certWarn > 0 ? 'warn' : 'ok'}
-          />
-          <SystemBadge
-            label="健康检查"
-            value={healthSummary.total > 0 ? `${healthSummary.up}/${healthSummary.total} UP` : '未配置'}
-            tone={healthSummary.down > 0 ? 'danger' : healthSummary.total > 0 ? 'ok' : undefined}
-          />
-          <SystemBadge label="最近 reload" value={String(status.last_reload || '—')} />
-        </div>
-      </div>
 
       {revisions.length > 0 ? (
         <div className="panel">
@@ -342,7 +375,7 @@ function metricsSourceLabel(source?: string) {
     case 'access_log_empty':
       return '空文件'
     case 'access_log_parse_fail':
-      return '解析失败'
+      return '解析异常'
     case 'unconfigured':
       return '未配置'
     case 'error':

@@ -26,6 +26,7 @@ export function ConfigPage() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [diffOpen, setDiffOpen] = useState(false)
   const [diffHtml, setDiffHtml] = useState('')
+  const [diffTitle, setDiffTitle] = useState('配置变更（草稿 vs 已发布）')
   const [gov, setGov] = useState<IngressStatus | null>(null)
   const [rollbackRevision, setRollbackRevision] = useState<ConfigRevisionSummary | null>(null)
   const { toast, show, clear } = useToast()
@@ -111,7 +112,15 @@ export function ConfigPage() {
   }
 
   const showDiff = () => {
+    setDiffTitle('配置变更（草稿 vs 已发布）')
     setDiffHtml(buildDiff(saved, content))
+    setDiffOpen(true)
+  }
+
+  const compareRevision = async (revision: ConfigRevisionSummary) => {
+    const detail = await api.configRevision(revision.id)
+    setDiffTitle(`版本 #${revision.id} vs 当前已发布`)
+    setDiffHtml(buildDiff(saved, detail.content))
     setDiffOpen(true)
   }
 
@@ -268,8 +277,9 @@ export function ConfigPage() {
               <ConfigChangeTimeline
                 onRestore={restoreDraft}
                 onRollback={(rev) => setRollbackRevision(rev)}
+                onCompare={compareRevision}
               />
-              <ConfigVersionsPanel onRestore={restoreDraft} />
+              <ConfigVersionsPanel onRestore={restoreDraft} onCompare={compareRevision} />
             </>
           )}
         </div>
@@ -309,7 +319,7 @@ export function ConfigPage() {
           onCancel={() => setRollbackRevision(null)}
         />
       ) : null}
-      <DiffModal open={diffOpen} diffHtml={diffHtml} onClose={() => setDiffOpen(false)} />
+      <DiffModal open={diffOpen} diffHtml={diffHtml} title={diffTitle} onClose={() => setDiffOpen(false)} />
       {toast && <ToastContainer message={toast.message} type={toast.type} onDone={clear} />}
     </div>
   )

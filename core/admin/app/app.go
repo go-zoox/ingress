@@ -43,6 +43,7 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 	if api.Broker() != nil {
 		service.NewLogStreamer(api.LogsService(), api.Broker()).Start(2 * time.Second)
 		api.Health().Start()
+		api.SystemMetricsService().Start()
 		// Note: Health check service will be stopped when the process exits.
 		// zoox Application doesn't expose OnShutdown; cleanup is handled by process signals.
 	}

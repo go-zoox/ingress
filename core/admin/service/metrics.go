@@ -28,6 +28,10 @@ type OverviewMetrics struct {
 	ErrorSamples     []SlowRequest    `json:"error_samples,omitempty"`
 	LatencyHistogram []LatencyBucket  `json:"latency_histogram"`
 	Delta            OverviewDelta    `json:"delta"`
+	ParseSkipped     int              `json:"parse_skipped"`
+	ParseIssueOpen   int              `json:"parse_issue_open"`
+	ParseableInTail  int              `json:"parseable_in_tail"`
+	WindowStale      bool             `json:"window_stale"`
 }
 
 type TimelineBucket struct {
@@ -94,11 +98,12 @@ type OverviewDelta struct {
 
 // Metrics aggregates access logs for overview charts.
 type Metrics struct {
-	logs *Logs
+	logs        *Logs
+	parseIssues *ParseIssues
 }
 
-func NewMetrics(logs *Logs) *Metrics {
-	return &Metrics{logs: logs}
+func NewMetrics(logs *Logs, parseIssues *ParseIssues) *Metrics {
+	return &Metrics{logs: logs, parseIssues: parseIssues}
 }
 
 func (m *Metrics) Overview(window string) OverviewMetrics {
@@ -110,11 +115,20 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 	if err != nil {
 		return aggregateOverview(nil, window, "error")
 	}
-	entries := make([]AccessEntry, 0, len(lines))
-	for _, line := range lines {
-		if e, ok := parseAccessLine(line); ok {
-			entries = append(entries, e)
+	parseResult := ParseAccessLogLines(lines)
+	if len(parseResult.Entries) == 0 && len(lines) > 0 {
+		deepLimit := tailLinesForWindow(window) * 4
+		if deepLimit > len(lines) {
+			if deeper, derr := m.logs.TailAccess(deepLimit); derr == nil && len(deeper) > len(lines) {
+				lines = deeper
+				parseResult = ParseAccessLogLines(lines)
+			}
 		}
+	}
+	entries := parseResult.Entries
+	parseSkipped := parseResult.IssueSkipped
+	if m.parseIssues != nil && len(parseResult.Issues) > 0 {
+		_ = m.parseIssues.RecordCandidates(parseResult.Issues)
 	}
 
 	source := "unconfigured"
@@ -122,12 +136,20 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 		source = "access_log"
 		if len(lines) == 0 {
 			source = "access_log_empty"
-		} else if len(entries) == 0 {
-			source = "access_log_parse_fail"
+		} else if len(entries) == 0 && parseSkipped == 0 {
+			source = "access_log_empty"
 		}
 	}
 
-	return aggregateOverview(entries, window, source)
+	out := aggregateOverview(entries, window, source)
+	out.ParseSkipped = parseSkipped
+	out.ParseableInTail = len(entries)
+	if m.parseIssues != nil {
+		if n, err := m.parseIssues.OpenCount(); err == nil {
+			out.ParseIssueOpen = int(n)
+		}
+	}
+	return out
 }
 
 func aggregateOverview(entries []AccessEntry, window, source string) OverviewMetrics {
@@ -146,18 +168,28 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 
 	hasTime := entriesHaveTimestamps(entries)
 	anchor := time.Now()
+	windowStale := false
 	filtered := filterEntriesInWindow(entries, anchor, windowDur, hasTime)
 	if hasTime && len(filtered) == 0 {
 		if latest := latestEntryTime(entries); !latest.IsZero() {
 			anchor = latest
 			filtered = filterEntriesInWindow(entries, anchor, windowDur, true)
+			windowStale = true
 		}
+	}
+	if len(filtered) == 0 && len(entries) > 0 {
+		filtered = append([]AccessEntry(nil), entries...)
+		if latest := latestEntryTime(entries); !latest.IsZero() {
+			anchor = latest
+		}
+		windowStale = true
 	}
 	if !hasTime {
 		filtered = entries
 	}
 
 	out.Total = len(filtered)
+	out.WindowStale = windowStale
 	var durations []float64
 	cacheHits := 0
 	hostCounts := map[string]int{}
@@ -185,6 +217,14 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 		out.ErrorRate = out.ErrorRate / float64(out.Total) * 100
 		out.CacheHitRate = float64(cacheHits) / float64(out.Total) * 100
 		minutes := windowDur.Minutes()
+		if windowStale {
+			if earliest := earliestEntryTime(filtered); !earliest.IsZero() && anchor.After(earliest) {
+				minutes = anchor.Sub(earliest).Minutes()
+			}
+		}
+		if minutes < 1 {
+			minutes = 1
+		}
 		if minutes > 0 {
 			out.RPM = float64(out.Total) / minutes
 		}
@@ -429,6 +469,19 @@ func latestEntryTime(entries []AccessEntry) time.Time {
 		}
 	}
 	return latest
+}
+
+func earliestEntryTime(entries []AccessEntry) time.Time {
+	var earliest time.Time
+	for _, e := range entries {
+		if e.At.IsZero() {
+			continue
+		}
+		if earliest.IsZero() || e.At.Before(earliest) {
+			earliest = e.At
+		}
+	}
+	return earliest
 }
 
 func filterEntriesInWindow(entries []AccessEntry, anchor time.Time, window time.Duration, requireTime bool) []AccessEntry {

@@ -320,6 +320,16 @@ const HostBarList = memo(function HostBarList({
 })
 
 function MetricsEmptyMessage({ metrics }: { metrics: OverviewMetrics | null }) {
+  const skipped = metrics?.parse_skipped ?? 0
+
+  if (skipped > 0 && (metrics?.parseable_in_tail ?? 0) === 0) {
+    return (
+      <p className="empty-hint">
+        部分 access.log 行无法解析，已跳过（本次扫描 {skipped} 行）。请检查日志格式或在「需要关注 →
+        日志解析」中处理。
+      </p>
+    )
+  }
   if (metrics?.source === 'access_log_empty') {
     return (
       <p className="empty-hint">
@@ -337,9 +347,6 @@ function MetricsEmptyMessage({ metrics }: { metrics: OverviewMetrics | null }) {
   }
   if (metrics?.source === 'error') {
     return <p className="empty-hint">读取日志文件失败。请检查日志路径是否正确。</p>
-  }
-  if (metrics?.source === 'access_log_parse_fail') {
-    return <p className="empty-hint">日志文件有内容但无法解析。请检查日志格式是否兼容。</p>
   }
   return <p className="empty-hint">暂无访问日志数据。等待请求产生后数据会自动刷新。</p>
 }

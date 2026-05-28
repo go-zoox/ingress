@@ -7,6 +7,7 @@ import { LogsPage } from './pages/LogsPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { RouteDetailPage } from './pages/RouteDetailPage'
 import { RoutesPage } from './pages/RoutesPage'
+import { AttentionPage } from './pages/AttentionPage'
 import { EventsPage } from './pages/EventsPage'
 import { InvestigatePage } from './pages/InvestigatePage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -14,6 +15,7 @@ import { TLSPage } from './pages/TLSPage'
 import { TopologyPage } from './pages/TopologyPage'
 import { HealthPage } from './pages/HealthPage'
 import { WAFPage } from './pages/WAFPage'
+import { MessagesPage } from './pages/MessagesPage'
 
 export default function App() {
   return (
@@ -21,6 +23,7 @@ export default function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<OverviewPage />} />
+          <Route path="attention" element={<AttentionPage />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="routes/:ruleIndex/:pathIndex" element={<RouteDetailPage />} />
           <Route path="topology" element={<TopologyPage />} />
@@ -34,6 +37,7 @@ export default function App() {
           <Route path="logs" element={<LogsPage />} />
           <Route path="events" element={<EventsPage />} />
           <Route path="investigate" element={<InvestigatePage />} />
+          <Route path="messages" element={<MessagesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

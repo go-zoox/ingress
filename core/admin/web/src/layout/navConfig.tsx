@@ -11,9 +11,10 @@ import {
   HeartPulse,
   FileCode2,
   Settings,
+  AlertTriangle,
 } from 'lucide-react'
 
-export type NavBadgeKey = 'overview' | 'healths' | 'tls' | 'waf'
+export type NavBadgeKey = 'attention' | 'healths' | 'tls' | 'waf'
 
 export type NavItem = {
   to: string
@@ -32,7 +33,8 @@ export const navGroups: NavGroup[] = [
   {
     label: '监控',
     items: [
-      { to: '/', label: '总览', icon: LayoutDashboard, end: true, badgeKey: 'overview' },
+      { to: '/', label: '总览', icon: LayoutDashboard, end: true },
+      { to: '/attention', label: '需要关注', icon: AlertTriangle, badgeKey: 'attention' },
       { to: '/events', label: '事件', icon: Activity },
       { to: '/investigate', label: '调查', icon: Search },
       { to: '/logs', label: '日志', icon: ScrollText },

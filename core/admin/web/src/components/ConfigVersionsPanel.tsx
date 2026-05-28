@@ -4,13 +4,16 @@ import { RollbackConfirmModal } from './RollbackConfirmModal'
 
 export function ConfigVersionsPanel({
   onRestore,
+  onCompare,
 }: {
   onRestore: (content: string) => void
+  onCompare?: (revision: ConfigRevisionSummary) => void | Promise<void>
 }) {
   const [rows, setRows] = useState<ConfigRevisionSummary[]>([])
   const [err, setErr] = useState('')
   const [detail, setDetail] = useState<ConfigRevisionDetail | null>(null)
   const [loadingId, setLoadingId] = useState<number | null>(null)
+  const [comparingId, setComparingId] = useState<number | null>(null)
   const [rollbackRevision, setRollbackRevision] = useState<ConfigRevisionSummary | null>(null)
 
   useEffect(() => {
@@ -38,6 +41,19 @@ export function ConfigVersionsPanel({
       .configRevisions()
       .then((data) => setRows(Array.isArray(data) ? data : []))
       .catch((e: Error) => setErr(e.message))
+  }
+
+  const runCompare = async (revision: ConfigRevisionSummary) => {
+    if (!onCompare) return
+    setComparingId(revision.id)
+    setErr('')
+    try {
+      await onCompare(revision)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setComparingId(null)
+    }
   }
 
   return (
@@ -78,6 +94,16 @@ export function ConfigVersionsPanel({
                   >
                     {loadingId === r.id ? '加载中…' : '查看'}
                   </button>
+                  {onCompare ? (
+                    <button
+                      type="button"
+                      className="action-link"
+                      disabled={comparingId === r.id}
+                      onClick={() => runCompare(r)}
+                    >
+                      {comparingId === r.id ? '对比中…' : '对比'}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="action-link action-danger"
@@ -110,6 +136,23 @@ export function ConfigVersionsPanel({
               <button type="button" className="btn" onClick={() => setDetail(null)}>
                 关闭
               </button>
+              {onCompare ? (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={comparingId === detail.id}
+                  onClick={async () => {
+                    await runCompare({
+                      id: detail.id,
+                      hash: detail.hash,
+                      note: detail.note,
+                      created_at: detail.created_at,
+                    })
+                  }}
+                >
+                  {comparingId === detail.id ? '对比中…' : '对比'}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="btn btn-primary"

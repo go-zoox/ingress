@@ -242,6 +242,64 @@ func (l *Logs) DistinctHosts() ([]string, error) {
 	return hosts, nil
 }
 
+// LogContextEntry is one line shown around a parse issue in admin UI.
+type LogContextEntry struct {
+	Line   string `json:"line"`
+	Match  bool   `json:"match"`
+	Parsed bool   `json:"parsed"`
+}
+
+// AccessLogContextForFingerprint returns surrounding access.log lines for a parse issue fingerprint.
+func (l *Logs) AccessLogContextForFingerprint(fingerprint string, before, after int) ([]LogContextEntry, error) {
+	fingerprint = strings.TrimSpace(fingerprint)
+	if fingerprint == "" || l == nil {
+		return nil, nil
+	}
+	if before < 0 {
+		before = 0
+	}
+	if after < 0 {
+		after = 0
+	}
+	lines, err := l.TailAccess(8000)
+	if err != nil {
+		return nil, err
+	}
+	if len(lines) == 0 {
+		return nil, nil
+	}
+
+	matchIdx := -1
+	for i, line := range lines {
+		if fingerprintAccessLogLine(line) == fingerprint {
+			matchIdx = i
+		}
+	}
+	if matchIdx < 0 {
+		return nil, nil
+	}
+
+	start := matchIdx - before
+	if start < 0 {
+		start = 0
+	}
+	end := matchIdx + after + 1
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	out := make([]LogContextEntry, 0, end-start)
+	for i := start; i < end; i++ {
+		_, parsed := parseAccessLine(lines[i])
+		out = append(out, LogContextEntry{
+			Line:   lines[i],
+			Match:  i == matchIdx,
+			Parsed: parsed,
+		})
+	}
+	return out, nil
+}
+
 func matchLogLine(line string, q LogQuery) bool {
 	low := strings.ToLower(line)
 	if q.Host != "" && !strings.Contains(low, strings.ToLower(q.Host)) {

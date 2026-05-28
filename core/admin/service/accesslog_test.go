@@ -48,6 +48,10 @@ func TestParseAccessLine(t *testing.T) {
 			"2026/05/24 20:14:53 2026/05/24 20:14:53 \x1b[34mINFO\x1b[39m [127.0.0.1:50447][=>] GET /api/v1/metrics/overview",
 			"", 0, 0,
 		},
+		{
+			`2026/02/22 12:26:14 203.0.113.12 waf-demo.example.com -> httpbin.org:443 "GET /search?q=1' OR '1'='1 HTTP/1.1" 403 5ms cache_hit=0 waf_block=1`,
+			"waf-demo.example.com", 403, 5,
+		},
 	}
 	for _, c := range cases {
 		e, ok := parseAccessLine(c.line)

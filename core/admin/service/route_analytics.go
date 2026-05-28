@@ -96,15 +96,12 @@ func BuildRouteAnalytics(
 	source := "access_log"
 
 	all := make([]AccessEntry, 0, len(lines))
-	for _, line := range lines {
-		if e, ok := ParseAccessEntry(line); ok {
-			all = append(all, e)
-		}
-	}
+	parseResult := ParseAccessLogLines(lines)
+	all = parseResult.Entries
 	if len(lines) == 0 {
 		source = "access_log_empty"
-	} else if len(all) == 0 {
-		source = "access_log_parse_fail"
+	} else if len(all) == 0 && parseResult.IssueSkipped == 0 {
+		source = "access_log_empty"
 	}
 
 	routeEntries := FilterAccessEntriesForRoute(cfg, ruleIndex, pathIndex, lines)

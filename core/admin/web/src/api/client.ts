@@ -115,6 +115,18 @@ export const api = {
   reload: () => request<{ ok: boolean }>('/reload', { method: 'POST' }),
   overviewMetrics: (window = '15m') =>
     request<OverviewMetrics>(`/metrics/overview?window=${encodeURIComponent(window)}`),
+  systemMetrics: (window = '15m') =>
+    request<SystemMetrics>(`/metrics/system?window=${encodeURIComponent(window)}`),
+  parseIssues: (status = 'open', limit = 20) =>
+    request<AccessLogParseIssue[]>(
+      `/logs/parse-issues?status=${encodeURIComponent(status)}&limit=${limit}`,
+    ),
+  updateParseIssueStatus: (id: number, status: 'ignored' | 'resolved' | 'open', note = '') =>
+    request<AccessLogParseIssue>(`/logs/parse-issues/${id}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status, note }),
+    }),
+  parseIssueDetail: (id: number) => request<AccessLogParseIssueDetail>(`/logs/parse-issues/${id}`),
   logs: (params: {
     log?: 'access' | 'error'
     q?: string
@@ -493,12 +505,57 @@ export type OverviewMetrics = {
     p95_delta_ms: number
     has_previous: boolean
   }
+  parse_skipped?: number
+  parse_issue_open?: number
+  parseable_in_tail?: number
+  window_stale?: boolean
   slowest?: Array<{
     host: string
     method: string
     path: string
     status: number
     duration_ms: number
+  }>
+}
+
+export type SystemMetrics = {
+  window: string
+  cpu_pct: number
+  memory_mb: number
+  goroutines: number
+  num_cpu: number
+  timeline: Array<{
+    label: string
+    cpu_pct: number
+    memory_mb: number
+  }>
+}
+
+export type AccessLogParseIssue = {
+  id: number
+  fingerprint: string
+  sample_line: string
+  reason: string
+  hit_count: number
+  status: 'open' | 'ignored' | 'resolved'
+  first_seen_at: string
+  last_seen_at: string
+  note?: string
+}
+
+export type AccessLogParseIssueDetail = AccessLogParseIssue & {
+  diagnosis: {
+    reason: string
+    reason_label: string
+    hint: string
+    has_host: boolean
+    has_request: boolean
+    sample_line: string
+  }
+  context: Array<{
+    line: string
+    match: boolean
+    parsed: boolean
   }>
 }
 

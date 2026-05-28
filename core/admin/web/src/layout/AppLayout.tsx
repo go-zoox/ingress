@@ -3,11 +3,14 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api } from '../api/client'
 import { navGroups } from './navConfig'
 import { useNavBadges } from '../hooks/useNavBadges'
-import { SidebarGlobalStatus } from '../components/SidebarGlobalStatus'
+import { SettingsMenu } from '../components/SettingsMenu'
+import { NotificationMenu } from '../components/NotificationMenu'
+import { NotificationProvider } from '../context/NotificationContext'
 import { useSSE } from '../hooks/useSSE'
 
 export function AppLayout() {
   const [configPath, setConfigPath] = useState('—')
+  const [version, setVersion] = useState('')
   const [reloadReady, setReloadReady] = useState(false)
   const [configHash, setConfigHash] = useState('')
   const [runtimeHash, setRuntimeHash] = useState('')
@@ -42,6 +45,7 @@ export function AppLayout() {
       .status()
       .then((s) => {
         setConfigPath(String(s.config_path || '—'))
+        setVersion(String(s.version || ''))
         setReloadReady(Boolean(s.reload_ready))
         setConfigHash(String(s.file_hash || s.config_hash || ''))
         setRuntimeHash(String(s.runtime_hash || ''))
@@ -50,6 +54,7 @@ export function AppLayout() {
       })
       .catch(() => {
         setConfigPath('—')
+        setVersion('')
         setReloadReady(false)
         setConfigHash('')
         setRuntimeHash('')
@@ -74,7 +79,7 @@ export function AppLayout() {
   const { connected: sseConnected } = useSSE(['metrics'])
 
   return (
-    <>
+    <NotificationProvider runtimeDrift={runtimeDrift} revisionDrift={revisionDrift}>
       <div className="mobile-topbar">
         <button
           className="mobile-hamburger"
@@ -94,7 +99,14 @@ export function AppLayout() {
       <div className="layout">
         <aside className={`sidebar${drawerOpen ? ' open' : ''}`}>
           <div className="brand">
-            Ingress Console
+            <div className="brand-top">
+              <span className="brand-title">Ingress Console</span>
+              {version ? (
+                <span className="brand-version" title={`Ingress ${version}`}>
+                  v{version.replace(/^v/i, '')}
+                </span>
+              ) : null}
+            </div>
             <span>运维控制台</span>
           </div>
           <nav className="nav" aria-label="主导航">
@@ -122,10 +134,13 @@ export function AppLayout() {
                       {badge > 0 ? (
                         <span
                           className={`nav-badge${
-                            item.badgeKey === 'healths' ||
-                            (item.badgeKey === 'overview' && badges.healths > 0)
-                              ? ' danger'
-                              : ' warn'
+                            item.badgeKey === 'attention'
+                              ? badges.healths > 0
+                                ? ' danger'
+                                : ' warn'
+                              : item.badgeKey === 'healths'
+                                ? ' danger'
+                                : ' warn'
                           }`}
                         >
                           {badge > 99 ? '99+' : badge}
@@ -137,8 +152,13 @@ export function AppLayout() {
               </div>
             ))}
           </nav>
-          <div className="sidebar-footer">
-            <SidebarGlobalStatus
+        </aside>
+        <main className="main">
+          <div className="app-chrome">
+            <NotificationMenu />
+            <SettingsMenu
+              configPath={configPath}
+              version={version}
               reloadReady={reloadReady}
               configHash={configHash}
               runtimeHash={runtimeHash}
@@ -147,17 +167,12 @@ export function AppLayout() {
               revisionDrift={revisionDrift}
               sseConnected={sseConnected}
             />
-            <div className="sidebar-config-path">
-              配置路径
-              <br />
-              <code title={configPath}>{configPath}</code>
-            </div>
           </div>
-        </aside>
-        <main className="main">
-          <Outlet />
+          <div className="main-body">
+            <Outlet />
+          </div>
         </main>
       </div>
-    </>
+    </NotificationProvider>
   )
 }
