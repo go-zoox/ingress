@@ -7,9 +7,11 @@ import {
   Clock,
   FileWarning,
 } from 'lucide-react'
-import type { OverviewMetrics, TLSCert, HealthCheckResult, WAFEvent, AccessLogParseIssue } from '../api/client'
+import type { OverviewMetrics, TLSCert, HealthCheckResult, WAFEvent, WAFEventDetail, AccessLogParseIssue } from '../api/client'
 import { healthLink, investigateLink, logsLink, wafLink } from '../lib/deepLinks'
 import { ParseIssueDetailDrawer } from './ParseIssueDetailDrawer'
+import { WafEventDetailDrawer } from './WafEventDetailDrawer'
+import { WafTrialDrawer } from './WafTrialDrawer'
 
 export type AttentionAction = { label: string; href: string }
 export type AttentionButton = { label: string; onClick: () => void }
@@ -30,6 +32,7 @@ type Props = {
   wafBlocks: WAFEvent[]
   parseIssues?: AccessLogParseIssue[]
   onParseIssueStatus?: (id: number, status: 'ignored' | 'resolved') => void
+  onWafEventStatus?: (id: number, status: 'ignored' | 'resolved') => void
   embedded?: boolean
 }
 
@@ -40,9 +43,17 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
   wafBlocks,
   parseIssues = [],
   onParseIssueStatus,
+  onWafEventStatus,
   embedded = true,
 }: Props) {
   const [parseIssueId, setParseIssueId] = useState<number | null>(null)
+  const [wafEventId, setWafEventId] = useState<number | null>(null)
+  const [wafTrialEvent, setWafTrialEvent] = useState<WAFEvent | WAFEventDetail | null>(null)
+
+  const openWafTrial = (event: WAFEvent | WAFEventDetail) => {
+    setWafEventId(null)
+    setWafTrialEvent(event)
+  }
   const downs = healthChecks.filter((h) => h.status === 'down')
   const otherItems = buildOtherAttentionItems(metrics, certs)
   const totalCount = downs.length + wafBlocks.length + otherItems.length + parseIssues.length
@@ -102,14 +113,7 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
                   level="warn"
                   title={`block · ${e.rule}`}
                   detail={`${e.host}${e.path}`}
-                  href={wafLink({ action: 'block', host: e.host, path: e.path })}
-                  actions={[
-                    {
-                      label: '调查',
-                      href: investigateLink({ host: e.host, path: e.path || '/', client_ip: e.client_ip }),
-                    },
-                    { label: 'WAF', href: wafLink({ host: e.host, path: e.path, trial: true, eventId: e.id }) },
-                  ]}
+                  onView={() => setWafEventId(e.id)}
                 />
               ))}
             </ul>
@@ -175,6 +179,21 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
           <p className="empty-hint ok-hint">各项指标正常，暂无需要立即处理的事项。</p>
         ) : null}
       </div>
+
+      <WafEventDetailDrawer
+        eventId={wafEventId}
+        open={wafEventId != null}
+        onClose={() => setWafEventId(null)}
+        onStatusChange={onWafEventStatus}
+        onTrial={(detail) => openWafTrial(detail)}
+      />
+
+      <WafTrialDrawer
+        open={wafTrialEvent != null}
+        eventId={wafTrialEvent?.id}
+        seed={wafTrialEvent}
+        onClose={() => setWafTrialEvent(null)}
+      />
 
       <ParseIssueDetailDrawer
         issueId={parseIssueId}

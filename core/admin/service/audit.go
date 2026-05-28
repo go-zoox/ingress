@@ -1,10 +1,18 @@
 package service
 
 import (
+	"strings"
 	"time"
 
 	"github.com/go-zoox/gormx"
 	"github.com/go-zoox/ingress/core/admin/model"
+	"gorm.io/gorm"
+)
+
+const (
+	wafEventStatusOpen     = "open"
+	wafEventStatusIgnored  = "ignored"
+	wafEventStatusResolved = "resolved"
 )
 
 // WAFAuditFilter holds optional filters for listing WAF events.
@@ -14,6 +22,7 @@ type WAFAuditFilter struct {
 	ClientIP  string
 	Rule      string
 	Path      string // added for frontend path filter
+	Status    string // open | ignored | resolved
 	TimeStart string // RFC3339 or "2006-01-02"
 	TimeEnd   string
 	Limit     int
@@ -74,6 +83,7 @@ func (a *Audit) RecordWAFEvent(action, rule, host, path, clientIP, userAgent str
 		Path:      path,
 		ClientIP:  clientIP,
 		UserAgent: userAgent,
+		Status:    wafEventStatusOpen,
 		CreatedAt: time.Now(),
 	}
 	if err := gormx.GetDB().Create(row).Error; err != nil {
@@ -105,6 +115,9 @@ func (a *Audit) ListWAFEvents(f WAFAuditFilter) ([]model.WAFEvent, error) {
 	if f.Path != "" {
 		q = q.Where("path LIKE ?", "%"+f.Path+"%")
 	}
+	if f.Status != "" {
+		q = applyWAFEventStatusFilter(q, f.Status)
+	}
 	if f.TimeStart != "" {
 		q = q.Where("created_at >= ?", f.TimeStart)
 	}
@@ -123,6 +136,55 @@ func (a *Audit) GetWAFEvent(id uint) (*model.WAFEvent, error) {
 		return nil, err
 	}
 	return &row, nil
+}
+
+// SetWAFEventStatus marks a WAF event as ignored, resolved, or reopened (open).
+func (a *Audit) SetWAFEventStatus(id uint, status, note string) (*model.WAFEvent, error) {
+	status = strings.TrimSpace(status)
+	switch status {
+	case wafEventStatusIgnored, wafEventStatusResolved, wafEventStatusOpen:
+	default:
+		status = wafEventStatusIgnored
+	}
+	var row model.WAFEvent
+	if err := gormx.GetDB().First(&row, id).Error; err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	updates := map[string]any{
+		"status": status,
+		"note":   strings.TrimSpace(note),
+	}
+	if status == wafEventStatusResolved {
+		updates["resolved_at"] = now
+	} else {
+		updates["resolved_at"] = nil
+	}
+	if err := gormx.GetDB().Model(&row).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+	if err := gormx.GetDB().First(&row, id).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// OpenBlockCount returns block events still needing attention.
+func (a *Audit) OpenBlockCount() (int64, error) {
+	var count int64
+	err := gormx.GetDB().Model(&model.WAFEvent{}).
+		Where("action = ?", "block").
+		Where("(status = ? OR status = '' OR status IS NULL)", wafEventStatusOpen).
+		Count(&count).Error
+	return count, err
+}
+
+func applyWAFEventStatusFilter(q *gorm.DB, status string) *gorm.DB {
+	status = strings.TrimSpace(status)
+	if status == wafEventStatusOpen {
+		return q.Where("(status = ? OR status = '' OR status IS NULL)", wafEventStatusOpen)
+	}
+	return q.Where("status = ?", status)
 }
 
 // distinctWAFHosts returns distinct host values from waf_events for filter dropdowns.

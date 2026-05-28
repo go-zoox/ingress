@@ -64,6 +64,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/waf/events", a.WAFEvents)
 	g.Delete("/waf/events/demo-seed", a.ClearDemoWAFEvents)
 	g.Get("/waf/events/:id", a.WAFEventDetail)
+	g.Post("/waf/events/:id/status", a.UpdateWAFEventStatus)
 	g.Post("/waf/match", a.WAFMatch)
 	g.Get("/waf/hosts", a.WAFHosts)
 	g.Get("/waf/rules", a.WAFRules)
@@ -259,6 +260,9 @@ func (a *API) WAFEvents(ctx *zoox.Context) {
 	if v := strings.TrimSpace(ctx.Query().Get("rule").String()); v != "" {
 		f.Rule = v
 	}
+	if v := strings.TrimSpace(ctx.Query().Get("status").String()); v != "" {
+		f.Status = v
+	}
 	if v := strings.TrimSpace(ctx.Query().Get("time_start").String()); v != "" {
 		f.TimeStart = v
 	}
@@ -324,6 +328,28 @@ func (a *API) WAFEventDetail(ctx *zoox.Context) {
 	cfg, _ := a.ingress.LoadConfig()
 	detail := service.BuildWAFEventDetail(cfg, row)
 	ok(ctx, detail)
+}
+
+func (a *API) UpdateWAFEventStatus(ctx *zoox.Context) {
+	id, err := strconv.ParseUint(strings.TrimSpace(ctx.Param().Get("id").String()), 10, 64)
+	if err != nil || id == 0 {
+		fail(ctx, http.StatusBadRequest, "invalid event id")
+		return
+	}
+	var body struct {
+		Status string `json:"status"`
+		Note   string `json:"note"`
+	}
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	row, err := a.audit.SetWAFEventStatus(uint(id), body.Status, body.Note)
+	if err != nil {
+		fail(ctx, http.StatusNotFound, err.Error())
+		return
+	}
+	ok(ctx, row)
 }
 
 func (a *API) WAFMatch(ctx *zoox.Context) {

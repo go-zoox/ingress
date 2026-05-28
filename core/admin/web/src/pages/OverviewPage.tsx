@@ -94,6 +94,28 @@ export function OverviewPage() {
     [loadParseIssues, fetchMetrics],
   )
 
+  const loadWafBlocks = useCallback(() => {
+    api
+      .wafEvents({ action: 'block', status: 'open', limit: 30 })
+      .then((d) => {
+        const list = Array.isArray(d) ? d : []
+        setWafBlocks(list.filter((e) => e.action === 'block').slice(0, 8))
+      })
+      .catch(() => setWafBlocks([]))
+  }, [])
+
+  const handleWafEventStatus = useCallback(
+    async (id: number, status: 'ignored' | 'resolved') => {
+      try {
+        await api.updateWafEventStatus(id, status)
+        loadWafBlocks()
+      } catch {
+        // keep current list on failure
+      }
+    },
+    [loadWafBlocks],
+  )
+
   const loadAux = useCallback(() => {
     api
       .tlsCerts()
@@ -109,18 +131,12 @@ export function OverviewPage() {
         setHealthChecks([])
         setHealthSummary({ total: 0, up: 0, down: 0, unknown: 0 })
       })
-    api
-      .wafEvents()
-      .then((d) => {
-        const list = Array.isArray(d) ? d : []
-        setWafBlocks(list.filter((e) => e.action === 'block').slice(0, 8))
-      })
-      .catch(() => setWafBlocks([]))
+    loadWafBlocks()
     api
       .configRevisions(5)
       .then((d) => setRevisions(Array.isArray(d) ? d : []))
       .catch(() => setRevisions([]))
-  }, [])
+  }, [loadWafBlocks])
 
   useEffect(() => {
     api
@@ -320,6 +336,7 @@ export function OverviewPage() {
         wafBlocks={wafBlocks}
         parseIssues={parseIssues}
         onParseIssueStatus={handleParseIssueStatus}
+        onWafEventStatus={handleWafEventStatus}
       />
 
       {revisions.length > 0 ? (

@@ -16,7 +16,7 @@ export function useNavBadges() {
         api.healthCheck().catch(() => ({ checks: [], summary: { total: 0, up: 0, down: 0, unknown: 0 } })),
         api.tlsCerts().catch(() => [] as Awaited<ReturnType<typeof api.tlsCerts>>),
         api.parseIssues('open', 50).catch(() => []),
-        api.wafEvents({ action: 'block', limit: 30 }).catch(() => []),
+        api.wafEvents({ action: 'block', status: 'open', limit: 30 }).catch(() => []),
       ]).then(([health, certs, parseIssues, wafEvents]) => {
         const down = health.summary?.down ?? 0
         const critical = certs.filter((c) => c.days_remaining < 7).length

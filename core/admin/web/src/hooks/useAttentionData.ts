@@ -42,7 +42,7 @@ export function useAttentionData(options: Options = {}) {
       api.overviewMetrics(metricsWindow),
       api.tlsCerts(),
       api.healthCheck(),
-      api.wafEvents({ action: 'block', limit: Math.max(wafLimit, 30) }),
+      api.wafEvents({ action: 'block', status: 'open', limit: Math.max(wafLimit, 30) }),
       api.parseIssues('open', parseIssueLimit),
     ])
       .then(([overview, certList, health, waf, issues]) => {
@@ -69,6 +69,18 @@ export function useAttentionData(options: Options = {}) {
     [loadParseIssues, metricsWindow],
   )
 
+  const handleWafEventStatus = useCallback(
+    async (id: number, status: 'ignored' | 'resolved') => {
+      await api.updateWafEventStatus(id, status)
+      const waf = await api
+        .wafEvents({ action: 'block', status: 'open', limit: Math.max(wafLimit, 30) })
+        .catch(() => [])
+      const blocks = (Array.isArray(waf) ? waf : []).filter((e) => e.action === 'block')
+      setWafBlocks(blocks.slice(0, wafLimit))
+    },
+    [wafLimit],
+  )
+
   useEffect(() => {
     refresh()
     if (autoRefreshMs <= 0) return
@@ -85,6 +97,7 @@ export function useAttentionData(options: Options = {}) {
     loading,
     refresh,
     handleParseIssueStatus,
+    handleWafEventStatus,
     metricsWindow,
   }
 }

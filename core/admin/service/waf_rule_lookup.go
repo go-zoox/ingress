@@ -27,14 +27,16 @@ type WAFRuleDetail struct {
 
 // WAFEventDetail is a WAF event plus resolved rule metadata.
 type WAFEventDetail struct {
-	ID        uint   `json:"id"`
-	Action    string `json:"action"`
-	Rule      string `json:"rule"`
-	Host      string `json:"host"`
-	Path      string `json:"path"`
-	ClientIP  string `json:"client_ip"`
-	UserAgent string `json:"user_agent"`
-	CreatedAt string `json:"created_at"`
+	ID         uint   `json:"id"`
+	Action     string `json:"action"`
+	Rule       string `json:"rule"`
+	Host       string `json:"host"`
+	Path       string `json:"path"`
+	ClientIP   string `json:"client_ip"`
+	UserAgent  string `json:"user_agent"`
+	Status     string `json:"status"`
+	Note       string `json:"note,omitempty"`
+	CreatedAt  string `json:"created_at"`
 	RuleDetail *WAFRuleDetail `json:"rule_detail"`
 	ReplayNote string         `json:"replay_note"`
 }
@@ -260,8 +262,18 @@ func BuildWAFEventDetail(cfg *ingcore.Config, ev *model.WAFEvent) WAFEventDetail
 		Path:       ev.Path,
 		ClientIP:   ev.ClientIP,
 		UserAgent:  ev.UserAgent,
+		Status:     wafEventStatusOrOpen(ev.Status),
+		Note:       ev.Note,
 		CreatedAt:  ev.CreatedAt.Format(time.RFC3339),
 		RuleDetail: detail,
 		ReplayNote: note,
 	}
+}
+
+func wafEventStatusOrOpen(status string) string {
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return wafEventStatusOpen
+	}
+	return status
 }

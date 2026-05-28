@@ -5,7 +5,7 @@ import { PageHeader } from '../components/PageHeader'
 import { useAttentionData } from '../hooks/useAttentionData'
 
 export function AttentionPage() {
-  const { metrics, certs, healthChecks, wafBlocks, parseIssues, loading, refresh, handleParseIssueStatus } =
+  const { metrics, certs, healthChecks, wafBlocks, parseIssues, loading, refresh, handleParseIssueStatus, handleWafEventStatus } =
     useAttentionData({
       parseIssueLimit: 50,
       wafLimit: 30,
@@ -41,6 +41,7 @@ export function AttentionPage() {
           wafBlocks={wafBlocks}
           parseIssues={parseIssues}
           onParseIssueStatus={handleParseIssueStatus}
+          onWafEventStatus={handleWafEventStatus}
           embedded={false}
         />
       )}

@@ -26,6 +26,11 @@ export const api = {
       body: JSON.stringify({ host, path }),
     }),
   wafEvent: (id: number) => request<WAFEventDetail>(`/waf/events/${id}`),
+  updateWafEventStatus: (id: number, status: 'ignored' | 'resolved' | 'open', note = '') =>
+    request<WAFEvent>(`/waf/events/${id}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status, note }),
+    }),
   wafMatch: (body: WAFTrialInput) =>
     request<WAFTrialResult>('/waf/match', {
       method: 'POST',
@@ -38,6 +43,7 @@ export const api = {
     path_match?: 'prefix' | 'exact'
     client_ip?: string
     rule?: string
+    status?: string
     time_start?: string
     time_end?: string
     limit?: number
@@ -53,6 +59,7 @@ export const api = {
     if (params?.pi != null) q.set('pi', String(params.pi))
     if (params?.client_ip) q.set('client_ip', params.client_ip)
     if (params?.rule) q.set('rule', params.rule)
+    if (params?.status) q.set('status', params.status)
     if (params?.time_start) q.set('time_start', params.time_start)
     if (params?.time_end) q.set('time_end', params.time_end)
     if (params?.limit) q.set('limit', String(params.limit))
@@ -233,6 +240,8 @@ export type WAFEvent = {
   path: string
   client_ip: string
   user_agent?: string
+  status?: 'open' | 'ignored' | 'resolved' | ''
+  note?: string
   created_at: string
 }
 
@@ -271,6 +280,7 @@ export type WAFRuleDetail = {
 export type WAFEventDetail = WAFEvent & {
   rule_detail?: WAFRuleDetail | null
   replay_note?: string
+  status?: 'open' | 'ignored' | 'resolved' | ''
 }
 
 export type WAFTrialResult = {

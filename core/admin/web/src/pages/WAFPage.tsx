@@ -4,9 +4,10 @@ import { FlaskConical } from 'lucide-react'
 import { investigateLink } from '../lib/deepLinks'
 import { PageHeader } from '../components/PageHeader'
 import { EmptyStateGuide } from '../components/EmptyStateGuide'
-import { Drawer } from '../components/Drawer'
+import { WafEventDetailDrawer } from '../components/WafEventDetailDrawer'
+import { WafTrialDrawer } from '../components/WafTrialDrawer'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
-import { api, type WAFEvent, type WAFEventDetail, type WAFTrialResult } from '../api/client'
+import { api, type WAFEvent, type WAFEventDetail } from '../api/client'
 import { useSSE } from '../hooks/useSSE'
 import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
 import { formatWafRuleTooltip, resolveWafRule } from '../lib/wafRuleTooltip'
@@ -33,10 +34,7 @@ export function WAFPage() {
   const [err, setErr] = useState('')
   const [drawer, setDrawer] = useState<DrawerMode>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [detail, setDetail] = useState<WAFEventDetail | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [trialEventId, setTrialEventId] = useState<number | null>(null)
-  const [trialExpectedRule, setTrialExpectedRule] = useState('')
+  const [trialSeed, setTrialSeed] = useState<WAFEvent | WAFEventDetail | null>(null)
 
   const [filterAction, setFilterAction] = useState(urlInit.action)
   const [filterHost, setFilterHost] = useState(urlInit.host)
@@ -53,15 +51,6 @@ export function WAFPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const { data: sseData, connected: sseConnected } = useSSE(['waf'])
   const { lookup: ruleLookup } = useWafRuleLookup()
-
-  const [trialHost, setTrialHost] = useState('api.example.com')
-  const [trialPath, setTrialPath] = useState('/search?q=test')
-  const [trialMethod, setTrialMethod] = useState('GET')
-  const [trialClientIP, setTrialClientIP] = useState('203.0.113.1')
-  const [trialUA, setTrialUA] = useState('scanner/1.0')
-  const [trialResult, setTrialResult] = useState<WAFTrialResult | null>(null)
-  const [trialErr, setTrialErr] = useState('')
-  const [trialLoading, setTrialLoading] = useState(false)
 
   const load = useCallback(() => {
     const params: Parameters<typeof api.wafEvents>[0] = {}
@@ -89,31 +78,14 @@ export function WAFPage() {
   }
 
   const openTrial = (seed?: WAFEvent | WAFEventDetail) => {
-    setTrialEventId(null)
-    setTrialExpectedRule('')
-    if (seed) {
-      setTrialHost(seed.host)
-      setTrialPath(seed.path)
-      setTrialClientIP(seed.client_ip || '')
-      setTrialEventId(seed.id)
-      setTrialExpectedRule(seed.rule || '')
-      const ruleLower = (seed.rule || '').toLowerCase()
-      if (ruleLower.includes('scanner') || ruleLower.includes('ua')) {
-        setTrialUA('scanner/1.0')
-      } else {
-        setTrialUA('')
-      }
-    }
-    setTrialResult(null)
-    setTrialErr('')
+    setTrialSeed(seed ?? null)
     setDrawer('trial')
   }
 
   const closeDrawer = () => {
     setDrawer(null)
     setSelectedId(null)
-    setTrialEventId(null)
-    setTrialExpectedRule('')
+    setTrialSeed(null)
   }
 
   useEffect(() => {
@@ -181,50 +153,6 @@ export function WAFPage() {
       return [...fresh, ...prev].slice(0, 200)
     })
   }, [sseData.waf, realtime])
-
-  useEffect(() => {
-    if (drawer !== 'detail' || selectedId == null) {
-      setDetail(null)
-      return
-    }
-    setDetailLoading(true)
-    api
-      .wafEvent(selectedId)
-      .then(setDetail)
-      .catch((e: Error) => {
-        setDetail(null)
-        setErr(e.message)
-      })
-      .finally(() => setDetailLoading(false))
-  }, [drawer, selectedId])
-
-  const runTrial = () => {
-    setTrialErr('')
-    setTrialResult(null)
-    setTrialLoading(true)
-    const path = trialPath.trim()
-    let query = ''
-    let pathOnly = path
-    if (path.includes('?')) {
-      const idx = path.indexOf('?')
-      pathOnly = path.slice(0, idx) || '/'
-      query = path.slice(idx + 1)
-    }
-    api
-      .wafMatch({
-        host: trialHost.trim(),
-        path: pathOnly,
-        method: trialMethod,
-        client_ip: trialClientIP.trim() || undefined,
-        query: query || undefined,
-        headers: trialUA.trim() ? { 'User-Agent': trialUA.trim() } : undefined,
-        event_id: trialEventId ?? undefined,
-        expected_rule: trialExpectedRule || undefined,
-      })
-      .then(setTrialResult)
-      .catch((e: Error) => setTrialErr(e.message))
-      .finally(() => setTrialLoading(false))
-  }
 
   const handleRefresh = () => {
     load()
@@ -465,254 +393,21 @@ export function WAFPage() {
         </div>
       </div>
 
-      <Drawer
+      <WafEventDetailDrawer
+        eventId={selectedId}
         open={drawer === 'detail'}
-        title={selectedId != null ? `事件详情 #${selectedId}` : '事件详情'}
         onClose={closeDrawer}
-        footer={
-          detail ? (
-            <>
-              <button type="button" className="btn btn-ghost" onClick={closeDrawer}>
-                关闭
-              </button>
-              <Link
-                to={investigateLink({
-                  host: detail.host,
-                  path: detail.path || '/',
-                  client_ip: detail.client_ip,
-                })}
-                className="btn btn-primary"
-              >
-                调查此请求
-              </Link>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => openTrial(detail)}
-              >
-                WAF 试匹配
-              </button>
-            </>
-          ) : (
-            <button type="button" className="btn btn-ghost" onClick={closeDrawer}>
-              关闭
-            </button>
-          )
-        }
-      >
-        {detailLoading ? (
-          <p className="empty-hint">加载中…</p>
-        ) : detail ? (
-          <>
-            <dl className="route-detail-dl">
-              <dt>时间</dt>
-              <dd>{new Date(detail.created_at).toLocaleString('zh-CN')}</dd>
-              <dt>动作</dt>
-              <dd>
-                <span className={`badge badge-${detail.action}`}>{detail.action}</span>
-              </dd>
-              <dt>规则标识</dt>
-              <dd>
-                <WafRuleTooltip rule={detail.rule} lookup={ruleLookup} />
-              </dd>
-              <dt>Host</dt>
-              <dd>
-                <code>{detail.host}</code>
-              </dd>
-              <dt>Path</dt>
-              <dd>
-                <code>{detail.path}</code>
-              </dd>
-              <dt>客户端 IP</dt>
-              <dd>{detail.client_ip || '—'}</dd>
-              <dt>User Agent</dt>
-              <dd>
-                {detail.user_agent ? (
-                  <code className="waf-user-agent">{detail.user_agent}</code>
-                ) : (
-                  '—'
-                )}
-              </dd>
-            </dl>
-            {detail.rule_detail ? (
-              <div className="waf-rule-detail-box">
-                <h3 className="waf-rule-detail-title">命中规则说明</h3>
-                <dl className="route-detail-dl">
-                  <dt>名称</dt>
-                  <dd>{detail.rule_detail.name || '—'}</dd>
-                  <dt>类型</dt>
-                  <dd>
-                    {detail.rule_detail.type || '—'}
-                    {detail.rule_detail.source ? (
-                      <span className="badge badge-audit" style={{ marginLeft: 8 }}>
-                        {ruleSourceLabel(detail.rule_detail.source)}
-                      </span>
-                    ) : null}
-                  </dd>
-                  {detail.rule_detail.phase ? (
-                    <>
-                      <dt>阶段</dt>
-                      <dd>{detail.rule_detail.phase}</dd>
-                    </>
-                  ) : null}
-                  {detail.rule_detail.pattern ? (
-                    <>
-                      <dt>模式</dt>
-                      <dd>
-                        <code className="waf-rule-pattern">{detail.rule_detail.pattern}</code>
-                      </dd>
-                    </>
-                  ) : null}
-                  {detail.rule_detail.targets && detail.rule_detail.targets.length > 0 ? (
-                    <>
-                      <dt>检测目标</dt>
-                      <dd>{detail.rule_detail.targets.join(', ')}</dd>
-                    </>
-                  ) : null}
-                  <dt>说明</dt>
-                  <dd>{detail.rule_detail.description}</dd>
-                </dl>
-              </div>
-            ) : null}
-            {detail.replay_note ? (
-              <p className="match-hint waf-replay-note">{detail.replay_note}</p>
-            ) : null}
-          </>
-        ) : (
-          <p className="empty-hint">无法加载事件详情</p>
-        )}
-      </Drawer>
+        onTrial={(detail) => openTrial(detail)}
+      />
 
-      <Drawer
+      <WafTrialDrawer
         open={drawer === 'trial'}
-        title="规则试匹配"
         onClose={closeDrawer}
-        width={440}
-        footer={
-          <>
-            <button type="button" className="btn btn-ghost" onClick={closeDrawer}>
-              关闭
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={runTrial}
-              disabled={trialLoading}
-            >
-              {trialLoading ? '匹配中…' : '执行试匹配'}
-            </button>
-          </>
-        }
-      >
-        <p className="match-hint" style={{ marginTop: 0 }}>
-          按<strong>当前 ingress 配置</strong>与<strong>运行时 WAF 开关</strong>模拟请求（非历史回放）。
-          {trialExpectedRule ? (
-            <> 期望复现规则：<code>{trialExpectedRule}</code></>
-          ) : null}
-        </p>
-        <label className="field-label">Host</label>
-        <input
-          className="field-input-last"
-          value={trialHost}
-          onChange={(e) => setTrialHost(e.target.value)}
-          style={{ width: '100%', marginBottom: 12 }}
-        />
-        <label className="field-label">Path（可含 query）</label>
-        <input
-          className="field-input-last"
-          value={trialPath}
-          onChange={(e) => setTrialPath(e.target.value)}
-          style={{ width: '100%', marginBottom: 12 }}
-        />
-        <label className="field-label">Method</label>
-        <select
-          value={trialMethod}
-          onChange={(e) => setTrialMethod(e.target.value)}
-          style={{ width: '100%', marginBottom: 12 }}
-        >
-          <option value="GET">GET</option>
-          <option value="POST">POST</option>
-          <option value="PUT">PUT</option>
-          <option value="DELETE">DELETE</option>
-        </select>
-        <label className="field-label">客户端 IP</label>
-        <input
-          className="field-input-last"
-          value={trialClientIP}
-          onChange={(e) => setTrialClientIP(e.target.value)}
-          style={{ width: '100%', marginBottom: 12 }}
-        />
-        <label className="field-label">User-Agent</label>
-        <input
-          className="field-input-last"
-          value={trialUA}
-          onChange={(e) => setTrialUA(e.target.value)}
-          style={{ width: '100%', marginBottom: 12 }}
-        />
-        {trialErr && <p className="err">{trialErr}</p>}
-        {trialResult && (
-          <div className={`match-result ${trialResult.matched ? 'hit' : 'miss'}`}>
-            <h3>{trialResult.matched ? '命中 WAF' : '未命中'}</h3>
-            <dl>
-              <dt>规则索引</dt>
-              <dd>{trialResult.rule_index}</dd>
-              <dt>将拦截</dt>
-              <dd>{trialResult.would_block ? '是' : '否（审计或放行）'}</dd>
-              <dt>配置 WAF</dt>
-              <dd>{trialResult.config_waf_enabled ? '已启用' : '关闭'}</dd>
-              <dt>运行时 WAF</dt>
-              <dd>{trialResult.runtime_waf_enabled ? '已启用' : '关闭'}</dd>
-              <dt>试匹配 WAF</dt>
-              <dd>
-                {trialResult.waf_enabled
-                  ? trialResult.log_only
-                    ? '仅审计'
-                    : '拦截模式'
-                  : '未启用'}
-              </dd>
-              {trialResult.expected_rule ? (
-                <>
-                  <dt>期望规则</dt>
-                  <dd>
-                    <code>{trialResult.expected_rule}</code>
-                    {trialResult.expected_rule_hit ? ' ✓ 已复现' : ' ✗ 未复现'}
-                  </dd>
-                </>
-              ) : null}
-            </dl>
-            {trialResult.hits?.length > 0 && (
-              <ul className="waf-trial-hits">
-                {trialResult.hits.map((h, i) => (
-                  <li key={i}>
-                    <span className={`badge badge-${h.action}`}>{h.action}</span>{' '}
-                    <WafRuleTooltip rule={h.rule} lookup={ruleLookup} className="inline-tooltip" />
-                    {h.client_ip ? ` · ${h.client_ip}` : ''}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {trialResult.message && <p className="match-hint">{trialResult.message}</p>}
-            {trialResult.hint && <p className="match-hint waf-trial-hint">{trialResult.hint}</p>}
-          </div>
-        )}
-      </Drawer>
+        eventId={trialSeed?.id}
+        seed={trialSeed}
+      />
     </div>
   )
-}
-
-function ruleSourceLabel(source: string) {
-  switch (source) {
-    case 'config':
-      return '配置文件'
-    case 'builtin':
-      return '内置'
-    case 'demo':
-      return '演示数据'
-    case 'phase':
-      return '阶段'
-    default:
-      return source
-  }
 }
 
 function formatTime(iso: string) {
