@@ -41,7 +41,6 @@ function CacheKeyHeadersFields<T extends BackendForm>({
   return (
     <FormItem
       label="key_headers"
-      keyName={`${idPrefix}cache.key_headers`}
       hint="参与缓存键的请求头；留空表示不按任何请求头区分。常用：Authorization、Cookie、User-Agent、Token 等（名称不区分大小写）"
     >
       {headers.length > 0 && (
@@ -102,7 +101,6 @@ function CachePathKeyJsonFields({
   return (
     <FormItem
       label="key_json"
-      keyName={`${idPrefix}cache.paths[${idx}].key_json`}
       hint="JSON body 点分路径，如 product.id；配置后缓存键为 httpcache:v2"
     >
       <div className="form-list-rows">
@@ -286,6 +284,7 @@ export function BackendCacheFormFields<T extends BackendForm>({
                       删除
                     </button>
                   </div>
+                  <div className="form-section-body">
                   <FormField
                     label="match"
                     keyName={`${idPrefix}cache.paths[${idx}].match`}
@@ -370,6 +369,7 @@ export function BackendCacheFormFields<T extends BackendForm>({
                       )}
                     </>
                   )}
+                  </div>
                 </div>
               )
             })}

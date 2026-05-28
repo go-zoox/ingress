@@ -1,5 +1,6 @@
 import {
   FormField,
+  FormItem,
   FormSection,
   FormSelectField,
 } from '../Form'
@@ -134,22 +135,16 @@ export function HandlerFormFields<T extends BackendForm>({
               />
             </>
           )}
-          <label className="form-item form-item--full">
-            <span className="form-label">
-              <span className="form-label-text">脚本 script</span>
-              <code className="form-key">handler.script</code>
-            </span>
-            <span className="form-control-wrap">
-              <textarea
-                className="code config-module-text form-control"
-                spellCheck={false}
-                rows={10}
-                placeholder={HANDLER_SCRIPT_PLACEHOLDER[form.handler_engine]}
-                value={form.handler_script}
-                onChange={(e) => patch((n) => { n.handler_script = e.target.value })}
-              />
-            </span>
-          </label>
+          <FormItem label="脚本 script" full hint="根据所选 engine 编写可执行脚本">
+            <textarea
+              className="code config-module-text form-control"
+              spellCheck={false}
+              rows={10}
+              placeholder={HANDLER_SCRIPT_PLACEHOLDER[form.handler_engine]}
+              value={form.handler_script}
+              onChange={(e) => patch((n) => { n.handler_script = e.target.value })}
+            />
+          </FormItem>
         </FormSection>
       )}
     </>

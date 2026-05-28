@@ -26,14 +26,12 @@ export function FormSection({ title, children }: { title?: string; children: Rea
 
 export function FormItem({
   label,
-  keyName,
   hint,
   full,
   htmlFor,
   children,
 }: {
   label: string
-  keyName?: string
   hint?: string
   full?: boolean
   htmlFor?: string
@@ -41,12 +39,13 @@ export function FormItem({
 }) {
   return (
     <div className={`form-item${full ? ' form-item--full' : ''}`}>
-      <label className="form-label" htmlFor={htmlFor}>
-        <span className="form-label-text">{label}</span>
-        {keyName && <code className="form-key">{keyName}</code>}
-      </label>
+      <div className="form-label-row">
+        <label className="form-label" htmlFor={htmlFor}>
+          <span className="form-label-text">{label}</span>
+        </label>
+        {hint ? <p className="form-hint form-hint--field">{hint}</p> : null}
+      </div>
       <div className="form-control-wrap">{children}</div>
-      {hint && <p className="form-hint">{hint}</p>}
     </div>
   )
 }
@@ -106,19 +105,20 @@ export function FormCheckbox({
 /** Text/number/password input with label spacing baked in. */
 export function FormField({
   label,
-  keyName,
+  keyName: _keyName,
   hint,
   full,
   ...inputProps
 }: {
   label: string
+  /** @deprecated Config key is no longer shown in the UI */
   keyName?: string
   hint?: string
   full?: boolean
 } & Omit<InputHTMLAttributes<HTMLInputElement>, 'className'>) {
   const id = useId()
   return (
-    <FormItem label={label} keyName={keyName} hint={hint} full={full} htmlFor={id}>
+    <FormItem label={label} hint={hint} full={full} htmlFor={id}>
       <FormInput id={id} {...inputProps} />
     </FormItem>
   )
@@ -127,13 +127,14 @@ export function FormField({
 /** Select with label spacing baked in. */
 export function FormSelectField({
   label,
-  keyName,
+  keyName: _keyName,
   hint,
   full,
   children,
   ...selectProps
 }: {
   label: string
+  /** @deprecated Config key is no longer shown in the UI */
   keyName?: string
   hint?: string
   full?: boolean
@@ -141,7 +142,7 @@ export function FormSelectField({
 } & Omit<SelectHTMLAttributes<HTMLSelectElement>, 'className'>) {
   const id = useId()
   return (
-    <FormItem label={label} keyName={keyName} hint={hint} full={full} htmlFor={id}>
+    <FormItem label={label} hint={hint} full={full} htmlFor={id}>
       <FormSelect id={id} {...selectProps}>
         {children}
       </FormSelect>
@@ -152,7 +153,7 @@ export function FormSelectField({
 /** Checkbox multi-select in a dropdown panel (details/summary). */
 export function FormMultiSelectField({
   label,
-  keyName,
+  keyName: _keyName,
   hint,
   options,
   value,
@@ -160,6 +161,7 @@ export function FormMultiSelectField({
   placeholder = '点击选择…',
 }: {
   label: string
+  /** @deprecated Config key is no longer shown in the UI */
   keyName?: string
   hint?: string
   options: readonly string[]
@@ -182,7 +184,7 @@ export function FormMultiSelectField({
   }
 
   return (
-    <FormItem label={label} keyName={keyName} hint={hint}>
+    <FormItem label={label} hint={hint}>
       <details className="form-multi-select">
         <summary className="form-control form-multi-select-summary">{summary}</summary>
         <div className="form-multi-select-panel">

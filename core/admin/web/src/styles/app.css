@@ -3413,6 +3413,7 @@ table.data.config-revisions code {
 .form-item {
   display: flex;
   flex-direction: column;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -3421,13 +3422,22 @@ table.data.config-revisions code {
   grid-column: 1 / -1;
 }
 
+.form-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0;
+}
+
 .form-label {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 0 10px;
+  margin: 0;
   cursor: default;
+  flex-shrink: 0;
 }
 
 .form-label-text {
@@ -3509,8 +3519,15 @@ table.data.config-revisions code {
 .form-hint {
   margin: 8px 0 0;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-placeholder);
   line-height: 1.45;
+}
+
+.form-hint--field {
+  margin: 0;
+  flex: 1 1 10rem;
+  min-width: 0;
+  font-weight: 400;
 }
 
 .form-multi-select {
@@ -3579,6 +3596,9 @@ table.data.config-revisions code {
 }
 
 .form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -3586,7 +3606,7 @@ table.data.config-revisions code {
 }
 
 .form-section-title {
-  margin: 0 0 16px;
+  margin: 0;
   font-size: 12px;
   color: var(--text-muted);
   font-weight: 600;
@@ -3598,6 +3618,7 @@ table.data.config-revisions code {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
 }
 
 .form-section-body .form-grid {
