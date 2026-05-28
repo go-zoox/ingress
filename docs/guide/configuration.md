@@ -280,7 +280,7 @@ Effective **`internal` / `external`** for **`Host`** rewrite is **`backend.servi
 | `max_body_bytes` | int | Do not store bodies larger than this (0 or unset → **2MiB** in code) | `2097152` |
 | `key_hash` | string | Fingerprint algorithm: `md5` or `sha256` | `md5` |
 | `methods` | string array | Cacheable methods (normalized to uppercase). **Must not include `POST`** — use per-path `paths[].methods` + `key_json` for POST APIs. | `GET`, `HEAD` |
-| `key_headers` | string array | Request header names in the fingerprint (values are hashed, not stored raw) | `Authorization`, `Cookie`, `Accept-Encoding` |
+| `key_headers` | string array | Request header names in the fingerprint (values are hashed, not stored raw). Names are normalized with `http.CanonicalHeaderKey` and deduplicated **case-insensitively**. | *(none — empty omits headers from the key)* |
 | `bypass_request_directives` | string array | `Cache-Control` tokens that force origin/handling (token match; see code for `max-age=0`) | `no-cache`, `no-store`, `max-age=0` |
 | `honor_pragma_no_cache` | bool | Treat `Pragma: no-cache` like `Cache-Control: no-cache` for bypass | `true` |
 | `ignore_response_private` | bool | Allow storing `Cache-Control: private` responses | `false` |

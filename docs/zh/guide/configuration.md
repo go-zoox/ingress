@@ -262,7 +262,7 @@ rules:
 | `max_body_bytes` | int | 大于此大小的响应体不缓存（代码中 ≤0 或未设置时默认 **2MiB**） | `2097152` |
 | `key_hash` | string | 指纹算法：`md5` 或 `sha256` | `md5` |
 | `methods` | string 数组 | 允许参与缓存的方法（运行时规范为大写）。**不得包含 `POST`**——POST 查询 API 请用 `paths[].methods` + `key_json`。 | `GET`、`HEAD` |
-| `key_headers` | string 数组 | 参与缓存键的请求头名（头值为哈希摘要，不存原文） | `Authorization`、`Cookie`、`Accept-Encoding` |
+| `key_headers` | string 数组 | 参与缓存键的请求头名（头值为哈希摘要，不存原文）。名称经 `http.CanonicalHeaderKey` 规范化，**不区分大小写**去重。 | *（无默认；留空则请求头不参与键）* |
 | `bypass_request_directives` | string 数组 | 命中则跳过缓存读写、按正常逻辑处理的 `Cache-Control` 记号 | `no-cache`、`no-store`、`max-age=0` |
 | `honor_pragma_no_cache` | bool | 将 `Pragma: no-cache` 视为与 `Cache-Control: no-cache` 等同以绕过缓存 | `true` |
 | `ignore_response_private` | bool | 是否允许缓存标为 `Cache-Control: private` 的响应 | `false` |

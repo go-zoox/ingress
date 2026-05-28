@@ -45,6 +45,51 @@ func TestNormalizeHTTPCacheDisabled(t *testing.T) {
 	}
 }
 
+func TestNormalizeHTTPCache_NoDefaultKeyHeaders(t *testing.T) {
+	pc := normalizeHTTPCache(rule.BackendCache{Enabled: true})
+	if pc == nil {
+		t.Fatal("nil pc")
+	}
+	if len(pc.KeyHeaders) != 0 {
+		t.Fatalf("expected no default key headers, got %v", pc.KeyHeaders)
+	}
+}
+
+func TestNormalizeHTTPCache_KeyHeadersCaseInsensitiveDedupe(t *testing.T) {
+	pc := normalizeHTTPCache(rule.BackendCache{
+		Enabled:    true,
+		KeyHeaders: []string{"token", "Token", " authorization ", "User-Agent"},
+	})
+	if pc == nil {
+		t.Fatal("nil pc")
+	}
+	want := []string{"Authorization", "Token", "User-Agent"}
+	if len(pc.KeyHeaders) != len(want) {
+		t.Fatalf("got %v", pc.KeyHeaders)
+	}
+	for i, h := range want {
+		if pc.KeyHeaders[i] != h {
+			t.Fatalf("got %v want %v", pc.KeyHeaders, want)
+		}
+	}
+}
+
+func TestBuildHTTPCacheStorageKey_KeyHeadersCaseInsensitive(t *testing.T) {
+	pc := normalizeHTTPCache(rule.BackendCache{
+		Enabled:    true,
+		KeyHeaders: []string{"token"},
+	})
+	reqLo := httptest.NewRequest(http.MethodGet, "http://example.com/x", nil)
+	reqLo.Header.Set("token", "abc")
+	reqHi := httptest.NewRequest(http.MethodGet, "http://example.com/x", nil)
+	reqHi.Header.Set("Token", "abc")
+	k1 := buildHTTPCacheStorageKey(reqLo, "example.com", "/x", pc)
+	k2 := buildHTTPCacheStorageKey(reqHi, "example.com", "/x", pc)
+	if k1 != k2 {
+		t.Fatalf("keys differ: %s vs %s", k1, k2)
+	}
+}
+
 func TestHTTPCacheShouldStore_RejectsVaryByDefault(t *testing.T) {
 	pc := normalizeHTTPCache(rule.BackendCache{Enabled: true})
 	res := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}}

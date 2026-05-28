@@ -13,6 +13,75 @@ import { emptyCachePathRule } from '../../lib/configEntities'
 const CACHE_BACKEND_METHOD_OPTIONS = ['GET', 'HEAD'] as const
 const CACHE_PATH_METHOD_OPTIONS = ['GET', 'HEAD', 'POST'] as const
 
+function CacheKeyHeadersFields<T extends BackendForm>({
+  form,
+  patch,
+  idPrefix,
+}: {
+  form: T
+  patch: (fn: (next: T) => void) => void
+  idPrefix: string
+}) {
+  const headers = form.cache_key_headers
+
+  const updateHeader = (idx: number, value: string) => {
+    patch((n) => {
+      const next = [...n.cache_key_headers]
+      next[idx] = value
+      n.cache_key_headers = next
+    })
+  }
+
+  const removeHeader = (idx: number) => {
+    patch((n) => {
+      n.cache_key_headers = n.cache_key_headers.filter((_, i) => i !== idx)
+    })
+  }
+
+  return (
+    <FormItem
+      label="key_headers"
+      keyName={`${idPrefix}cache.key_headers`}
+      hint="参与缓存键的请求头；留空表示不按任何请求头区分。常用：Authorization、Cookie、User-Agent、Token 等（名称不区分大小写）"
+    >
+      {headers.length > 0 && (
+        <div className="form-list-rows">
+          {headers.map((header, idx) => (
+            <div key={idx} className="form-list-row">
+              <FormInput
+                placeholder="Authorization"
+                value={header}
+                aria-label={`key_headers ${idx + 1}`}
+                onChange={(e) => updateHeader(idx, e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn btn-sm"
+                aria-label="删除请求头"
+                onClick={() => removeHeader(idx)}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        className="btn btn-sm"
+        style={{ marginTop: headers.length > 0 ? '0.5rem' : 0 }}
+        onClick={() => {
+          patch((n) => {
+            n.cache_key_headers = [...n.cache_key_headers, '']
+          })
+        }}
+      >
+        + 添加请求头
+      </button>
+    </FormItem>
+  )
+}
+
 function pathRuleHasPost(methods: string[]) {
   return methods.map((m) => m.toUpperCase()).includes('POST')
 }
@@ -172,13 +241,7 @@ export function BackendCacheFormFields<T extends BackendForm>({
             checked={form.cache_honor_pragma_no_cache}
             onChange={(v) => patch((n) => { n.cache_honor_pragma_no_cache = v })}
           />
-          <FormField
-            label="key_headers"
-            keyName={`${idPrefix}cache.key_headers`}
-            hint="逗号分隔；留空使用默认 Authorization, Cookie, Accept-Encoding"
-            value={form.cache_key_headers}
-            onChange={(e) => patch((n) => { n.cache_key_headers = e.target.value })}
-          />
+          <CacheKeyHeadersFields form={form} patch={patch} idPrefix={idPrefix} />
           <FormMultiSelectField
             label="methods（backend 级）"
             keyName={`${idPrefix}cache.methods`}

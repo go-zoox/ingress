@@ -53,7 +53,7 @@ type BackendCache struct {
 	// Methods lists cacheable methods (uppercase in YAML is normalized at runtime). Default: GET, HEAD.
 	Methods []string `config:"methods"`
 	// KeyHeaders lists request header names included in the cache fingerprint (values are hashed).
-	// Defaults are applied in core when empty.
+	// Empty means no request headers participate in the cache key.
 	KeyHeaders []string `config:"key_headers"`
 	// BypassRequestDirectives lists Cache-Control tokens; if any appear on the client request,
 	// HTTP cache read/write is skipped and the request is handled as usual (origin/handler/redirect). Default: no-cache, no-store, max-age=0.

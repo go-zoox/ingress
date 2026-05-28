@@ -103,7 +103,7 @@ export type BackendForm = {
   cache_skip_when_set_cookie: boolean
   cache_ignore_response_private: boolean
   cache_honor_pragma_no_cache: boolean
-  cache_key_headers: string
+  cache_key_headers: string[]
   cache_methods: string
   cache_default: 'cache' | 'bypass'
   cache_path_rules: CachePathRuleForm[]
@@ -173,6 +173,21 @@ export function emptyCachePathRule(): CachePathRuleForm {
 
 function splitConfigList(s: string): string[] {
   return s.split(/[,\n]/).map((x) => x.trim()).filter(Boolean)
+}
+
+/** Dedupe cache key header names case-insensitively; preserve first spelling. */
+export function normalizeCacheKeyHeaders(headers: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const h of headers) {
+    const trimmed = h.trim()
+    if (!trimmed) continue
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(trimmed)
+  }
+  return out.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
 }
 
 function cachePathRulesToForm(cache: Record<string, unknown>): CachePathRuleForm[] {
@@ -311,7 +326,7 @@ function cacheToForm(backend: Record<string, unknown>): Pick<
     cache_skip_when_set_cookie: c.skip_when_set_cookie === undefined ? true : bool(c.skip_when_set_cookie, true),
     cache_ignore_response_private: bool(c.ignore_response_private),
     cache_honor_pragma_no_cache: c.honor_pragma_no_cache === undefined ? true : bool(c.honor_pragma_no_cache, true),
-    cache_key_headers: keyHeaders.join(', '),
+    cache_key_headers: keyHeaders,
     cache_methods: methods.length ? methods.join(', ') : '',
     cache_default: defaultAction === 'bypass' ? 'bypass' : 'cache',
     cache_path_rules: cachePathRulesToForm(c),
@@ -499,7 +514,7 @@ export function emptyBackendForm(): BackendForm {
     cache_skip_when_set_cookie: true,
     cache_ignore_response_private: false,
     cache_honor_pragma_no_cache: true,
-    cache_key_headers: '',
+    cache_key_headers: [],
     cache_methods: '',
     cache_default: 'cache',
     cache_path_rules: [],
@@ -634,7 +649,7 @@ function buildCache(form: BackendForm, original?: Record<string, unknown>): Reco
   if (form.cache_honor_pragma_no_cache) delete cache.honor_pragma_no_cache
   else cache.honor_pragma_no_cache = false
 
-  const keyHeaders = form.cache_key_headers.split(',').map((s) => s.trim()).filter(Boolean)
+  const keyHeaders = normalizeCacheKeyHeaders(form.cache_key_headers)
   if (keyHeaders.length) cache.key_headers = keyHeaders
   else delete cache.key_headers
 

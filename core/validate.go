@@ -213,6 +213,7 @@ func validateBackendCache(cache rule.BackendCache, ruleIdx int, host, pathPatter
 			return fmt.Errorf("%s: backend.cache.key_headers entries must be non-empty", loc)
 		}
 	}
+	cache.KeyHeaders = normalizeHTTPCacheKeyHeaders(cache.KeyHeaders)
 	for _, d := range cache.BypassRequestDirectives {
 		if strings.TrimSpace(d) == "" {
 			return fmt.Errorf("%s: backend.cache.bypass_request_directives entries must be non-empty", loc)

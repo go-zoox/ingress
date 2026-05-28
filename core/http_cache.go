@@ -160,15 +160,7 @@ func normalizeHTTPCache(bc rule.BackendCache) *httpCacheRuntime {
 		allow[strings.ToUpper(strings.TrimSpace(m))] = struct{}{}
 	}
 
-	keyHeaders := bc.KeyHeaders
-	if len(keyHeaders) == 0 {
-		keyHeaders = []string{headerAuthorization, headerCookie, headerAcceptEncoding}
-	}
-	kh := make([]string, 0, len(keyHeaders))
-	for _, h := range keyHeaders {
-		kh = append(kh, http.CanonicalHeaderKey(strings.TrimSpace(h)))
-	}
-	sort.Strings(kh)
+	kh := normalizeHTTPCacheKeyHeaders(bc.KeyHeaders)
 
 	bypass := bc.BypassRequestDirectives
 	if len(bypass) == 0 {
@@ -440,6 +432,27 @@ func httpCachePolicyForRequest(path string, pc *httpCacheRuntime) *httpCacheRunt
 	return &eff
 }
 
+// normalizeHTTPCacheKeyHeaders trims, canonicalizes, and deduplicates header names case-insensitively.
+func normalizeHTTPCacheKeyHeaders(headers []string) []string {
+	seen := make(map[string]struct{}, len(headers))
+	out := make([]string, 0, len(headers))
+	for _, h := range headers {
+		h = strings.TrimSpace(h)
+		if h == "" {
+			continue
+		}
+		canon := http.CanonicalHeaderKey(h)
+		key := strings.ToLower(canon)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, canon)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // requestScheme prefers TLS on the connection, then X-Forwarded-Proto behind a terminating proxy.
 func requestScheme(req *http.Request) string {
 	if req.TLS != nil {
@@ -505,8 +518,9 @@ func buildHTTPCacheCanonical(r *http.Request, hostname, path string, pc *httpCac
 
 	for _, name := range pc.KeyHeaders {
 		vals := r.Header.Values(name)
+		keyName := strings.ToLower(name)
 		if len(vals) == 0 {
-			fmt.Fprintf(&b, "%s:\n", name)
+			fmt.Fprintf(&b, "%s:\n", keyName)
 			continue
 		}
 		fmt.Fprintf(&b, "%s\n", headerValuesFingerprint(name, vals))
