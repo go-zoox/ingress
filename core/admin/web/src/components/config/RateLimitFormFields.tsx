@@ -11,11 +11,13 @@ export function RateLimitFormFields<T extends RateLimitFormSlice>({
   onChange,
   idPrefix = '',
   title = '限流 rate_limit',
+  embedded = false,
 }: {
   form: T
   onChange: (next: T) => void
   idPrefix?: string
   title?: string
+  embedded?: boolean
 }) {
   const patch = (fn: (next: T) => void) => {
     const next = { ...form }
@@ -26,7 +28,7 @@ export function RateLimitFormFields<T extends RateLimitFormSlice>({
   const configured = form.rate_limit_requests > 0 || form.rate_limit_enabled === true
 
   return (
-    <FormSection title={title}>
+    <FormSection title={embedded ? undefined : title}>
       <FormCheckbox
         label="启用限流"
         checked={form.rate_limit_enabled !== false && (configured || form.rate_limit_enabled === true)}

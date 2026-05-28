@@ -1,17 +1,15 @@
 import { useState } from 'react'
 import {
-  FormField,
-  FormGrid,
-  FormSelectField,
-} from '../Form'
-import {
   ConfigEntityModal,
   EntityRowActions,
   EntityTableToolbar,
 } from '../ConfigEntityModal'
-import { BackendFormGrid, backendFormWide } from './BackendFormFields'
-import { RateLimitFormFields } from './RateLimitFormFields'
 import { RulePathsModal } from './RulePathsModal'
+import {
+  defaultRuleEntitySection,
+  RuleEntityFormSections,
+  type RuleEntitySectionId,
+} from './RuleEntityFormSections'
 import {
   emptyRuleForm,
   formToRule,
@@ -23,57 +21,6 @@ import {
 } from '../../lib/configEntities'
 import { arr, str } from '../../lib/ingressModuleForms'
 import { moveAdjacent } from '../../lib/arrayMove'
-
-function RuleFormFields({
-  form,
-  onChange,
-}: {
-  form: RuleForm
-  onChange: (next: RuleForm) => void
-}) {
-  const patch = (fn: (next: RuleForm) => void) => {
-    const next = { ...form }
-    fn(next)
-    onChange(next)
-  }
-
-  return (
-    <FormGrid columns={1}>
-      <FormField
-        label="Host"
-        keyName="host"
-        value={form.host}
-        onChange={(e) => patch((n) => { n.host = e.target.value })}
-      />
-      <FormSelectField
-        label="Host 类型"
-        keyName="host_type"
-        value={form.host_type}
-        onChange={(e) => patch((n) => { n.host_type = e.target.value })}
-      >
-        <option value="auto">auto（自动推断）</option>
-        <option value="exact">exact</option>
-        <option value="wildcard">wildcard</option>
-        <option value="regex">regex</option>
-      </FormSelectField>
-
-      <p className="form-section-label">Host 级 Backend</p>
-      <BackendFormGrid<RuleForm> form={form} onChange={onChange} />
-
-      <RateLimitFormFields<RuleForm>
-        form={form}
-        onChange={onChange}
-        title="路由限流 rules[].rate_limit"
-      />
-
-      {form.paths.length > 0 && (
-        <p className="form-hint">
-          已配置 {form.paths.length} 条 path；保存 Host 后可在列表中点击「Paths」继续编辑。
-        </p>
-      )}
-    </FormGrid>
-  )
-}
 
 export function RulesEditor({
   doc,
@@ -87,6 +34,7 @@ export function RulesEditor({
   const [pathsModalIndex, setPathsModalIndex] = useState<number | null>(null)
   const [editIndex, setEditIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState<RuleForm>(emptyRuleForm())
+  const [activeSection, setActiveSection] = useState<RuleEntitySectionId>('basic')
 
   const patchRules = (rows: Record<string, unknown>[]) => {
     onChange({ rules: rows })
@@ -95,12 +43,14 @@ export function RulesEditor({
   const openAdd = () => {
     setEditIndex(null)
     setDraft(emptyRuleForm())
+    setActiveSection(defaultRuleEntitySection('rule'))
     setModalOpen(true)
   }
 
   const openEdit = (index: number) => {
     setEditIndex(index)
     setDraft(ruleToForm(rules[index]))
+    setActiveSection(defaultRuleEntitySection('rule'))
     setModalOpen(true)
   }
 
@@ -204,12 +154,18 @@ export function RulesEditor({
       <ConfigEntityModal
         open={modalOpen}
         title={editIndex == null ? '添加路由规则' : '编辑路由规则'}
-        wide={backendFormWide(draft)}
+        wide
         onClose={() => setModalOpen(false)}
         onSave={save}
         disableSave={ruleSaveDisabled(draft)}
       >
-        <RuleFormFields form={draft} onChange={setDraft} />
+        <RuleEntityFormSections
+          form={draft}
+          onChange={setDraft}
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+          variant="rule"
+        />
       </ConfigEntityModal>
 
       {pathsRule && pathsModalIndex != null && (

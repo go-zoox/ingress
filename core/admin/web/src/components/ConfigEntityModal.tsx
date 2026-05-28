@@ -25,7 +25,7 @@ export function ConfigEntityModal({
       open={open}
       title={title}
       onClose={onClose}
-      width={wide ? 720 : 560}
+      width={wide ? 920 : 560}
       footer={(
         <>
           <button type="button" className="btn" onClick={onClose}>

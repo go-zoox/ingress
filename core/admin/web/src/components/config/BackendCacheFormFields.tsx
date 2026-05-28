@@ -11,10 +11,12 @@ export function BackendCacheFormFields<T extends BackendForm>({
   form,
   onChange,
   idPrefix = '',
+  embedded = false,
 }: {
   form: T
   onChange: (next: T) => void
   idPrefix?: string
+  embedded?: boolean
 }) {
   const patch = (fn: (next: T) => void) => {
     const next = { ...form }
@@ -30,7 +32,7 @@ export function BackendCacheFormFields<T extends BackendForm>({
   }
 
   return (
-    <FormSection title="HTTP 响应缓存 backend.cache">
+    <FormSection title={embedded ? undefined : 'HTTP 响应缓存 backend.cache'}>
       <FormCheckbox
         label="启用 backend.cache"
         checked={form.cache_enabled}

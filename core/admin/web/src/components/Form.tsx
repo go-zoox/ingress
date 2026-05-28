@@ -10,10 +10,10 @@ export function FormGrid({
   return <div className={`form-grid form-grid--${columns}`}>{children}</div>
 }
 
-export function FormSection({ title, children }: { title: string; children: ReactNode }) {
+export function FormSection({ title, children }: { title?: string; children: ReactNode }) {
   return (
     <section className="form-section">
-      <h4 className="form-section-title">{title}</h4>
+      {title ? <h4 className="form-section-title">{title}</h4> : null}
       <div className="form-section-body">{children}</div>
     </section>
   )

@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
-import {
-  FormField,
-  FormGrid,
-} from '../Form'
 import { Drawer } from '../Drawer'
 import {
   ConfigEntityModal,
   EntityRowActions,
   EntityTableToolbar,
 } from '../ConfigEntityModal'
-import { BackendFormGrid, backendFormWide } from './BackendFormFields'
+import {
+  defaultRuleEntitySection,
+  RuleEntityFormSections,
+  type RuleEntitySectionId,
+} from './RuleEntityFormSections'
 import {
   applyPathsToRule,
   emptyPathForm,
@@ -20,38 +20,6 @@ import {
   type PathForm,
 } from '../../lib/configEntities'
 import { moveAdjacent } from '../../lib/arrayMove'
-
-function PathFormFields({
-  form,
-  onChange,
-}: {
-  form: PathForm
-  onChange: (next: PathForm) => void
-}) {
-  const patch = (fn: (next: PathForm) => void) => {
-    const next = { ...form }
-    fn(next)
-    onChange(next)
-  }
-
-  return (
-    <FormGrid columns={1}>
-      <FormField
-        label="Path 前缀"
-        keyName="path"
-        hint="如 /api、/v2；匹配最长前缀"
-        value={form.path}
-        onChange={(e) => patch((n) => { n.path = e.target.value })}
-      />
-      <BackendFormGrid<PathForm>
-        form={form}
-        onChange={onChange}
-        idPrefix="paths[]."
-        variant="path"
-      />
-    </FormGrid>
-  )
-}
 
 export function RulePathsModal({
   open,
@@ -70,6 +38,7 @@ export function RulePathsModal({
   const [pathModalOpen, setPathModalOpen] = useState(false)
   const [editIndex, setEditIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState<PathForm>(emptyPathForm())
+  const [activeSection, setActiveSection] = useState<RuleEntitySectionId>('basic')
 
   useEffect(() => {
     if (open) setPaths(pathsFromRule(rule))
@@ -82,12 +51,14 @@ export function RulePathsModal({
   const openAdd = () => {
     setEditIndex(null)
     setDraft(emptyPathForm())
+    setActiveSection(defaultRuleEntitySection('path'))
     setPathModalOpen(true)
   }
 
   const openEdit = (index: number) => {
     setEditIndex(index)
     setDraft({ ...paths[index] })
+    setActiveSection(defaultRuleEntitySection('path'))
     setPathModalOpen(true)
   }
 
@@ -182,12 +153,19 @@ export function RulePathsModal({
       <ConfigEntityModal
         open={pathModalOpen}
         title={editIndex == null ? '添加 Path' : '编辑 Path'}
-        wide={backendFormWide(draft)}
+        wide
         onClose={() => setPathModalOpen(false)}
         onSave={savePath}
         disableSave={pathSaveDisabled(draft)}
       >
-        <PathFormFields form={draft} onChange={setDraft} />
+        <RuleEntityFormSections
+          form={draft}
+          onChange={setDraft}
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+          variant="path"
+          idPrefix="paths[]."
+        />
       </ConfigEntityModal>
     </>
   )

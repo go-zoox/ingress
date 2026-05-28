@@ -24,10 +24,12 @@ export function AuthFormFields<T extends BackendForm>({
   form,
   onChange,
   idPrefix = '',
+  embedded = false,
 }: {
   form: T
   onChange: (next: T) => void
   idPrefix?: string
+  embedded?: boolean
 }) {
   const patch = (fn: (next: T) => void) => {
     const next = { ...form }
@@ -36,7 +38,7 @@ export function AuthFormFields<T extends BackendForm>({
   }
 
   return (
-    <FormSection title="认证 backend.service.auth">
+    <FormSection title={embedded ? undefined : '认证 backend.service.auth'}>
       <FormSelectField
         label="认证类型"
         keyName={`${idPrefix}service.auth.type`}

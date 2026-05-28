@@ -10,10 +10,12 @@ export function HealthCheckFormFields<T extends BackendForm>({
   form,
   onChange,
   idPrefix = '',
+  embedded = false,
 }: {
   form: T
   onChange: (next: T) => void
   idPrefix?: string
+  embedded?: boolean
 }) {
   const patch = (fn: (next: T) => void) => {
     const next = { ...form }
@@ -22,7 +24,7 @@ export function HealthCheckFormFields<T extends BackendForm>({
   }
 
   return (
-    <FormSection title="健康检查 backend.service.healthcheck">
+    <FormSection title={embedded ? undefined : '健康检查 backend.service.healthcheck'}>
       <FormCheckbox
         label="启用健康检查 healthcheck.enable"
         checked={form.health_check_enable}

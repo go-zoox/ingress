@@ -2588,6 +2588,102 @@ table.data.tls-certs .tls-domain {
   color: var(--text-muted);
 }
 
+.entity-form-layout {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 420px;
+}
+
+.entity-form-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entity-form-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.entity-form-tab:hover {
+  background: var(--bg-hover);
+}
+
+.entity-form-tab.active {
+  border-color: var(--accent-dim);
+  background: rgba(61, 214, 198, 0.08);
+}
+
+.entity-form-tab.disabled {
+  opacity: 0.55;
+}
+
+.entity-form-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.entity-form-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  background: var(--bg-elevated, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.entity-form-panel-head {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.entity-form-panel-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.entity-form-panel-head p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.entity-form-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.entity-form-unavailable {
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.entity-form-unavailable p {
+  margin: 0;
+}
+
 .config-versions {
   overflow-x: auto;
 }
@@ -4049,6 +4145,27 @@ table.data.config-revisions code {
     flex-shrink: 0;
     font-size: 12px;
     padding: 8px 10px;
+  }
+  .entity-form-layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .entity-form-nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .entity-form-tab {
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+  .entity-form-panel {
+    padding: 12px;
   }
   .config-module-editor {
     padding: 12px;
