@@ -21,6 +21,7 @@ import { OverviewDelta } from './OverviewDelta'
 import { OverviewHealthMatrix } from './OverviewHealthMatrix'
 import { OverviewTLSPanel } from './OverviewTLSPanel'
 import { HostTrafficTable } from './HostTrafficTable'
+import { RankedBarList } from './RankedBarList'
 
 type Props = {
   metrics: OverviewMetrics | null
@@ -142,7 +143,7 @@ export const OverviewCharts = memo(function OverviewCharts({
           <StatusDonut counts={metrics.status_counts} />
         </ChartPanel>
         <ChartPanel title="Top Host（请求量）">
-          <HostBarList
+          <RankedBarList
             rows={metrics.top_hosts.map((h) => ({
               name: h.name,
               value: h.count,
@@ -152,7 +153,7 @@ export const OverviewCharts = memo(function OverviewCharts({
           />
         </ChartPanel>
         <ChartPanel title="Top Host（错误率）">
-          <HostBarList
+          <RankedBarList
             rows={(metrics.top_hosts_error ?? []).map((h) => ({
               name: h.name,
               value: h.error_rate,
@@ -196,7 +197,7 @@ export const OverviewCharts = memo(function OverviewCharts({
             </h2>
           </div>
           <div className="panel-body">
-            <HostBarList
+            <RankedBarList
               rows={(metrics.top_paths ?? []).map((p) => ({
                 name: p.name,
                 value: p.count,
@@ -300,37 +301,6 @@ const KpiCard = memo(function KpiCard({
       <div className="sub">{sub}</div>
       {delta ? <div className="kpi-delta-row">{delta}</div> : null}
     </div>
-  )
-})
-
-const HostBarList = memo(function HostBarList({
-  rows,
-  tone,
-  maxValue,
-}: {
-  rows: Array<{ name: string; value: number; sub: string }>
-  tone: 'ok' | 'warn'
-  maxValue?: number
-}) {
-  if (rows.length === 0) {
-    return <p className="empty-hint">无数据</p>
-  }
-  const max = maxValue ?? Math.max(1, ...rows.map((r) => r.value))
-  const fillClass = tone === 'ok' ? 'seg-2xx' : 'seg-4xx'
-  return (
-    <>
-      {rows.map((h) => (
-        <div key={h.name} className="bar-row host-rank">
-          <span className="bar-label host-label" title={h.name}>
-            {h.name}
-          </span>
-          <div className="bar-track">
-            <div className={`bar-fill ${fillClass}`} style={{ width: `${(h.value / max) * 100}%` }} />
-          </div>
-          <span className="bar-val">{h.sub}</span>
-        </div>
-      ))}
-    </>
   )
 })
 
