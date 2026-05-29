@@ -16,11 +16,9 @@ const CACHE_PATH_METHOD_OPTIONS = ['GET', 'HEAD', 'POST'] as const
 function CacheKeyHeadersFields<T extends BackendForm>({
   form,
   patch,
-  idPrefix,
 }: {
   form: T
   patch: (fn: (next: T) => void) => void
-  idPrefix: string
 }) {
   const headers = form.cache_key_headers
 
@@ -87,12 +85,10 @@ function pathRuleHasPost(methods: string[]) {
 
 function CachePathKeyJsonFields({
   idx,
-  idPrefix,
   row,
   updatePathRule,
 }: {
   idx: number
-  idPrefix: string
   row: CachePathRuleForm
   updatePathRule: (idx: number, fn: (row: CachePathRuleForm) => void) => void
 }) {
@@ -244,7 +240,7 @@ export function BackendCacheFormFields<T extends BackendForm>({
             checked={form.cache_honor_pragma_no_cache}
             onChange={(v) => patch((n) => { n.cache_honor_pragma_no_cache = v })}
           />
-          <CacheKeyHeadersFields form={form} patch={patch} idPrefix={idPrefix} />
+          <CacheKeyHeadersFields form={form} patch={patch} />
           <FormMultiSelectField
             label="methods（backend 级）"
             keyName={`${idPrefix}cache.methods`}
@@ -359,7 +355,6 @@ export function BackendCacheFormFields<T extends BackendForm>({
                         <>
                           <CachePathKeyJsonFields
                             idx={idx}
-                            idPrefix={idPrefix}
                             row={row}
                             updatePathRule={updatePathRule}
                           />
