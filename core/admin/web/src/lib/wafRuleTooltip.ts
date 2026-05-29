@@ -71,7 +71,13 @@ export function formatWafRuleTooltip(
   if (detail.phase && detail.phase !== ruleField) lines.push(`阶段: ${detail.phase}`)
   if (detail.pattern) lines.push(`模式: ${detail.pattern}`)
   if (detail.targets?.length) lines.push(`目标: ${detail.targets.join(', ')}`)
-  if (detail.log_only) lines.push('规则级: 仅审计 (log_only)')
+  if (detail.action && detail.action !== 'block') {
+    const act =
+      detail.action === 'audit' ? '仅记录' : detail.action === 'pass' ? '通过' : detail.action
+    lines.push(`处置: ${act}`)
+  } else if (detail.log_only) {
+    lines.push('规则级: 仅审计 (log_only)')
+  }
   if (detail.description) lines.push(detail.description)
   return lines.join('\n')
 }

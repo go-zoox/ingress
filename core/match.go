@@ -41,17 +41,17 @@ func backendNeedsNoUpstream(b rule.Backend) bool {
 	return bt == backendTypeHandler || bt == backendTypeRedirect
 }
 
-func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Service, *rule.Rule, *rule.Backend, []string, []string, int, error) {
+func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Service, *rule.Rule, *rule.Backend, []string, []string, int, int, error) {
 	key := "match.host:v2:" + host
 	matcher := &HostMatcher{}
 	if err := ctx.Cache().Get(key, matcher); err != nil {
 		matcher, err = matchHostIndex(c.router, c.cfg.Rules, c.cfg.Fallback, host)
 		if err != nil {
 			if !errors.Is(err, ErrHostNotFound) {
-				return nil, nil, nil, nil, nil, 0, err
+				return nil, nil, nil, nil, nil, 0, -1, err
 			}
 
-			return nil, nil, nil, nil, nil, 0, err
+			return nil, nil, nil, nil, nil, 0, -1, err
 		}
 
 		ctx.Cache().Set(key, matcher, time.Duration(c.cfg.Cache.TTL)*time.Second)
@@ -64,14 +64,16 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Serv
 
 	// Paths may replace upstream Service when the path backend proxies elsewhere—or leave it nil for handler/redirect paths.
 	var pathSubmatches []string
+	pathIdx := -1
 	if matcher.IsPathsExist && matcher.ruleIndex >= 0 {
-		ps, matchedPath, psm, err := matchPathWithRouter(c.router, c.cfg.Rules, matcher.ruleIndex, path, host, matcher.hostSubmatches)
+		ps, matchedPath, psm, pi, err := matchPathWithRouter(c.router, c.cfg.Rules, matcher.ruleIndex, path, host, matcher.hostSubmatches)
 		if err != nil {
 			if !errors.Is(err, ErrPathNotFound) {
-				return nil, nil, nil, nil, nil, matcher.ruleIndex, err
+				return nil, nil, nil, nil, nil, matcher.ruleIndex, -1, err
 			}
 		} else {
 			pathSubmatches = psm
+			pathIdx = pi
 			s = ps
 			if matchedPath != nil {
 				matchedPathBackend = &matchedPath.Backend
@@ -82,11 +84,11 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Serv
 	hostNP := backendNeedsNoUpstream(t.Backend)
 	pathNP := matchedPathBackend != nil && backendNeedsNoUpstream(*matchedPathBackend)
 	if s == nil && !hostNP && !pathNP {
-		return nil, nil, nil, nil, nil, matcher.ruleIndex, fmt.Errorf("service not found at matcher")
+		return nil, nil, nil, nil, nil, matcher.ruleIndex, pathIdx, fmt.Errorf("service not found at matcher")
 	}
 
 	if s == nil && (pathNP || hostNP) {
-		return nil, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, matcher.ruleIndex, nil
+		return nil, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, matcher.ruleIndex, pathIdx, nil
 	}
 
 	if s == nil {
@@ -96,10 +98,10 @@ func (c *core) match(ctx *zoox.Context, host string, path string) (*service.Serv
 			HostType: hostTypeExact,
 			Backend:  c.cfg.Fallback,
 		}
-		return s, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, matcher.ruleIndex, nil
+		return s, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, matcher.ruleIndex, pathIdx, nil
 	}
 
-	return s, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, matcher.ruleIndex, nil
+	return s, t, matchedPathBackend, matcher.hostSubmatches, pathSubmatches, matcher.ruleIndex, pathIdx, nil
 }
 
 // MatchHost matches host against rules using a precompiled index when available.
@@ -230,9 +232,9 @@ func hostMatcherFromMatchedRule(rule *rule.Rule, host string, rewriterFrom strin
 	}
 }
 
-func matchPathWithRouter(router *routerIndex, rules []rule.Rule, ruleIdx int, path string, host string, hostSubmatches []string) (r *service.Service, matchedPath *rule.Path, pathSubmatches []string, err error) {
+func matchPathWithRouter(router *routerIndex, rules []rule.Rule, ruleIdx int, path string, host string, hostSubmatches []string) (r *service.Service, matchedPath *rule.Path, pathSubmatches []string, pathIndex int, err error) {
 	if ruleIdx < 0 || ruleIdx >= len(rules) {
-		return nil, nil, nil, ErrPathNotFound
+		return nil, nil, nil, -1, ErrPathNotFound
 	}
 	matchedRule := &rules[ruleIdx]
 	for _, cp := range router.pathsByRule[ruleIdx] {
@@ -242,9 +244,9 @@ func matchPathWithRouter(router *routerIndex, rules []rule.Rule, ruleIdx int, pa
 		}
 		rp := &rules[ruleIdx].Paths[cp.pathIndex]
 		svc, mp, err := pathMatchResultWithHost(rp, matchedRule, host, hostSubmatches, psubs)
-		return svc, mp, psubs, err
+		return svc, mp, psubs, cp.pathIndex, err
 	}
-	return nil, nil, nil, ErrPathNotFound
+	return nil, nil, nil, -1, ErrPathNotFound
 }
 
 func pathMatchResult(rpath *rule.Path) (*service.Service, *rule.Path, error) {

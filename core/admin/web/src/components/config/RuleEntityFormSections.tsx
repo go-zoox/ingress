@@ -2,10 +2,14 @@ import { FormGrid, FormField, FormSelectField } from '../Form'
 import { AuthFormFields } from './AuthFormFields'
 import { BackendCacheFormFields } from './BackendCacheFormFields'
 import { BackendCoreFormFields } from './BackendCoreFormFields'
+import { BackendTypeTabs } from './BackendTypeTabs'
 import { EntityFormLayout, EntityFormUnavailable, type EntityFormSection } from './EntityFormLayout'
 import { HealthCheckFormFields } from './HealthCheckFormFields'
 import { RateLimitFormFields } from './RateLimitFormFields'
+import { RouteSecurityFormFields } from './RouteSecurityFormFields'
+import { ServiceRequestFormFields } from './ServiceRequestFormFields'
 import type { BackendForm, PathForm, RuleForm } from '../../lib/configEntities'
+import { securityLayerBadge, serviceRequestConfigured } from '../../lib/configEntities'
 
 export type RuleEntitySectionId =
   | 'basic'
@@ -13,7 +17,9 @@ export type RuleEntitySectionId =
   | 'paths'
   | 'health'
   | 'auth'
+  | 'upstream'
   | 'cache'
+  | 'security'
   | 'rate_limit'
 
 const SECTION_COPY: Record<RuleEntitySectionId, { label: string; description: string }> = {
@@ -37,9 +43,17 @@ const SECTION_COPY: Record<RuleEntitySectionId, { label: string; description: st
     label: '认证授权',
     description: '上游 service 访问认证（仅 service backend）。',
   },
+  upstream: {
+    label: '上游转发',
+    description: 'request / response 改写（Host、路径、头、超时等；仅 service backend）。',
+  },
   cache: {
     label: '响应缓存',
     description: 'HTTP 响应缓存 backend.cache（service / handler / redirect）。',
+  },
+  security: {
+    label: '安全',
+    description: '覆盖全局 security: 的响应头与 CORS（Host 或 Path 级）。',
   },
   rate_limit: {
     label: '路由限流',
@@ -53,8 +67,8 @@ function serviceOnly(form: BackendForm): boolean {
 
 function ruleSections(form: BackendForm & { paths?: PathForm[] }, includePaths: boolean): EntityFormSection[] {
   const ids: RuleEntitySectionId[] = includePaths
-    ? ['basic', 'backend', 'paths', 'health', 'auth', 'cache', 'rate_limit']
-    : ['basic', 'backend', 'health', 'auth', 'cache']
+    ? ['basic', 'backend', 'paths', 'health', 'auth', 'upstream', 'cache', 'security', 'rate_limit']
+    : ['basic', 'backend', 'health', 'auth', 'upstream', 'cache', 'security']
 
   return ids.map((id) => {
     const copy = SECTION_COPY[id]
@@ -70,13 +84,17 @@ function ruleSections(form: BackendForm & { paths?: PathForm[] }, includePaths: 
     if (id === 'cache' && form.cache_enabled) section.badge = '开'
     if (id === 'auth' && form.auth_type) section.badge = form.auth_type
     if (id === 'health' && form.health_check_enable) section.badge = '开'
+    if (id === 'upstream' && serviceRequestConfigured(form)) section.badge = '已配'
+    if (id === 'security' && 'security_override' in form) {
+      section.badge = securityLayerBadge(form as RuleForm)
+    }
     if (id === 'rate_limit' && 'rate_limit_requests' in form) {
       const rl = form as RuleForm
       if (rl.rate_limit_enabled === true || rl.rate_limit_requests > 0) {
         section.badge = '开'
       }
     }
-    if ((id === 'health' || id === 'auth') && !serviceOnly(form)) {
+    if ((id === 'health' || id === 'auth' || id === 'upstream') && !serviceOnly(form)) {
       section.disabled = true
     }
     return section
@@ -170,6 +188,26 @@ function SharedBackendSections<T extends BackendForm>({
           <AuthFormFields form={form} onChange={onChange} idPrefix={idPrefix} embedded />
         </FormGrid>
       )
+    case 'upstream':
+      if (!serviceOnly(form)) {
+        return (
+          <EntityFormUnavailable
+            title="上游转发仅适用于 service backend。"
+            detail="handler / redirect backend 不支持 backend.service.request / response。"
+          />
+        )
+      }
+      return (
+        <FormGrid columns={1}>
+          <ServiceRequestFormFields
+            form={form}
+            onChange={onChange}
+            idPrefix={idPrefix}
+            embedded
+            showStripPrefixHint={variant === 'path'}
+          />
+        </FormGrid>
+      )
     case 'cache':
       return (
         <FormGrid columns={1}>
@@ -225,6 +263,17 @@ export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
               />
             </FormGrid>
           )
+        case 'security':
+          return (
+            <FormGrid columns={1}>
+              <RouteSecurityFormFields
+                form={ruleForm}
+                onChange={setRuleForm}
+                layer="rule"
+                embedded
+              />
+            </FormGrid>
+          )
         default:
           return (
             <SharedBackendSections
@@ -253,6 +302,17 @@ export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
             />
           </FormGrid>
         )
+      case 'security':
+        return (
+          <FormGrid columns={1}>
+            <RouteSecurityFormFields
+              form={pathForm}
+              onChange={setPathForm}
+              layer="path"
+              embedded
+            />
+          </FormGrid>
+        )
       default:
         return (
           <SharedBackendSections
@@ -270,11 +330,20 @@ export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
     onSectionChange(id as RuleEntitySectionId)
   }
 
+  const backendSubhead =
+    activeSection === 'backend' ? (
+      <BackendTypeTabs
+        value={form.backend_type}
+        onChange={(backend_type) => onChange({ ...form, backend_type } as typeof form)}
+      />
+    ) : undefined
+
   return (
     <EntityFormLayout
       sections={sections}
       activeSection={activeSection}
       onSectionChange={handleSectionChange}
+      subhead={backendSubhead}
     >
       {renderSection()}
     </EntityFormLayout>

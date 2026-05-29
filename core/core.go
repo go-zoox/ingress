@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/ingress/core/ratelimit"
+	"github.com/go-zoox/ingress/core/security"
 	"github.com/go-zoox/zoox"
 	"github.com/go-zoox/zoox/defaults"
 )
@@ -46,6 +47,8 @@ type core struct {
 	wafFallback  *waf.Profile
 
 	rateLimits *ratelimit.Ingress
+
+	security *security.Ingress
 
 	plugins []Plugin
 

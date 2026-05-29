@@ -226,7 +226,7 @@ func RequestMatchesRoute(cfg *Config, ruleIndex, pathIndex int, requestHost, req
 		return false, nil
 	}
 
-	_, mp, _, perr := matchPathWithRouter(idx, cfg.Rules, ruleIndex, requestPath, requestHost, hm.hostSubmatches)
+	_, mp, _, _, perr := matchPathWithRouter(idx, cfg.Rules, ruleIndex, requestPath, requestHost, hm.hostSubmatches)
 	if perr == ErrPathNotFound {
 		return false, nil
 	}
@@ -272,7 +272,7 @@ func MatchPathIndexForRule(cfg *Config, ruleIndex int, requestHost, requestPath 
 	if hm.ruleIndex != ruleIndex {
 		return -1, nil
 	}
-	_, mp, _, perr := matchPathWithRouter(idx, cfg.Rules, ruleIndex, requestPath, requestHost, hm.hostSubmatches)
+	_, mp, _, _, perr := matchPathWithRouter(idx, cfg.Rules, ruleIndex, requestPath, requestHost, hm.hostSubmatches)
 	if perr == ErrPathNotFound || mp == nil {
 		return -1, nil
 	}
@@ -313,7 +313,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 	var svc *service.Service = hm.Service
 
 	if hm.IsPathsExist && hm.ruleIndex >= 0 {
-		ps, mp, _, perr := matchPathWithRouter(idx, cfg.Rules, hm.ruleIndex, path, host, hm.hostSubmatches)
+		ps, mp, _, _, perr := matchPathWithRouter(idx, cfg.Rules, hm.ruleIndex, path, host, hm.hostSubmatches)
 		if perr != nil {
 			if perr == ErrPathNotFound {
 				return &MatchPreview{

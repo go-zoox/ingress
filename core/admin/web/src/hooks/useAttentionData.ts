@@ -101,20 +101,3 @@ export function useAttentionData(options: Options = {}) {
     metricsWindow,
   }
 }
-
-/** Approximate open attention count for sidebar badges. */
-export function countAttentionItems(input: {
-  healthDown: number
-  parseOpen: number
-  tlsCritical: number
-  tlsWarn: number
-  wafBlocks: number
-}) {
-  return (
-    input.healthDown +
-    input.parseOpen +
-    input.tlsCritical +
-    input.tlsWarn +
-    Math.min(input.wafBlocks, 10)
-  )
-}

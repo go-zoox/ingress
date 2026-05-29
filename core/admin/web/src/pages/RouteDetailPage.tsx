@@ -598,6 +598,13 @@ function RouteMetricsKpis({ metrics }: { metrics: RouteMetrics }) {
         sparkTone="var(--ok)"
         delta={<OverviewDelta delta={delta} kind="pct" value={delta.total_pct} />}
       />
+      {(metrics.host_traffic?.length ?? 0) === 1 ? (
+        <RouteMetricCard
+          label="独立访客 UV"
+          value={String(metrics.host_traffic![0].uv)}
+          sub={`PV ${metrics.host_traffic![0].pv}`}
+        />
+      ) : null}
       {(metrics.waf_blocks ?? 0) > 0 ? (
         <RouteMetricCard
           label="WAF 拦截"

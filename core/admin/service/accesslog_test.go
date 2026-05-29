@@ -74,3 +74,39 @@ func TestParseAccessLine(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeLogLine(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{
+			`2026/05/29 13:27:11 2026/05/29 13:27:11 INFO Arch: amd64`,
+			`2026/05/29 13:27:11 INFO Arch: amd64`,
+		},
+		{
+			"2026/05/24 20:14:50 2026/05/24 20:14:50 \x1b[34mINFO\x1b[39m Arch: amd64",
+			`2026/05/24 20:14:50 INFO Arch: amd64`,
+		},
+		{
+			`2026/05/24 19:51:04 2026/05/24 19:51:04 INFO 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com "GET /ip HTTP/1.1" 200 116ms`,
+			`2026/05/24 19:51:04 INFO 127.0.0.1 httpbin.work -> https://httpbin.zcorky.com "GET /ip HTTP/1.1" 200 116ms`,
+		},
+		// Single timestamp (old format): unchanged.
+		{
+			`2026/02/22 12:26:14 203.0.113.12 waf-demo.example.com -> httpbin.org:443 "GET / HTTP/1.1" 403 5ms`,
+			`2026/02/22 12:26:14 203.0.113.12 waf-demo.example.com -> httpbin.org:443 "GET / HTTP/1.1" 403 5ms`,
+		},
+		// No timestamp (legacy access log): unchanged.
+		{
+			`203.0.113.44 api.example.com -> api.internal:8080 "GET / HTTP/1.1" 200 12ms`,
+			`203.0.113.44 api.example.com -> api.internal:8080 "GET / HTTP/1.1" 200 12ms`,
+		},
+	}
+	for _, c := range cases {
+		got := NormalizeLogLine(c.in)
+		if got != c.want {
+			t.Fatalf("in=%q\ngot=%q\nwant=%q", c.in, got, c.want)
+		}
+	}
+}

@@ -22,6 +22,7 @@ type OverviewMetrics struct {
 	Timeline         []TimelineBucket `json:"timeline"`
 	TopHosts         []NamedCount     `json:"top_hosts"`
 	TopHostsError    []HostErrorStat  `json:"top_hosts_error"`
+	HostTraffic      []HostTrafficStat `json:"host_traffic,omitempty"`
 	TopPaths         []NamedCount     `json:"top_paths"`
 	TopBackends      []BackendStat    `json:"top_backends"`
 	Slowest          []SlowRequest    `json:"slowest"`
@@ -60,6 +61,13 @@ type HostErrorStat struct {
 	Count     int     `json:"count"`
 	Errors    int     `json:"errors"`
 	ErrorRate float64 `json:"error_rate"`
+}
+
+// HostTrafficStat is per-host page views and unique visitors in the metrics window.
+type HostTrafficStat struct {
+	Name string `json:"name"`
+	PV   int    `json:"pv"`
+	UV   int    `json:"uv"`
 }
 
 // BackendStat aggregates traffic and upstream latency for one backend target.
@@ -234,6 +242,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	}
 	out.TopHosts = topN(hostCounts, 8)
 	out.TopHostsError = topHostsByError(filtered, 8)
+	out.HostTraffic = hostTrafficStats(filtered, 12)
 	out.TopPaths = topN(pathCounts, 6)
 	out.TopBackends = topBackends(filtered, windowDur, 8)
 	out.Slowest = slowest(filtered, 5)
@@ -260,8 +269,23 @@ func accessPathKey(path string) string {
 
 // ScopeHostPathCounts lists every host and path seen in entries for the given window.
 func ScopeHostPathCounts(entries []AccessEntry, window string) (hosts, paths []NamedCount) {
-	if len(entries) == 0 {
+	filtered := entriesInMetricsWindow(entries, window)
+	if len(filtered) == 0 {
 		return nil, nil
+	}
+	hostCounts := map[string]int{}
+	pathCounts := map[string]int{}
+	for _, e := range filtered {
+		hostCounts[e.Host]++
+		pathCounts[accessPathKey(e.Path)]++
+	}
+	return topN(hostCounts, len(hostCounts)), topN(pathCounts, len(pathCounts))
+}
+
+// entriesInMetricsWindow applies the same time-window filter as aggregateOverview.
+func entriesInMetricsWindow(entries []AccessEntry, window string) []AccessEntry {
+	if len(entries) == 0 {
+		return nil
 	}
 	windowDur := parseWindowDuration(window)
 	hasTime := entriesHaveTimestamps(entries)
@@ -273,16 +297,58 @@ func ScopeHostPathCounts(entries []AccessEntry, window string) (hosts, paths []N
 			filtered = filterEntriesInWindow(entries, anchor, windowDur, true)
 		}
 	}
+	if len(filtered) == 0 && len(entries) > 0 {
+		filtered = append([]AccessEntry(nil), entries...)
+	}
 	if !hasTime {
 		filtered = entries
 	}
-	hostCounts := map[string]int{}
-	pathCounts := map[string]int{}
-	for _, e := range filtered {
-		hostCounts[e.Host]++
-		pathCounts[accessPathKey(e.Path)]++
+	return filtered
+}
+
+func hostTrafficStats(entries []AccessEntry, limit int) []HostTrafficStat {
+	if len(entries) == 0 {
+		return nil
 	}
-	return topN(hostCounts, len(hostCounts)), topN(pathCounts, len(pathCounts))
+	cap := limit
+	if cap == 0 {
+		cap = 12
+	}
+	pv := map[string]int{}
+	uvSets := map[string]map[string]struct{}{}
+	for _, e := range entries {
+		host := strings.TrimSpace(e.Host)
+		if host == "" {
+			continue
+		}
+		pv[host]++
+		ip := visitorIP(e)
+		if ip == "" {
+			continue
+		}
+		if uvSets[host] == nil {
+			uvSets[host] = map[string]struct{}{}
+		}
+		uvSets[host][ip] = struct{}{}
+	}
+	out := make([]HostTrafficStat, 0, len(pv))
+	for host, count := range pv {
+		uv := 0
+		if set := uvSets[host]; set != nil {
+			uv = len(set)
+		}
+		out = append(out, HostTrafficStat{Name: host, PV: count, UV: uv})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].PV != out[j].PV {
+			return out[i].PV > out[j].PV
+		}
+		return out[i].Name < out[j].Name
+	})
+	if cap > 0 && len(out) > cap {
+		out = out[:cap]
+	}
+	return out
 }
 
 func parseWindowDuration(window string) time.Duration {

@@ -31,6 +31,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ status, note }),
     }),
+  batchUpdateWafEventStatus: (ids: number[], status: 'ignored' | 'resolved' | 'open', note = '') =>
+    request<{ ok: boolean; updated: number }>('/waf/events/batch-status', {
+      method: 'POST',
+      body: JSON.stringify({ ids, status, note }),
+    }),
   wafMatch: (body: WAFTrialInput) =>
     request<WAFTrialResult>('/waf/match', {
       method: 'POST',
@@ -132,6 +137,11 @@ export const api = {
     request<AccessLogParseIssue>(`/logs/parse-issues/${id}/status`, {
       method: 'POST',
       body: JSON.stringify({ status, note }),
+    }),
+  batchUpdateParseIssueStatus: (ids: number[], status: 'ignored' | 'resolved' | 'open', note = '') =>
+    request<{ ok: boolean; updated: number }>('/logs/parse-issues/batch-status', {
+      method: 'POST',
+      body: JSON.stringify({ ids, status, note }),
     }),
   parseIssueDetail: (id: number) => request<AccessLogParseIssueDetail>(`/logs/parse-issues/${id}`),
   logs: (params: {
@@ -273,6 +283,7 @@ export type WAFRuleDetail = {
   source: string
   description: string
   log_only?: boolean
+  action?: string
   enabled: boolean
   builtin?: boolean
 }
@@ -503,6 +514,7 @@ export type OverviewMetrics = {
     errors: number
     error_rate: number
   }>
+  host_traffic?: Array<{ name: string; pv: number; uv: number }>
   top_paths: Array<{ name: string; count: number }>
   top_backends?: BackendStat[]
   latency_histogram: Array<{ label: string; count: number }>
@@ -698,8 +710,10 @@ export type RouteMetrics = {
   latency_histogram?: Array<{ label: string; count: number }>
   top_hosts?: Array<{ name: string; count: number }>
   top_paths?: Array<{ name: string; count: number }>
+  host_traffic?: Array<{ name: string; pv: number; uv: number }>
   scope_hosts?: Array<{ name: string; count: number }>
   scope_paths?: Array<{ name: string; count: number }>
+  scope_host_traffic?: Array<{ name: string; pv: number; uv: number }>
   delta?: MetricsDelta
   upstream?: RouteUpstreamStats
   path_breakdown?: RoutePathBreakdown[]

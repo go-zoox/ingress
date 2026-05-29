@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { investigateLink } from '../lib/deepLinks'
 import { parseAccessLogLine } from '../lib/parseAccessLogLine'
+import { normalizeLogLine } from '../lib/normalizeLogLine'
 import { EmptyStateGuide } from '../components/EmptyStateGuide'
 import { api } from '../api/client'
 import { loadPreferences } from '../lib/preferences'
@@ -96,7 +97,7 @@ export function LogsPage() {
         offsetRef.current = r.offset ?? offsetRef.current
         if (incremental && offset > 0) {
           setLines((prev) => {
-            const merged = [...prev, ...list]
+            const merged = [...prev, ...list.map(normalizeLogLine)]
             return merged.length > MAX_LINES ? merged.slice(-MAX_LINES) : merged
           })
           setCount((prev) => {
@@ -104,7 +105,7 @@ export function LogsPage() {
             return `${(Number.isNaN(n) ? 0 : n) + list.length} 条`
           })
         } else {
-          setLines(list)
+          setLines(list.map(normalizeLogLine))
           setCount(`${list.length} 条`)
         }
         setLastRefresh(new Date().toLocaleTimeString('zh-CN', { hour12: false }))
@@ -159,8 +160,9 @@ export function LogsPage() {
 
   const appendLine = useCallback((line: string) => {
     if (!line) return
+    const normalized = normalizeLogLine(line)
     setLines((prev) => {
-      const merged = [...prev, line]
+      const merged = [...prev, normalized]
       return merged.length > MAX_LINES ? merged.slice(-MAX_LINES) : merged
     })
     setCount((prev) => {

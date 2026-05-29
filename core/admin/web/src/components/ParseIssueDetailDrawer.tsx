@@ -13,11 +13,13 @@ export function ParseIssueDetailDrawer({ issueId, open, onClose, onStatusChange 
   const [detail, setDetail] = useState<AccessLogParseIssueDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+  const [note, setNote] = useState('')
 
   useEffect(() => {
     if (!open || issueId == null) {
       setDetail(null)
       setErr('')
+      setNote('')
       return
     }
     setLoading(true)
@@ -38,7 +40,7 @@ export function ParseIssueDetailDrawer({ issueId, open, onClose, onStatusChange 
   const handleStatus = async (status: 'ignored' | 'resolved') => {
     if (issueId == null) return
     try {
-      await api.updateParseIssueStatus(issueId, status)
+      await api.updateParseIssueStatus(issueId, status, note)
       onStatusChange?.(issueId, status)
       onClose()
     } catch {
@@ -132,6 +134,21 @@ export function ParseIssueDetailDrawer({ issueId, open, onClose, onStatusChange 
               </ul>
             )}
           </section>
+
+          {detail.status === 'open' && onStatusChange ? (
+            <div className="event-detail-note">
+              <label htmlFor="parse-issue-note">备注（可选）</label>
+              <textarea
+                id="parse-issue-note"
+                rows={2}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="处理说明…"
+              />
+            </div>
+          ) : detail.note ? (
+            <p className="events-feed-note">备注：{detail.note}</p>
+          ) : null}
         </div>
       ) : null}
     </Drawer>

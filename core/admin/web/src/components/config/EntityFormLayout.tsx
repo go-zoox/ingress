@@ -12,11 +12,14 @@ export function EntityFormLayout({
   sections,
   activeSection,
   onSectionChange,
+  subhead,
   children,
 }: {
   sections: EntityFormSection[]
   activeSection: string
   onSectionChange: (id: string) => void
+  /** Renders below the section title (replaces description when set). */
+  subhead?: ReactNode
   children: ReactNode
 }) {
   const active = sections.find((s) => s.id === activeSection) ?? sections[0]
@@ -43,7 +46,11 @@ export function EntityFormLayout({
         {active ? (
           <header className="entity-form-panel-head">
             <h3>{active.label}</h3>
-            {active.description ? <p>{active.description}</p> : null}
+            {subhead ? (
+              <div className="entity-form-panel-subhead">{subhead}</div>
+            ) : active.description ? (
+              <p>{active.description}</p>
+            ) : null}
           </header>
         ) : null}
         <div className="entity-form-panel-body">{children}</div>

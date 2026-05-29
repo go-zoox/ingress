@@ -53,10 +53,39 @@ export type RateLimitFormSlice = {
   rate_limit_xff_index: number
 }
 
+export type SecurityProfile = 'off' | 'strict' | 'api' | 'embeddable'
+
+export type SecurityFormSlice = {
+  security_profile: SecurityProfile | ''
+  security_hsts: 'auto' | 'on' | 'off' | ''
+  security_frame: 'inherit' | 'deny' | 'sameorigin' | 'off' | ''
+  security_referrer_policy: string
+  security_csp: string
+  security_content_type_options: boolean
+  security_cors_enabled: boolean
+  security_cors_origins: string
+  security_cors_methods: string
+  security_cors_headers: string
+  security_cors_credentials: boolean
+  security_cors_max_age: number
+}
+
+/** Host / path level: when false, omit security from YAML and inherit upstream layer. */
+export type SecurityLayerFormSlice = SecurityFormSlice & {
+  security_override: boolean
+}
+
 export type AuthBasicUserForm = {
   username: string
   password: string
 }
+
+export type StringKVForm = {
+  key: string
+  value: string
+}
+
+export type ServiceRequestHostRewrite = 'default' | 'true' | 'false'
 
 export type AuthOAuth2ConnectJWTForm = {
   secret: string
@@ -139,11 +168,19 @@ export type BackendForm = {
   health_check_path: string
   health_check_status: string
   health_check_ok: boolean
+  // service request / response
+  service_request_host_rewrite: ServiceRequestHostRewrite
+  service_request_path_rewrites: string[]
+  service_request_headers: StringKVForm[]
+  service_request_query: StringKVForm[]
+  service_request_delay: number
+  service_request_timeout: number
+  service_response_headers: StringKVForm[]
 }
 
 export type PathForm = {
   path: string
-} & BackendForm
+} & BackendForm & SecurityLayerFormSlice
 
 export type CachePathRuleForm = {
   match: string
@@ -217,7 +254,7 @@ export type RuleForm = {
   host: string
   host_type: string
   paths: PathForm[]
-} & BackendForm & RateLimitFormSlice
+} & BackendForm & RateLimitFormSlice & SecurityLayerFormSlice
 
 export type FallbackForm = {
   backend_type: 'service' | 'redirect'
@@ -463,6 +500,58 @@ function authToForm(service: Record<string, unknown>): Pick<BackendForm,
   }
 }
 
+function mapToKVForm(m: Record<string, unknown>): StringKVForm[] {
+  const entries = Object.entries(m).map(([key, value]) => ({ key, value: str(value) }))
+  return entries.length > 0 ? entries : [{ key: '', value: '' }]
+}
+
+function kvFormToMap(rows: StringKVForm[]): Record<string, string> | undefined {
+  const out: Record<string, string> = {}
+  for (const { key, value } of rows) {
+    const k = key.trim()
+    if (!k) continue
+    out[k] = value
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+function requestToForm(service: Record<string, unknown>): Pick<BackendForm,
+  'service_request_host_rewrite' | 'service_request_path_rewrites' |
+  'service_request_headers' | 'service_request_query' |
+  'service_request_delay' | 'service_request_timeout' | 'service_response_headers'
+> {
+  const req = obj(service.request)
+  const host = obj(req.host)
+  const path = obj(req.path)
+  const resp = obj(service.response)
+
+  let hostRewrite: ServiceRequestHostRewrite = 'default'
+  if (host.rewrite === true) hostRewrite = 'true'
+  else if (host.rewrite === false) hostRewrite = 'false'
+
+  const rewrites = arr<string>(path.rewrites).filter(Boolean)
+
+  return {
+    service_request_host_rewrite: hostRewrite,
+    service_request_path_rewrites: rewrites,
+    service_request_headers: mapToKVForm(obj(req.headers)),
+    service_request_query: mapToKVForm(obj(req.query)),
+    service_request_delay: num(req.delay, 0),
+    service_request_timeout: num(req.timeout, 0),
+    service_response_headers: mapToKVForm(obj(resp.headers)),
+  }
+}
+
+export function serviceRequestConfigured(form: BackendForm): boolean {
+  if (form.service_request_host_rewrite !== 'default') return true
+  if (form.service_request_path_rewrites.some((r) => r.trim())) return true
+  if (form.service_request_headers.some((r) => r.key.trim())) return true
+  if (form.service_request_query.some((r) => r.key.trim())) return true
+  if (form.service_request_delay > 0 || form.service_request_timeout > 0) return true
+  if (form.service_response_headers.some((r) => r.key.trim())) return true
+  return false
+}
+
 function healthCheckToForm(service: Record<string, unknown>): Pick<BackendForm,
   'health_check_enable' | 'health_check_method' | 'health_check_path' |
   'health_check_status' | 'health_check_ok'
@@ -495,6 +584,7 @@ export function backendToForm(backend: Record<string, unknown>): BackendForm {
     ...cacheToForm(backend),
     ...authToForm(service),
     ...healthCheckToForm(service),
+    ...requestToForm(service),
   }
 }
 
@@ -558,6 +648,13 @@ export function emptyBackendForm(): BackendForm {
     health_check_path: '',
     health_check_status: '',
     health_check_ok: false,
+    service_request_host_rewrite: 'default',
+    service_request_path_rewrites: [],
+    service_request_headers: [{ key: '', value: '' }],
+    service_request_query: [{ key: '', value: '' }],
+    service_request_delay: 0,
+    service_request_timeout: 0,
+    service_response_headers: [{ key: '', value: '' }],
   }
 }
 
@@ -565,6 +662,7 @@ export function emptyPathForm(): PathForm {
   return {
     path: '/',
     ...emptyBackendForm(),
+    ...emptySecurityLayerForm(),
   }
 }
 
@@ -572,6 +670,7 @@ export function pathToForm(row: Record<string, unknown>): PathForm {
   return {
     path: str(row.path),
     ...backendToForm(obj(row.backend)),
+    ...securityLayerFromDoc(obj(row.security)),
   }
 }
 
@@ -582,6 +681,7 @@ export function ruleToForm(rule: Record<string, unknown>): RuleForm {
     paths: arr<Record<string, unknown>>(rule.paths).map(pathToForm),
     ...backendToForm(obj(rule.backend)),
     ...rateLimitToForm(obj(rule.rate_limit)),
+    ...securityLayerFromDoc(obj(rule.security)),
   }
 }
 
@@ -592,6 +692,7 @@ export function emptyRuleForm(): RuleForm {
     paths: [],
     ...emptyBackendForm(),
     ...emptyRateLimitForm(),
+    ...emptySecurityLayerForm(),
   }
 }
 
@@ -810,6 +911,36 @@ function buildAuth(form: BackendForm): Record<string, unknown> | undefined {
   return auth
 }
 
+function buildServiceRequest(form: BackendForm): Record<string, unknown> | undefined {
+  const request: Record<string, unknown> = {}
+
+  if (form.service_request_host_rewrite === 'true') {
+    request.host = { rewrite: true }
+  } else if (form.service_request_host_rewrite === 'false') {
+    request.host = { rewrite: false }
+  }
+
+  const rewrites = form.service_request_path_rewrites.map((r) => r.trim()).filter(Boolean)
+  if (rewrites.length > 0) request.path = { rewrites }
+
+  const headers = kvFormToMap(form.service_request_headers)
+  if (headers) request.headers = headers
+
+  const query = kvFormToMap(form.service_request_query)
+  if (query) request.query = query
+
+  if (form.service_request_delay > 0) request.delay = form.service_request_delay
+  if (form.service_request_timeout > 0) request.timeout = form.service_request_timeout
+
+  return Object.keys(request).length > 0 ? request : undefined
+}
+
+function buildServiceResponse(form: BackendForm): Record<string, unknown> | undefined {
+  const headers = kvFormToMap(form.service_response_headers)
+  if (!headers) return undefined
+  return { headers }
+}
+
 function buildHealthCheck(form: BackendForm): Record<string, unknown> | undefined {
   if (!form.health_check_enable && !form.health_check_method && !form.health_check_path &&
       !form.health_check_status && !form.health_check_ok) {
@@ -853,6 +984,12 @@ export function formToBackend(form: BackendForm, original?: Record<string, unkno
     const hcBlock = buildHealthCheck(form)
     if (hcBlock) svc.healthcheck = hcBlock
     else delete svc.healthcheck
+    const reqBlock = buildServiceRequest(form)
+    if (reqBlock) svc.request = reqBlock
+    else delete svc.request
+    const respBlock = buildServiceResponse(form)
+    if (respBlock) svc.response = respBlock
+    else delete svc.response
     next.service = svc
     delete next.handler
     delete next.redirect
@@ -876,6 +1013,9 @@ export function formToPath(form: PathForm, original?: Record<string, unknown>): 
   const next: Record<string, unknown> = original ? { ...original } : {}
   next.path = form.path.trim()
   next.backend = formToBackend(form, obj(original?.backend))
+  const secBlock = buildSecurityLayer(form)
+  if (secBlock) next.security = secBlock
+  else delete next.security
   return next
 }
 
@@ -888,6 +1028,9 @@ export function formToRule(form: RuleForm, original?: Record<string, unknown>): 
   const rlBlock = buildRateLimit(form)
   if (rlBlock) next.rate_limit = rlBlock
   else delete next.rate_limit
+  const secBlock = buildSecurityLayer(form)
+  if (secBlock) next.security = secBlock
+  else delete next.security
   const origPaths = arr<Record<string, unknown>>(original?.paths)
   next.paths = form.paths.map((p, i) => formToPath(p, origPaths[i]))
   return next
@@ -957,11 +1100,27 @@ export function backendSummary(backend: Record<string, unknown>): string {
   const hc = obj(service.healthcheck)
   if (bool(hc.ok)) base += ' · HC: ✓(ok)'
   else if (bool(hc.enable)) base += ' · HC: ✓'
+  const req = obj(service.request)
+  const reqParts: string[] = []
+  const host = obj(req.host)
+  if (host.rewrite === true) reqParts.push('Host→')
+  else if (host.rewrite === false) reqParts.push('Host✗')
+  const rewrites = arr<string>(obj(req.path).rewrites)
+  if (rewrites.length) reqParts.push(`${rewrites.length} rewrite`)
+  if (Object.keys(obj(req.headers)).length) reqParts.push('req hdr')
+  if (num(req.timeout) > 0) reqParts.push(`${num(req.timeout)}s`)
+  if (reqParts.length) base += ` · ${reqParts.join(',')}`
   return base
 }
 
 export function pathSummary(row: Record<string, unknown>): string {
-  return backendSummary(obj(row.backend))
+  let base = backendSummary(obj(row.backend))
+  const sec = obj(row.security)
+  const profile = str(sec.profile)
+  if (profile) {
+    base += profile === 'off' ? ' · sec:off' : ` · sec:${profile}`
+  }
+  return base
 }
 
 export function ruleSummary(rule: Record<string, unknown>): string {
@@ -971,6 +1130,11 @@ export function ruleSummary(rule: Record<string, unknown>): string {
     base += ` · RL ${num(rl.requests)}/${num(rl.period, 1)}s`
     const key = str(rl.key, 'ip')
     if (key && key !== 'ip') base += `(${key})`
+  }
+  const sec = obj(rule.security)
+  const profile = str(sec.profile)
+  if (profile) {
+    base += profile === 'off' ? ' · sec:off' : ` · sec:${profile}`
   }
   return base
 }
@@ -984,6 +1148,150 @@ export function patchGlobalRateLimit(doc: Record<string, unknown>, form: RateLim
   const rlBlock = buildRateLimit(form)
   if (rlBlock) next.rate_limit = rlBlock
   else delete next.rate_limit
+  return next
+}
+
+function splitLines(s: string): string[] {
+  return s
+    .split(/[\n,]+/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+}
+
+function splitCSV(s: string): string[] {
+  return s
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+}
+
+export function emptySecurityForm(): SecurityFormSlice {
+  return {
+    security_profile: 'strict',
+    security_hsts: 'auto',
+    security_frame: 'inherit',
+    security_referrer_policy: '',
+    security_csp: '',
+    security_content_type_options: true,
+    security_cors_enabled: false,
+    security_cors_origins: '',
+    security_cors_methods: '',
+    security_cors_headers: '',
+    security_cors_credentials: false,
+    security_cors_max_age: 0,
+  }
+}
+
+export function emptySecurityLayerForm(): SecurityLayerFormSlice {
+  return {
+    security_override: false,
+    ...emptySecurityForm(),
+  }
+}
+
+function securityDocConfigured(sec: Record<string, unknown>): boolean {
+  return Object.keys(obj(sec)).length > 0
+}
+
+function securityLayerFromDoc(sec: Record<string, unknown>): SecurityLayerFormSlice {
+  const block = obj(sec)
+  if (!securityDocConfigured(block)) {
+    return emptySecurityLayerForm()
+  }
+  return {
+    security_override: true,
+    ...securityToForm(block),
+  }
+}
+
+export function securityLayerConfigured(form: SecurityLayerFormSlice): boolean {
+  return form.security_override
+}
+
+export function securityLayerBadge(form: SecurityLayerFormSlice): string | undefined {
+  if (!form.security_override) return undefined
+  if (form.security_profile === 'off') return '关'
+  return form.security_profile || '自定义'
+}
+
+export function buildSecurityBlock(form: SecurityFormSlice): Record<string, unknown> | null {
+  const profile = (form.security_profile || 'off').trim()
+  if (profile === 'off') return { profile: 'off' }
+  if (profile === '') return null
+
+  const block: Record<string, unknown> = { profile }
+  if (form.security_hsts && form.security_hsts !== 'auto') block.hsts = form.security_hsts
+  if (form.security_frame && form.security_frame !== 'inherit') block.frame = form.security_frame
+  if (form.security_referrer_policy.trim()) block.referrer_policy = form.security_referrer_policy.trim()
+  if (form.security_csp.trim()) block.csp = form.security_csp.trim()
+  if (form.security_content_type_options === false) block.content_type_options = false
+
+  const origins = splitLines(form.security_cors_origins)
+  const methods = splitCSV(form.security_cors_methods)
+  const headers = splitCSV(form.security_cors_headers)
+  const needsCors = profile === 'api' || form.security_cors_enabled || origins.length > 0
+  if (needsCors) {
+    const cors: Record<string, unknown> = {}
+    if (!form.security_cors_enabled) cors.enabled = false
+    if (origins.length) cors.origins = origins
+    if (methods.length) cors.methods = methods
+    if (headers.length) cors.headers = headers
+    if (form.security_cors_credentials) cors.credentials = true
+    if (form.security_cors_max_age > 0) cors.max_age = form.security_cors_max_age
+    block.cors = cors
+  }
+  return block
+}
+
+export function buildSecurityLayer(form: SecurityLayerFormSlice): Record<string, unknown> | undefined {
+  if (!form.security_override) return undefined
+  const block = buildSecurityBlock(form)
+  return block ?? undefined
+}
+
+export function securityToForm(sec: Record<string, unknown>): SecurityFormSlice {
+  const cors = obj(sec.cors)
+  const origins = arr<string>(cors.origins)
+  const profile = (str(sec.profile, 'off') as SecurityProfile) || 'off'
+  let corsEnabled = false
+  if (cors.enabled === false) {
+    corsEnabled = false
+  } else if (cors.enabled === true || origins.length > 0) {
+    corsEnabled = true
+  } else if (profile === 'api') {
+    corsEnabled = true
+  }
+  return {
+    security_profile: profile,
+    security_hsts: (str(sec.hsts, 'auto') as SecurityFormSlice['security_hsts']) || 'auto',
+    security_frame: (str(sec.frame, 'inherit') as SecurityFormSlice['security_frame']) || 'inherit',
+    security_referrer_policy: str(sec.referrer_policy),
+    security_csp: str(sec.csp),
+    security_content_type_options: sec.content_type_options !== false,
+    security_cors_enabled: corsEnabled,
+    security_cors_origins: origins.join('\n'),
+    security_cors_methods: arr<string>(cors.methods).join(', '),
+    security_cors_headers: arr<string>(cors.headers).join(', '),
+    security_cors_credentials: bool(cors.credentials),
+    security_cors_max_age: num(cors.max_age, 0),
+  }
+}
+
+export function buildSecurity(form: SecurityFormSlice): Record<string, unknown> | null {
+  const block = buildSecurityBlock(form)
+  if (!block || block.profile === 'off') return null
+  return block
+}
+
+export function securityFromDoc(doc: Record<string, unknown>): SecurityFormSlice {
+  return securityToForm(obj(doc.security))
+}
+
+export function patchGlobalSecurity(doc: Record<string, unknown>, form: SecurityFormSlice): Record<string, unknown> {
+  const next = { ...doc }
+  const block = buildSecurity(form)
+  if (block) next.security = block
+  else delete next.security
   return next
 }
 

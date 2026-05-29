@@ -25,17 +25,6 @@ export function BackendCoreFormFields<T extends BackendForm>({
 
   return (
     <>
-      <FormSelectField
-        label="Backend 类型"
-        keyName={`${idPrefix}backend.type`}
-        value={form.backend_type}
-        onChange={(e) => patch((n) => { n.backend_type = e.target.value as BackendForm['backend_type'] })}
-      >
-        <option value="service">service（上游代理）</option>
-        <option value="redirect">redirect（重定向）</option>
-        <option value="handler">handler（直接响应）</option>
-      </FormSelectField>
-
       {form.backend_type === 'service' && (
         <>
           <FormField

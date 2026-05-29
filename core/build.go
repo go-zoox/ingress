@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/ratelimit"
+	"github.com/go-zoox/ingress/core/security"
 	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/zoox"
@@ -60,9 +61,10 @@ func (c *core) build() error {
 			return false, true, nil
 		}
 
-		serviceIns, matchedRule, pathBackend, hostSm, pathSm, ruleIdx, err := c.match(ctx, hostname, path)
+		serviceIns, matchedRule, pathBackend, hostSm, pathSm, ruleIdx, pathIdx, err := c.match(ctx, hostname, path)
 		if err != nil {
 			c.app.Logger().Warnf("no route matched (host: %s, path: %s): %s", hostname, path, err)
+			applySecurityHeaders(ctx, c.securityGlobal())
 			if c.cfg.ErrorPageExposeDetails {
 				writeIngressErrorPage(ctx, http.StatusNotFound,
 					"Route not found",
@@ -77,6 +79,15 @@ func (c *core) build() error {
 			return false, true, nil
 		}
 
+		secProf := c.securityForMatch(ruleIdx, pathIdx)
+		secTarget := "-"
+		if serviceIns != nil {
+			secTarget = serviceIns.Target()
+		}
+		if c.handleSecurityPreflight(ctx, secProf, hostname, secTarget, method, path, ctx.Request.Proto, reqStart) {
+			return false, true, nil
+		}
+
 		if c.rateLimits != nil {
 			var ruleRL *ratelimit.Policy
 			if ruleIdx >= 0 && ruleIdx < len(c.rateLimits.ByRule) {
@@ -84,6 +95,7 @@ func (c *core) build() error {
 			}
 			if blocked, retryAfter := ratelimit.Check(ctx.Request, c.rateLimits.Global, ruleRL, ruleIdx); blocked {
 				ctx.SetHeader("Retry-After", ratelimit.ParseRetryAfter(retryAfter))
+				applySecurityHeaders(ctx, secProf)
 				ctx.Status(http.StatusTooManyRequests)
 				ctx.String(http.StatusTooManyRequests, "Too Many Requests")
 				target := "-"
@@ -113,6 +125,7 @@ func (c *core) build() error {
 			}
 		}) {
 			ctx.SetHeader("Content-Type", wafProf.BlockContentType)
+			applySecurityHeaders(ctx, secProf)
 			ctx.String(wafProf.BlockStatus, wafProf.BlockBody)
 			target := "-"
 			if serviceIns != nil {
@@ -162,6 +175,7 @@ func (c *core) build() error {
 			}
 			if policyRedirect != nil && httpCacheMethodAllowed(method, policyRedirect) && !httpCacheRequestBypasses(ctx.Request, policyRedirect) {
 				redirectCacheKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, policyRedirect)
+				applySecurityHeaders(ctx, secProf)
 				if hit, code, ulen := tryServeHTTPCache(ctx, policyRedirect, redirectCacheKey); hit {
 					rdDur := time.Since(redirectCacheStart)
 					ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, "redirect", method, path, ctx.Request.Proto, code, rdDur, accessLogMeta{
@@ -207,6 +221,7 @@ func (c *core) build() error {
 				}
 			}
 
+			applySecurityHeaders(ctx, secProf)
 			applyRedirect(ctx, redirectURL, permanent, withOriginMethodAndBody)
 			rdCode := redirectStatusFromFlags(permanent, withOriginMethodAndBody)
 			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, "redirect", method, path, ctx.Request.Proto, rdCode, time.Since(redirectCacheStart), accessLogMeta{
@@ -247,6 +262,7 @@ func (c *core) build() error {
 			}
 			if policyHandler != nil && httpCacheMethodAllowed(method, policyHandler) && !httpCacheRequestBypasses(ctx.Request, policyHandler) {
 				handlerCacheKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, policyHandler)
+				applySecurityHeaders(ctx, secProf)
 				if hit, code, ulen := tryServeHTTPCache(ctx, policyHandler, handlerCacheKey); hit {
 					hDur := time.Since(handlerCacheStart)
 					ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, handlerAccessTarget(handlerType), method, path, ctx.Request.Proto, code, hDur, accessLogMeta{
@@ -269,6 +285,7 @@ func (c *core) build() error {
 			}()
 
 			handlerStart := time.Now()
+			applySecurityHeaders(ctx, secProf)
 
 			switch handlerType {
 			case handlerTypeStaticResponse:
@@ -382,6 +399,7 @@ func (c *core) build() error {
 				redirected, err := serviceIns.ValidateOAuth2(ctx)
 				if err != nil {
 					c.app.Logger().Warnf("oauth2 authentication failed for host: %s: %s", hostname, err)
+					applySecurityHeaders(ctx, secProf)
 					ctx.Status(http.StatusUnauthorized)
 					ctx.String(http.StatusUnauthorized, "Unauthorized")
 					return false, true, nil
@@ -399,6 +417,7 @@ func (c *core) build() error {
 					redirected, err := serviceIns.ValidateOIDCSession(ctx)
 					if err != nil {
 						c.app.Logger().Warnf("oidc authentication failed for host: %s: %s", hostname, err)
+						applySecurityHeaders(ctx, secProf)
 						ctx.Status(http.StatusUnauthorized)
 						ctx.String(http.StatusUnauthorized, "Unauthorized")
 						return false, true, nil
@@ -421,6 +440,7 @@ func (c *core) build() error {
 				ctx.Writer.Header().Set(headerWWWAuthenticate, authChallengeBearer)
 			}
 
+			applySecurityHeaders(ctx, secProf)
 			ctx.Status(http.StatusUnauthorized)
 			ctx.String(http.StatusUnauthorized, "Unauthorized")
 			return false, true, nil
@@ -436,6 +456,7 @@ func (c *core) build() error {
 
 			// exact service specify
 			if matchedRule.HostType == hostTypeExact {
+				applySecurityHeaders(ctx, secProf)
 				if c.cfg.ErrorPageExposeDetails {
 					writeIngressErrorPage(ctx, http.StatusServiceUnavailable,
 						"Service unavailable",
@@ -451,6 +472,7 @@ func (c *core) build() error {
 			}
 
 			// regular expression service specify, maybe the service is not found
+			applySecurityHeaders(ctx, secProf)
 			if c.cfg.ErrorPageExposeDetails {
 				writeIngressErrorPage(ctx, http.StatusNotFound,
 					"Upstream not found",
@@ -500,6 +522,7 @@ func (c *core) build() error {
 			}
 			if pc != nil && httpCacheMethodAllowed(method, pc) && !httpCacheRequestBypasses(ctx.Request, pc) {
 				httpCacheStoreKey = buildHTTPCacheStorageKey(ctx.Request, hostname, path, pc)
+				applySecurityHeaders(ctx, secProf)
 				if hit, code, ulen := tryServeHTTPCache(ctx, pc, httpCacheStoreKey); hit {
 					hitDur := time.Since(proxyStart)
 					ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, serviceIns.Target(), method, path, ctx.Request.Proto, code, hitDur, accessLogMeta{
@@ -563,6 +586,10 @@ func (c *core) build() error {
 		cfg.OnResponse = func(res *http.Response, inReq *http.Request) error {
 			for k, v := range serviceIns.Response.Headers {
 				res.Header.Set(k, v)
+			}
+
+			if secProf != nil && secProf.Active {
+				security.ApplyHeaders(res.Header, secProf, inReq)
 			}
 
 			// plugins

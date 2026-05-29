@@ -134,7 +134,7 @@ export function AppLayout() {
                       {badge > 0 ? (
                         <span
                           className={`nav-badge${
-                            item.badgeKey === 'attention'
+                            item.badgeKey === 'events'
                               ? badges.healths > 0
                                 ? ' danger'
                                 : ' warn'

@@ -75,6 +75,7 @@ rules:
 | `fallback` | object | 回退后端 | - |
 | `rules` | array | 路由规则 | `[]` |
 | `waf` | object | WAF 基线；路由级补丁为 **`rules[].waf`** 映射（参见 [WAF](waf.md)） | 省略或 `enabled: false` 时不启用 |
+| `security` | object | 安全响应头预设（HSTS / frame / CSP / CORS）；路由级 **`rules[].security`** | 省略或 `profile: off` 时不启用 |
 | `logging` | object | Zoox 日志配置（控制台 + 可选文件 transport）；见 [Logging](#logging-日志) | 省略时仅控制台 |
 | `admin` | object | 内嵌运维控制台（参见 [Admin 指南](admin.md)） | 省略时不启用 |
 
@@ -93,6 +94,19 @@ rules:
 | `deny` | string 数组 | 拒绝的 IP/CIDR（先匹配） |
 | `allow` | string 数组 | 非空时仅允许表中网段通过 IP 阶段 |
 | `rules` | array | 自定义特征（`id`、`pattern`、`type`、`targets`、`log_only`）；同 `id` 在路由上覆盖全局 |
+
+### 安全响应头（`security` / `rules[].security`）
+
+按 **profile** 自动添加 HSTS、X-Frame-Options、CSP、CORS 等响应头；详见 [安全响应头](security-headers.md)。
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| `profile` | string | `strict` / `api` / `embeddable` / `off` |
+| `hsts` | string | `auto`（仅 HTTPS）、`on`、`off` |
+| `frame` | string | `inherit` / `deny` / `sameorigin` / `off` |
+| `cors.origins` | 数组 | 允许的 Origin（`api` 预设必填） |
+
+`api` 预设启用 CORS；Ingress 会直接响应 OPTIONS 预检。
 
 ### 缓存配置
 

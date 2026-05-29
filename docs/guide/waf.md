@@ -6,7 +6,7 @@ Ingress can run a **first-version WAF** on matched routes **after routing** and 
 - **Signature checks** against `path`, `query`, assembled `uri`, all header lines (`headers`), or one header (`header:User-Agent`).
 - An optional **embedded starter ruleset** (SQLi/path traversal/reflected-scripting probes). Turn off with **`disable_builtin: true`** if it is too noisy.
 
-There is **no request-body scanning**. Use **`log_only`** (global or per rule) to audit before blocking.
+There is **no request-body scanning**. Each signature rule (custom or built-in) can **`block`** (default), **`audit`** (log only), or **`pass`** (treat match as allowed and skip remaining signatures). Global or per-rule **`log_only: true`** is still supported and equals **`action: audit`** when `action` is omitted.
 
 ## Enabling WAF
 
@@ -50,6 +50,15 @@ Per-rule enablement:
 - **`disable_builtin: true`**: all built-in rules are off unless **`waf.builtin_rules`** sets a rule to `true`.
 - Custom **`waf.rules[]`** entries support **`enabled: false`** (default is on when omitted).
 
+Per built-in **action** (without disabling the rule):
+
+```yaml
+waf:
+  builtin_rule_actions:
+    builtin:scanner-ua: audit
+    builtin:xss-lite: pass
+```
+
 Example:
 
 ```yaml
@@ -63,6 +72,11 @@ waf:
       enabled: false
       type: contains
       pattern: /internal
+      targets: [path]
+    - id: allow-health
+      action: pass
+      type: contains
+      pattern: /healthz
       targets: [path]
 ```
 
@@ -87,6 +101,8 @@ Starters can false-positive on unusual but legitimate traffic — use **`log_onl
 |-------|-------|
 | `id` | Required. Route-level `waf.rules` with the same `id` **replace** the global rule of that id. |
 | `enabled` | Optional. Default **true**; set `false` to disable a custom rule without deleting it. |
+| `action` | `block` (default), `audit` (log only, keep checking), or `pass` (allow on match, stop further signatures). |
+| `log_only` | Legacy; when `action` is omitted, `true` means `audit`. |
 | `type` | `regex` (default) or `contains` |
 | `pattern` | Compiled at startup for `regex`. |
 | `targets` | One or more of `path`, `query`, `uri`, `headers`, `header:…` |

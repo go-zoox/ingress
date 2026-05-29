@@ -34,10 +34,16 @@ func CheckRequest(p *Profile, r *http.Request, hostname, path, method string, re
 		if !matchesSignature(sr, r, path, rawQuery) {
 			continue
 		}
-		ruleAudit := sr.logOnly || p.GlobalLogOnly
-		stop := !ruleAudit
-		logHit(stop, "sig "+sr.id, hostname, path, method, cli, reportFn)
-		if stop {
+		act := resolveSigAction(sr, p.GlobalLogOnly)
+		switch act {
+		case ActionPass:
+			logHitWithAction(ActionPass, "sig "+sr.id, hostname, path, method, cli, reportFn)
+			return false
+		case ActionAudit:
+			logHitWithAction(ActionAudit, "sig "+sr.id, hostname, path, method, cli, reportFn)
+			continue
+		default:
+			logHitWithAction(ActionBlock, "sig "+sr.id, hostname, path, method, cli, reportFn)
 			return true
 		}
 	}
@@ -45,17 +51,24 @@ func CheckRequest(p *Profile, r *http.Request, hostname, path, method string, re
 }
 
 func logHit(stop bool, phase, hostname, path, method string, cli net.IP, reportFn func(action string, rule string, cliIP string)) {
+	action := ActionAudit
+	if stop {
+		action = ActionBlock
+	}
+	logHitWithAction(action, phase, hostname, path, method, cli, reportFn)
+}
+
+func logHitWithAction(action, phase, hostname, path, method string, cli net.IP, reportFn func(action string, rule string, cliIP string)) {
 	ipStr := "-"
 	if cli != nil {
 		ipStr = cli.String()
 	}
-	action := "audit"
-	if stop {
-		action = "block"
-	}
 	tag := "[waf audit]"
-	if stop {
+	switch action {
+	case ActionBlock:
 		tag = "[waf block]"
+	case ActionPass:
+		tag = "[waf pass]"
 	}
 	logger.Warnf("%s phase=%s client_ip=%s host=%s method=%s path=%s", tag, phase, ipStr, hostname, method, path)
 	if reportFn != nil {

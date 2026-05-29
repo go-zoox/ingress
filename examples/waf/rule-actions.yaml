@@ -1,0 +1,37 @@
+version: v1
+port: 8080
+
+# Per-rule and built-in actions: block (default), audit (log only), pass (allow on match).
+waf:
+  enabled: true
+  disable_builtin: false
+  builtin_rule_actions:
+    builtin:scanner-ua: audit
+    builtin:xss-lite: pass
+  rules:
+    - id: block-admin-path
+      action: block
+      type: contains
+      pattern: /admin-secret
+      targets:
+        - path
+    - id: audit-suspicious-token
+      action: audit
+      type: contains
+      pattern: probe=
+      targets:
+        - query
+    - id: allow-health-probe
+      action: pass
+      type: contains
+      pattern: /healthz
+      targets:
+        - path
+
+rules:
+  - host: app.example.com
+    backend:
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/ingress/core/ratelimit"
+	"github.com/go-zoox/ingress/core/security"
 	"github.com/go-zoox/kv"
 	"github.com/go-zoox/kv/redis"
 )
@@ -62,6 +63,11 @@ func (c *core) prepare() error {
 	)
 	if err != nil {
 		return fmt.Errorf("compile rate_limit: %w", err)
+	}
+
+	c.security, err = security.Compile(c.cfg.Security, c.cfg.Rules)
+	if err != nil {
+		return fmt.Errorf("compile security: %w", err)
 	}
 
 	return nil

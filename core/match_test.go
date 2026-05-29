@@ -250,7 +250,7 @@ func TestMatchHostRewriteNameForPathBackend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s, matchedPath, _, err := matchPathWithRouter(idx, rules, 0, "/api/v1/demo", "t-zero.example.work", nil)
+	s, matchedPath, _, _, err := matchPathWithRouter(idx, rules, 0, "/api/v1/demo", "t-zero.example.work", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func TestMatchServiceNameTemplateWithHostAndPathCaptures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, matchedPath, _, err := matchPathWithRouter(idx, rules, 0, "/api/v1/order", "t-zero.example.work", hm.hostSubmatches)
+	s, matchedPath, _, _, err := matchPathWithRouter(idx, rules, 0, "/api/v1/order", "t-zero.example.work", hm.hostSubmatches)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,7 +375,7 @@ func TestMatchServiceNameTemplateWithIndexedCaptures(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s, matchedPath, _, err := matchPathWithRouter(idx, rules, 0, "/api/v1/order/create", "t-zero-dev.example.work", hm.hostSubmatches)
+	s, matchedPath, _, _, err := matchPathWithRouter(idx, rules, 0, "/api/v1/order/create", "t-zero-dev.example.work", hm.hostSubmatches)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +389,7 @@ func TestMatchServiceNameTemplateWithIndexedCaptures(t *testing.T) {
 		t.Fatalf("expected create.order.dev.zero.svc, got %s", s.Name)
 	}
 
-	s, _, _, err = matchPathWithRouter(idx, rules, 0, "/api/v2/onlyone", "t-zero-dev.example.work", hm.hostSubmatches)
+	s, _, _, _, err = matchPathWithRouter(idx, rules, 0, "/api/v2/onlyone", "t-zero-dev.example.work", hm.hostSubmatches)
 	if err != nil {
 		t.Fatal(err)
 	}

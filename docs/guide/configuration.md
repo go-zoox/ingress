@@ -77,6 +77,7 @@ rules:
 | `rules` | array | Routing rules | `[]` |
 | `waf` | object | Optional WAF baseline; route patches use **`rules[].waf`** YAML maps ([WAF guide](waf.md)) | _(inactive when omitted or `enabled: false`)_ |
 | `rate_limit` | object | Optional global request throttling; per-route overrides use **`rules[].rate_limit`** | off when omitted |
+| `security` | object | Profile-based security response headers (HSTS, frame, CSP, CORS); per-route **`rules[].security`** | off when omitted |
 | `logging` | object | Zoox logger config (console + optional file transports); see [Logging](#logging-logging) | console only when omitted |
 | `admin` | object | Embedded operations console ([Admin guide](admin.md)) | disabled when omitted |
 
@@ -95,6 +96,26 @@ Fixed-window counters evaluated after route match (global then per-rule). Exceed
 | `xff_index` | int | XFF segment index (`0` = leftmost) | `0` |
 
 Access logs append `rate_limit_block=1` on 429 responses.
+
+### Security headers (`security` / `rules[].security`)
+
+Profile-based HTTP security headers applied after route match. See [Security headers guide](security-headers.md).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `profile` | string | `strict`, `api`, `embeddable`, or `off` |
+| `hsts` | string | `auto` (HTTPS only), `on`, or `off` |
+| `frame` | string | `inherit`, `deny`, `sameorigin`, or `off` |
+| `content_type_options` | bool | Send `X-Content-Type-Options: nosniff` |
+| `referrer_policy` | string | Referrer-Policy value; `off` disables |
+| `csp` | string | Content-Security-Policy; `off` disables |
+| `cors.origins` | array | Allowed origins (required when CORS enabled) |
+| `cors.methods` | array | Allowed methods (preflight) |
+| `cors.headers` | array | Allowed request headers (preflight) |
+| `cors.credentials` | bool | Allow credentials |
+| `cors.max_age` | int | Preflight cache seconds |
+
+The `api` profile enables CORS and requires at least one origin. OPTIONS preflight is answered by ingress when CORS is active.
 
 ### WAF (`waf` / `rules[].waf`)
 

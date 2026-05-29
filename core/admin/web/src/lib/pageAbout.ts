@@ -8,13 +8,9 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
     title: '总览',
     desc: 'SRE 监控面板：流量、质量、基础设施与异常',
   },
-  '/attention': {
-    title: '需要关注',
-    desc: '待处理项：健康检查 DOWN、WAF 拦截、日志解析异常、证书与质量信号。与「事件」不同，这里强调可操作的处置队列。',
-  },
   '/events': {
     title: '事件',
-    desc: '聚合 WAF 拦截、健康检查 DOWN 与证书告警；含 Runbook 处理建议与调查深链',
+    desc: '待处理、已处理与已忽略；WAF 拦截与日志解析可弹窗处置，支持批量与全部标记',
   },
   '/investigate': {
     title: '请求调查',

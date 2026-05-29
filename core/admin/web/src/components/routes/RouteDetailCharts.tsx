@@ -8,6 +8,7 @@ import { LatencyTrendChart } from '../charts/LatencyTrendChart'
 import { CacheTimelineChart } from '../charts/CacheTimelineChart'
 import { LatencyHistogramChart } from '../charts/LatencyHistogramChart'
 import { StatusDonut } from '../charts/StatusDonut'
+import { HostTrafficTable } from '../HostTrafficTable'
 
 type Props = {
   detail: RouteDetail
@@ -42,6 +43,8 @@ export const RouteDetailCharts = memo(function RouteDetailCharts({ detail, metri
 
   const showPathBreakdown =
     (metrics.path_breakdown?.length ?? 0) > 1 && detail.path_index < 0
+  const hostTraffic = metrics.host_traffic ?? metrics.scope_host_traffic ?? []
+  const showHostTraffic = hostTraffic.length > 0
   const showCacheTrend = (detail.cache?.enabled || metrics.route_cache?.enabled) && timeline.length > 0
   const upstream = metrics.upstream
   const hasUpstream = upstream && upstream.samples > 0
@@ -118,6 +121,20 @@ export const RouteDetailCharts = memo(function RouteDetailCharts({ detail, metri
           <ChartPanel title="WAF 规则 Top" hint="DB 事件计数">
             <WAFTopRulesList rules={metrics.waf_top_rules ?? []} />
           </ChartPanel>
+        </div>
+      ) : null}
+
+      {showHostTraffic ? (
+        <div className="panel chart-panel" style={{ marginTop: 16 }}>
+          <div className="panel-head">
+            <h2>域名 PV / UV</h2>
+            <span className="chart-hint">
+              PV = 请求数 · UV = 独立 IP（优先 real_ip）· {metrics.window}
+            </span>
+          </div>
+          <div className="panel-body panel-table-wrap">
+            <HostTrafficTable rows={hostTraffic} />
+          </div>
         </div>
       ) : null}
 

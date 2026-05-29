@@ -3,6 +3,7 @@ package service
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ var (
 	reClientHostTarget = regexp.MustCompile(`^(\S+)\s+(\S+)\s+->\s+(\S+)`)
 	reUpstreamStatus   = regexp.MustCompile(`upstream_status=(\d+)`)
 	reUpstreamTime     = regexp.MustCompile(`upstream_response_time=(\d+)ms`)
+	reRealIP           = regexp.MustCompile(`real_ip=([^\s]+)`)
 	reRequest          = regexp.MustCompile(`"([A-Z]+)\s+(.+?)\s+HTTP/[^"]+"\s+(\d{3})(?:\s+(\d+(?:\.\d+)?)(ms|s)?)?`)
 	reQuotedHTTP       = regexp.MustCompile(`"[A-Z]+\s+.+\s+HTTP/`)
 )
@@ -27,6 +29,7 @@ var (
 type AccessEntry struct {
 	At                   time.Time
 	ClientIP             string
+	RealIP               string
 	Host                 string
 	Target               string
 	Method               string
@@ -103,10 +106,15 @@ func parseAccessLine(line string) (AccessEntry, bool) {
 	if um := reUpstreamTime.FindStringSubmatch(line); len(um) == 2 {
 		upstreamDur, _ = strconv.ParseFloat(um[1], 64)
 	}
+	realIP := ""
+	if rm := reRealIP.FindStringSubmatch(line); len(rm) == 2 {
+		realIP = strings.TrimSpace(rm[1])
+	}
 
 	return AccessEntry{
 		At:                 at,
 		ClientIP:           clientIP,
+		RealIP:             realIP,
 		Host:               host,
 		Target:             target,
 		Method:             m[1],
@@ -118,6 +126,47 @@ func parseAccessLine(line string) (AccessEntry, bool) {
 		CacheHit:           strings.Contains(line, "cache_hit=1"),
 		WAFBlock:           strings.Contains(line, "waf_block=1"),
 	}, true
+}
+
+// visitorIP returns the best-effort client address for UV counting (real_ip, else client_ip).
+func visitorIP(e AccessEntry) string {
+	ip := strings.TrimSpace(e.RealIP)
+	if ip == "" || ip == "-" {
+		ip = strings.TrimSpace(e.ClientIP)
+	}
+	if ip == "" || ip == "-" {
+		return ""
+	}
+	if host, _, err := net.SplitHostPort(ip); err == nil {
+		return host
+	}
+	return ip
+}
+
+// NormalizeLogLine strips ANSI codes and zoox file-transport duplicate timestamps for display.
+// Old single-timestamp lines and lines without timestamps are unchanged.
+func NormalizeLogLine(line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return line
+	}
+	line = reANSI.ReplaceAllString(line, "")
+	line = strings.TrimSpace(line)
+
+	m1 := reLogTime.FindStringSubmatch(line)
+	if len(m1) != 2 {
+		return line
+	}
+	ts1 := m1[1]
+	rest := strings.TrimSpace(line[len(m1[0]):])
+	m2 := reLogTime.FindStringSubmatch(rest)
+	if len(m2) != 2 {
+		return line
+	}
+	if ts1 != m2[1] {
+		return line
+	}
+	return rest
 }
 
 // ParseAccessEntry is the exported version of parseAccessLine for use by handlers.

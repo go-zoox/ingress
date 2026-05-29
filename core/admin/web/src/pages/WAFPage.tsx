@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { FlaskConical } from 'lucide-react'
-import { investigateLink } from '../lib/deepLinks'
 import { PageHeader } from '../components/PageHeader'
 import { EmptyStateGuide } from '../components/EmptyStateGuide'
 import { WafEventDetailDrawer } from '../components/WafEventDetailDrawer'
@@ -188,7 +186,7 @@ export function WAFPage() {
     <div className="page">
       <PageHeader
         title="WAF"
-        desc="全局规则、运行时开关与 block/audit 事件；行点击查看详情"
+        desc="全局规则、运行时开关与 block/audit 事件；在操作列打开详情"
         actions={
           <button type="button" className="btn btn-sm btn-primary" onClick={() => openTrial()}>
             <FlaskConical size={14} aria-hidden /> 规则试匹配
@@ -350,9 +348,6 @@ export function WAFPage() {
                   <tr
                     key={e.id}
                     className={drawer === 'detail' && selectedId === e.id ? 'match-highlight' : ''}
-                    onClick={() => openDetail(e.id)}
-                    style={{ cursor: 'pointer' }}
-                    title="点击查看详情"
                   >
                     <td className="col-time">{formatTime(e.created_at)}</td>
                     <td className="col-action">
@@ -373,17 +368,10 @@ export function WAFPage() {
                       <code>{e.path}</code>
                     </td>
                     <td className="col-ip">{e.client_ip}</td>
-                    <td className="col-actions" onClick={(ev) => ev.stopPropagation()}>
-                      <Link
-                        to={investigateLink({
-                          host: e.host,
-                          path: e.path || '/',
-                          client_ip: e.client_ip,
-                        })}
-                        className="btn btn-ghost btn-sm"
-                      >
-                        调查
-                      </Link>
+                    <td className="col-actions">
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => openDetail(e.id)}>
+                        详情
+                      </button>
                     </td>
                   </tr>
                 ))}

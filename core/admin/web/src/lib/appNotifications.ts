@@ -34,8 +34,8 @@ export function buildAppNotifications(
       id: 'parse-issues',
       level: 'warn',
       title: '日志解析异常',
-      detail: `${openIssues} 条待处理，可在需要关注中标记已处理或忽略。`,
-      href: '/attention',
+      detail: `${openIssues} 条待处理，可在事件中标记已处理或忽略。`,
+      href: '/events',
     })
   }
   if (metrics.window_stale) {

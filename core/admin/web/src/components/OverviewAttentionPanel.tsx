@@ -64,9 +64,9 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
         <div className="panel-head">
           <h2>
             <AlertTriangle size={18} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />
-            需要关注
+            待处理
           </h2>
-          <Link to="/attention" className="btn btn-ghost btn-sm">
+          <Link to="/events" className="btn btn-ghost btn-sm">
             查看全部
           </Link>
         </div>

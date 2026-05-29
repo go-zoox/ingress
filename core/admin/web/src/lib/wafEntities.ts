@@ -1,4 +1,5 @@
 import { arr, bool, obj, str } from './ingressModuleForms'
+import { actionFromRow, type WAFAction, wafActionLabel } from './wafAction'
 
 export type WAFRuleType = 'regex' | 'contains'
 
@@ -12,9 +13,12 @@ export type WAFRuleForm = {
   target_uri: boolean
   target_headers: boolean
   target_extra: string
-  log_only: boolean
+  action: WAFAction
   enabled: boolean
 }
+
+export type { WAFAction } from './wafAction'
+export { WAF_ACTION_OPTIONS, wafActionLabel } from './wafAction'
 
 const STANDARD_TARGETS = new Set(['path', 'query', 'uri', 'headers'])
 
@@ -69,7 +73,7 @@ export function wafRuleToForm(row: Record<string, unknown>): WAFRuleForm {
     target_uri: targets.includes('uri'),
     target_headers: targets.includes('headers'),
     target_extra: extra.join(', '),
-    log_only: bool(row.log_only),
+    action: actionFromRow(row),
     enabled: row.enabled === undefined ? true : bool(row.enabled),
   }
 }
@@ -85,7 +89,7 @@ export function emptyWAFRuleForm(): WAFRuleForm {
     target_uri: false,
     target_headers: false,
     target_extra: '',
-    log_only: false,
+    action: 'block',
     enabled: true,
   }
 }
@@ -111,7 +115,9 @@ export function wafRuleToRow(form: WAFRuleForm): Record<string, unknown> {
   }
   if (form.name.trim()) row.name = form.name.trim()
   if (form.type !== 'regex') row.type = form.type
-  if (form.log_only) row.log_only = true
+  if (form.action === 'audit' || form.action === 'pass') {
+    row.action = form.action
+  }
   if (!form.enabled) row.enabled = false
   return row
 }
@@ -122,8 +128,10 @@ export function wafRuleSummary(row: Record<string, unknown>): string {
   const pattern = str(row.pattern)
   const targets = arr<string>(row.targets).join(', ') || '—'
   const short = pattern.length > 28 ? `${pattern.slice(0, 28)}…` : pattern
+  const act = actionFromRow(row)
+  const actLabel = act !== 'block' ? ` · ${wafActionLabel(act)}` : ''
   const off = row.enabled === false ? ' · 已禁用' : ''
-  return `${id} · ${typ} · ${short} → [${targets}]${off}`
+  return `${id} · ${typ} · ${short} → [${targets}]${actLabel}${off}`
 }
 
 export function wafRuleSaveDisabled(form: WAFRuleForm): boolean {

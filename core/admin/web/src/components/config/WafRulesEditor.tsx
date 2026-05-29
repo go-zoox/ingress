@@ -24,19 +24,56 @@ import {
   wafRuleToForm,
   wafRuleToRow,
   wafRulesFromDoc,
+  WAF_ACTION_OPTIONS,
+  type WAFAction,
   type WAFRuleForm,
+  wafActionLabel,
 } from '../../lib/wafEntities'
 import {
   WAF_BUILTIN_RULES,
+  builtinActionOverridden,
+  builtinRuleAction,
   defaultBuiltinEnabled,
   isBuiltinRuleEnabled,
+  patchBuiltinRuleAction,
   patchBuiltinRuleEnabled,
   type BuiltinWAFRule,
 } from '../../lib/wafBuiltinRules'
+import { actionFromRow } from '../../lib/wafAction'
 import { Drawer } from '../Drawer'
 import { EllipsisTooltip } from '../EllipsisTooltip'
 import { obj, str } from '../../lib/ingressModuleForms'
 import { moveAdjacent } from '../../lib/arrayMove'
+
+function RuleActionSelect({
+  value,
+  onChange,
+  disabled,
+  title,
+  className = 'waf-action-select',
+}: {
+  value: WAFAction
+  onChange: (action: WAFAction) => void
+  disabled?: boolean
+  title?: string
+  className?: string
+}) {
+  return (
+    <select
+      className={className}
+      value={value}
+      title={title}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value as WAFAction)}
+    >
+      {WAF_ACTION_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value} title={o.hint}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  )
+}
 
 function WAFRuleFormFields({
   form,
@@ -118,11 +155,19 @@ function WAFRuleFormFields({
         checked={form.enabled}
         onChange={(v) => patch((n) => { n.enabled = v })}
       />
-      <FormCheckbox
-        label="仅审计不拦截（log_only）"
-        checked={form.log_only}
-        onChange={(v) => patch((n) => { n.log_only = v })}
-      />
+      <FormSelectField
+        label="命中后处置 action"
+        keyName="waf.rules[].action"
+        hint="拦截（默认）、仅记录（继续检查后续规则）、通过（跳过后续签名规则）"
+        value={form.action}
+        onChange={(e) => patch((n) => { n.action = e.target.value as WAFAction })}
+      >
+        {WAF_ACTION_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label} — {o.hint}
+          </option>
+        ))}
+      </FormSelectField>
     </FormGrid>
   )
 }
@@ -193,16 +238,20 @@ function BuiltinRuleDetailDrawer({
   doc,
   open,
   onClose,
+  onDocChange,
 }: {
   rule: BuiltinWAFRule | null
   doc: Record<string, unknown>
   open: boolean
   onClose: () => void
+  onDocChange: (doc: Record<string, unknown>) => void
 }) {
   if (!rule) return null
 
   const enabled = isBuiltinRuleEnabled(doc, rule.id)
-  const override = Object.prototype.hasOwnProperty.call(obj(obj(doc.waf).builtin_rules), rule.id)
+  const enableOverride = Object.prototype.hasOwnProperty.call(obj(obj(doc.waf).builtin_rules), rule.id)
+  const action = builtinRuleAction(doc, rule.id)
+  const actionOverride = builtinActionOverridden(doc, rule.id)
   const disableAllBuiltin = !defaultBuiltinEnabled(doc)
 
   return (
@@ -227,9 +276,9 @@ function BuiltinRuleDetailDrawer({
         <dt>启用</dt>
         <dd>
           {enabled ? '开' : '关'}
-          {override ? (
+          {enableOverride ? (
             <span className="badge badge-audit" style={{ marginLeft: 8 }}>
-              已单独覆盖
+              启用已单独覆盖
             </span>
           ) : disableAllBuiltin ? (
             <span className="form-hint" style={{ display: 'block', marginTop: 4 }}>
@@ -238,6 +287,24 @@ function BuiltinRuleDetailDrawer({
           ) : (
             <span className="form-hint" style={{ display: 'block', marginTop: 4 }}>
               跟随全局内置规则开关
+            </span>
+          )}
+        </dd>
+        <dt>命中后处置</dt>
+        <dd>
+          <RuleActionSelect
+            value={action}
+            disabled={!enabled}
+            title={enabled ? undefined : '规则已关闭，开启后可设置处置动作'}
+            onChange={(act) => onDocChange(patchBuiltinRuleAction(doc, rule.id, act))}
+          />
+          {actionOverride ? (
+            <span className="badge badge-audit" style={{ marginLeft: 8 }}>
+              已覆盖默认拦截
+            </span>
+          ) : (
+            <span className="form-hint" style={{ display: 'block', marginTop: 4 }}>
+              默认：拦截
             </span>
           )}
         </dd>
@@ -320,6 +387,7 @@ export function WafRulesEditor({
           <thead>
             <tr>
               <th className="col-enable">启用</th>
+              <th className="col-action">处置</th>
               <th className="col-name">名称</th>
               <th className="col-desc">说明</th>
               <th className="col-actions">操作</th>
@@ -328,7 +396,8 @@ export function WafRulesEditor({
           <tbody>
             {WAF_BUILTIN_RULES.map((rule) => {
               const enabled = isBuiltinRuleEnabled(doc, rule.id)
-              const override = Object.prototype.hasOwnProperty.call(obj(obj(doc.waf).builtin_rules), rule.id)
+              const enableOverride = Object.prototype.hasOwnProperty.call(obj(obj(doc.waf).builtin_rules), rule.id)
+              const action = builtinRuleAction(doc, rule.id)
               return (
                 <tr key={rule.id} className={enabled ? undefined : 'row-muted'}>
                   <td className="col-enable">
@@ -336,11 +405,23 @@ export function WafRulesEditor({
                       enabled={enabled}
                       onChange={(v) => onChange(patchBuiltinRuleEnabled(doc, rule.id, v))}
                       title={
-                        override
+                        enableOverride
                           ? '已单独覆盖；清除覆盖后跟随「禁用内置规则」'
                           : disableAllBuiltin
                             ? '全局已禁用内置规则；单独开启此条'
                             : '跟随全局内置规则开关'
+                      }
+                    />
+                  </td>
+                  <td className="col-action">
+                    <RuleActionSelect
+                      value={action}
+                      disabled={!enabled}
+                      onChange={(act) => onChange(patchBuiltinRuleAction(doc, rule.id, act))}
+                      title={
+                        enabled
+                          ? `写入 waf.builtin_rule_actions；当前：${wafActionLabel(action)}`
+                          : '规则已关闭'
                       }
                     />
                   </td>
@@ -367,7 +448,8 @@ export function WafRulesEditor({
         </div>
         <p className="form-hint">
           默认跟随上方「禁用内置规则」：未禁用时全部内置规则启用；禁用后全部关闭，可在此单独开启。
-          覆盖写入 <code>waf.builtin_rules</code>；同 id 的自定义规则仍可覆盖 pattern/targets。
+          启用覆盖写入 <code>waf.builtin_rules</code>；处置覆盖写入 <code>waf.builtin_rule_actions</code>。
+          同 id 的自定义规则仍可覆盖 pattern/targets。
         </p>
       </FormSection>
 
@@ -391,6 +473,7 @@ export function WafRulesEditor({
           <thead>
             <tr>
               <th>启用</th>
+              <th>处置</th>
               <th>ID</th>
               <th>类型</th>
               <th className="col-pattern">Pattern</th>
@@ -401,13 +484,14 @@ export function WafRulesEditor({
           <tbody>
             {rules.length === 0 ? (
               <tr>
-                <td colSpan={6} className="empty-hint">
+                <td colSpan={7} className="empty-hint">
                   无自定义规则
                 </td>
               </tr>
             ) : (
               rules.map((rule, i) => {
                 const enabled = rule.enabled !== false
+                const action = actionFromRow(rule)
                 return (
                   <tr key={`${str(rule.id)}-${i}`} className={enabled ? undefined : 'row-muted'}>
                     <td>
@@ -415,6 +499,11 @@ export function WafRulesEditor({
                         enabled={enabled}
                         onChange={(v) => onChange(patchCustomRuleEnabled(doc, i, v))}
                       />
+                    </td>
+                    <td className="col-action">
+                      <span className="waf-action-label" title={`action: ${action}`}>
+                        {wafActionLabel(action)}
+                      </span>
                     </td>
                     <td><code>{str(rule.id)}</code></td>
                     <td>{str(rule.type, 'regex')}</td>
@@ -459,6 +548,7 @@ export function WafRulesEditor({
         doc={doc}
         open={detailRule != null}
         onClose={() => setDetailRule(null)}
+        onDocChange={onChange}
       />
     </>
   )

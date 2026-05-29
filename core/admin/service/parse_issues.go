@@ -140,6 +140,32 @@ func (p *ParseIssues) SetStatus(id uint, status, note string) (*AccessLogParseIs
 	return &out, nil
 }
 
+// BatchSetStatus updates many parse issues to the same status and optional note.
+func (p *ParseIssues) BatchSetStatus(ids []uint, status, note string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	status = strings.TrimSpace(status)
+	switch status {
+	case parseIssueStatusIgnored, parseIssueStatusResolved, parseIssueStatusOpen:
+	default:
+		status = parseIssueStatusIgnored
+	}
+	now := time.Now()
+	updates := map[string]any{
+		"status":       status,
+		"note":         strings.TrimSpace(note),
+		"last_seen_at": now,
+	}
+	if status == parseIssueStatusResolved {
+		updates["resolved_at"] = now
+	} else {
+		updates["resolved_at"] = nil
+	}
+	res := gormx.GetDB().Model(&model.AccessLogParseIssue{}).Where("id IN ?", ids).Updates(updates)
+	return res.RowsAffected, res.Error
+}
+
 func toParseIssueRow(row model.AccessLogParseIssue) AccessLogParseIssueRow {
 	return AccessLogParseIssueRow{
 		ID:          row.ID,

@@ -24,6 +24,9 @@ type WAF struct {
 	// When a key is absent, the rule follows disable_builtin (off when true, on when false).
 	BuiltinRules map[string]bool `config:"builtin_rules"`
 
+	// BuiltinRuleActions sets block / audit / pass per built-in rule id (overrides default block).
+	BuiltinRuleActions map[string]string `config:"builtin_rule_actions"`
+
 	Deny  []string  `config:"deny"`
 	Allow []string  `config:"allow"`
 	Rules []WAFRule `config:"rules"`
@@ -33,6 +36,9 @@ type WAF struct {
 type WAFRule struct {
 	ID      string   `config:"id"`
 	Name    string   `config:"name"`
+	// Action is block (default), audit (log only), or pass (allow on match, stop further signatures).
+	// log_only: true is equivalent to action: audit when action is omitted.
+	Action  string   `config:"action"`
 	LogOnly bool     `config:"log_only"`
 	Enabled *bool    `config:"enabled"`
 	Type    string   `config:"type"`

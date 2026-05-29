@@ -20,6 +20,7 @@ import { StatusDonut } from './charts/StatusDonut'
 import { OverviewDelta } from './OverviewDelta'
 import { OverviewHealthMatrix } from './OverviewHealthMatrix'
 import { OverviewTLSPanel } from './OverviewTLSPanel'
+import { HostTrafficTable } from './HostTrafficTable'
 
 type Props = {
   metrics: OverviewMetrics | null
@@ -162,6 +163,20 @@ export const OverviewCharts = memo(function OverviewCharts({
           />
         </ChartPanel>
       </div>
+
+      {(metrics.host_traffic?.length ?? 0) > 0 ? (
+        <div className="panel chart-panel">
+          <div className="panel-head">
+            <h2>域名 PV / UV</h2>
+            <span className="chart-hint">
+              PV = 请求数 · UV = 独立 IP（优先 real_ip）· {metrics.window}
+            </span>
+          </div>
+          <div className="panel-body panel-table-wrap">
+            <HostTrafficTable rows={metrics.host_traffic!} />
+          </div>
+        </div>
+      ) : null}
 
       <div className="charts-grid charts-grid-2">
         <ChartPanel title="健康检查矩阵" hint={`${healthSummary.up}/${healthSummary.total} UP`}>
@@ -325,7 +340,7 @@ function MetricsEmptyMessage({ metrics }: { metrics: OverviewMetrics | null }) {
   if (skipped > 0 && (metrics?.parseable_in_tail ?? 0) === 0) {
     return (
       <p className="empty-hint">
-        部分 access.log 行无法解析，已跳过（本次扫描 {skipped} 行）。请检查日志格式或在「需要关注 →
+        部分 access.log 行无法解析，已跳过（本次扫描 {skipped} 行）。请检查日志格式或在「事件 →
         日志解析」中处理。
       </p>
     )

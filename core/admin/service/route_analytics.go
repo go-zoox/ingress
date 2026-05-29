@@ -15,9 +15,10 @@ type RouteAnalytics struct {
 	Delta         OverviewDelta        `json:"delta"`
 	Upstream      UpstreamLatencyStats `json:"upstream"`
 	PathBreakdown []PathBreakdownRow   `json:"path_breakdown,omitempty"`
-	ScopeHosts    []NamedCount         `json:"scope_hosts,omitempty"`
-	ScopePaths    []NamedCount         `json:"scope_paths,omitempty"`
-	WAFTopRules   []NamedCount         `json:"waf_top_rules,omitempty"`
+	ScopeHosts       []NamedCount       `json:"scope_hosts,omitempty"`
+	ScopePaths       []NamedCount       `json:"scope_paths,omitempty"`
+	ScopeHostTraffic []HostTrafficStat  `json:"scope_host_traffic,omitempty"`
+	WAFTopRules      []NamedCount       `json:"waf_top_rules,omitempty"`
 	HealthHistory []HealthProbePoint   `json:"health_history,omitempty"`
 	Compare       RouteCompareStats    `json:"compare"`
 	RelatedRoutes []RelatedRouteRow    `json:"related_routes,omitempty"`
@@ -106,6 +107,7 @@ func BuildRouteAnalytics(
 
 	routeEntries := FilterAccessEntriesForRoute(cfg, ruleIndex, pathIndex, lines)
 	scopeHosts, scopePaths := ScopeHostPathCounts(routeEntries, window)
+	scopeHostTraffic := hostTrafficStats(entriesInMetricsWindow(routeEntries, window), -1)
 	filtered := filterAccessEntriesByScope(routeEntries, scopeHost, scopePath, pathMatch)
 	overview := AggregateAccessEntries(filtered, window, source)
 	site := AggregateAccessEntries(all, window, source)
@@ -132,8 +134,9 @@ func BuildRouteAnalytics(
 		Delta:           delta,
 		Upstream:        buildUpstreamStats(filtered),
 		PathBreakdown:   buildPathBreakdown(cfg, ruleIndex, filtered),
-		ScopeHosts:      scopeHosts,
-		ScopePaths:      scopePaths,
+		ScopeHosts:       scopeHosts,
+		ScopePaths:       scopePaths,
+		ScopeHostTraffic: scopeHostTraffic,
 		WAFTopRules:     topWAFRulesFromEvents(wafEvents, 8),
 		Compare: RouteCompareStats{
 			SiteRPM:         site.RPM,

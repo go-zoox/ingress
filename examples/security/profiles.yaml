@@ -1,0 +1,39 @@
+# Profile-based security response headers (strict / api / embeddable).
+
+security:
+  profile: strict
+
+rules:
+  - host: web.example.com
+    backend:
+      service:
+        name: web
+        port: 8080
+
+  - host: api.example.com
+    security:
+      profile: api
+      cors:
+        origins:
+          - https://app.example.com
+        credentials: true
+    backend:
+      service:
+        name: api
+        port: 8080
+    paths:
+      - path: /public
+        security:
+          profile: embeddable
+        backend:
+          service:
+            name: api-public
+            port: 8080
+
+  - host: embed.example.com
+    security:
+      profile: embeddable
+    backend:
+      service:
+        name: embed
+        port: 8080

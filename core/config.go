@@ -32,6 +32,8 @@ type Config struct {
 	Admin Admin `config:"admin"`
 	//
 	RateLimit rule.RateLimit `config:"rate_limit"`
+	// Security optional global baseline for HTTP security response headers (HSTS, CORS, frame, etc.).
+	Security rule.Security `config:"security"`
 	// Match func(host string, path string) (cfg *service.Service, err error)
 }
 

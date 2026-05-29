@@ -9,6 +9,7 @@ import { AdminDatabaseFormFields } from './config/AdminDatabaseFormFields'
 import { FallbackEditor } from './config/FallbackEditor'
 import { RulesEditor } from './config/RulesEditor'
 import { RateLimitFormFields } from './config/RateLimitFormFields'
+import { SecurityFormFields } from './config/SecurityFormFields'
 import { SslCertsEditor } from './config/SslCertsEditor'
 import { WafRulesEditor } from './config/WafRulesEditor'
 import {
@@ -27,6 +28,9 @@ import {
   patchGlobalRateLimit,
   rateLimitFromDoc,
   type RateLimitFormSlice,
+  patchGlobalSecurity,
+  securityFromDoc,
+  type SecurityFormSlice,
 } from '../lib/configEntities'
 
 function GeneralModuleForm({
@@ -154,6 +158,27 @@ function RateLimitModuleForm({
       form={form}
       onChange={onFormChange}
       title="全局限流 rate_limit"
+    />
+  )
+}
+
+function SecurityModuleForm({
+  doc,
+  onChange,
+}: {
+  doc: Record<string, unknown>
+  onChange: (doc: Record<string, unknown>) => void
+}) {
+  const form = securityFromDoc(doc)
+  const onFormChange = (next: SecurityFormSlice) => {
+    onChange(patchGlobalSecurity(doc, next))
+  }
+
+  return (
+    <SecurityFormFields
+      form={form}
+      onChange={onFormChange}
+      title="全局 security"
     />
   )
 }
@@ -363,10 +388,14 @@ function WAFModuleForm({
         onChange={(v) => patchWaf((n) => { n.enabled = v })}
       />
       <FormCheckbox
-        label="仅审计不拦截"
+        label="全局仅审计不拦截"
         checked={bool(waf.log_only)}
         onChange={(v) => patchWaf((n) => { if (v) n.log_only = true; else delete n.log_only })}
       />
+      <p className="form-hint">
+        未单独设置 <code>action</code> 的自定义/内置规则在全局开启时均为「仅记录」。下方规则表可为每条设置
+        拦截 / 仅记录 / 通过。
+      </p>
       <FormCheckbox
         label="禁用内置规则"
         checked={bool(waf.disable_builtin)}
@@ -593,6 +622,8 @@ export function ConfigModuleForm({
       return <WAFModuleForm doc={doc} onChange={onDocChange} />
     case 'rate_limit':
       return <RateLimitModuleForm doc={doc} onChange={onDocChange} />
+    case 'security':
+      return <SecurityModuleForm doc={doc} onChange={onDocChange} />
     case 'healthcheck':
       return <HealthcheckModuleForm doc={doc} onChange={onDocChange} />
     case 'https':
@@ -603,7 +634,7 @@ export function ConfigModuleForm({
           <RulesModuleForm doc={doc} onChange={onDocChange} />
           {onSwitchToYaml && (
             <button type="button" className="btn btn-ghost config-yaml-link" onClick={onSwitchToYaml}>
-              高级：在 YAML 模式中编辑 rules[].waf、rules[].rate_limit、request 等
+              高级：在 YAML 模式中编辑 rules[].waf、rules[].security、rules[].rate_limit、request 等
             </button>
           )}
         </>

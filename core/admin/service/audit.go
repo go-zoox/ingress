@@ -169,6 +169,31 @@ func (a *Audit) SetWAFEventStatus(id uint, status, note string) (*model.WAFEvent
 	return &row, nil
 }
 
+// BatchSetWAFEventStatus updates many WAF events to the same status and optional note.
+func (a *Audit) BatchSetWAFEventStatus(ids []uint, status, note string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	status = strings.TrimSpace(status)
+	switch status {
+	case wafEventStatusIgnored, wafEventStatusResolved, wafEventStatusOpen:
+	default:
+		status = wafEventStatusIgnored
+	}
+	now := time.Now()
+	updates := map[string]any{
+		"status": status,
+		"note":   strings.TrimSpace(note),
+	}
+	if status == wafEventStatusResolved {
+		updates["resolved_at"] = now
+	} else {
+		updates["resolved_at"] = nil
+	}
+	res := gormx.GetDB().Model(&model.WAFEvent{}).Where("id IN ?", ids).Updates(updates)
+	return res.RowsAffected, res.Error
+}
+
 // OpenBlockCount returns block events still needing attention.
 func (a *Audit) OpenBlockCount() (int64, error) {
 	var count int64

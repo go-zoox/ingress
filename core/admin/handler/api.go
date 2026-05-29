@@ -62,6 +62,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/routes/match", a.Match)
 	g.Post("/waf/toggle", a.WAFToggle)
 	g.Get("/waf/events", a.WAFEvents)
+	g.Post("/waf/events/batch-status", a.BatchUpdateWAFEventStatus)
 	g.Delete("/waf/events/demo-seed", a.ClearDemoWAFEvents)
 	g.Get("/waf/events/:id", a.WAFEventDetail)
 	g.Post("/waf/events/:id/status", a.UpdateWAFEventStatus)
@@ -88,6 +89,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/metrics/overview", a.OverviewMetrics)
 	g.Get("/metrics/system", a.SystemMetrics)
 	g.Get("/logs/parse-issues", a.ListParseIssues)
+	g.Post("/logs/parse-issues/batch-status", a.BatchUpdateParseIssueStatus)
 	g.Get("/logs/parse-issues/:id", a.GetParseIssue)
 	g.Post("/logs/parse-issues/:id/status", a.UpdateParseIssueStatus)
 	g.Get("/settings", a.Settings)
@@ -350,6 +352,28 @@ func (a *API) UpdateWAFEventStatus(ctx *zoox.Context) {
 		return
 	}
 	ok(ctx, row)
+}
+
+func (a *API) BatchUpdateWAFEventStatus(ctx *zoox.Context) {
+	var body struct {
+		IDs    []uint `json:"ids"`
+		Status string `json:"status"`
+		Note   string `json:"note"`
+	}
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(body.IDs) == 0 {
+		fail(ctx, http.StatusBadRequest, "ids required")
+		return
+	}
+	n, err := a.audit.BatchSetWAFEventStatus(body.IDs, body.Status, body.Note)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	ok(ctx, map[string]any{"ok": true, "updated": n})
 }
 
 func (a *API) WAFMatch(ctx *zoox.Context) {
@@ -763,6 +787,28 @@ func (a *API) UpdateParseIssueStatus(ctx *zoox.Context) {
 		return
 	}
 	ok(ctx, row)
+}
+
+func (a *API) BatchUpdateParseIssueStatus(ctx *zoox.Context) {
+	var body struct {
+		IDs    []uint `json:"ids"`
+		Status string `json:"status"`
+		Note   string `json:"note"`
+	}
+	if err := ctx.BindJSON(&body); err != nil {
+		fail(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(body.IDs) == 0 {
+		fail(ctx, http.StatusBadRequest, "ids required")
+		return
+	}
+	n, err := a.parseIssues.BatchSetStatus(body.IDs, body.Status, body.Note)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	ok(ctx, map[string]any{"ok": true, "updated": n})
 }
 
 func (a *API) Settings(ctx *zoox.Context) {

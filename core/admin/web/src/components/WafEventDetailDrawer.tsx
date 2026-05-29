@@ -12,18 +12,22 @@ type Props = {
   onClose: () => void
   onTrial?: (detail: WAFEventDetail) => void
   onStatusChange?: (id: number, status: 'ignored' | 'resolved') => void
+  /** triage: events page — hide investigate / trial shortcuts */
+  variant?: 'default' | 'triage'
 }
 
-export function WafEventDetailDrawer({ eventId, open, onClose, onTrial, onStatusChange }: Props) {
+export function WafEventDetailDrawer({ eventId, open, onClose, onTrial, onStatusChange, variant = 'default' }: Props) {
   const { lookup: ruleLookup } = useWafRuleLookup()
   const [detail, setDetail] = useState<WAFEventDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+  const [note, setNote] = useState('')
 
   useEffect(() => {
     if (!open || eventId == null) {
       setDetail(null)
       setErr('')
+      setNote('')
       return
     }
     setLoading(true)
@@ -44,7 +48,7 @@ export function WafEventDetailDrawer({ eventId, open, onClose, onTrial, onStatus
   const handleStatus = async (status: 'ignored' | 'resolved') => {
     if (eventId == null) return
     try {
-      await api.updateWafEventStatus(eventId, status)
+      await api.updateWafEventStatus(eventId, status, note)
       onStatusChange?.(eventId, status)
       onClose()
     } catch {
@@ -53,6 +57,7 @@ export function WafEventDetailDrawer({ eventId, open, onClose, onTrial, onStatus
   }
 
   const isOpen = detail ? wafEventNeedsAttention(detail.status) : false
+  const triage = variant === 'triage'
 
   return (
     <Drawer
@@ -76,33 +81,37 @@ export function WafEventDetailDrawer({ eventId, open, onClose, onTrial, onStatus
                 </button>
               </>
             ) : null}
-            <Link
-              to={investigateLink({
-                host: detail.host,
-                path: detail.path || '/',
-                client_ip: detail.client_ip,
-              })}
-              className={isOpen && onStatusChange ? 'btn btn-ghost' : 'btn btn-primary'}
-            >
-              调查此请求
-            </Link>
-            {onTrial ? (
-              <button type="button" className="btn btn-ghost" onClick={() => onTrial(detail)}>
-                调试
-              </button>
-            ) : (
-              <Link
-                to={wafLink({
-                  host: detail.host,
-                  path: detail.path,
-                  trial: true,
-                  eventId: detail.id,
-                })}
-                className="btn btn-ghost"
-              >
-                调试
-              </Link>
-            )}
+            {!triage ? (
+              <>
+                <Link
+                  to={investigateLink({
+                    host: detail.host,
+                    path: detail.path || '/',
+                    client_ip: detail.client_ip,
+                  })}
+                  className={isOpen && onStatusChange ? 'btn btn-ghost' : 'btn btn-primary'}
+                >
+                  调查此请求
+                </Link>
+                {onTrial ? (
+                  <button type="button" className="btn btn-ghost" onClick={() => onTrial(detail)}>
+                    调试
+                  </button>
+                ) : (
+                  <Link
+                    to={wafLink({
+                      host: detail.host,
+                      path: detail.path,
+                      trial: true,
+                      eventId: detail.id,
+                    })}
+                    className="btn btn-ghost"
+                  >
+                    调试
+                  </Link>
+                )}
+              </>
+            ) : null}
           </>
         ) : (
           <button type="button" className="btn btn-ghost" onClick={onClose}>
@@ -126,6 +135,12 @@ export function WafEventDetailDrawer({ eventId, open, onClose, onTrial, onStatus
               <>
                 <dt>处置状态</dt>
                 <dd>{wafEventStatusLabel(detail.status)}</dd>
+                {detail.note ? (
+                  <>
+                    <dt>备注</dt>
+                    <dd>{detail.note}</dd>
+                  </>
+                ) : null}
               </>
             ) : null}
             <dt>规则标识</dt>
@@ -193,6 +208,18 @@ export function WafEventDetailDrawer({ eventId, open, onClose, onTrial, onStatus
           ) : null}
           {detail.replay_note ? (
             <p className="match-hint waf-replay-note">{detail.replay_note}</p>
+          ) : null}
+          {isOpen && onStatusChange ? (
+            <div className="event-detail-note">
+              <label htmlFor="waf-event-note">备注（可选）</label>
+              <textarea
+                id="waf-event-note"
+                rows={2}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="处理说明…"
+              />
+            </div>
           ) : null}
         </>
       ) : !loading && !err ? (

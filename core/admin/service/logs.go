@@ -90,7 +90,7 @@ func (l *Logs) Search(q LogQuery) (LogResult, error) {
 	}
 	out := filterLines(lines, q)
 	size, _ := fileSize(path)
-	return LogResult{Lines: out, Count: len(out), Offset: size}, nil
+	return LogResult{Lines: normalizeLogLines(out), Count: len(out), Offset: size}, nil
 }
 
 func (l *Logs) TailAccess(max int) ([]string, error) {
@@ -139,7 +139,18 @@ func tailSinceOffset(path string, q LogQuery) (LogResult, error) {
 	if q.Limit > 0 && len(out) > q.Limit {
 		out = out[len(out)-q.Limit:]
 	}
-	return LogResult{Lines: out, Count: len(out), Offset: size}, nil
+	return LogResult{Lines: normalizeLogLines(out), Count: len(out), Offset: size}, nil
+}
+
+func normalizeLogLines(lines []string) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = NormalizeLogLine(line)
+	}
+	return out
 }
 
 func filterLines(lines []string, q LogQuery) []string {
@@ -292,7 +303,7 @@ func (l *Logs) AccessLogContextForFingerprint(fingerprint string, before, after 
 	for i := start; i < end; i++ {
 		_, parsed := parseAccessLine(lines[i])
 		out = append(out, LogContextEntry{
-			Line:   lines[i],
+			Line:   NormalizeLogLine(lines[i]),
 			Match:  i == matchIdx,
 			Parsed: parsed,
 		})

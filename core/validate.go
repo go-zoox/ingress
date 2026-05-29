@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-zoox/ingress/core/ratelimit"
+	"github.com/go-zoox/ingress/core/security"
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/waf"
 )
@@ -31,6 +32,10 @@ func ValidateConfig(cfg *Config) error {
 	}
 	if _, err := ratelimit.Compile(cfg.RateLimit, cfg.Rules, cfg.Cache.Host, cfg.Cache.Port, cfg.Cache.Username, cfg.Cache.Password, cfg.Cache.DB, cfg.Cache.Prefix); err != nil {
 		return fmt.Errorf("rate_limit: %w", err)
+	}
+
+	if _, err := security.Compile(cfg.Security, cfg.Rules); err != nil {
+		return fmt.Errorf("security: %w", err)
 	}
 
 	if cfg.HTTPS.Port != 0 && len(cfg.HTTPS.SSL) == 0 {

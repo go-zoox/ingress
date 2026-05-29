@@ -66,12 +66,21 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 
 Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cache()` backend (`core/prepare.go`, `core/match.go` uses `match.host:v2:` keys).
 
+## Security headers (`security` / `rules[].security` / `paths[].security`)
+
+- **Profiles**: `strict`, `api`, `embeddable`, `off` — compiled in `core/security/` at prepare time; applied in `core/build.go` on service/handler/redirect/error paths.
+- **Merge order**: global `security:` → `rules[].security` → `paths[].security` (when path prefix matches).
+- **`api` profile** requires `cors.origins`; ingress answers **OPTIONS preflight** when CORS is active.
+- **HSTS `auto`**: only on HTTPS (`TLS` or `X-Forwarded-Proto: https`). Does not override existing response header keys.
+- **Admin**: global config module `security`; Host / Path overrides in rule editor sidebar **「安全」** — `RouteSecurityFormFields.tsx`.
+- Docs: `docs/guide/security-headers.md`, `examples/security/profiles.yaml`.
+
 ## WAF (layer-7 guard, v1)
 
 - **When**: After a route match in `core/build.go`, before `backend.redirect`, handler, or upstream proxy (`waf.CheckRequest` + `*waf.Profile`).
 - **Package**: `core/waf/` — `CompileIngress`, `CheckRequest`, `MergePatch` / `MergeRules`, `StarterRules`, `ApplyRulePatchesFromFile` / `ApplyRulePatchesFromYAML`.
 - **Config**: Typed global `waf` on `core.Config` (`rule.WAF` — no nested pointers; `go-zoox/config` cannot decode them). Per-route **`rules[].waf`** maps merge over the baseline via **`waf.ApplyRulePatchesFromFile`** (called from `cmd/ingress/run.go` and `validate.go` right after `config.Load`). In-memory `cfg` uses **`rule.Rule.WAFPatch`** (`config:"-"`).
-- **Semantics**: IP deny list, optional allow gate, then regex/contains signatures (optional starters from `StarterRules()`; disable via `disable_builtin`). Global/per-rule **`log_only`** audits without blocking (`[waf audit]` vs `[waf block]` in logs). No HTTP body scanning in v1.
+- **Semantics**: IP deny list, optional allow gate, then regex/contains signatures (optional starters from `StarterRules()`; disable via `disable_builtin`). Per-rule / built-in **`action`**: `block` (default), `audit` (log only, keep checking), `pass` (allow on match, stop further signatures). **`builtin_rule_actions`** sets action per built-in id. Global/per-rule **`log_only`** still maps to audit when `action` is omitted. Logs/callbacks use `block` / `audit` / `pass`. No HTTP body scanning in v1.
 - **Tests / examples**: `core/waf/compile_test.go`, `eval_test.go`, `patch_test.go`, `yaml_test.go`; `examples/waf/`.
 
 ## Redirect and config validation

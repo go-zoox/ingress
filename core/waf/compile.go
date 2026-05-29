@@ -20,10 +20,12 @@ const (
 )
 
 type sigRule struct {
-	id       string
-	name     string
-	logOnly  bool
-	contains bool
+	id             string
+	name           string
+	action         string
+	actionExplicit bool
+	ruleLogOnly    bool
+	contains       bool
 	pattern  string
 	re       *regexp.Regexp
 	targets  []targetKind
@@ -47,9 +49,20 @@ type Profile struct {
 	signatureRules []*sigRule
 }
 
-func compileProfile(ruleIndex int, merged rule.WAF) (*Profile, error) {
-	if !merged.Enabled {
+func compileProfile(ruleIndex int, mergedIn rule.WAF) (*Profile, error) {
+	if !mergedIn.Enabled {
 		return &Profile{ruleIndex: ruleIndex, Enabled: false}, nil
+	}
+
+	rLabel := fmt.Sprintf("rules[%d]", ruleIndex)
+	if ruleIndex < 0 {
+		rLabel = "waf(global)"
+	}
+	merged := mergedIn
+	if acts, err := normalizeBuiltinRuleActions(merged.BuiltinRuleActions, rLabel); err != nil {
+		return nil, err
+	} else if acts != nil {
+		merged.BuiltinRuleActions = acts
 	}
 
 	p := &Profile{
@@ -73,10 +86,7 @@ func compileProfile(ruleIndex int, merged rule.WAF) (*Profile, error) {
 		p.BlockBody = merged.BlockBody
 	}
 
-	ipPhaseLabel := fmt.Sprintf("rules[%d]", ruleIndex)
-	if ruleIndex < 0 {
-		ipPhaseLabel = "waf(global)"
-	}
+	ipPhaseLabel := rLabel
 
 	for _, raw := range merged.Deny {
 		raw = strings.TrimSpace(raw)
@@ -107,10 +117,6 @@ func compileProfile(ruleIndex int, merged rule.WAF) (*Profile, error) {
 	combined = append(combined, filterStarterRules(merged)...)
 	combined = append(combined, custom...)
 
-	rLabel := fmt.Sprintf("rules[%d]", ruleIndex)
-	if ruleIndex < 0 {
-		rLabel = "waf(global)"
-	}
 	seenSigID := make(map[string]struct{}, len(combined))
 
 	for i := range combined {
@@ -139,10 +145,17 @@ func compileProfile(ruleIndex int, merged rule.WAF) (*Profile, error) {
 }
 
 func compileSigRule(r *rule.WAFRule) (*sigRule, error) {
+	actionExplicit := strings.TrimSpace(r.Action) != ""
+	action, err := normalizeRuleAction(r)
+	if err != nil {
+		return nil, err
+	}
 	cr := &sigRule{
-		id:      r.ID,
-		name:    r.Name,
-		logOnly: r.LogOnly,
+		id:             r.ID,
+		name:           r.Name,
+		action:         action,
+		actionExplicit: actionExplicit,
+		ruleLogOnly:    r.LogOnly,
 	}
 
 	pt := strings.TrimSpace(strings.ToLower(r.Type))

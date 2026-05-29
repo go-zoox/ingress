@@ -1,3 +1,6 @@
+import { obj } from './ingressModuleForms'
+import { actionFromBuiltinMap, type WAFAction } from './wafAction'
+
 // Mirrors built-in WAF rules from core/waf/builtin.go
 // Keep in sync when backend builtins change.
 export interface BuiltinWAFRule {
@@ -126,4 +129,36 @@ export function patchBuiltinRuleEnabled(
     delete waf.builtin_rules
   }
   return { ...doc, waf }
+}
+
+export function builtinRuleActions(doc: Record<string, unknown>): Record<string, unknown> {
+  return obj(obj(doc.waf).builtin_rule_actions)
+}
+
+export function builtinRuleAction(doc: Record<string, unknown>, ruleId: string): WAFAction {
+  return actionFromBuiltinMap(builtinRuleActions(doc) as Record<string, unknown>, ruleId)
+}
+
+export function patchBuiltinRuleAction(
+  doc: Record<string, unknown>,
+  ruleId: string,
+  action: WAFAction,
+): Record<string, unknown> {
+  const waf = { ...((doc.waf ?? {}) as Record<string, unknown>) }
+  const actions = { ...builtinRuleActions(doc) }
+  if (action === 'block') {
+    delete actions[ruleId]
+  } else {
+    actions[ruleId] = action
+  }
+  if (Object.keys(actions).length > 0) {
+    waf.builtin_rule_actions = actions
+  } else {
+    delete waf.builtin_rule_actions
+  }
+  return { ...doc, waf }
+}
+
+export function builtinActionOverridden(doc: Record<string, unknown>, ruleId: string): boolean {
+  return Object.prototype.hasOwnProperty.call(builtinRuleActions(doc), ruleId)
 }

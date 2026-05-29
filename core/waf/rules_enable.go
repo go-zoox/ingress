@@ -1,6 +1,10 @@
 package waf
 
-import "github.com/go-zoox/ingress/core/rule"
+import (
+	"strings"
+
+	"github.com/go-zoox/ingress/core/rule"
+)
 
 // BuiltinRuleEnabled reports whether a starter rule should run given global defaults and overrides.
 // When builtin_rules[id] is set, it wins; otherwise enabled defaults to !disableBuiltin.
@@ -26,9 +30,17 @@ func filterStarterRules(merged rule.WAF) []rule.WAFRule {
 	starters := StarterRules()
 	out := make([]rule.WAFRule, 0, len(starters))
 	for _, r := range starters {
-		if BuiltinRuleEnabled(merged.DisableBuiltin, merged.BuiltinRules, r.ID) {
-			out = append(out, r)
+		if !BuiltinRuleEnabled(merged.DisableBuiltin, merged.BuiltinRules, r.ID) {
+			continue
 		}
+		cp := r
+		if merged.BuiltinRuleActions != nil {
+			if act, ok := merged.BuiltinRuleActions[r.ID]; ok && strings.TrimSpace(act) != "" {
+				cp.Action = act
+				cp.LogOnly = false
+			}
+		}
+		out = append(out, cp)
 	}
 	return out
 }

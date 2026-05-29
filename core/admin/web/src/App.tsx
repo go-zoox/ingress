@@ -7,7 +7,6 @@ import { LogsPage } from './pages/LogsPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { RouteDetailPage } from './pages/RouteDetailPage'
 import { RoutesPage } from './pages/RoutesPage'
-import { AttentionPage } from './pages/AttentionPage'
 import { EventsPage } from './pages/EventsPage'
 import { InvestigatePage } from './pages/InvestigatePage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -23,7 +22,7 @@ export default function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<OverviewPage />} />
-          <Route path="attention" element={<AttentionPage />} />
+          <Route path="attention" element={<Navigate to="/events" replace />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="routes/:ruleIndex/:pathIndex" element={<RouteDetailPage />} />
           <Route path="topology" element={<TopologyPage />} />

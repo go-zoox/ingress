@@ -13,6 +13,8 @@ type Rule struct {
 	Paths []Path `config:"paths"`
 	// RateLimit optional per-route throttling; global rate_limit in config also applies.
 	RateLimit RateLimit `config:"rate_limit"`
+	// Security optional per-route security response headers; global security also applies as baseline.
+	Security Security `config:"security"`
 	// HostType is the host match type: exact, regex, wildcard, or auto (empty).
 	// Empty or "auto" selects exact vs regex vs wildcard from Host at compile time.
 	// Set "exact" explicitly to match Host as a literal string even if it looks like a pattern.
@@ -54,6 +56,8 @@ type Backend struct {
 type Path struct {
 	Path    string  `config:"path"`
 	Backend Backend `config:"backend"`
+	// Security optional per-path security response headers; global and rules[].security apply as baseline.
+	Security Security `config:"security"`
 }
 
 type Redirect struct {

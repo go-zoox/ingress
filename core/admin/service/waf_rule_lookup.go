@@ -21,6 +21,7 @@ type WAFRuleDetail struct {
 	Source      string   `json:"source"` // config | builtin | phase | demo
 	Description string   `json:"description"`
 	LogOnly     bool     `json:"log_only,omitempty"`
+	Action      string   `json:"action,omitempty"`
 	Enabled     bool     `json:"enabled"`
 	Builtin     bool     `json:"builtin,omitempty"`
 }
@@ -131,6 +132,7 @@ func LookupWAFRule(cfg *ingcore.Config, ruleField string) *WAFRuleDetail {
 
 func ruleDetailFromConfig(wr rule.WAFRule) *WAFRuleDetail {
 	targets := append([]string(nil), wr.Targets...)
+	action, _ := waf.NormalizeAction(wr.Action, wr.LogOnly)
 	return &WAFRuleDetail{
 		ID:          wr.ID,
 		Name:        wr.Name,
@@ -140,6 +142,7 @@ func ruleDetailFromConfig(wr rule.WAFRule) *WAFRuleDetail {
 		Targets:     targets,
 		Source:      "config",
 		LogOnly:     wr.LogOnly,
+		Action:      action,
 		Enabled:     waf.RuleActive(wr),
 		Description: "配置 waf.rules 中的自定义规则",
 	}
@@ -148,8 +151,14 @@ func ruleDetailFromConfig(wr rule.WAFRule) *WAFRuleDetail {
 func ruleDetailFromStarter(wr rule.WAFRule, cfg *ingcore.Config) *WAFRuleDetail {
 	targets := append([]string(nil), wr.Targets...)
 	enabled := true
+	action := waf.ActionBlock
 	if cfg != nil {
 		enabled = waf.BuiltinRuleEnabled(cfg.WAF.DisableBuiltin, cfg.WAF.BuiltinRules, wr.ID)
+		if cfg.WAF.BuiltinRuleActions != nil {
+			if act, ok := cfg.WAF.BuiltinRuleActions[wr.ID]; ok {
+				action, _ = waf.NormalizeAction(act, false)
+			}
+		}
 	}
 	return &WAFRuleDetail{
 		ID:          wr.ID,
@@ -161,7 +170,8 @@ func ruleDetailFromStarter(wr rule.WAFRule, cfg *ingcore.Config) *WAFRuleDetail 
 		Source:      "builtin",
 		Builtin:     true,
 		Enabled:     enabled,
-		Description: "内置 starter 规则；可通过 waf.builtin_rules 或 disable_builtin 控制",
+		Action:      action,
+		Description: "内置 starter 规则；可通过 waf.builtin_rules、builtin_rule_actions 或 disable_builtin 控制",
 	}
 }
 
