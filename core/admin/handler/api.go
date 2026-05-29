@@ -27,7 +27,9 @@ type API struct {
 	broker   *service.SSEBroker
 	health   *service.HealthCheckService
 	system   *service.SystemMetrics
-	parseIssues *service.ParseIssues
+	parseIssues      *service.ParseIssues
+	overviewBuilder  *service.OverviewBuilder
+	overviewStreamer *service.OverviewStreamer
 }
 
 func NewAPI(cfg *config.Config) *API {
@@ -38,20 +40,26 @@ func NewAPI(cfg *config.Config) *API {
 	healthSvc := service.NewHealthCheckService(ingress, broker)
 	systemSvc := service.NewSystemMetrics()
 	parseIssues := service.NewParseIssues()
+	metrics := service.NewMetrics(logs, parseIssues)
+	tlsSvc := service.NewTLS(ingress)
+	configSvc := service.NewConfig(ingress, audit)
+	overviewBuilder := service.NewOverviewBuilder(ingress, metrics, systemSvc, tlsSvc, healthSvc, audit, parseIssues, configSvc)
 	return &API{
-		cfg:      cfg,
-		ingress:  ingress,
-		logs:     logs,
-		metrics:  service.NewMetrics(logs, parseIssues),
-		audit:    audit,
-		tls:      service.NewTLS(ingress),
-		cache:    service.NewCache(ingress, logs),
-		settings: service.NewSettings(cfg, ingress, logs),
-		config:   service.NewConfig(ingress, audit),
-		broker:   broker,
-		health:   healthSvc,
-		system:   systemSvc,
-		parseIssues: parseIssues,
+		cfg:              cfg,
+		ingress:          ingress,
+		logs:             logs,
+		metrics:          metrics,
+		audit:            audit,
+		tls:              tlsSvc,
+		cache:            service.NewCache(ingress, logs),
+		settings:         service.NewSettings(cfg, ingress, logs),
+		config:           configSvc,
+		broker:           broker,
+		health:           healthSvc,
+		system:           systemSvc,
+		parseIssues:      parseIssues,
+		overviewBuilder:  overviewBuilder,
+		overviewStreamer: service.NewOverviewStreamer(overviewBuilder, broker),
 	}
 }
 
@@ -88,13 +96,14 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/logs/hosts", a.LogHosts)
 	g.Get("/metrics/overview", a.OverviewMetrics)
 	g.Get("/metrics/system", a.SystemMetrics)
+	g.Get("/overview/snapshot", a.OverviewSnapshot)
 	g.Get("/logs/parse-issues", a.ListParseIssues)
 	g.Post("/logs/parse-issues/batch-status", a.BatchUpdateParseIssueStatus)
 	g.Get("/logs/parse-issues/:id", a.GetParseIssue)
 	g.Post("/logs/parse-issues/:id/status", a.UpdateParseIssueStatus)
 	g.Get("/settings", a.Settings)
 	// New routes for SSE, route detail, and health check
-	sseHandler := NewSSEHandler(a.broker)
+	sseHandler := NewSSEHandler(a.broker, a.overviewStreamer)
 	g.Get("/events/stream", sseHandler.Stream)
 	routeDetailHandler := NewRouteDetailHandler(a.ingress, a.metrics, a.health, a.audit)
 	g.Get("/routes/:ri/:pi", routeDetailHandler.GetDetail)
@@ -726,6 +735,11 @@ func (a *API) OverviewMetrics(ctx *zoox.Context) {
 	ok(ctx, a.metrics.Overview(window))
 }
 
+func (a *API) OverviewSnapshot(ctx *zoox.Context) {
+	window := strings.TrimSpace(ctx.Query().Get("window").String())
+	ok(ctx, a.overviewBuilder.Snapshot(window))
+}
+
 func (a *API) SystemMetrics(ctx *zoox.Context) {
 	window := strings.TrimSpace(ctx.Query().Get("window").String())
 	ok(ctx, a.system.Snapshot(window))
@@ -833,4 +847,9 @@ func (a *API) Health() *service.HealthCheckService {
 // SystemMetricsService returns the process metrics sampler.
 func (a *API) SystemMetricsService() *service.SystemMetrics {
 	return a.system
+}
+
+// OverviewStreamer returns the overview SSE publisher.
+func (a *API) OverviewStreamer() *service.OverviewStreamer {
+	return a.overviewStreamer
 }

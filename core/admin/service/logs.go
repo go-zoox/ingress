@@ -101,6 +101,84 @@ func (l *Logs) TailAccess(max int) ([]string, error) {
 	return tailLogFile(path, max)
 }
 
+// TailIngressAccess returns up to maxLines ingress access log lines, skipping
+// zoox/admin framework noise that may share the same file. Scans the whole file
+// (up to maxLogScanLines) so historical entries are not missed when the tail is noise.
+func (l *Logs) TailIngressAccess(maxLines int) ([]string, error) {
+	path := strings.TrimSpace(l.accessPath)
+	if path == "" {
+		return nil, nil
+	}
+	if maxLines <= 0 {
+		maxLines = 8000
+	}
+
+	raw, err := readAllLogLines(path, maxLogScanLines)
+	if err != nil {
+		return nil, err
+	}
+	filtered := filterParsableAccessLines(raw)
+	if maxLines > 0 && len(filtered) > maxLines {
+		filtered = filtered[len(filtered)-maxLines:]
+	}
+	return filtered, nil
+}
+
+const maxLogScanLines = 500000
+
+func readAllLogLines(path string, maxLines int) ([]string, error) {
+	if maxLines <= 0 {
+		maxLines = maxLogScanLines
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("open log %s: %w", path, err)
+	}
+	defer f.Close()
+
+	var lines []string
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		lines = append(lines, sc.Text())
+		if len(lines) > maxLines {
+			lines = lines[len(lines)-maxLines:]
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	return lines, nil
+}
+
+func filterParsableAccessLines(lines []string) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if _, ok := parseAccessLine(line); ok {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+func filterIngressAccessLines(lines []string) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if looksLikeAccessLogLine(line) {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
 func tailSinceOffset(path string, q LogQuery) (LogResult, error) {
 	size, err := fileSize(path)
 	if err != nil {

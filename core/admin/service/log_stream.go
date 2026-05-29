@@ -7,11 +7,12 @@ import (
 
 // LogStreamer tails access/error logs and publishes new lines on the SSE "logs" channel.
 type LogStreamer struct {
-	logs    *Logs
-	broker  *SSEBroker
-	mu      sync.Mutex
-	offsets map[LogKind]int64
-	stop    chan struct{}
+	logs         *Logs
+	broker       *SSEBroker
+	onAccessLine func()
+	mu           sync.Mutex
+	offsets      map[LogKind]int64
+	stop         chan struct{}
 }
 
 // NewLogStreamer creates a log tail publisher.
@@ -25,6 +26,14 @@ func NewLogStreamer(logs *Logs, broker *SSEBroker) *LogStreamer {
 		},
 		stop: make(chan struct{}),
 	}
+}
+
+// SetOnAccessLine registers a callback when new access log lines are published.
+func (s *LogStreamer) SetOnAccessLine(fn func()) {
+	if s == nil {
+		return
+	}
+	s.onAccessLine = fn
 }
 
 // Start begins polling log files at the given interval.
@@ -90,6 +99,7 @@ func (s *LogStreamer) pollKind(kind LogKind) {
 	s.offsets[kind] = result.Offset
 	s.mu.Unlock()
 
+	publishedAccess := false
 	for _, line := range result.Lines {
 		if line == "" {
 			continue
@@ -98,5 +108,11 @@ func (s *LogStreamer) pollKind(kind LogKind) {
 			"line": line,
 			"kind": string(kind),
 		})
+		if kind == LogAccess {
+			publishedAccess = true
+		}
+	}
+	if publishedAccess && s.onAccessLine != nil {
+		s.onAccessLine()
 	}
 }

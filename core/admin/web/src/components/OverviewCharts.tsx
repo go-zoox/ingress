@@ -348,7 +348,7 @@ function MetricsEmptyMessage({ metrics }: { metrics: OverviewMetrics | null }) {
   if (metrics?.source === 'access_log_empty') {
     return (
       <p className="empty-hint">
-        日志文件已配置但尚无内容。等待请求产生后数据会自动刷新。
+        日志文件已配置但为空。等待 ingress 产生访问记录后会自动刷新。
       </p>
     )
   }

@@ -1,5 +1,6 @@
 
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { OverviewStreamProvider } from './context/OverviewStreamContext'
 import { AppLayout } from './layout/AppLayout'
 import { CachePage } from './pages/CachePage'
 import { ConfigPage } from './pages/ConfigPage'
@@ -19,8 +20,9 @@ import { MessagesPage } from './pages/MessagesPage'
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<AppLayout />}>
+      <OverviewStreamProvider>
+        <Routes>
+          <Route element={<AppLayout />}>
           <Route index element={<OverviewPage />} />
           <Route path="attention" element={<Navigate to="/events" replace />} />
           <Route path="routes" element={<RoutesPage />} />
@@ -40,6 +42,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
+      </OverviewStreamProvider>
     </BrowserRouter>
   )
 }

@@ -9,14 +9,19 @@ require (
 	github.com/go-zoox/cli v1.4.1
 	github.com/go-zoox/config v1.4.1
 	github.com/go-zoox/core-utils v1.4.13
+	github.com/go-zoox/counter v1.2.1
 	github.com/go-zoox/fs v1.4.1
 	github.com/go-zoox/gormx v1.8.0
+	github.com/go-zoox/jwt v1.5.0
 	github.com/go-zoox/kv v1.5.9
 	github.com/go-zoox/logger v1.6.4
+	github.com/go-zoox/oauth2 v1.9.0
 	github.com/go-zoox/proxy v1.6.2
+	github.com/go-zoox/ratelimit v1.2.1
 	github.com/go-zoox/zoox v1.18.8
 	github.com/traefik/yaegi v0.16.1
 	gopkg.in/yaml.v3 v3.0.1
+	gorm.io/gorm v1.31.1
 )
 
 require (
@@ -71,7 +76,6 @@ require (
 	github.com/go-zoox/compress v1.0.1 // indirect
 	github.com/go-zoox/concurrency v1.2.0 // indirect
 	github.com/go-zoox/cookie v1.2.0 // indirect
-	github.com/go-zoox/counter v1.2.1 // indirect
 	github.com/go-zoox/cron v1.2.3 // indirect
 	github.com/go-zoox/crypto v1.1.8 // indirect
 	github.com/go-zoox/datetime v1.3.2 // indirect
@@ -88,12 +92,9 @@ require (
 	github.com/go-zoox/ioc v1.0.2 // indirect
 	github.com/go-zoox/jobqueue v1.0.1 // indirect
 	github.com/go-zoox/jsonrpc v1.2.2 // indirect
-	github.com/go-zoox/jwt v1.5.0 // indirect
 	github.com/go-zoox/mq v1.0.1 // indirect
-	github.com/go-zoox/oauth2 v1.9.0 // indirect
 	github.com/go-zoox/pubsub v1.2.3 // indirect
 	github.com/go-zoox/random v1.0.4 // indirect
-	github.com/go-zoox/ratelimit v1.2.1 // indirect
 	github.com/go-zoox/safe v1.2.0 // indirect
 	github.com/go-zoox/session v1.2.0 // indirect
 	github.com/go-zoox/tag v1.3.5 // indirect
@@ -174,7 +175,6 @@ require (
 	gorm.io/datatypes v1.2.7 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
 	gorm.io/driver/postgres v1.6.0 // indirect
-	gorm.io/gorm v1.31.1 // indirect
 	k8s.io/api v0.35.4 // indirect
 	k8s.io/apimachinery v0.35.4 // indirect
 	k8s.io/client-go v0.35.4 // indirect

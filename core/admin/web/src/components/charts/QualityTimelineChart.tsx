@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import type { OverviewMetrics } from '../../api/client'
 import { readChartColors } from './chartTheme'
 import { useUPlot } from './useUPlot'
@@ -22,6 +22,9 @@ export const QualityTimelineChart = memo(function QualityTimelineChart({ timelin
     ] as AlignedData
   }, [timeline])
 
+  const labelsRef = useRef(labels)
+  labelsRef.current = labels
+
   const opts = useMemo((): UPlotOptions => {
     const c = colors
     return {
@@ -37,7 +40,7 @@ export const QualityTimelineChart = memo(function QualityTimelineChart({ timelin
           stroke: c.muted,
           grid: { show: false },
           ticks: { show: false },
-          values: (_u, ticks) => ticks.map((v) => labels[v] ?? ''),
+          values: (_u, ticks) => ticks.map((v) => labelsRef.current[v] ?? ''),
         },
         {
           scale: 'y',
@@ -61,7 +64,7 @@ export const QualityTimelineChart = memo(function QualityTimelineChart({ timelin
         { scale: 'y2', label: 'WAF 拦截', stroke: c.danger, fill: c.danger + '55', width: 1 },
       ],
     }
-  }, [colors, labels])
+  }, [colors])
 
   const ref = useUPlot(opts, data, 200)
   return <div className="uplot-wrap" ref={ref} />

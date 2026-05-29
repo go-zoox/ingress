@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import type { OverviewMetrics } from '../../api/client'
 import { readChartColors } from './chartTheme'
 import { useUPlot } from './useUPlot'
@@ -18,6 +18,9 @@ export const CacheTimelineChart = memo(function CacheTimelineChart({ timeline }:
     return [xs, timeline.map((b) => b.cache_hit_rate)] as AlignedData
   }, [timeline])
 
+  const labelsRef = useRef(labels)
+  labelsRef.current = labels
+
   const opts = useMemo((): UPlotOptions => {
     const c = colors
     return {
@@ -29,7 +32,7 @@ export const CacheTimelineChart = memo(function CacheTimelineChart({ timeline }:
           stroke: c.muted,
           grid: { show: false },
           ticks: { show: false },
-          values: (_u, ticks) => ticks.map((v) => labels[v] ?? ''),
+          values: (_u, ticks) => ticks.map((v) => labelsRef.current[v] ?? ''),
         },
         {
           stroke: c.ok,
@@ -40,7 +43,7 @@ export const CacheTimelineChart = memo(function CacheTimelineChart({ timeline }:
       ],
       series: [{}, { label: '缓存命中 %', stroke: c.ok, fill: c.ok + '44', width: 2 }],
     }
-  }, [colors, labels])
+  }, [colors])
 
   const ref = useUPlot(opts, data, 180)
   return <div className="uplot-wrap" ref={ref} />

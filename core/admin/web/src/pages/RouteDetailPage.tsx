@@ -10,7 +10,10 @@ import { RouteDetailCharts } from '../components/routes/RouteDetailCharts'
 import { RouteScopeBar } from '../components/routes/RouteScopeBar'
 import { OverviewDelta } from '../components/OverviewDelta'
 import { parseRouteScopeFromSearchParams } from '../lib/routeScope'
+import { metricsSourceLabel } from '../lib/metricsSource'
 import { loadPreferences, savePreferences } from '../lib/preferences'
+
+const METRICS_AUTO_REFRESH_MS = 5000
 
 const WINDOW_OPTIONS = [
   { value: '5m', label: '5 分钟' },
@@ -38,7 +41,6 @@ export function RouteDetailPage() {
   }>({ hosts: [], paths: [] })
   const metricsMountedRef = useRef(false)
   const metricsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const refreshMs = loadPreferences().metricsRefreshMs
 
   const ri = Number(ruleIndex)
   const pi = Number(pathIndex)
@@ -100,20 +102,19 @@ export function RouteDetailPage() {
   useEffect(() => {
     if (isNaN(ri) || isNaN(pi)) return
     fetchRouteMetrics()
-    if (refreshMs > 0) {
-      metricsTimerRef.current = window.setInterval(fetchRouteMetrics, refreshMs)
+    if (METRICS_AUTO_REFRESH_MS > 0) {
+      metricsTimerRef.current = window.setInterval(fetchRouteMetrics, METRICS_AUTO_REFRESH_MS)
     }
     return () => {
       if (metricsTimerRef.current != null) {
         window.clearInterval(metricsTimerRef.current)
       }
     }
-  }, [fetchRouteMetrics, refreshMs, ri, pi])
+  }, [fetchRouteMetrics, ri, pi])
 
   const onWindowChange = (value: string) => {
     setMetricWindow(value)
-    const prefs = loadPreferences()
-    savePreferences({ ...prefs, metricsWindow: value })
+    savePreferences({ ...loadPreferences(), metricsWindow: value })
     metricsMountedRef.current = false
     setMetricsLoading(true)
   }
@@ -721,21 +722,4 @@ function RouteCacheTab({
       )}
     </>
   )
-}
-
-function metricsSourceLabel(source?: string) {
-  switch (source) {
-    case 'access_log':
-      return 'access.log'
-    case 'access_log_empty':
-      return '空文件'
-    case 'access_log_parse_fail':
-      return '解析失败'
-    case 'unconfigured':
-      return '未配置'
-    case 'error':
-      return '读取失败'
-    default:
-      return source || '—'
-  }
 }

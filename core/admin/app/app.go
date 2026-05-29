@@ -41,7 +41,12 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 
 	// Start the health check service, log tail SSE, and SSE broker
 	if api.Broker() != nil {
-		service.NewLogStreamer(api.LogsService(), api.Broker()).Start(2 * time.Second)
+		logStreamer := service.NewLogStreamer(api.LogsService(), api.Broker())
+		logStreamer.SetOnAccessLine(func() {
+			api.OverviewStreamer().PushAll()
+		})
+		logStreamer.Start(2 * time.Second)
+		api.OverviewStreamer().Start(5 * time.Second)
 		api.Health().Start()
 		api.SystemMetricsService().Start()
 		// Note: Health check service will be stopped when the process exits.

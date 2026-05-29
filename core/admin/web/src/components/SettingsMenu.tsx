@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Settings } from 'lucide-react'
 import { SidebarGlobalStatus } from './SidebarGlobalStatus'
 import { SettingsAboutSection } from './SettingsAboutSection'
+import { OverviewStreamStatus } from './OverviewStreamStatus'
 
 type Props = {
   configPath: string
@@ -76,6 +77,7 @@ export const SettingsMenu = memo(function SettingsMenu({
             revisionDrift={revisionDrift}
             sseConnected={sseConnected}
           />
+          <OverviewStreamStatus />
           <div className="settings-menu-path">
             <span className="settings-menu-path-label">配置路径</span>
             <code title={configPath}>{configPath}</code>

@@ -127,6 +127,8 @@ export const api = {
   reload: () => request<{ ok: boolean }>('/reload', { method: 'POST' }),
   overviewMetrics: (window = '15m') =>
     request<OverviewMetrics>(`/metrics/overview?window=${encodeURIComponent(window)}`),
+  overviewSnapshot: (window = '15m') =>
+    request<OverviewSnapshot>(`/overview/snapshot?window=${encodeURIComponent(window)}`),
   systemMetrics: (window = '15m') =>
     request<SystemMetrics>(`/metrics/system?window=${encodeURIComponent(window)}`),
   parseIssues: (status = 'open', limit = 20) =>
@@ -551,6 +553,19 @@ export type SystemMetrics = {
     cpu_pct: number
     memory_mb: number
   }>
+}
+
+export type OverviewSnapshot = {
+  window: string
+  status: IngressStatus
+  metrics: OverviewMetrics
+  system: SystemMetrics
+  certs: TLSCert[]
+  health_checks: HealthCheckResult[]
+  health_summary: HealthSummary
+  waf_blocks: WAFEvent[]
+  parse_issues: AccessLogParseIssue[]
+  revisions: ConfigRevisionSummary[]
 }
 
 export type AccessLogParseIssue = {

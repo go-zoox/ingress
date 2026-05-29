@@ -18,7 +18,16 @@ type SSEEvent struct {
 type Subscriber struct {
 	Ch       chan SSEEvent
 	Channels []string
+	Params   map[string]string
 	Closed   bool
+}
+
+// Param returns a subscription query parameter (e.g. metrics window).
+func (s *Subscriber) Param(key string) string {
+	if s == nil || s.Params == nil {
+		return ""
+	}
+	return s.Params[key]
 }
 
 // SSEBroker manages channel-based pub/sub for SSE clients.
@@ -38,7 +47,7 @@ func NewSSEBroker() *SSEBroker {
 
 // Subscribe creates a new subscriber for the given channels.
 // Returns the subscriber or an error if the IP has too many connections.
-func (b *SSEBroker) Subscribe(channels []string, clientIP string) (*Subscriber, error) {
+func (b *SSEBroker) Subscribe(channels []string, clientIP string, params map[string]string) (*Subscriber, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -52,6 +61,7 @@ func (b *SSEBroker) Subscribe(channels []string, clientIP string) (*Subscriber, 
 	sub := &Subscriber{
 		Ch:       ch,
 		Channels: channels,
+		Params:   params,
 		Closed:   false,
 	}
 
@@ -117,6 +127,47 @@ func (b *SSEBroker) Publish(channel string, event SSEEvent) {
 		default:
 			// Drop event if subscriber channel is full
 		}
+	}
+}
+
+// ForEachSubscriber invokes fn for each subscriber on channel.
+func (b *SSEBroker) ForEachSubscriber(channel string, fn func(*Subscriber)) {
+	if fn == nil {
+		return
+	}
+	b.mu.RLock()
+	subs, ok := b.subscribers[channel]
+	if !ok || len(subs) == 0 {
+		b.mu.RUnlock()
+		return
+	}
+	list := make([]*Subscriber, 0, len(subs))
+	for sub := range subs {
+		list = append(list, sub)
+	}
+	b.mu.RUnlock()
+	for _, sub := range list {
+		fn(sub)
+	}
+}
+
+// SendJSONTo delivers one JSON event to a single subscriber.
+func (b *SSEBroker) SendJSONTo(sub *Subscriber, channel, action string, v interface{}) {
+	if sub == nil || sub.Closed {
+		return
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	event := SSEEvent{
+		Event: channel + ":" + action,
+		Data:  string(data),
+		ID:    time.Now().Format("20060102150405.000"),
+	}
+	select {
+	case sub.Ch <- event:
+	default:
 	}
 }
 

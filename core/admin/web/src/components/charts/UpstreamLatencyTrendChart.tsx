@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import type { MetricsTimelineBucket } from '../../api/client'
 import { readChartColors } from './chartTheme'
 import { useUPlot } from './useUPlot'
@@ -19,6 +19,9 @@ export const UpstreamLatencyTrendChart = memo(function UpstreamLatencyTrendChart
     return [xs, timeline.map((b) => b.upstream_p95_ms ?? 0)] as AlignedData
   }, [timeline])
 
+  const labelsRef = useRef(labels)
+  labelsRef.current = labels
+
   const opts = useMemo((): UPlotOptions => {
     const c = colors
     return {
@@ -30,7 +33,7 @@ export const UpstreamLatencyTrendChart = memo(function UpstreamLatencyTrendChart
           stroke: c.muted,
           grid: { show: false },
           ticks: { show: false },
-          values: (_u, ticks) => ticks.map((v) => labels[v] ?? ''),
+          values: (_u, ticks) => ticks.map((v) => labelsRef.current[v] ?? ''),
         },
         {
           stroke: c.muted,
@@ -44,7 +47,7 @@ export const UpstreamLatencyTrendChart = memo(function UpstreamLatencyTrendChart
         { label: '上游 P95', stroke: c.warn, width: 2, fill: c.warn },
       ],
     }
-  }, [colors, labels])
+  }, [colors])
 
   const ref = useUPlot(opts, data, 200)
 

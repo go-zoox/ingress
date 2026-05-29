@@ -119,35 +119,18 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 	if window == "" {
 		window = "15m"
 	}
-	lines, err := m.logs.TailAccess(tailLinesForWindow(window))
+	lines, err := m.logs.TailIngressAccess(tailLinesForWindow(window))
 	if err != nil {
 		return aggregateOverview(nil, window, "error")
 	}
 	parseResult := ParseAccessLogLines(lines)
-	if len(parseResult.Entries) == 0 && len(lines) > 0 {
-		deepLimit := tailLinesForWindow(window) * 4
-		if deepLimit > len(lines) {
-			if deeper, derr := m.logs.TailAccess(deepLimit); derr == nil && len(deeper) > len(lines) {
-				lines = deeper
-				parseResult = ParseAccessLogLines(lines)
-			}
-		}
-	}
 	entries := parseResult.Entries
 	parseSkipped := parseResult.IssueSkipped
 	if m.parseIssues != nil && len(parseResult.Issues) > 0 {
 		_ = m.parseIssues.RecordCandidates(parseResult.Issues)
 	}
 
-	source := "unconfigured"
-	if m.logs != nil && strings.TrimSpace(m.logs.AccessLogPath()) != "" {
-		source = "access_log"
-		if len(lines) == 0 {
-			source = "access_log_empty"
-		} else if len(entries) == 0 && parseSkipped == 0 {
-			source = "access_log_empty"
-		}
-	}
+	source := m.overviewSource(lines, entries, parseSkipped)
 
 	out := aggregateOverview(entries, window, source)
 	out.ParseSkipped = parseSkipped
@@ -158,6 +141,24 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 		}
 	}
 	return out
+}
+
+func (m *Metrics) overviewSource(lines []string, entries []AccessEntry, parseSkipped int) string {
+	if m.logs == nil {
+		return "unconfigured"
+	}
+	path := strings.TrimSpace(m.logs.AccessLogPath())
+	if path == "" {
+		return "unconfigured"
+	}
+	size, err := LogFileSize(path)
+	if err != nil || size == 0 {
+		return "access_log_empty"
+	}
+	if len(entries) > 0 || len(lines) > 0 || parseSkipped > 0 {
+		return "access_log"
+	}
+	return "access_log_empty"
 }
 
 func aggregateOverview(entries []AccessEntry, window, source string) OverviewMetrics {
@@ -175,26 +176,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	windowDur := parseWindowDuration(window)
 
 	hasTime := entriesHaveTimestamps(entries)
-	anchor := time.Now()
-	windowStale := false
-	filtered := filterEntriesInWindow(entries, anchor, windowDur, hasTime)
-	if hasTime && len(filtered) == 0 {
-		if latest := latestEntryTime(entries); !latest.IsZero() {
-			anchor = latest
-			filtered = filterEntriesInWindow(entries, anchor, windowDur, true)
-			windowStale = true
-		}
-	}
-	if len(filtered) == 0 && len(entries) > 0 {
-		filtered = append([]AccessEntry(nil), entries...)
-		if latest := latestEntryTime(entries); !latest.IsZero() {
-			anchor = latest
-		}
-		windowStale = true
-	}
-	if !hasTime {
-		filtered = entries
-	}
+	filtered, anchor, windowStale := selectOverviewEntries(entries, windowDur, hasTime)
 
 	out.Total = len(filtered)
 	out.WindowStale = windowStale
@@ -225,17 +207,10 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 		out.ErrorRate = out.ErrorRate / float64(out.Total) * 100
 		out.CacheHitRate = float64(cacheHits) / float64(out.Total) * 100
 		minutes := windowDur.Minutes()
-		if windowStale {
-			if earliest := earliestEntryTime(filtered); !earliest.IsZero() && anchor.After(earliest) {
-				minutes = anchor.Sub(earliest).Minutes()
-			}
-		}
 		if minutes < 1 {
 			minutes = 1
 		}
-		if minutes > 0 {
-			out.RPM = float64(out.Total) / minutes
-		}
+		out.RPM = float64(out.Total) / minutes
 	}
 	if ps := percentiles(durations, 0.5, 0.95); len(ps) >= 2 {
 		out.P50Ms, out.P95Ms = ps[0], ps[1]
@@ -287,23 +262,27 @@ func entriesInMetricsWindow(entries []AccessEntry, window string) []AccessEntry 
 	if len(entries) == 0 {
 		return nil
 	}
-	windowDur := parseWindowDuration(window)
-	hasTime := entriesHaveTimestamps(entries)
-	anchor := time.Now()
-	filtered := filterEntriesInWindow(entries, anchor, windowDur, hasTime)
-	if hasTime && len(filtered) == 0 {
-		if latest := latestEntryTime(entries); !latest.IsZero() {
-			anchor = latest
-			filtered = filterEntriesInWindow(entries, anchor, windowDur, true)
-		}
-	}
-	if len(filtered) == 0 && len(entries) > 0 {
-		filtered = append([]AccessEntry(nil), entries...)
-	}
-	if !hasTime {
-		filtered = entries
-	}
+	filtered, _, _ := selectOverviewEntries(entries, parseWindowDuration(window), entriesHaveTimestamps(entries))
 	return filtered
+}
+
+// selectOverviewEntries returns entries for the overview window. When nothing falls
+// inside the live window, entries are filtered from the latest log timestamp backward
+// (historical mode) instead of returning the full file.
+func selectOverviewEntries(entries []AccessEntry, windowDur time.Duration, hasTime bool) (filtered []AccessEntry, anchor time.Time, windowStale bool) {
+	anchor = time.Now()
+	if !hasTime {
+		return entries, anchor, false
+	}
+	filtered = filterEntriesInWindow(entries, anchor, windowDur, true)
+	if len(filtered) > 0 {
+		return filtered, anchor, false
+	}
+	if latest := latestEntryTime(entries); !latest.IsZero() {
+		anchor = latest
+	}
+	filtered = filterEntriesInWindow(entries, anchor, windowDur, true)
+	return filtered, anchor, true
 }
 
 func hostTrafficStats(entries []AccessEntry, limit int) []HostTrafficStat {

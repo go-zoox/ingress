@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func TestAggregateOverview_staleLogUsesLatestWindow(t *testing.T) {
+func TestAggregateOverview_historicalFallbackRespectsWindow(t *testing.T) {
 	anchor := time.Date(2026, 5, 20, 12, 0, 0, 0, time.Local)
 	entries := []AccessEntry{
 		{At: anchor.Add(-20 * time.Minute), Host: "api.example.com", Method: "GET", Path: "/", Status: 200, DurationMs: 10},
@@ -14,16 +14,23 @@ func TestAggregateOverview_staleLogUsesLatestWindow(t *testing.T) {
 		{At: anchor, Host: "api.example.com", Method: "GET", Path: "/health", Status: 500, DurationMs: 100},
 	}
 
-	out := aggregateOverview(entries, "15m", "access_log")
-	if out.Total != 3 {
-		t.Fatalf("total=%d want 3", out.Total)
+	out15 := aggregateOverview(entries, "15m", "access_log")
+	if out15.Total != 3 {
+		t.Fatalf("15m total=%d want 3", out15.Total)
 	}
-	totalBuckets := 0
-	for _, b := range out.Timeline {
-		totalBuckets += b.Count
+	if !out15.WindowStale {
+		t.Fatal("expected window_stale for 15m")
 	}
-	if totalBuckets != 3 {
-		t.Fatalf("timeline count=%d want 3 buckets=%+v", totalBuckets, out.Timeline)
+
+	out5 := aggregateOverview(entries, "5m", "access_log")
+	if out5.Total != 2 {
+		t.Fatalf("5m total=%d want 2", out5.Total)
+	}
+	if !out5.WindowStale {
+		t.Fatal("expected window_stale for 5m")
+	}
+	if out5.RPM <= 0 {
+		t.Fatalf("5m rpm=%v", out5.RPM)
 	}
 }
 

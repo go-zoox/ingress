@@ -76,7 +76,7 @@ export function AppLayout() {
   }, [loadStatus])
 
   const close = useCallback(() => setDrawerOpen(false), [])
-  const { connected: sseConnected } = useSSE(['metrics'])
+  const { connected: sseConnected } = useSSE(['health'])
 
   return (
     <NotificationProvider runtimeDrift={runtimeDrift} revisionDrift={revisionDrift}>

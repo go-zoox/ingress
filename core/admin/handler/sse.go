@@ -11,17 +11,33 @@ import (
 
 // SSEHandler handles Server-Sent Events streaming.
 type SSEHandler struct {
-	broker *service.SSEBroker
+	broker   *service.SSEBroker
+	overview *service.OverviewStreamer
 }
 
 // NewSSEHandler creates a new SSE handler.
-func NewSSEHandler(broker *service.SSEBroker) *SSEHandler {
-	return &SSEHandler{broker: broker}
+func NewSSEHandler(broker *service.SSEBroker, overview *service.OverviewStreamer) *SSEHandler {
+	return &SSEHandler{broker: broker, overview: overview}
 }
 
-// Stream handles GET /api/v1/events/stream?channels=metrics,waf,logs,health
+func writeSSEEvent(w http.ResponseWriter, flusher http.Flusher, event service.SSEEvent) {
+	if event.Event != "" {
+		fmt.Fprintf(w, "event: %s\n", event.Event)
+	}
+	if event.ID != "" {
+		fmt.Fprintf(w, "id: %s\n", event.ID)
+	}
+	if event.Retry > 0 {
+		fmt.Fprintf(w, "retry: %d\n", event.Retry)
+	}
+	fmt.Fprintf(w, "data: %s\n\n", event.Data)
+	if flusher != nil {
+		flusher.Flush()
+	}
+}
+
+// Stream handles GET /api/v1/events/stream?channels=metrics,waf,logs,health,overview
 func (h *SSEHandler) Stream(ctx *zoox.Context) {
-	// Parse requested channels from query param
 	channelsParam := strings.TrimSpace(ctx.Query().Get("channels").String())
 	if channelsParam == "" {
 		fail(ctx, http.StatusBadRequest, "channels parameter is required")
@@ -40,21 +56,35 @@ func (h *SSEHandler) Stream(ctx *zoox.Context) {
 		return
 	}
 
-	// Get client IP for connection limiting
 	clientIP := ctx.ClientIP()
 	if clientIP == "" {
 		clientIP = ctx.Request.RemoteAddr
 	}
 
-	// Subscribe to the requested channels
-	sub, err := h.broker.Subscribe(cleanChannels, clientIP)
+	params := map[string]string{}
+	if window := strings.TrimSpace(ctx.Query().Get("window").String()); window != "" {
+		params["window"] = window
+	}
+
+	sub, err := h.broker.Subscribe(cleanChannels, clientIP, params)
 	if err != nil {
 		fail(ctx, http.StatusTooManyRequests, err.Error())
 		return
 	}
-	defer h.broker.Unsubscribe(sub, clientIP)
+	wantsOverview := false
+	for _, c := range cleanChannels {
+		if c == "overview" {
+			wantsOverview = true
+			break
+		}
+	}
+	defer func() {
+		if wantsOverview && h.overview != nil {
+			h.overview.ForgetSubscriber(sub)
+		}
+		h.broker.Unsubscribe(sub, clientIP)
+	}()
 
-	// Set SSE response headers
 	w := ctx.Writer
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -63,42 +93,28 @@ func (h *SSEHandler) Stream(ctx *zoox.Context) {
 	w.WriteHeader(http.StatusOK)
 
 	flusher, canFlush := w.(http.Flusher)
-	_ = flusher
-	_ = canFlush
 
-	// Send initial connection established event
 	fmt.Fprintf(w, "event: connected\ndata: {\"channels\":[%q]}\n\n", channelsParam)
 	if canFlush {
 		flusher.Flush()
 	}
 
-	// Stream events to the client
+	if wantsOverview && h.overview != nil {
+		writeSSEEvent(w, flusher, h.overview.SnapshotEvent(sub))
+	}
+
 	req := ctx.Request
 	done := req.Context().Done()
 
 	for {
 		select {
 		case <-done:
-			// Client disconnected
 			return
 		case event, ok := <-sub.Ch:
 			if !ok {
 				return
 			}
-			// Write SSE event
-			if event.Event != "" {
-				fmt.Fprintf(w, "event: %s\n", event.Event)
-			}
-			if event.ID != "" {
-				fmt.Fprintf(w, "id: %s\n", event.ID)
-			}
-			if event.Retry > 0 {
-				fmt.Fprintf(w, "retry: %d\n", event.Retry)
-			}
-			fmt.Fprintf(w, "data: %s\n\n", event.Data)
-			if canFlush {
-				flusher.Flush()
-			}
+			writeSSEEvent(w, flusher, event)
 		}
 	}
 }

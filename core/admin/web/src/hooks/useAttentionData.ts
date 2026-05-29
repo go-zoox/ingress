@@ -16,11 +16,13 @@ type Options = {
   autoRefreshMs?: number
 }
 
+const DEFAULT_AUTO_REFRESH_MS = 5000
+
 export function useAttentionData(options: Options = {}) {
   const metricsWindow = options.metricsWindow ?? loadPreferences().metricsWindow
   const parseIssueLimit = options.parseIssueLimit ?? 10
   const wafLimit = options.wafLimit ?? 8
-  const autoRefreshMs = options.autoRefreshMs ?? loadPreferences().metricsRefreshMs
+  const autoRefreshMs = options.autoRefreshMs ?? DEFAULT_AUTO_REFRESH_MS
 
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null)
   const [certs, setCerts] = useState<TLSCert[]>([])

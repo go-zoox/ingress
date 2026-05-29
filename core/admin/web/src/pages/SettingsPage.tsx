@@ -48,7 +48,7 @@ export function SettingsPage() {
 
   const applyPrefs = () => {
     savePreferences(prefs)
-    setSaved('已保存界面偏好（仅本浏览器）')
+    setSaved('已应用界面偏好（当前会话）')
     window.setTimeout(() => setSaved(''), 2500)
   }
 
@@ -166,7 +166,7 @@ export function SettingsPage() {
         <div className="panel">
           <div className="panel-head">
             <h2>界面偏好</h2>
-            <span className="chart-hint">保存在浏览器 localStorage</span>
+            <span className="chart-hint">仅当前会话有效，刷新页面后恢复默认</span>
           </div>
           <div className="panel-body settings-body">
             <SettingsRow label="日志实时刷新">

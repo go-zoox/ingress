@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef, useCallback, useMemo, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState, useCallback, useMemo, useRef, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { OverviewCharts } from '../components/OverviewCharts'
 import { OverviewAttentionPanel } from '../components/OverviewAttentionPanel'
 import { ConfigGovernanceBadges } from '../components/ConfigGovernanceBadges'
@@ -15,11 +15,15 @@ import {
   type HealthCheckResult,
   type HealthSummary,
   type IngressStatus,
+  type OverviewSnapshot,
 } from '../api/client'
 import { useSSE } from '../hooks/useSSE'
+import { mergeOverviewPatch } from '../lib/overviewMerge'
+import { useOverviewStream } from '../context/OverviewStreamContext'
 import { loadPreferences, savePreferences } from '../lib/preferences'
+import { normalizeMetricsWindow } from '../lib/metricsWindow'
 import { computeHealthScore, healthScoreClass } from '../lib/overviewHealthScore'
-import { FileText, LayoutDashboard, Radio, Route, Settings2 } from 'lucide-react'
+import { PageLoading } from '../components/PageLoading'
 
 const WINDOW_OPTIONS = [
   { value: '5m', label: '5 分钟' },
@@ -29,7 +33,6 @@ const WINDOW_OPTIONS = [
 ] as const
 
 export function OverviewPage() {
-  const navigate = useNavigate()
   const [status, setStatus] = useState<IngressStatus | null>(null)
   const [metrics, setMetrics] = useState<OverviewMetrics | null>(null)
   const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null)
@@ -46,135 +49,151 @@ export function OverviewPage() {
   })
   const [wafBlocks, setWafBlocks] = useState<WAFEvent[]>([])
   const [revisions, setRevisions] = useState<ConfigRevisionSummary[]>([])
-  const [metricsWindow, setMetricsWindow] = useState(() => loadPreferences().metricsWindow)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const mountedRef = useRef(false)
+  const [metricsWindow, setMetricsWindow] = useState(() =>
+    normalizeMetricsWindow(loadPreferences().metricsWindow),
+  )
+  const [sseWindow, setSseWindow] = useState(() =>
+    normalizeMetricsWindow(loadPreferences().metricsWindow),
+  )
+  const windowFetchRef = useRef(0)
+  const snapshotRef = useRef<OverviewSnapshot | null>(null)
+  const prevSseConnectedRef = useRef(false)
 
-  const { data: sseData, connected: sseConnected } = useSSE(['metrics'])
+  const { overviewPatch, connected: sseConnected, reconnecting: sseReconnecting, fallbackPolling } = useSSE(
+    ['overview'],
+    { window: sseWindow },
+  )
+  const { setStream } = useOverviewStream()
 
-  const loadParseIssues = useCallback(() => {
-    api
-      .parseIssues('open', 10)
-      .then((d) => setParseIssues(Array.isArray(d) ? d : []))
-      .catch(() => setParseIssues([]))
-  }, [])
+  useEffect(() => {
+    setStream({
+      connected: sseConnected,
+      reconnecting: sseReconnecting,
+      fallbackPolling,
+      metricsSource: metrics?.source,
+      windowStale: metrics?.window_stale,
+    })
+    return () => setStream(null)
+  }, [
+    setStream,
+    sseConnected,
+    sseReconnecting,
+    fallbackPolling,
+    metrics?.source,
+    metrics?.window_stale,
+  ])
 
-  const fetchMetrics = useCallback(() => {
-    if (!mountedRef.current) {
-      setMetricsLoading(true)
+  const applySnapshot = useCallback((snap: OverviewSnapshot, forWindow?: string) => {
+    const expected = normalizeMetricsWindow(forWindow ?? metricsWindow)
+    if (snap.window && normalizeMetricsWindow(snap.window) !== expected) {
+      return
     }
-    Promise.all([api.overviewMetrics(metricsWindow), api.systemMetrics(metricsWindow)])
-      .then(([overview, system]) => {
-        setMetrics(overview)
-        setSystemMetrics(system)
+    if (snap.status) {
+      setStatus(snap.status)
+    }
+    setMetrics(snap.metrics)
+    setSystemMetrics(snap.system)
+    setCerts(Array.isArray(snap.certs) ? snap.certs : [])
+    setHealthChecks(snap.health_checks || [])
+    setHealthSummary(snap.health_summary || { total: 0, up: 0, down: 0, unknown: 0 })
+    setWafBlocks(Array.isArray(snap.waf_blocks) ? snap.waf_blocks : [])
+    setParseIssues(Array.isArray(snap.parse_issues) ? snap.parse_issues : [])
+    setRevisions(Array.isArray(snap.revisions) ? snap.revisions : [])
+    setMetricsLoading(false)
+    snapshotRef.current = {
+      window: snap.window || expected,
+      status: snap.status,
+      metrics: snap.metrics,
+      system: snap.system,
+      certs: Array.isArray(snap.certs) ? snap.certs : [],
+      health_checks: snap.health_checks || [],
+      health_summary: snap.health_summary || { total: 0, up: 0, down: 0, unknown: 0 },
+      waf_blocks: Array.isArray(snap.waf_blocks) ? snap.waf_blocks : [],
+      parse_issues: Array.isArray(snap.parse_issues) ? snap.parse_issues : [],
+      revisions: Array.isArray(snap.revisions) ? snap.revisions : [],
+    }
+  }, [metricsWindow])
+
+  const refreshSnapshot = useCallback(() => {
+    api
+      .overviewSnapshot(metricsWindow)
+      .then(applySnapshot)
+      .catch(() => {
         setMetricsLoading(false)
-        mountedRef.current = true
-        loadParseIssues()
       })
-      .catch(() => {
-        if (!mountedRef.current) {
-          setMetrics(null)
-          setSystemMetrics(null)
-          setMetricsLoading(false)
-          mountedRef.current = true
-        }
-      })
-  }, [metricsWindow, loadParseIssues])
-
-  const handleParseIssueStatus = useCallback(
-    async (id: number, status: 'ignored' | 'resolved') => {
-      try {
-        await api.updateParseIssueStatus(id, status)
-        loadParseIssues()
-        fetchMetrics()
-      } catch {
-        // keep current list on failure
-      }
-    },
-    [loadParseIssues, fetchMetrics],
-  )
-
-  const loadWafBlocks = useCallback(() => {
-    api
-      .wafEvents({ action: 'block', status: 'open', limit: 30 })
-      .then((d) => {
-        const list = Array.isArray(d) ? d : []
-        setWafBlocks(list.filter((e) => e.action === 'block').slice(0, 8))
-      })
-      .catch(() => setWafBlocks([]))
-  }, [])
-
-  const handleWafEventStatus = useCallback(
-    async (id: number, status: 'ignored' | 'resolved') => {
-      try {
-        await api.updateWafEventStatus(id, status)
-        loadWafBlocks()
-      } catch {
-        // keep current list on failure
-      }
-    },
-    [loadWafBlocks],
-  )
-
-  const loadAux = useCallback(() => {
-    api
-      .tlsCerts()
-      .then((d) => setCerts(Array.isArray(d) ? d : []))
-      .catch(() => setCerts([]))
-    api
-      .healthCheck()
-      .then((d) => {
-        setHealthChecks(d.checks || [])
-        setHealthSummary(d.summary || { total: 0, up: 0, down: 0, unknown: 0 })
-      })
-      .catch(() => {
-        setHealthChecks([])
-        setHealthSummary({ total: 0, up: 0, down: 0, unknown: 0 })
-      })
-    loadWafBlocks()
-    api
-      .configRevisions(5)
-      .then((d) => setRevisions(Array.isArray(d) ? d : []))
-      .catch(() => setRevisions([]))
-  }, [loadWafBlocks])
+  }, [metricsWindow, applySnapshot])
 
   useEffect(() => {
+    const fetchId = ++windowFetchRef.current
+    const window = metricsWindow
+    setMetricsLoading(true)
     api
-      .status()
-      .then(setStatus)
-      .catch((e: Error) => setErr(e.message))
-    loadAux()
-    fetchMetrics()
-
-    const refreshMs = loadPreferences().metricsRefreshMs
-    if (refreshMs > 0) {
-      timerRef.current = window.setInterval(() => {
-        fetchMetrics()
-        loadAux()
-      }, refreshMs)
-    }
-
-    return () => {
-      if (timerRef.current != null) {
-        window.clearInterval(timerRef.current)
-      }
-    }
-  }, [fetchMetrics, loadAux])
+      .overviewSnapshot(window)
+      .then((snap) => {
+        if (fetchId !== windowFetchRef.current) return
+        applySnapshot(snap, window)
+      })
+      .catch(() => {
+        if (fetchId !== windowFetchRef.current) return
+        setMetricsLoading(false)
+      })
+  }, [metricsWindow, applySnapshot])
 
   useEffect(() => {
-    if (sseData.metrics) {
-      setMetrics(sseData.metrics as OverviewMetrics)
-      setMetricsLoading(false)
+    if (!overviewPatch) return
+    const merged = mergeOverviewPatch(snapshotRef.current ?? undefined, overviewPatch)
+    applySnapshot(merged, merged.window)
+  }, [overviewPatch, applySnapshot])
+
+  useEffect(() => {
+    if (!fallbackPolling) return
+    refreshSnapshot()
+    const timer = window.setInterval(refreshSnapshot, 5000)
+    return () => window.clearInterval(timer)
+  }, [fallbackPolling, refreshSnapshot])
+
+  useEffect(() => {
+    if (sseConnected && !prevSseConnectedRef.current && snapshotRef.current) {
+      refreshSnapshot()
     }
-  }, [sseData.metrics])
+    prevSseConnectedRef.current = sseConnected
+  }, [sseConnected, refreshSnapshot])
 
   const onWindowChange = (value: string) => {
-    setMetricsWindow(value)
-    const prefs = loadPreferences()
-    savePreferences({ ...prefs, metricsWindow: value })
-    mountedRef.current = false
-    setMetricsLoading(true)
+    const normalized = normalizeMetricsWindow(value)
+    setMetricsWindow(normalized)
+    savePreferences({ ...loadPreferences(), metricsWindow: normalized })
   }
+
+  useEffect(() => {
+    if (sseWindow === metricsWindow) return
+    const timer = window.setTimeout(() => setSseWindow(metricsWindow), 1000)
+    return () => window.clearTimeout(timer)
+  }, [metricsWindow, sseWindow])
+
+  const handleParseIssueStatus = useCallback(
+    async (id: number, nextStatus: 'ignored' | 'resolved') => {
+      try {
+        await api.updateParseIssueStatus(id, nextStatus)
+        refreshSnapshot()
+      } catch {
+        // keep current list on failure
+      }
+    },
+    [refreshSnapshot],
+  )
+
+  const handleWafEventStatus = useCallback(
+    async (id: number, nextStatus: 'ignored' | 'resolved') => {
+      try {
+        await api.updateWafEventStatus(id, nextStatus)
+        refreshSnapshot()
+      } catch {
+        // keep current list on failure
+      }
+    },
+    [refreshSnapshot],
+  )
 
   const certWarn = certs.filter((c) => c.days_remaining < 30).length
   const certCritical = certs.filter((c) => c.days_remaining < 7).length
@@ -201,18 +220,18 @@ export function OverviewPage() {
     )
   }
 
-  if (!status) {
+  if (!status && metricsLoading) {
     return (
-      <div className="page">
-        <p style={{ color: 'var(--text-muted)' }}>加载中…</p>
+      <div className="page overview-page">
+        <PageLoading />
       </div>
     )
   }
 
-  const reloadReady = Boolean(status.reload_ready)
-  const wafLabel = status.waf_enabled ? (status.waf_log_only ? 'WAF 记录' : 'WAF 拦截') : 'WAF 关'
-  const fileHash = String(status.file_hash || status.config_hash || '')
-  const runtimeHash = String(status.runtime_hash || '')
+  const reloadReady = Boolean(status?.reload_ready)
+  const wafLabel = status?.waf_enabled ? (status.waf_log_only ? 'WAF 记录' : 'WAF 拦截') : 'WAF 关'
+  const fileHash = String(status?.file_hash || status?.config_hash || '')
+  const runtimeHash = String(status?.runtime_hash || '')
   const latestHash = String(status.latest_revision_hash || (revisions.length > 0 ? revisions[0].hash : ''))
 
   return (
@@ -220,7 +239,7 @@ export function OverviewPage() {
       {!reloadReady ? (
         <p className="err" style={{ marginBottom: 16 }}>
           无法热加载：未找到可发送 SIGHUP 的 ingress 进程。请执行{' '}
-          <code>ingress run -c {String(status.config_path)}</code> 且 pid 文件与 admin 一致。
+          <code>ingress run -c {String(status?.config_path)}</code> 且 pid 文件与 admin 一致。
         </p>
       ) : null}
 
@@ -239,32 +258,11 @@ export function OverviewPage() {
             </button>
           ))}
         </div>
-        <div className="overview-toolbar-meta">
-          <span className={`overview-badge ${sseConnected ? 'ok' : ''}`}>
-            <Radio size={12} aria-hidden />
-            {sseConnected ? 'SSE 已连接' : '轮询刷新'}
-          </span>
-          <span className="overview-badge">
-            <LayoutDashboard size={12} aria-hidden />
-            数据源 {metricsSourceLabel(metrics?.source)}
-          </span>
-        </div>
-        <div className="overview-toolbar-actions">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/logs')}>
-            <FileText size={14} aria-hidden /> 日志
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate('/routes')}>
-            <Route size={14} aria-hidden /> 路由
-          </button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => navigate('/config')}>
-            <Settings2 size={14} aria-hidden /> 配置
-          </button>
-        </div>
       </div>
 
       <OverviewCharts
         metrics={metrics}
-        loading={metricsLoading}
+        loading={metricsLoading && metrics === null}
         healthScore={healthScore}
         healthClass={healthClass}
         healthChecks={healthChecks}
@@ -280,14 +278,14 @@ export function OverviewPage() {
           <SystemResourceStrip
             system={systemMetrics}
             metrics={metrics}
-            loading={metricsLoading}
+            loading={metricsLoading && systemMetrics === null}
           />
           <div className="overview-system-divider" />
           <div className="overview-system-grid">
             <SystemBadge label="热加载" value={reloadReady ? '就绪' : '不可用'} tone={reloadReady ? 'ok' : 'warn'} />
             <SystemBadge
               label="版本"
-              value={String(status.version || '—')}
+              value={String(status?.version || '—')}
               sub={
                 <>
                   hash {fileHash.slice(0, 8)}…
@@ -295,18 +293,18 @@ export function OverviewPage() {
                     fileHash={fileHash}
                     runtimeHash={runtimeHash}
                     latestRevisionHash={latestHash}
-                    runtimeDrift={status.runtime_drift}
-                    revisionDrift={status.revision_drift}
+                    runtimeDrift={status?.runtime_drift}
+                    revisionDrift={status?.revision_drift}
                   />
                 </>
               }
             />
             <SystemBadge
               label="监听"
-              value={String(status.listen_http)}
-              sub={`HTTPS ${String(status.listen_https || '—')}`}
+              value={String(status?.listen_http ?? '—')}
+              sub={`HTTPS ${String(status?.listen_https || '—')}`}
             />
-            <SystemBadge label="路由" value={String(status.rules_count)} sub="条规则" />
+            <SystemBadge label="路由" value={String(status?.rules_count ?? '—')} sub="条规则" />
             <SystemBadge label="WAF" value={wafLabel} />
             <SystemBadge
               label="证书"
@@ -324,7 +322,7 @@ export function OverviewPage() {
               value={healthSummary.total > 0 ? `${healthSummary.up}/${healthSummary.total} UP` : '未配置'}
               tone={healthSummary.down > 0 ? 'danger' : healthSummary.total > 0 ? 'ok' : undefined}
             />
-            <SystemBadge label="最近 reload" value={String(status.last_reload || '—')} />
+            <SystemBadge label="最近 reload" value={String(status?.last_reload || '—')} />
           </div>
         </div>
       </div>
@@ -383,23 +381,6 @@ function SystemBadge({
       {sub ? <span className="overview-sys-sub">{sub}</span> : null}
     </div>
   )
-}
-
-function metricsSourceLabel(source?: string) {
-  switch (source) {
-    case 'access_log':
-      return 'access.log'
-    case 'access_log_empty':
-      return '空文件'
-    case 'access_log_parse_fail':
-      return '解析异常'
-    case 'unconfigured':
-      return '未配置'
-    case 'error':
-      return '读取失败'
-    default:
-      return source || '—'
-  }
 }
 
 function formatTime(iso: string) {
