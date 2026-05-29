@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   FormCheckbox,
   FormField,
@@ -9,16 +9,17 @@ import {
 import {
   ConfigEntityModal,
   EntityRowActions,
-  EntityTableToolbar,
 } from '../ConfigEntityModal'
 import {
   emptyWAFRuleForm,
   formTargets,
   patchCustomRuleEnabled,
   patchWafAllow,
+  patchWafAllowHosts,
   patchWafDeny,
   patchWafRules,
   wafAllowList,
+  wafAllowHostsList,
   wafDenyList,
   wafRuleSaveDisabled,
   wafRuleToForm,
@@ -39,10 +40,10 @@ import {
   patchBuiltinRuleEnabled,
   type BuiltinWAFRule,
 } from '../../lib/wafBuiltinRules'
-import { actionFromRow } from '../../lib/wafAction'
+import { actionFromRow, wafInheritEffectiveLabel } from '../../lib/wafAction'
 import { Drawer } from '../Drawer'
 import { EllipsisTooltip } from '../EllipsisTooltip'
-import { obj, str } from '../../lib/ingressModuleForms'
+import { obj, str, bool } from '../../lib/ingressModuleForms'
 import { moveAdjacent } from '../../lib/arrayMove'
 
 function RuleActionSelect({
@@ -158,7 +159,7 @@ function WAFRuleFormFields({
       <FormSelectField
         label="命中后处置 action"
         keyName="waf.rules[].action"
-        hint="拦截（默认）、仅记录（继续检查后续规则）、通过（跳过后续签名规则）"
+        hint="继承（默认）跟随全局；拦截/仅记录/通过为显式覆盖"
         value={form.action}
         onChange={(e) => patch((n) => { n.action = e.target.value as WAFAction })}
       >
@@ -193,43 +194,127 @@ function RuleEnabledToggle({
   )
 }
 
-function IPListEditor({
+function WafStringListEditor({
   title,
   items,
   onChange,
+  hint,
+  valueLabel,
+  fieldKeyName,
+  emptyHint,
+  placeholder,
+  addTitle,
+  editTitle,
 }: {
   title: string
   items: string[]
   onChange: (items: string[]) => void
+  hint?: string
+  valueLabel: string
+  fieldKeyName: string
+  emptyHint: string
+  placeholder?: string
+  addTitle: string
+  editTitle: string
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const text = items.join('\n')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editIndex, setEditIndex] = useState<number | null>(null)
+  const [draft, setDraft] = useState('')
 
-  const trySave = () => {
-    const el = textareaRef.current
-    if (!el) return
-    const lines = el.value
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean)
-    onChange(lines)
+  const openAdd = () => {
+    setEditIndex(null)
+    setDraft('')
+    setModalOpen(true)
+  }
+
+  const openEdit = (index: number) => {
+    setEditIndex(index)
+    setDraft(items[index] ?? '')
+    setModalOpen(true)
+  }
+
+  const save = () => {
+    const value = draft.trim()
+    if (!value) return
+    const next = [...items]
+    if (editIndex == null) next.push(value)
+    else next[editIndex] = value
+    onChange(next)
+    setModalOpen(false)
+  }
+
+  const remove = (index: number) => {
+    const value = items[index] ?? ''
+    if (!window.confirm(`删除 ${value || `#${index + 1}`}？`)) return
+    onChange(items.filter((_, i) => i !== index))
+  }
+
+  const moveItem = (index: number, delta: -1 | 1) => {
+    onChange(moveAdjacent(items, index, delta))
   }
 
   return (
-    <FormSection title={title}>
-      <p className="form-hint">每行一个 CIDR 或 IP，如 203.0.113.0/24 或 192.168.1.1</p>
-      <textarea
-        ref={textareaRef}
-        className="code"
-        rows={items.length < 3 ? 3 : Math.min(items.length + 1, 8)}
-        spellCheck={false}
-        defaultValue={text}
-        onBlur={trySave}
-      />
-      <p className="form-hint" style={{ marginTop: 4 }}>
-        {items.length > 0 ? `${items.length} 条记录 · 修改后失焦保存` : '暂未配置'}
-      </p>
-    </FormSection>
+    <>
+      <section className="waf-list-editor">
+        <div className="waf-list-toolbar">
+          <span className="waf-list-toolbar-title">{title}</span>
+          {hint ? <span className="waf-list-toolbar-hint">{hint}</span> : null}
+          <button type="button" className="btn btn-ghost waf-list-toolbar-add" onClick={openAdd}>
+            + 添加
+          </button>
+        </div>
+        <table className="data config-waf-list-table">
+          <thead>
+            <tr>
+              <th>{valueLabel}</th>
+              <th className="col-actions">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={2} className="empty-hint">
+                  {emptyHint}
+                </td>
+              </tr>
+            ) : (
+              items.map((item, i) => (
+                <tr key={`${item}-${i}`}>
+                  <td><code className="path-cell">{item}</code></td>
+                  <td className="col-actions">
+                    <EntityRowActions
+                      onEdit={() => openEdit(i)}
+                      onDelete={() => remove(i)}
+                      onMoveUp={() => moveItem(i, -1)}
+                      onMoveDown={() => moveItem(i, 1)}
+                      disableMoveUp={i === 0}
+                      disableMoveDown={i === items.length - 1}
+                    />
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      <ConfigEntityModal
+        open={modalOpen}
+        title={editIndex == null ? addTitle : editTitle}
+        onClose={() => setModalOpen(false)}
+        onSave={save}
+        disableSave={!draft.trim()}
+      >
+        <FormField
+          label={valueLabel}
+          keyName={fieldKeyName}
+          hint={hint}
+          placeholder={placeholder}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+      </ConfigEntityModal>
+    </>
   )
 }
 
@@ -253,6 +338,7 @@ function BuiltinRuleDetailDrawer({
   const action = builtinRuleAction(doc, rule.id)
   const actionOverride = builtinActionOverridden(doc, rule.id)
   const disableAllBuiltin = !defaultBuiltinEnabled(doc)
+  const globalLogOnly = bool(obj(doc.waf).log_only)
 
   return (
     <Drawer
@@ -300,11 +386,11 @@ function BuiltinRuleDetailDrawer({
           />
           {actionOverride ? (
             <span className="badge badge-audit" style={{ marginLeft: 8 }}>
-              已覆盖默认拦截
+              已单独覆盖
             </span>
           ) : (
             <span className="form-hint" style={{ display: 'block', marginTop: 4 }}>
-              默认：拦截
+              继承全局，当前生效：{wafInheritEffectiveLabel(globalLogOnly)}
             </span>
           )}
         </dd>
@@ -335,7 +421,9 @@ export function WafRulesEditor({
   const rules = wafRulesFromDoc(doc)
   const denyList = wafDenyList(doc)
   const allowList = wafAllowList(doc)
+  const allowHostsList = wafAllowHostsList(doc)
   const disableAllBuiltin = !defaultBuiltinEnabled(doc)
+  const globalLogOnly = bool(obj(doc.waf).log_only)
   const [modalOpen, setModalOpen] = useState(false)
   const [editIndex, setEditIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState<WAFRuleForm>(emptyWAFRuleForm())
@@ -420,7 +508,9 @@ export function WafRulesEditor({
                       onChange={(act) => onChange(patchBuiltinRuleAction(doc, rule.id, act))}
                       title={
                         enabled
-                          ? `写入 waf.builtin_rule_actions；当前：${wafActionLabel(action)}`
+                          ? action === 'inherit'
+                            ? `继承全局，当前生效：${wafInheritEffectiveLabel(globalLogOnly)}`
+                            : `已写入 waf.builtin_rule_actions：${wafActionLabel(action)}`
                           : '规则已关闭'
                       }
                     />
@@ -448,32 +538,66 @@ export function WafRulesEditor({
         </div>
         <p className="form-hint">
           默认跟随上方「禁用内置规则」：未禁用时全部内置规则启用；禁用后全部关闭，可在此单独开启。
-          启用覆盖写入 <code>waf.builtin_rules</code>；处置覆盖写入 <code>waf.builtin_rule_actions</code>。
+          启用覆盖写入 <code>waf.builtin_rules</code>；处置选「继承」时不写入配置，选拦截/仅记录/通过时写入{' '}
+          <code>waf.builtin_rule_actions</code>。
           同 id 的自定义规则仍可覆盖 pattern/targets。
         </p>
       </FormSection>
 
-      <IPListEditor
+      <WafStringListEditor
         title={`IP 黑名单 deny (${denyList.length})`}
         items={denyList}
+        valueLabel="IP / CIDR"
+        fieldKeyName="waf.deny[]"
+        emptyHint="暂无 IP 黑名单"
+        placeholder="203.0.113.0/24"
+        addTitle="添加 IP 黑名单"
+        editTitle="编辑 IP 黑名单"
+        hint="CIDR 或单个 IP，如 203.0.113.0/24 或 192.168.1.1"
         onChange={(items) => onChange(patchWafDeny(doc, items))}
       />
 
-      <IPListEditor
+      <WafStringListEditor
         title={`IP 白名单 allow (${allowList.length})`}
         items={allowList}
+        valueLabel="IP / CIDR"
+        fieldKeyName="waf.allow[]"
+        emptyHint="暂无 IP 白名单"
+        placeholder="10.0.0.0/8"
+        addTitle="添加 IP 白名单"
+        editTitle="编辑 IP 白名单"
+        hint="非空时仅允许列表内网段通过 WAF 的 IP 阶段"
         onChange={(items) => onChange(patchWafAllow(doc, items))}
       />
 
-      <FormSection title={`自定义规则 (${rules.length})`}>
-        <EntityTableToolbar label="waf.rules" onAdd={openAdd} />
-        <p className="form-hint">自定义规则按列表顺序评估，排在前面的优先命中。</p>
-        <div className="table-scroll">
-        <table className="data config-waf-rules-table">
+      <WafStringListEditor
+        title={`域名白名单 allow_hosts (${allowHostsList.length})`}
+        items={allowHostsList}
+        valueLabel="Host 模式"
+        fieldKeyName="waf.allow_hosts[]"
+        emptyHint="暂无域名白名单"
+        placeholder="*.cdn.example.com"
+        addTitle="添加域名白名单"
+        editTitle="编辑域名白名单"
+        hint="精确域名、*.wildcard.example.com，或 Go 正则（含 ( ) [ ] ^ $ 等时自动识别）"
+        onChange={(items) => onChange(patchWafAllowHosts(doc, items))}
+      />
+
+      <section className="waf-list-editor">
+        <div className="waf-list-toolbar">
+          <span className="waf-list-toolbar-title">自定义规则 ({rules.length})</span>
+          <span className="waf-list-toolbar-hint">
+            按顺序评估，前者优先；regex 为 Go regexp，contains 为子串；v1 不扫描 body
+          </span>
+          <button type="button" className="btn btn-ghost waf-list-toolbar-add" onClick={openAdd}>
+            + 添加
+          </button>
+        </div>
+        <table className="data config-waf-custom-rules-table">
           <thead>
             <tr>
-              <th>启用</th>
-              <th>处置</th>
+              <th className="col-enable">启用</th>
+              <th className="col-action">处置</th>
               <th>ID</th>
               <th>类型</th>
               <th className="col-pattern">Pattern</th>
@@ -494,7 +618,7 @@ export function WafRulesEditor({
                 const action = actionFromRow(rule)
                 return (
                   <tr key={`${str(rule.id)}-${i}`} className={enabled ? undefined : 'row-muted'}>
-                    <td>
+                    <td className="col-enable">
                       <RuleEnabledToggle
                         enabled={enabled}
                         onChange={(v) => onChange(patchCustomRuleEnabled(doc, i, v))}
@@ -508,8 +632,8 @@ export function WafRulesEditor({
                     <td><code>{str(rule.id)}</code></td>
                     <td>{str(rule.type, 'regex')}</td>
                     <td className="col-pattern"><code className="path-cell">{str(rule.pattern)}</code></td>
-                    <td>{arrTargets(rule)}</td>
-                    <td>
+                    <td className="col-targets">{arrTargets(rule)}</td>
+                    <td className="col-actions">
                       <EntityRowActions
                         onEdit={() => openEdit(i)}
                         onDelete={() => remove(i)}
@@ -525,12 +649,7 @@ export function WafRulesEditor({
             )}
           </tbody>
         </table>
-        </div>
-        <p className="form-hint">
-          v1 不扫描 body；<code>regex</code> 使用 Go regexp，<code>contains</code> 为子串匹配。
-          关闭规则写入 <code>enabled: false</code>，不会删除规则定义。
-        </p>
-      </FormSection>
+      </section>
 
       <ConfigEntityModal
         open={modalOpen}

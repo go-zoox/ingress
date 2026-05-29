@@ -93,6 +93,7 @@ rules:
 | `disable_builtin` | bool | `true` 时关闭内置 starter 规则（清单见 [WAF](waf.md)） |
 | `deny` | string 数组 | 拒绝的 IP/CIDR（先匹配） |
 | `allow` | string 数组 | 非空时仅允许表中网段通过 IP 阶段 |
+| `allow_hosts` | string 数组 | 域名白名单：匹配的 Host 跳过全部 WAF（精确、`*` 通配或 Go 正则，推断规则同路由 host） |
 | `rules` | array | 自定义特征（`id`、`pattern`、`type`、`targets`、`log_only`）；同 `id` 在路由上覆盖全局 |
 
 ### 安全响应头（`security` / `rules[].security`）

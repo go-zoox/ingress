@@ -13,6 +13,11 @@ import { SecurityFormFields } from './config/SecurityFormFields'
 import { SslCertsEditor } from './config/SslCertsEditor'
 import { WafRulesEditor } from './config/WafRulesEditor'
 import {
+  WAF_GLOBAL_MODE_OPTIONS,
+  type WAFGlobalMode,
+  wafGlobalModeFromLogOnly,
+} from '../lib/wafAction'
+import {
   bool,
   num,
   obj,
@@ -387,14 +392,27 @@ function WAFModuleForm({
         checked={bool(waf.enabled, true)}
         onChange={(v) => patchWaf((n) => { n.enabled = v })}
       />
-      <FormCheckbox
-        label="全局仅审计不拦截"
-        checked={bool(waf.log_only)}
-        onChange={(v) => patchWaf((n) => { if (v) n.log_only = true; else delete n.log_only })}
-      />
+      <FormSelectField
+        label="全局处置"
+        keyName="waf.log_only"
+        hint="未单独设置 action 的规则默认跟随此项；写入 log_only: true 表示记录"
+        value={wafGlobalModeFromLogOnly(bool(waf.log_only))}
+        onChange={(e) => {
+          const mode = e.target.value as WAFGlobalMode
+          patchWaf((n) => {
+            if (mode === 'audit') n.log_only = true
+            else delete n.log_only
+          })
+        }}
+      >
+        {WAF_GLOBAL_MODE_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value} title={o.hint}>
+            {o.label} — {o.hint}
+          </option>
+        ))}
+      </FormSelectField>
       <p className="form-hint">
-        未单独设置 <code>action</code> 的自定义/内置规则在全局开启时均为「仅记录」。下方规则表可为每条设置
-        拦截 / 仅记录 / 通过。
+        单条规则选「继承」时跟随全局处置；可显式覆盖为 拦截 / 仅记录 / 通过。
       </p>
       <FormCheckbox
         label="禁用内置规则"

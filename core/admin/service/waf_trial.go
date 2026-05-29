@@ -163,6 +163,24 @@ func (ing *Ingress) TrialWAF(in WAFTrialInput) (WAFTrialResult, error) {
 		}, nil
 	}
 
+	if waf.HostSkipsWAF(prof, host) {
+		return WAFTrialResult{
+			Matched:           false,
+			WouldBlock:        false,
+			RuleIndex:         ruleIndex,
+			PathIndex:         pathIndex,
+			Host:              host,
+			Path:              path,
+			WAFEnabled:        true,
+			ConfigWAFEnabled:  configWAFOn,
+			RuntimeWAFEnabled: runtimeWAFOn,
+			LogOnly:           prof.GlobalLogOnly,
+			ExpectedRule:      expectedRule,
+			Message:           "WAF skipped for host (allow_hosts)",
+			Hint:              "该 Host 在 waf.allow_hosts 域名白名单中，跳过全部 WAF 检查",
+		}, nil
+	}
+
 	rawURL := "http://" + host + path
 	if q := strings.TrimSpace(in.Query); q != "" {
 		if strings.HasPrefix(q, "?") {

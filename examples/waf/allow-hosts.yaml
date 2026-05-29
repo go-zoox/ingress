@@ -1,0 +1,23 @@
+version: v1
+port: 8080
+
+# Hosts on allow_hosts skip all WAF phases (IP lists and signatures).
+waf:
+  enabled: true
+  allow_hosts:
+    - admin.internal
+    - "*.cdn.example.com"
+    - ^staging-[a-z0-9-]+\.example\.com$
+
+rules:
+  - host: admin.internal
+    backend:
+      type: handler
+      handler:
+        body: "admin\n"
+  - host: api.example.com
+    backend:
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

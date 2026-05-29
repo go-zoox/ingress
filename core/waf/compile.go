@@ -46,6 +46,7 @@ type Profile struct {
 
 	denyNet        []*net.IPNet
 	allowNet       []*net.IPNet
+	allowHosts     []hostMatcher
 	signatureRules []*sigRule
 }
 
@@ -110,6 +111,18 @@ func compileProfile(ruleIndex int, mergedIn rule.WAF) (*Profile, error) {
 			return nil, fmt.Errorf("%s.waf.allow[%q]: %w", ipPhaseLabel, raw, err)
 		}
 		p.allowNet = append(p.allowNet, ipnet)
+	}
+
+	for _, raw := range merged.AllowHosts {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		m, err := compileHostPattern(raw)
+		if err != nil {
+			return nil, fmt.Errorf("%s.waf.allow_hosts[%q]: %w", ipPhaseLabel, raw, err)
+		}
+		p.allowHosts = append(p.allowHosts, m)
 	}
 
 	custom := merged.Rules
@@ -263,4 +276,12 @@ func ipMatchesNets(ip net.IP, nets []*net.IPNet) bool {
 		}
 	}
 	return false
+}
+
+// HostSkipsWAF reports whether hostname matches allow_hosts and bypasses all WAF phases.
+func HostSkipsWAF(p *Profile, hostname string) bool {
+	if p == nil || !p.Enabled {
+		return false
+	}
+	return hostMatchesAllowList(hostname, p.allowHosts)
 }

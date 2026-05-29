@@ -29,6 +29,8 @@ type WAF struct {
 
 	Deny  []string  `config:"deny"`
 	Allow []string  `config:"allow"`
+	// AllowHosts lists host patterns that skip all WAF phases (exact, wildcard *, or regex auto).
+	AllowHosts []string `config:"allow_hosts"`
 	Rules []WAFRule `config:"rules"`
 }
 

@@ -163,8 +163,8 @@ export function WafTrialDrawer({ open, onClose, eventId, seed }: Props) {
             <dd>
               {trialResult.waf_enabled
                 ? trialResult.log_only
-                  ? '仅审计'
-                  : '拦截模式'
+                  ? '记录'
+                  : '拦截'
                 : '未启用'}
             </dd>
             {trialResult.expected_rule ? (

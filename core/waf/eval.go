@@ -15,6 +15,10 @@ func CheckRequest(p *Profile, r *http.Request, hostname, path, method string, re
 		return false
 	}
 
+	if hostMatchesAllowList(hostname, p.allowHosts) {
+		return false
+	}
+
 	cli := clientIP(r, p.TrustProxy, p.XFFIndex)
 
 	if len(p.denyNet) > 0 && ipMatchesNets(cli, p.denyNet) {

@@ -1,5 +1,10 @@
 import { arr, bool, obj, str } from './ingressModuleForms'
-import { actionFromRow, type WAFAction, wafActionLabel } from './wafAction'
+import {
+  actionFromRow,
+  type WAFAction,
+  wafActionIsExplicit,
+  wafActionLabel,
+} from './wafAction'
 
 export type WAFRuleType = 'regex' | 'contains'
 
@@ -34,6 +39,10 @@ export function wafAllowList(doc: Record<string, unknown>): string[] {
   return arr<string>(obj(doc.waf).allow)
 }
 
+export function wafAllowHostsList(doc: Record<string, unknown>): string[] {
+  return arr<string>(obj(doc.waf).allow_hosts)
+}
+
 export function patchWafDeny(doc: Record<string, unknown>, items: string[]): Record<string, unknown> {
   const filtered = items
     .map((s) => s.trim())
@@ -56,6 +65,19 @@ export function patchWafAllow(doc: Record<string, unknown>, items: string[]): Re
     waf.allow = filtered
   } else {
     delete waf.allow
+  }
+  return { waf }
+}
+
+export function patchWafAllowHosts(doc: Record<string, unknown>, items: string[]): Record<string, unknown> {
+  const filtered = items
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const waf = { ...obj(doc.waf) }
+  if (filtered.length > 0) {
+    waf.allow_hosts = filtered
+  } else {
+    delete waf.allow_hosts
   }
   return { waf }
 }
@@ -89,7 +111,7 @@ export function emptyWAFRuleForm(): WAFRuleForm {
     target_uri: false,
     target_headers: false,
     target_extra: '',
-    action: 'block',
+    action: 'inherit',
     enabled: true,
   }
 }
@@ -115,7 +137,7 @@ export function wafRuleToRow(form: WAFRuleForm): Record<string, unknown> {
   }
   if (form.name.trim()) row.name = form.name.trim()
   if (form.type !== 'regex') row.type = form.type
-  if (form.action === 'audit' || form.action === 'pass') {
+  if (wafActionIsExplicit(form.action)) {
     row.action = form.action
   }
   if (!form.enabled) row.enabled = false
@@ -129,7 +151,7 @@ export function wafRuleSummary(row: Record<string, unknown>): string {
   const targets = arr<string>(row.targets).join(', ') || '—'
   const short = pattern.length > 28 ? `${pattern.slice(0, 28)}…` : pattern
   const act = actionFromRow(row)
-  const actLabel = act !== 'block' ? ` · ${wafActionLabel(act)}` : ''
+  const actLabel = ` · ${wafActionLabel(act)}`
   const off = row.enabled === false ? ' · 已禁用' : ''
   return `${id} · ${typ} · ${short} → [${targets}]${actLabel}${off}`
 }

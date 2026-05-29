@@ -146,7 +146,7 @@ export function patchBuiltinRuleAction(
 ): Record<string, unknown> {
   const waf = { ...((doc.waf ?? {}) as Record<string, unknown>) }
   const actions = { ...builtinRuleActions(doc) }
-  if (action === 'block') {
+  if (action === 'inherit') {
     delete actions[ruleId]
   } else {
     actions[ruleId] = action

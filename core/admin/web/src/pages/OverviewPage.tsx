@@ -210,7 +210,7 @@ export function OverviewPage() {
   }
 
   const reloadReady = Boolean(status.reload_ready)
-  const wafLabel = status.waf_enabled ? (status.waf_log_only ? 'WAF 审计' : 'WAF 拦截') : 'WAF 关'
+  const wafLabel = status.waf_enabled ? (status.waf_log_only ? 'WAF 记录' : 'WAF 拦截') : 'WAF 关'
   const fileHash = String(status.file_hash || status.config_hash || '')
   const runtimeHash = String(status.runtime_hash || '')
   const latestHash = String(status.latest_revision_hash || (revisions.length > 0 ? revisions[0].hash : ''))

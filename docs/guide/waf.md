@@ -3,6 +3,7 @@
 Ingress can run a **first-version WAF** on matched routes **after routing** and **before** redirects, handlers, or upstream proxies. It covers:
 
 - **IP lists** (`deny` then optional `allow` gate).
+- **Host allowlist** (`allow_hosts`): listed hosts skip all WAF phases (IP lists and signatures).
 - **Signature checks** against `path`, `query`, assembled `uri`, all header lines (`headers`), or one header (`header:User-Agent`).
 - An optional **embedded starter ruleset** (SQLi/path traversal/reflected-scripting probes). Turn off with **`disable_builtin: true`** if it is too noisy.
 
@@ -21,9 +22,10 @@ The generic config decoder cannot partially merge map keys into structs, so **`r
 
 1. Effective policy = merge(global `waf`, `rules[i].WAFPatch`).
 2. Exit if `enabled` is false.
-3. Resolve client IP ( **`trust_proxy`** + **`xff_index`** ; default index **0** = leftmost segment in `X-Forwarded-For` ).
-4. **Deny** list, then **Allow** when non-empty (only listed nets may pass the IP phase).
-5. Signatures: starters unless `disable_builtin`, then custom rules in merged order.
+3. **`allow_hosts`**: skip all WAF when request Host matches (exact, `*` wildcard, or auto-detected Go regex — same inference as ingress host routing).
+4. Resolve client IP ( **`trust_proxy`** + **`xff_index`** ; default index **0** = leftmost segment in `X-Forwarded-For` ).
+5. **Deny** list, then **Allow** when non-empty (only listed nets may pass the IP phase).
+6. Signatures: starters unless `disable_builtin`, then custom rules in merged order.
 
 Blocked clients receive **`block_status_code`** (default **403**), **`block_content_type`**, and **`block_body`**.
 

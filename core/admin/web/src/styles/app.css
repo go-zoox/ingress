@@ -4051,6 +4051,98 @@ table.data.config-revisions code {
   width: 72px;
 }
 
+.waf-list-editor {
+  margin-bottom: 12px;
+}
+
+.waf-list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  padding: 6px 0;
+}
+
+.waf-list-toolbar-title {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.waf-list-toolbar-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.waf-list-toolbar-add {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.config-waf-list-table {
+  font-size: 12px;
+  margin-top: 4px;
+  width: 100%;
+}
+
+.config-waf-list-table th:last-child,
+.config-waf-list-table td.col-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.config-waf-list-table .path-cell {
+  display: inline;
+  max-width: none;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-all;
+}
+
+.config-waf-custom-rules-table {
+  font-size: 12px;
+  margin-top: 4px;
+  width: 100%;
+}
+
+.config-waf-custom-rules-table th,
+.config-waf-custom-rules-table td {
+  vertical-align: top;
+}
+
+.config-waf-custom-rules-table .col-enable,
+.config-waf-custom-rules-table .col-action,
+.config-waf-custom-rules-table th:last-child,
+.config-waf-custom-rules-table td.col-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.config-waf-custom-rules-table .col-pattern,
+.config-waf-custom-rules-table .col-targets {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.config-waf-custom-rules-table .col-pattern .path-cell {
+  display: inline;
+  max-width: none;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: break-all;
+}
+
+.config-waf-custom-rules-table tr.row-muted td {
+  opacity: 0.55;
+}
+
 .config-waf-rules-table--compact {
   min-width: 520px;
 }

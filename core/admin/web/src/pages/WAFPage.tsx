@@ -218,9 +218,9 @@ export function WAFPage() {
           </div>
         </div>
         <div className="card">
-          <div className="label">模式</div>
-          <div className="value">{status?.waf_log_only ? '仅审计' : '拦截'}</div>
-          <div className="sub">log_only</div>
+          <div className="label">全局处置</div>
+          <div className="value">{status?.waf_log_only ? '记录' : '拦截'}</div>
+          <div className="sub">waf.log_only</div>
         </div>
       </div>
 
