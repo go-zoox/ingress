@@ -1,0 +1,28 @@
+version: v1
+port: 8080
+
+# Per-rule allow_hosts: matching Host skips that signature only.
+# Global allow_hosts still skips the entire WAF (see allow-hosts.yaml).
+waf:
+  enabled: true
+  rules:
+    # Builtin sensitive-files still runs everywhere except admin.internal
+    - id: builtin:sensitive-files
+      allow_hosts:
+        - admin.internal
+        - "*.ops.example.com"
+    - id: scoped-probe
+      type: contains
+      pattern: INTERNAL-PROBE
+      targets:
+        - path
+      allow_hosts:
+        - legacy.example.com
+
+rules:
+  - host: app.example.com
+    backend:
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

@@ -46,4 +46,6 @@ type WAFRule struct {
 	Type    string   `config:"type"`
 	Pattern string   `config:"pattern"`
 	Targets []string `config:"targets"`
+	// AllowHosts lists host patterns that skip this rule only (exact, wildcard *, or regex auto).
+	AllowHosts []string `config:"allow_hosts"`
 }

@@ -388,5 +388,13 @@ func patchRuleFromMap(m map[string]any, ctx string) (rule.WAFRule, error) {
 		r.Targets = sl
 	}
 
+	if v, ok := m["allow_hosts"]; ok {
+		sl, err := strSlice(v, ctx+".allow_hosts")
+		if err != nil {
+			return r, err
+		}
+		r.AllowHosts = sl
+	}
+
 	return r, nil
 }

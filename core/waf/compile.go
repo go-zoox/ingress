@@ -29,7 +29,8 @@ type sigRule struct {
 	pattern  string
 	re       *regexp.Regexp
 	targets  []targetKind
-	hdrNames []string
+	hdrNames   []string
+	skipHosts  []hostMatcher
 }
 
 // Profile is compiled WAF state for one ingress rule (or global fallback index -1 internally).
@@ -125,10 +126,11 @@ func compileProfile(ruleIndex int, mergedIn rule.WAF) (*Profile, error) {
 		p.allowHosts = append(p.allowHosts, m)
 	}
 
-	custom := merged.Rules
-	var combined []rule.WAFRule
-	combined = append(combined, filterStarterRules(merged)...)
-	combined = append(combined, custom...)
+	if err := validateCustomWAFRules(merged, rLabel); err != nil {
+		return nil, err
+	}
+
+	combined := combineSignatureRules(merged)
 
 	seenSigID := make(map[string]struct{}, len(combined))
 
@@ -220,6 +222,18 @@ func compileSigRule(r *rule.WAFRule) (*sigRule, error) {
 			}
 			return nil, fmt.Errorf("targets: unknown target %q", t)
 		}
+	}
+
+	for _, raw := range r.AllowHosts {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		m, err := compileHostPattern(raw)
+		if err != nil {
+			return nil, fmt.Errorf("allow_hosts[%q]: %w", raw, err)
+		}
+		cr.skipHosts = append(cr.skipHosts, m)
 	}
 
 	return cr, nil

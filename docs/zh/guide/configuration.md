@@ -94,7 +94,7 @@ rules:
 | `deny` | string 数组 | 拒绝的 IP/CIDR（先匹配） |
 | `allow` | string 数组 | 非空时仅允许表中网段通过 IP 阶段 |
 | `allow_hosts` | string 数组 | 域名白名单：匹配的 Host 跳过全部 WAF（精确、`*` 通配或 Go 正则，推断规则同路由 host） |
-| `rules` | array | 自定义特征（`id`、`pattern`、`type`、`targets`、`log_only`）；同 `id` 在路由上覆盖全局 |
+| `rules` | array | 自定义特征（`id`、`pattern`、`type`、`targets`、可选 `allow_hosts`、`log_only`、`action`）；同 `id` 可覆盖内置或路由级继承字段 |
 
 ### 安全响应头（`security` / `rules[].security`）
 

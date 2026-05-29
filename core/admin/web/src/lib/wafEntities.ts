@@ -20,6 +20,7 @@ export type WAFRuleForm = {
   target_extra: string
   action: WAFAction
   enabled: boolean
+  allow_hosts: string[]
 }
 
 export type { WAFAction } from './wafAction'
@@ -82,6 +83,42 @@ export function patchWafAllowHosts(doc: Record<string, unknown>, items: string[]
   return { waf }
 }
 
+export function wafRuleAllowHosts(doc: Record<string, unknown>, ruleID: string): string[] {
+  const row = wafRulesFromDoc(doc).find((r) => str(r.id) === ruleID)
+  return row ? arr<string>(row.allow_hosts) : []
+}
+
+export function patchBuiltinRuleAllowHosts(
+  doc: Record<string, unknown>,
+  ruleID: string,
+  hosts: string[],
+): Record<string, unknown> {
+  const filtered = hosts.map((s) => s.trim()).filter(Boolean)
+  const rules = wafRulesFromDoc(doc)
+  const idx = rules.findIndex((r) => str(r.id) === ruleID)
+  if (idx < 0 && filtered.length === 0) return doc
+
+  if (filtered.length === 0) {
+    if (idx < 0) return doc
+    const row = { ...rules[idx] }
+    delete row.allow_hosts
+    const keys = Object.keys(row).filter((k) => k !== 'id')
+    if (keys.length === 0) {
+      return patchWafRules(doc, rules.filter((_, i) => i !== idx))
+    }
+    const next = [...rules]
+    next[idx] = row
+    return patchWafRules(doc, next)
+  }
+
+  const row = idx >= 0 ? { ...rules[idx] } : { id: ruleID }
+  row.allow_hosts = filtered
+  const next = [...rules]
+  if (idx >= 0) next[idx] = row
+  else next.push(row)
+  return patchWafRules(doc, next)
+}
+
 export function wafRuleToForm(row: Record<string, unknown>): WAFRuleForm {
   const targets = arr<string>(row.targets).map((t) => str(t).toLowerCase())
   const extra = targets.filter((t) => !STANDARD_TARGETS.has(t))
@@ -97,6 +134,7 @@ export function wafRuleToForm(row: Record<string, unknown>): WAFRuleForm {
     target_extra: extra.join(', '),
     action: actionFromRow(row),
     enabled: row.enabled === undefined ? true : bool(row.enabled),
+    allow_hosts: arr<string>(row.allow_hosts),
   }
 }
 
@@ -113,6 +151,7 @@ export function emptyWAFRuleForm(): WAFRuleForm {
     target_extra: '',
     action: 'inherit',
     enabled: true,
+    allow_hosts: [],
   }
 }
 
@@ -141,6 +180,12 @@ export function wafRuleToRow(form: WAFRuleForm): Record<string, unknown> {
     row.action = form.action
   }
   if (!form.enabled) row.enabled = false
+  const hosts = form.allow_hosts.map((s) => s.trim()).filter(Boolean)
+  if (hosts.length > 0) {
+    row.allow_hosts = hosts
+  } else {
+    delete row.allow_hosts
+  }
   return row
 }
 
@@ -153,7 +198,9 @@ export function wafRuleSummary(row: Record<string, unknown>): string {
   const act = actionFromRow(row)
   const actLabel = ` · ${wafActionLabel(act)}`
   const off = row.enabled === false ? ' · 已禁用' : ''
-  return `${id} · ${typ} · ${short} → [${targets}]${actLabel}${off}`
+  const hosts = arr<string>(row.allow_hosts)
+  const hostHint = hosts.length > 0 ? ` · 域名白名单 ${hosts.length}` : ''
+  return `${id} · ${typ} · ${short} → [${targets}]${actLabel}${hostHint}${off}`
 }
 
 export function wafRuleSaveDisabled(form: WAFRuleForm): boolean {
@@ -181,6 +228,46 @@ export function patchCustomRuleEnabled(
       delete next.enabled
     } else {
       next.enabled = false
+    }
+    return next
+  })
+  return patchWafRules(doc, rules)
+}
+
+export function wafCustomRuleName(row: Record<string, unknown>): string {
+  const name = str(row.name).trim()
+  if (name) return name
+  return str(row.id) || '—'
+}
+
+export function wafCustomRuleDescription(row: Record<string, unknown>): string {
+  const typ = str(row.type, 'regex') === 'contains' ? '子串' : 'Go 正则'
+  const pattern = str(row.pattern)
+  const short = pattern.length > 48 ? `${pattern.slice(0, 48)}…` : pattern
+  const targets = arr<string>(row.targets).join(', ') || '—'
+  const hosts = arr<string>(row.allow_hosts)
+  const hostHint = hosts.length > 0 ? `；域名白名单 ${hosts.length} 条` : ''
+  return `${typ} · ${short || '—'} → [${targets}]${hostHint}`
+}
+
+export function customActionOverridden(row: Record<string, unknown>): boolean {
+  return wafActionIsExplicit(actionFromRow(row))
+}
+
+export function patchCustomRuleAction(
+  doc: Record<string, unknown>,
+  index: number,
+  action: WAFAction,
+): Record<string, unknown> {
+  const rules = wafRulesFromDoc(doc).map((row, i) => {
+    if (i !== index) return row
+    const next = { ...row }
+    if (action === 'inherit') {
+      delete next.action
+      delete next.log_only
+    } else {
+      next.action = action
+      delete next.log_only
     }
     return next
   })

@@ -4,6 +4,7 @@ Ingress can run a **first-version WAF** on matched routes **after routing** and 
 
 - **IP lists** (`deny` then optional `allow` gate).
 - **Host allowlist** (`allow_hosts`): listed hosts skip all WAF phases (IP lists and signatures).
+- **Per-rule host allowlist** (`rules[].allow_hosts`): listed hosts skip **that rule only**; other rules still run.
 - **Signature checks** against `path`, `query`, assembled `uri`, all header lines (`headers`), or one header (`header:User-Agent`).
 - An optional **embedded starter ruleset** (SQLi/path traversal/reflected-scripting probes). Turn off with **`disable_builtin: true`** if it is too noisy.
 
@@ -25,7 +26,7 @@ The generic config decoder cannot partially merge map keys into structs, so **`r
 3. **`allow_hosts`**: skip all WAF when request Host matches (exact, `*` wildcard, or auto-detected Go regex — same inference as ingress host routing).
 4. Resolve client IP ( **`trust_proxy`** + **`xff_index`** ; default index **0** = leftmost segment in `X-Forwarded-For` ).
 5. **Deny** list, then **Allow** when non-empty (only listed nets may pass the IP phase).
-6. Signatures: starters unless `disable_builtin`, then custom rules in merged order.
+6. Signatures: starters unless `disable_builtin`, then custom rules in merged order. Before each signature, **`rules[].allow_hosts`** on that rule skips it when Host matches (same pattern syntax as global `allow_hosts`).
 
 Blocked clients receive **`block_status_code`** (default **403**), **`block_content_type`**, and **`block_body`**.
 
@@ -108,6 +109,7 @@ Starters can false-positive on unusual but legitimate traffic — use **`log_onl
 | `type` | `regex` (default) or `contains` |
 | `pattern` | Compiled at startup for `regex`. |
 | `targets` | One or more of `path`, `query`, `uri`, `headers`, `header:…` |
+| `allow_hosts` | Optional. Matching Host **skips this rule only** (same syntax as global `allow_hosts`). Use with same `id` as a builtin to scope exceptions without replacing the pattern. |
 
 Runnable files: [`examples/waf/`](https://github.com/go-zoox/ingress/tree/master/examples/waf).
 

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   FormCheckbox,
   FormField,
@@ -14,6 +15,11 @@ import {
   emptyWAFRuleForm,
   formTargets,
   patchCustomRuleEnabled,
+  patchCustomRuleAction,
+  patchBuiltinRuleAllowHosts,
+  customActionOverridden,
+  wafCustomRuleName,
+  wafCustomRuleDescription,
   patchWafAllow,
   patchWafAllowHosts,
   patchWafDeny,
@@ -22,6 +28,7 @@ import {
   wafAllowHostsList,
   wafDenyList,
   wafRuleSaveDisabled,
+  wafRuleAllowHosts,
   wafRuleToForm,
   wafRuleToRow,
   wafRulesFromDoc,
@@ -43,8 +50,41 @@ import {
 import { actionFromRow, wafInheritEffectiveLabel } from '../../lib/wafAction'
 import { Drawer } from '../Drawer'
 import { EllipsisTooltip } from '../EllipsisTooltip'
-import { obj, str, bool } from '../../lib/ingressModuleForms'
+import { arr, obj, str, bool } from '../../lib/ingressModuleForms'
 import { moveAdjacent } from '../../lib/arrayMove'
+
+function WafActionTag({
+  action,
+  globalLogOnly,
+  disabled,
+  overridden,
+}: {
+  action: WAFAction
+  globalLogOnly: boolean
+  disabled?: boolean
+  overridden?: boolean
+}) {
+  const label = wafActionLabel(action)
+  const badgeClass =
+    action === 'block' ? 'badge-block'
+      : action === 'pass' ? 'badge-exact'
+        : 'badge-audit'
+  const title =
+    action === 'inherit'
+      ? `继承全局，当前生效：${wafInheritEffectiveLabel(globalLogOnly)}`
+      : overridden
+        ? `已单独覆盖：${label}`
+        : label
+
+  return (
+    <span
+      className={`badge waf-action-tag ${badgeClass}${disabled ? ' waf-action-tag--muted' : ''}`}
+      title={title}
+    >
+      {label}
+    </span>
+  )
+}
 
 function RuleActionSelect({
   value,
@@ -169,6 +209,18 @@ function WAFRuleFormFields({
           </option>
         ))}
       </FormSelectField>
+      <WafStringListEditor
+        title={`域名白名单 (${form.allow_hosts.length})`}
+        titleTooltip="精确域名、*.wildcard.example.com，或 Go 正则（含 ( ) [ ] ^ $ 等时自动识别）"
+        items={form.allow_hosts}
+        valueLabel="Host 模式"
+        fieldKeyName="waf.rules[].allow_hosts[]"
+        emptyHint="未配置；匹配的 Host 将跳过本规则（其他规则仍评估）"
+        placeholder="admin.internal 或 *.cdn.example.com"
+        addTitle="添加域名白名单"
+        editTitle="编辑域名白名单"
+        onChange={(items) => patch((n) => { n.allow_hosts = items })}
+      />
     </FormGrid>
   )
 }
@@ -194,8 +246,57 @@ function RuleEnabledToggle({
   )
 }
 
+function HintTooltip({ label, text }: { label: string; text: string }) {
+  const [visible, setVisible] = useState(false)
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+
+  const showAt = useCallback((el: HTMLElement) => {
+    const rect = el.getBoundingClientRect()
+    const popW = 320
+    let x = rect.left
+    const y = rect.bottom + 8
+    if (x + popW > window.innerWidth - 12) {
+      x = Math.max(12, window.innerWidth - popW - 12)
+    }
+    setPos({ x, y })
+    setVisible(true)
+  }, [])
+
+  const hide = useCallback(() => setVisible(false), [])
+
+  const pop =
+    visible &&
+    createPortal(
+      <div
+        className="waf-rule-tooltip-pop waf-rule-tooltip-pop--fixed"
+        role="tooltip"
+        style={{ left: pos.x, top: pos.y }}
+      >
+        <span className="waf-rule-tooltip-line">{text}</span>
+      </div>,
+      document.body,
+    )
+
+  return (
+    <>
+      <span
+        className="waf-rule-tooltip waf-list-toolbar-title-tooltip"
+        onMouseEnter={(e) => showAt(e.currentTarget)}
+        onMouseLeave={hide}
+        onFocus={(e) => showAt(e.currentTarget)}
+        onBlur={hide}
+        tabIndex={0}
+      >
+        <span className="waf-list-toolbar-title">{label}</span>
+      </span>
+      {pop}
+    </>
+  )
+}
+
 function WafStringListEditor({
   title,
+  titleTooltip,
   items,
   onChange,
   hint,
@@ -207,6 +308,7 @@ function WafStringListEditor({
   editTitle,
 }: {
   title: string
+  titleTooltip?: string
   items: string[]
   onChange: (items: string[]) => void
   hint?: string
@@ -257,7 +359,11 @@ function WafStringListEditor({
     <>
       <section className="waf-list-editor">
         <div className="waf-list-toolbar">
-          <span className="waf-list-toolbar-title">{title}</span>
+          {titleTooltip ? (
+            <HintTooltip label={title} text={titleTooltip} />
+          ) : (
+            <span className="waf-list-toolbar-title">{title}</span>
+          )}
           {hint ? <span className="waf-list-toolbar-hint">{hint}</span> : null}
           <button type="button" className="btn btn-ghost waf-list-toolbar-add" onClick={openAdd}>
             + 添加
@@ -318,6 +424,209 @@ function WafStringListEditor({
   )
 }
 
+function CustomRuleRowActions({
+  onView,
+  onEdit,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+  disableMoveUp,
+  disableMoveDown,
+}: {
+  onView: () => void
+  onEdit: () => void
+  onDelete: () => void
+  onMoveUp: () => void
+  onMoveDown: () => void
+  disableMoveUp: boolean
+  disableMoveDown: boolean
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
+
+  return (
+    <div className="row-actions">
+      <button type="button" className="action-link" onClick={onView}>
+        查看详情
+      </button>
+      <div className="action-menu" ref={menuRef}>
+        <button
+          type="button"
+          className="action-link action-advanced"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          高级
+        </button>
+        {menuOpen && (
+          <div className="action-menu-panel" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              className="action-menu-item"
+              onClick={() => {
+                setMenuOpen(false)
+                onEdit()
+              }}
+            >
+              编辑
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="action-menu-item"
+              disabled={disableMoveUp}
+              onClick={() => {
+                if (disableMoveUp) return
+                setMenuOpen(false)
+                onMoveUp()
+              }}
+            >
+              上移
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="action-menu-item"
+              disabled={disableMoveDown}
+              onClick={() => {
+                if (disableMoveDown) return
+                setMenuOpen(false)
+                onMoveDown()
+              }}
+            >
+              下移
+            </button>
+            <div className="action-menu-sep" aria-hidden />
+            <button
+              type="button"
+              role="menuitem"
+              className="action-menu-item action-danger"
+              onClick={() => {
+                setMenuOpen(false)
+                onDelete()
+              }}
+            >
+              删除
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CustomRuleDetailDrawer({
+  ruleIndex,
+  doc,
+  open,
+  onClose,
+  onDocChange,
+  onEdit,
+}: {
+  ruleIndex: number | null
+  doc: Record<string, unknown>
+  open: boolean
+  onClose: () => void
+  onDocChange: (doc: Record<string, unknown>) => void
+  onEdit: () => void
+}) {
+  const rules = wafRulesFromDoc(doc)
+  const row = ruleIndex != null ? rules[ruleIndex] : null
+  if (!row) return null
+
+  const ruleID = str(row.id)
+  const enabled = row.enabled !== false
+  const action = actionFromRow(row)
+  const actionOverride = customActionOverridden(row)
+  const globalLogOnly = bool(obj(doc.waf).log_only)
+  const ruleAllowHosts = wafRuleAllowHosts(doc, ruleID)
+  const targets = arr<string>(row.targets).join(', ') || '—'
+
+  return (
+    <Drawer
+      open={open}
+      title="自定义规则详情"
+      onClose={onClose}
+      width={480}
+      footer={(
+        <>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            关闭
+          </button>
+          <button type="button" className="btn btn-primary" onClick={onEdit}>
+            编辑
+          </button>
+        </>
+      )}
+    >
+      <dl className="route-detail-dl">
+        <dt>ID</dt>
+        <dd><code>{ruleID || '—'}</code></dd>
+        <dt>名称</dt>
+        <dd>{str(row.name) || '—'}</dd>
+        <dt>类型</dt>
+        <dd>{str(row.type, 'regex')}</dd>
+        <dt>启用</dt>
+        <dd>{enabled ? '开' : '关'}</dd>
+        <dt>命中后处置</dt>
+        <dd>
+          <RuleActionSelect
+            value={action}
+            disabled={!enabled}
+            onChange={(act) => {
+              if (ruleIndex == null) return
+              onDocChange(patchCustomRuleAction(doc, ruleIndex, act))
+            }}
+          />
+          {actionOverride ? (
+            <span className="badge badge-audit" style={{ marginLeft: 8 }}>
+              已单独覆盖
+            </span>
+          ) : (
+            <span className="form-hint" style={{ display: 'block', marginTop: 4 }}>
+              继承全局，当前生效：{wafInheritEffectiveLabel(globalLogOnly)}
+            </span>
+          )}
+        </dd>
+        <dt>检测目标</dt>
+        <dd>{targets}</dd>
+        <dt>模式</dt>
+        <dd>
+          <code className="waf-rule-pattern">{str(row.pattern)}</code>
+        </dd>
+        <dt>说明</dt>
+        <dd>{wafCustomRuleDescription(row)}</dd>
+        <dd className="waf-detail-allow-hosts">
+          <WafStringListEditor
+            title={`域名白名单 (${ruleAllowHosts.length})`}
+            titleTooltip="精确域名、*.wildcard.example.com，或 Go 正则"
+            items={ruleAllowHosts}
+            valueLabel="Host 模式"
+            fieldKeyName="waf.rules[].allow_hosts[]"
+            emptyHint="未配置；匹配的 Host 将跳过本规则"
+            placeholder="admin.internal 或 *.cdn.example.com"
+            addTitle="添加域名白名单"
+            editTitle="编辑域名白名单"
+            onChange={(items) => onDocChange(patchBuiltinRuleAllowHosts(doc, ruleID, items))}
+          />
+        </dd>
+      </dl>
+    </Drawer>
+  )
+}
+
 function BuiltinRuleDetailDrawer({
   rule,
   doc,
@@ -337,6 +646,7 @@ function BuiltinRuleDetailDrawer({
   const enableOverride = Object.prototype.hasOwnProperty.call(obj(obj(doc.waf).builtin_rules), rule.id)
   const action = builtinRuleAction(doc, rule.id)
   const actionOverride = builtinActionOverridden(doc, rule.id)
+  const ruleAllowHosts = wafRuleAllowHosts(doc, rule.id)
   const disableAllBuiltin = !defaultBuiltinEnabled(doc)
   const globalLogOnly = bool(obj(doc.waf).log_only)
 
@@ -406,6 +716,20 @@ function BuiltinRuleDetailDrawer({
             <dd>{rule.description}</dd>
           </>
         ) : null}
+        <dd className="waf-detail-allow-hosts">
+          <WafStringListEditor
+            title={`域名白名单 (${ruleAllowHosts.length})`}
+            titleTooltip="精确域名、*.wildcard.example.com，或 Go 正则"
+            items={ruleAllowHosts}
+            valueLabel="Host 模式"
+            fieldKeyName="waf.rules[].allow_hosts[]"
+            emptyHint="未配置；匹配的 Host 将跳过本规则"
+            placeholder="admin.internal 或 *.cdn.example.com"
+            addTitle="添加域名白名单"
+            editTitle="编辑域名白名单"
+            onChange={(items) => onDocChange(patchBuiltinRuleAllowHosts(doc, rule.id, items))}
+          />
+        </dd>
       </dl>
     </Drawer>
   )
@@ -428,6 +752,7 @@ export function WafRulesEditor({
   const [editIndex, setEditIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState<WAFRuleForm>(emptyWAFRuleForm())
   const [detailRule, setDetailRule] = useState<BuiltinWAFRule | null>(null)
+  const [detailCustomIndex, setDetailCustomIndex] = useState<number | null>(null)
 
   const patchRules = (rows: Record<string, unknown>[]) => {
     onChange(patchWafRules(doc, rows))
@@ -469,15 +794,21 @@ export function WafRulesEditor({
 
   return (
     <>
-      <FormSection title={`内置规则 (${enabledBuiltinCount}/${WAF_BUILTIN_RULES.length} 启用)`}>
-        <div className="table-scroll">
+      <section className="waf-list-editor">
+        <div className="waf-list-toolbar">
+          <span className="waf-list-toolbar-title">
+            内置规则 ({enabledBuiltinCount}/{WAF_BUILTIN_RULES.length} 启用)
+          </span>
+          <span className="waf-list-toolbar-hint">
+            默认跟随「禁用内置规则」；启用/处置覆盖写入 builtin_rules、builtin_rule_actions；详情中可查看说明与域名白名单
+          </span>
+        </div>
         <table className="data config-waf-rules-table config-waf-rules-table--compact">
           <thead>
             <tr>
               <th className="col-enable">启用</th>
               <th className="col-action">处置</th>
               <th className="col-name">名称</th>
-              <th className="col-desc">说明</th>
               <th className="col-actions">操作</th>
             </tr>
           </thead>
@@ -502,24 +833,15 @@ export function WafRulesEditor({
                     />
                   </td>
                   <td className="col-action">
-                    <RuleActionSelect
-                      value={action}
+                    <WafActionTag
+                      action={action}
+                      globalLogOnly={globalLogOnly}
                       disabled={!enabled}
-                      onChange={(act) => onChange(patchBuiltinRuleAction(doc, rule.id, act))}
-                      title={
-                        enabled
-                          ? action === 'inherit'
-                            ? `继承全局，当前生效：${wafInheritEffectiveLabel(globalLogOnly)}`
-                            : `已写入 waf.builtin_rule_actions：${wafActionLabel(action)}`
-                          : '规则已关闭'
-                      }
+                      overridden={builtinActionOverridden(doc, rule.id)}
                     />
                   </td>
                   <td className="col-name">
                     <EllipsisTooltip text={rule.name} />
-                  </td>
-                  <td className="col-desc">
-                    <EllipsisTooltip text={rule.description ?? ''} />
                   </td>
                   <td className="col-actions">
                     <button
@@ -535,14 +857,7 @@ export function WafRulesEditor({
             })}
           </tbody>
         </table>
-        </div>
-        <p className="form-hint">
-          默认跟随上方「禁用内置规则」：未禁用时全部内置规则启用；禁用后全部关闭，可在此单独开启。
-          启用覆盖写入 <code>waf.builtin_rules</code>；处置选「继承」时不写入配置，选拦截/仅记录/通过时写入{' '}
-          <code>waf.builtin_rule_actions</code>。
-          同 id 的自定义规则仍可覆盖 pattern/targets。
-        </p>
-      </FormSection>
+      </section>
 
       <WafStringListEditor
         title={`IP 黑名单 deny (${denyList.length})`}
@@ -587,35 +902,33 @@ export function WafRulesEditor({
         <div className="waf-list-toolbar">
           <span className="waf-list-toolbar-title">自定义规则 ({rules.length})</span>
           <span className="waf-list-toolbar-hint">
-            按顺序评估，前者优先；regex 为 Go regexp，contains 为子串；v1 不扫描 body
+            按顺序评估，前者优先；regex 为 Go regexp，contains 为子串；v1 不扫描 body。名称优先显示 name，否则显示 id
           </span>
           <button type="button" className="btn btn-ghost waf-list-toolbar-add" onClick={openAdd}>
             + 添加
           </button>
         </div>
-        <table className="data config-waf-custom-rules-table">
+        <table className="data config-waf-rules-table config-waf-rules-table--compact">
           <thead>
             <tr>
               <th className="col-enable">启用</th>
               <th className="col-action">处置</th>
-              <th>ID</th>
-              <th>类型</th>
-              <th className="col-pattern">Pattern</th>
-              <th className="col-targets">Targets</th>
+              <th className="col-name">名称</th>
               <th className="col-actions">操作</th>
             </tr>
           </thead>
           <tbody>
             {rules.length === 0 ? (
               <tr>
-                <td colSpan={7} className="empty-hint">
-                  无自定义规则
+                <td colSpan={4} className="empty-hint">
+                  暂无自定义规则
                 </td>
               </tr>
             ) : (
               rules.map((rule, i) => {
                 const enabled = rule.enabled !== false
                 const action = actionFromRow(rule)
+                const actionOverride = customActionOverridden(rule)
                 return (
                   <tr key={`${str(rule.id)}-${i}`} className={enabled ? undefined : 'row-muted'}>
                     <td className="col-enable">
@@ -625,16 +938,19 @@ export function WafRulesEditor({
                       />
                     </td>
                     <td className="col-action">
-                      <span className="waf-action-label" title={`action: ${action}`}>
-                        {wafActionLabel(action)}
-                      </span>
+                      <WafActionTag
+                        action={action}
+                        globalLogOnly={globalLogOnly}
+                        disabled={!enabled}
+                        overridden={actionOverride}
+                      />
                     </td>
-                    <td><code>{str(rule.id)}</code></td>
-                    <td>{str(rule.type, 'regex')}</td>
-                    <td className="col-pattern"><code className="path-cell">{str(rule.pattern)}</code></td>
-                    <td className="col-targets">{arrTargets(rule)}</td>
+                    <td className="col-name">
+                      <EllipsisTooltip text={wafCustomRuleName(rule)} />
+                    </td>
                     <td className="col-actions">
-                      <EntityRowActions
+                      <CustomRuleRowActions
+                        onView={() => setDetailCustomIndex(i)}
                         onEdit={() => openEdit(i)}
                         onDelete={() => remove(i)}
                         onMoveUp={() => moveRule(i, -1)}
@@ -662,6 +978,20 @@ export function WafRulesEditor({
         <WAFRuleFormFields form={draft} onChange={setDraft} />
       </ConfigEntityModal>
 
+      <CustomRuleDetailDrawer
+        ruleIndex={detailCustomIndex}
+        doc={doc}
+        open={detailCustomIndex != null}
+        onClose={() => setDetailCustomIndex(null)}
+        onDocChange={onChange}
+        onEdit={() => {
+          if (detailCustomIndex == null) return
+          const idx = detailCustomIndex
+          setDetailCustomIndex(null)
+          openEdit(idx)
+        }}
+      />
+
       <BuiltinRuleDetailDrawer
         rule={detailRule}
         doc={doc}
@@ -671,9 +1001,4 @@ export function WafRulesEditor({
       />
     </>
   )
-}
-
-function arrTargets(rule: Record<string, unknown>): string {
-  const targets = Array.isArray(rule.targets) ? rule.targets : []
-  return targets.map((t) => str(t)).join(', ') || '—'
 }

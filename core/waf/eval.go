@@ -35,6 +35,9 @@ func CheckRequest(p *Profile, r *http.Request, hostname, path, method string, re
 
 	rawQuery := r.URL.RawQuery
 	for _, sr := range p.signatureRules {
+		if hostMatchesAllowList(hostname, sr.skipHosts) {
+			continue
+		}
 		if !matchesSignature(sr, r, path, rawQuery) {
 			continue
 		}

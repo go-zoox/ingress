@@ -35,20 +35,30 @@ func TestCompileProfile_InvalidRegex(t *testing.T) {
 	}
 }
 
-func TestCompileProfile_DuplicateRuleID_AfterBuiltinMerge(t *testing.T) {
+func TestCompileProfile_OverlayBuiltinRuleByID(t *testing.T) {
 	t.Parallel()
-	_, err := compileProfile(0, rule.WAF{
+	p, err := compileProfile(0, rule.WAF{
 		Enabled:        true,
 		DisableBuiltin: false,
 		Rules: []rule.WAFRule{{
-			ID:      "builtin:sqli-common",
-			Type:    PatternTypeContains,
-			Pattern: "x",
-			Targets: []string{TargetPath},
+			ID:         "builtin:path-traversal",
+			AllowHosts: []string{"admin.internal"},
 		}},
 	})
-	if err == nil {
-		t.Fatal("expected duplicate id after starter merge")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://admin.internal/static/../../etc/passwd", nil)
+	req.RemoteAddr = "127.0.0.1:1"
+	if CheckRequest(p, req, "admin.internal", "/static/../../etc/passwd", http.MethodGet, nil) {
+		t.Fatal("allow_hosts on rule should bypass path-traversal only")
+	}
+
+	req2 := httptest.NewRequest(http.MethodGet, "http://other.example/static/../../etc/passwd", nil)
+	req2.RemoteAddr = "127.0.0.1:1"
+	if !CheckRequest(p, req2, "other.example", "/static/../../etc/passwd", http.MethodGet, nil) {
+		t.Fatal("other hosts should still match path-traversal")
 	}
 }
 

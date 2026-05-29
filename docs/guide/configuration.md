@@ -132,7 +132,7 @@ The `api` profile enables CORS and requires at least one origin. OPTIONS preflig
 | `deny` | string array | IPs / CIDRs (deny first). |
 | `allow` | string array | Non-empty ⇒ only listed nets survive IP phase. |
 | `allow_hosts` | string array | Host allowlist — matching Host skips all WAF (exact, `*` wildcard, or Go regex; same auto-inference as route `host`). |
-| `rules` | array | Custom signatures (`id`, `pattern`, `type`, `targets`, optional per-rule `log_only`). Same `id` in a route map replaces inherited rule metadata. |
+| `rules` | array | Custom signatures (`id`, `pattern`, `type`, `targets`, optional `allow_hosts`, `log_only`, `action`). Same `id` overlays builtins or replaces inherited rule fields. |
 
 ### Cache Configuration
 
