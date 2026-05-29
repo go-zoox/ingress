@@ -26,6 +26,9 @@ type Config struct {
 	// staging or trusted networks to avoid leaking internal details to clients.
 	ErrorPageExposeDetails bool `config:"error_page_expose_details"`
 	//
+	// ErrorPages configures built-in and custom HTML for 401/403/404/500/502/503/504.
+	ErrorPages ErrorPages `config:"error_pages"`
+	//
 	// Logger is zoox logger config (YAML key `logging` for historical reasons).
 	Logging Logging `config:"logging"`
 	//

@@ -70,6 +70,11 @@ func (c *core) prepare() error {
 		return fmt.Errorf("compile security: %w", err)
 	}
 
+	c.errorPages, err = compileErrorPages(c.cfg)
+	if err != nil {
+		return fmt.Errorf("compile error_pages: %w", err)
+	}
+
 	return nil
 }
 

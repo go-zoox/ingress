@@ -4740,6 +4740,75 @@ table.data.config-revisions code {
   background: var(--bg-elevated);
 }
 
+.error-pages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.error-page-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.error-page-item--active {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.error-page-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.error-page-summary::-webkit-details-marker {
+  display: none;
+}
+
+.error-page-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 2.5rem;
+}
+
+.error-page-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.error-page-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.error-page-body {
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.error-page-body .form-hint {
+  margin: 10px 0;
+}
+
+.error-page-inline-body {
+  min-height: 160px;
+  width: 100%;
+  margin-top: 6px;
+}
+
 .data.compact th,
 .data.compact td {
   padding: 8px 10px;

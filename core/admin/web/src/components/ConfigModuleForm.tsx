@@ -12,6 +12,7 @@ import { RateLimitFormFields } from './config/RateLimitFormFields'
 import { SecurityFormFields } from './config/SecurityFormFields'
 import { SslCertsEditor } from './config/SslCertsEditor'
 import { WafRulesEditor } from './config/WafRulesEditor'
+import { ErrorPagesFormFields } from './config/ErrorPagesFormFields'
 import {
   WAF_GLOBAL_MODE_OPTIONS,
   type WAFGlobalMode,
@@ -68,11 +69,12 @@ function GeneralModuleForm({
           onChange={(v) => patch((n) => setBool(n, 'enable_h2c', v))}
         />
         <FormCheckbox
-          label="404 页面暴露请求细节"
+          label="错误页暴露请求细节（内置模板）"
           checked={bool(doc.error_page_expose_details)}
           onChange={(v) => patch((n) => setBool(n, 'error_page_expose_details', v))}
         />
       </FormSection>
+      <ErrorPagesFormFields doc={doc} onChange={onChange} />
     </FormGrid>
   )
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/ratelimit"
 	"github.com/go-zoox/ingress/core/security"
+	"github.com/go-zoox/ingress/core/service"
 	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/zoox"
@@ -53,6 +54,8 @@ func (c *core) build() error {
 		method := ctx.Method
 		path := ctx.Path
 		rawQuery := ctx.Request.URL.RawQuery
+		pageDetail := ErrorPageDetail{Hostname: hostname, Path: path, Method: method}
+		c.fillProxyErrorPages(cfg, pageDetail)
 
 		if shouldRedirectFromHTTP(ctx.Request, path, c.cfg) {
 			redirectURL := buildHTTPSRedirectURL(hostname, path, rawQuery, c.cfg.HTTPS.Port)
@@ -64,18 +67,12 @@ func (c *core) build() error {
 		serviceIns, matchedRule, pathBackend, hostSm, pathSm, ruleIdx, pathIdx, err := c.match(ctx, hostname, path)
 		if err != nil {
 			c.app.Logger().Warnf("no route matched (host: %s, path: %s): %s", hostname, path, err)
-			applySecurityHeaders(ctx, c.securityGlobal())
-			if c.cfg.ErrorPageExposeDetails {
-				writeIngressErrorPage(ctx, http.StatusNotFound,
-					"Route not found",
-					"No ingress rule matched this request.",
-					true, hostname, path, method, matchErrorReason(err))
-			} else {
-				writeIngressErrorPage(ctx, http.StatusNotFound,
-					"Not Found",
-					"The requested resource could not be found.",
-					false, "", "", "", "")
-			}
+			c.writeErrorPage(ctx, http.StatusNotFound, c.securityGlobal(), ErrorPageDetail{
+				Hostname: hostname,
+				Path:     path,
+				Method:   method,
+				Reason:   matchErrorReason(err),
+			})
 			return false, true, nil
 		}
 
@@ -124,9 +121,13 @@ func (c *core) build() error {
 				c.wafCallback.OnWAFEvent(action, rule, hostname, path, clientIP, ua)
 			}
 		}) {
-			ctx.SetHeader("Content-Type", wafProf.BlockContentType)
-			applySecurityHeaders(ctx, secProf)
-			ctx.String(wafProf.BlockStatus, wafProf.BlockBody)
+			if shouldUseWAFErrorPage(wafProf.BlockStatus, wafProf.BlockContentType, wafProf.BlockBody) {
+				c.writeErrorPage(ctx, http.StatusForbidden, secProf, pageDetail)
+			} else {
+				ctx.SetHeader("Content-Type", wafProf.BlockContentType)
+				applySecurityHeaders(ctx, secProf)
+				ctx.String(wafProf.BlockStatus, wafProf.BlockBody)
+			}
 			target := "-"
 			if serviceIns != nil {
 				target = serviceIns.Target()
@@ -399,9 +400,8 @@ func (c *core) build() error {
 				redirected, err := serviceIns.ValidateOAuth2(ctx)
 				if err != nil {
 					c.app.Logger().Warnf("oauth2 authentication failed for host: %s: %s", hostname, err)
-					applySecurityHeaders(ctx, secProf)
-					ctx.Status(http.StatusUnauthorized)
-					ctx.String(http.StatusUnauthorized, "Unauthorized")
+					setUnauthorizedChallenge(ctx, serviceIns)
+					c.writeErrorPage(ctx, http.StatusUnauthorized, secProf, pageDetail)
 					return false, true, nil
 				}
 				if redirected {
@@ -417,9 +417,8 @@ func (c *core) build() error {
 					redirected, err := serviceIns.ValidateOIDCSession(ctx)
 					if err != nil {
 						c.app.Logger().Warnf("oidc authentication failed for host: %s: %s", hostname, err)
-						applySecurityHeaders(ctx, secProf)
-						ctx.Status(http.StatusUnauthorized)
-						ctx.String(http.StatusUnauthorized, "Unauthorized")
+						setUnauthorizedChallenge(ctx, serviceIns)
+						c.writeErrorPage(ctx, http.StatusUnauthorized, secProf, pageDetail)
 						return false, true, nil
 					}
 					if redirected {
@@ -432,17 +431,8 @@ func (c *core) build() error {
 		// Validate client authentication before processing request
 		if err := serviceIns.ValidateAuth(ctx.Request); err != nil {
 			c.app.Logger().Warnf("authentication failed for host: %s, path: %s: %s", hostname, path, err)
-
-			// Set WWW-Authenticate header based on auth type
-			if serviceIns.Auth.Type == authTypeBasic {
-				ctx.Writer.Header().Set(headerWWWAuthenticate, authChallengeBasic)
-			} else if serviceIns.Auth.Type == authTypeBearer || serviceIns.Auth.Type == authTypeJWT || serviceIns.Auth.Type == authTypeOIDC {
-				ctx.Writer.Header().Set(headerWWWAuthenticate, authChallengeBearer)
-			}
-
-			applySecurityHeaders(ctx, secProf)
-			ctx.Status(http.StatusUnauthorized)
-			ctx.String(http.StatusUnauthorized, "Unauthorized")
+			setUnauthorizedChallenge(ctx, serviceIns)
+			c.writeErrorPage(ctx, http.StatusUnauthorized, secProf, pageDetail)
 			return false, true, nil
 		}
 
@@ -456,34 +446,22 @@ func (c *core) build() error {
 
 			// exact service specify
 			if matchedRule.HostType == hostTypeExact {
-				applySecurityHeaders(ctx, secProf)
-				if c.cfg.ErrorPageExposeDetails {
-					writeIngressErrorPage(ctx, http.StatusServiceUnavailable,
-						"Service unavailable",
-						"The upstream service could not be resolved or reached.",
-						true, hostname, path, method, err.Error())
-				} else {
-					writeIngressErrorPage(ctx, http.StatusServiceUnavailable,
-						"Service Unavailable",
-						"The service is temporarily unavailable. Please try again later.",
-						false, "", "", "", "")
-				}
+				c.writeErrorPage(ctx, http.StatusServiceUnavailable, secProf, ErrorPageDetail{
+					Hostname: hostname,
+					Path:     path,
+					Method:   method,
+					Reason:   err.Error(),
+				})
 				return false, true, nil
 			}
 
 			// regular expression service specify, maybe the service is not found
-			applySecurityHeaders(ctx, secProf)
-			if c.cfg.ErrorPageExposeDetails {
-				writeIngressErrorPage(ctx, http.StatusNotFound,
-					"Upstream not found",
-					"DNS did not resolve this service.",
-					true, hostname, path, method, fmt.Sprintf("Service: %s · %s", serviceIns.Name, err.Error()))
-			} else {
-				writeIngressErrorPage(ctx, http.StatusNotFound,
-					"Not Found",
-					"The requested resource could not be found.",
-					false, "", "", "", "")
-			}
+			c.writeErrorPage(ctx, http.StatusNotFound, secProf, ErrorPageDetail{
+				Hostname: hostname,
+				Path:     path,
+				Method:   method,
+				Reason:   fmt.Sprintf("Service: %s · %s", serviceIns.Name, err.Error()),
+			})
 			return false, true, nil
 		}
 
@@ -691,4 +669,16 @@ func buildHTTPSRedirectURL(hostname, path, rawQuery string, httpsPort int64) str
 	}
 
 	return redirectURL
+}
+
+func setUnauthorizedChallenge(ctx *zoox.Context, serviceIns *service.Service) {
+	if serviceIns == nil {
+		return
+	}
+	switch serviceIns.Auth.Type {
+	case authTypeBasic:
+		ctx.Writer.Header().Set(headerWWWAuthenticate, authChallengeBasic)
+	case authTypeBearer, authTypeJWT, authTypeOIDC:
+		ctx.Writer.Header().Set(headerWWWAuthenticate, authChallengeBearer)
+	}
 }

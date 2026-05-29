@@ -21,6 +21,7 @@ func ResolveConfigPaths(cfg *Config, configFilePath string) error {
 	resolveLoggingPaths(&cfg.Logging, base)
 	resolveAdminPaths(&cfg.Admin, base)
 	resolveHTTPSPaths(&cfg.HTTPS, base)
+	resolveErrorPagePaths(cfg, base)
 	return nil
 }
 

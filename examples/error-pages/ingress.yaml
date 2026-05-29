@@ -1,0 +1,32 @@
+# Built-in HTML error pages with optional per-status overrides.
+#
+# Omitted status codes use the ingress built-in template. Set type: file or inline
+# to serve custom HTML. error_page_expose_details adds request metadata on built-in pages.
+
+port: 8080
+
+error_page_expose_details: false
+
+error_pages:
+  pages:
+    "404":
+      type: builtin
+      title: Page Not Found
+      subtitle: The page you requested does not exist or has moved.
+    "401":
+      file: ./errors/401.html
+    "502":
+      type: inline
+      body: |
+        <!DOCTYPE html>
+        <html lang="en"><head><meta charset="utf-8"><title>502</title></head>
+        <body><h1>Bad Gateway</h1><p>Upstream is unavailable.</p></body></html>
+
+rules:
+  - host: app.example.com
+    backend:
+      type: service
+      service:
+        name: app
+        host: app.internal
+        port: 8080

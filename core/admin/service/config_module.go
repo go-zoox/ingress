@@ -28,7 +28,7 @@ var deprecatedConfigKeys = map[string]struct{}{
 }
 
 var configModuleDefs = []configModuleDef{
-	{ID: "general", Label: "基础", Keys: []string{"port", "enable_h2c", "error_page_expose_details"}},
+	{ID: "general", Label: "基础", Keys: []string{"port", "enable_h2c", "error_page_expose_details", "error_pages"}},
 	{ID: "rules", Label: "路由规则", Keys: []string{"rules"}},
 	{ID: "admin", Label: "Admin 控制台", Keys: []string{"admin"}},
 	{ID: "cache", Label: "缓存", Keys: []string{"cache"}},

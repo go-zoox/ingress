@@ -50,6 +50,8 @@ type core struct {
 
 	security *security.Ingress
 
+	errorPages *compiledErrorPages
+
 	plugins []Plugin
 
 	wafRuntimeOverride *bool

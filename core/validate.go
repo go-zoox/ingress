@@ -38,6 +38,10 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("security: %w", err)
 	}
 
+	if err := validateErrorPages(cfg); err != nil {
+		return err
+	}
+
 	if cfg.HTTPS.Port != 0 && len(cfg.HTTPS.SSL) == 0 {
 		return fmt.Errorf("https.ssl is required when https.port is set")
 	}
