@@ -42,7 +42,7 @@ export function RouteSecurityFormFields<T extends SecurityLayerFormSlice>({
               return
             }
             n.security_override = true
-            if (!n.security_profile || n.security_profile === '') {
+            if (!n.security_profile) {
               Object.assign(n, emptySecurityForm())
             }
           })

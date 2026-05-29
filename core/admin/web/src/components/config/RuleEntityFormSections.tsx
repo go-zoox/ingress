@@ -332,10 +332,21 @@ export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
 
   const backendSubhead =
     activeSection === 'backend' ? (
-      <BackendTypeTabs
-        value={form.backend_type}
-        onChange={(backend_type) => onChange({ ...form, backend_type } as typeof form)}
-      />
+      variant === 'rule' ? (
+        <BackendTypeTabs
+          value={form.backend_type}
+          onChange={(backend_type) =>
+            (onChange as (next: RuleForm) => void)({ ...(form as RuleForm), backend_type })
+          }
+        />
+      ) : (
+        <BackendTypeTabs
+          value={form.backend_type}
+          onChange={(backend_type) =>
+            (onChange as (next: PathForm) => void)({ ...(form as PathForm), backend_type })
+          }
+        />
+      )
     ) : undefined
 
   return (

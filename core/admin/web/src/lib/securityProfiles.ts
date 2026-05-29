@@ -54,7 +54,7 @@ export function applySecurityProfileSwitch(
   nextProfile: SecurityProfile | '' | 'off',
 ): SecurityFormSlice {
   const profile = (nextProfile || 'off') as SecurityProfile | 'off'
-  if (profile === 'off' || profile === '') {
+  if (profile === 'off') {
     return { ...form, security_profile: 'off' }
   }
   const def = SECURITY_PROFILE_DEFAULTS[profile]
