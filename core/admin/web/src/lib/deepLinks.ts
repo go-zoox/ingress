@@ -3,6 +3,7 @@
 export function logsLink(params: {
   host?: string
   path?: string
+  q?: string
   waf_block?: string
   cache_hit?: string
   status?: string
@@ -12,6 +13,7 @@ export function logsLink(params: {
   if (params.log) q.set('log', params.log)
   if (params.host) q.set('host', params.host)
   if (params.path) q.set('q', params.path)
+  if (params.q) q.set('q', params.q)
   if (params.status) q.set('status', params.status)
   if (params.waf_block) q.set('waf_block', params.waf_block)
   if (params.cache_hit) q.set('cache_hit', params.cache_hit)

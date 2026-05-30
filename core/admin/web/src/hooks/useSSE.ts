@@ -37,8 +37,8 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
   const [fallbackPolling, setFallbackPolling] = useState(false)
 
   const esRef = useRef<EventSource | null>(null)
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollTimerRef = useRef<number | null>(null)
+  const reconnectTimerRef = useRef<number | null>(null)
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_MS)
   const reconnectAttemptRef = useRef(0)
   const intentionalCloseRef = useRef(false)

@@ -40,7 +40,7 @@ export function RouteDetailPage() {
     paths: Array<{ name: string; count: number }>
   }>({ hosts: [], paths: [] })
   const metricsMountedRef = useRef(false)
-  const metricsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const metricsTimerRef = useRef<number | null>(null)
 
   const ri = Number(ruleIndex)
   const pi = Number(pathIndex)

@@ -33,7 +33,7 @@ export function ServiceDetailPage() {
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
   const metricsMountedRef = useRef(false)
-  const metricsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const metricsTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!serviceName) {
