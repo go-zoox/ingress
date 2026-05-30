@@ -130,4 +130,20 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 ## Verification
 
 - From repo root: `go test ./core/...` (or narrow with `-run`). If the environment cannot reach the module proxy, try `GOPROXY=off` when modules are already cached.
-- Admin UI: `make -C core/admin web` then `go build -tags adminui ./cmd/ingress` (GoReleaser/Dockerfile run `make web` automatically; `core/admin/static/dist` is gitignored). Plain `go build` embeds a small API-only stub.
+
+### Admin web build (release gate)
+
+GoReleaser (`.goreleaser.yaml` `before.hooks`) and Docker run **`make -C core/admin web`** before `go build -tags adminui`. Run the same locally before tagging:
+
+```bash
+make -C core/admin web              # pnpm install + tsc -b + vite build → core/admin/static/dist
+cd core/admin/web && pnpm test      # vitest (e.g. lib/scenarios.test.ts, configPersistDiff)
+make -C core/admin build            # optional: web + go build -tags adminui
+```
+
+Notes:
+
+- **`pnpm run build`** is the real TypeScript gate (`tsc -b` project references + Vite). `pnpm exec tsc --noEmit` alone is not wired the same way.
+- **`core/admin/static/dist`** is gitignored; plain `go build` embeds an API-only stub. Release binaries need **`adminui`** after `make web`.
+- **New config modules** in `ConfigModuleForm`: each `switch` case must pass **`onDocChange`**, not bare `onChange` — the latter is undefined in `ConfigModuleForm` and fails `tsc -b` (e.g. `case 'scenarios'`).
+- **`pnpm run lint`** is stricter than the release build (React hooks rules, etc.); lint failures do not block `pnpm build` today.
