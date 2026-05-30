@@ -30,7 +30,7 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
   },
   '/waf': {
     title: 'WAF',
-    desc: '全局规则、运行时开关与 block/audit 事件；行点击查看详情',
+    desc: '全局规则、运行时开关、攻击地图可视化与 block/audit 事件',
   },
   '/tls': {
     title: 'TLS / 证书',

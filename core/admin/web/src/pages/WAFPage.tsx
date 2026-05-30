@@ -5,7 +5,8 @@ import { EmptyStateGuide } from '../components/EmptyStateGuide'
 import { WafEventDetailDrawer } from '../components/WafEventDetailDrawer'
 import { WafTrialDrawer } from '../components/WafTrialDrawer'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
-import { api, type WAFEvent, type WAFEventDetail } from '../api/client'
+import { WafAttackMap } from '../components/WafAttackMap'
+import { api, type WAFEvent, type WAFEventDetail, type WAFVisualization } from '../api/client'
 import { useSSE } from '../hooks/useSSE'
 import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
 import { formatWafRuleTooltip, resolveWafRule } from '../lib/wafRuleTooltip'
@@ -44,6 +45,8 @@ export function WAFPage() {
 
   const [wafHosts, setWafHosts] = useState<string[]>([])
   const [wafRules, setWafRules] = useState<string[]>([])
+  const [viz, setViz] = useState<WAFVisualization | null>(null)
+  const [vizLoading, setVizLoading] = useState(false)
 
   const [realtime, setRealtime] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -64,6 +67,24 @@ export function WAFPage() {
       .wafEvents(Object.keys(params).length ? params : undefined)
       .then((data) => setEvents(Array.isArray(data) ? data : []))
       .catch((e: Error) => setErr(e.message))
+  }, [filterAction, filterHost, filterPath, filterClientIP, filterRule, filterTimeStart, filterTimeEnd])
+
+  const loadViz = useCallback(() => {
+    const params: Parameters<typeof api.wafVisualization>[0] = {}
+    if (filterAction !== 'all') params.action = filterAction
+    if (filterHost) params.host = filterHost
+    if (filterPath.trim()) params.path = filterPath.trim()
+    if (filterClientIP.trim()) params.client_ip = filterClientIP.trim()
+    if (filterRule) params.rule = filterRule
+    if (filterTimeStart) params.time_start = filterTimeStart
+    if (filterTimeEnd) params.time_end = filterTimeEnd + 'T23:59:59Z'
+
+    setVizLoading(true)
+    api
+      .wafVisualization(Object.keys(params).length ? params : undefined)
+      .then(setViz)
+      .catch(() => setViz(null))
+      .finally(() => setVizLoading(false))
   }, [filterAction, filterHost, filterPath, filterClientIP, filterRule, filterTimeStart, filterTimeEnd])
 
   const loadStatus = useCallback(() => {
@@ -118,7 +139,8 @@ export function WAFPage() {
   }, [loadStatus])
   useEffect(() => {
     load()
-  }, [load])
+    loadViz()
+  }, [load, loadViz])
 
   useEffect(() => {
     api.wafHosts().then(setWafHosts).catch(() => setWafHosts([]))
@@ -154,6 +176,7 @@ export function WAFPage() {
 
   const handleRefresh = () => {
     load()
+    loadViz()
     loadStatus()
   }
   const handleResetFilters = () => {
@@ -186,7 +209,7 @@ export function WAFPage() {
     <div className="page">
       <PageHeader
         title="WAF"
-        desc="全局规则、运行时开关与 block/audit 事件；在操作列打开详情"
+        desc="全局规则、运行时开关、攻击地图可视化与 block/audit 事件"
         actions={
           <button type="button" className="btn btn-sm btn-primary" onClick={() => openTrial()}>
             <FlaskConical size={14} aria-hidden /> 规则试匹配
@@ -229,12 +252,21 @@ export function WAFPage() {
           <div className="panel-body">
             <p className="match-hint" style={{ margin: 0 }}>
               当前<strong>配置 WAF</strong>与<strong>运行时 WAF</strong>均为关闭。列表中的 block/audit 事件多数来自
-              admin 首次启动时写入的<strong>演示种子数据</strong>（约 180 条），用于预览界面，并非真实拦截记录。
+              admin 首次启动时写入的<strong>演示种子数据</strong>（约 360 条，覆盖全球多地 IP），用于预览界面与攻击地图，并非真实拦截记录。
               「规则试匹配」只按当前配置模拟，因此通常无法复现列表中的命中。开启 WAF 后产生的新事件才会与试匹配一致。
             </p>
           </div>
         </div>
       ) : null}
+
+      <div className="panel">
+        <div className="panel-head">
+          <h2>攻击地图</h2>
+        </div>
+        <div className="panel-body">
+          <WafAttackMap data={viz} loading={vizLoading} />
+        </div>
+      </div>
 
       <div className="panel">
         <div className="panel-head">

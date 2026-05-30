@@ -8,7 +8,24 @@ Runnable ingress config with embedded **admin** console, log files, and SQLite-b
 | `certs/` | 8 sample TLS certificates (regenerate: `go run ./examples/admin-console/scripts/gen_sample_certs/main.go`) |
 | `access.log` | Sample access log (~4200 lines) — referenced by `logging.transports` in `ingress.yaml` |
 | `error.log` | Sample error log (~220 lines) |
-| `admin.db` | Created on first start when `admin.enabled: true`; empty DB gets **180 WAF events**, audit log, config revisions (see `core/admin/bootstrap/sample.go`) |
+| `admin.db` | Created on first start when `admin.enabled: true`; empty DB gets **360 WAF events** (global geo demo IPs), audit log, config revisions (see `core/admin/bootstrap/sample.go`) |
+
+### WAF attack map GeoIP (MaxMind)
+
+Default database path: **`/etc/geoip/GeoLite2-City.mmdb`**. The official Docker image downloads this file at build time from [go-zoox/geoip v0.0.3](https://github.com/go-zoox/geoip/releases/download/v0.0.3/GeoLite2-City.mmdb).
+
+For local dev, override in `ingress.yaml` or place the file at the default path:
+
+```yaml
+admin:
+  geoip:
+    # database: ./GeoLite2-City.mmdb   # optional override
+    ingress_label: 上海
+    ingress_lat: 31.2304
+    ingress_lng: 121.4737
+```
+
+Without a readable database file, the map still works using demo-IP labels (bootstrap seed) and approximate public-IP placement. Private/LB client IPs are skipped. For production, enable **`waf.trust_proxy`** when behind a load balancer so `client_ip` reflects `X-Forwarded-For`.
 
 Regenerate log files:
 

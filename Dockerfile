@@ -40,18 +40,18 @@ RUN CGO_ENABLED=0 \
   -v -o ingress ./cmd/ingress
 
 # Server
-FROM whatwewant/alpine:v3.17-1
+FROM whatwewant/alpine:v3-1
 
 LABEL MAINTAINER="Zero<tobewhatwewant@gmail.com>"
 
 LABEL org.opencontainers.image.source="https://github.com/go-zoox/ingress"
 
-ARG VERSION=latest
-
-ENV TERMINAL_VERSION=${VERSION}
-
 COPY --from=builder /build/ingress /bin
 
-RUN ingress --version
+RUN mkdir -p /etc/geoip \
+  && apk add --no-cache ca-certificates wget \
+  && wget -qO /etc/geoip/GeoLite2-City.mmdb \
+    https://github.com/go-zoox/geoip/releases/download/v0.0.3/GeoLite2-City.mmdb \
+  && apk del wget
 
 CMD ingress run -c /etc/ingress/config.yaml

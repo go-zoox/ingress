@@ -7,6 +7,7 @@ import {
   FormSelectField,
 } from './Form'
 import { AdminDatabaseFormFields } from './config/AdminDatabaseFormFields'
+import { AdminGeoIPFormFields } from './config/AdminGeoIPFormFields'
 import { FallbackEditor } from './config/FallbackEditor'
 import { RulesEditor } from './config/RulesEditor'
 import { RateLimitFormFields } from './config/RateLimitFormFields'
@@ -206,6 +207,7 @@ function AdminModuleForm({
 }) {
   const admin = { ...obj(doc.admin) }
   const database = { ...obj(admin.database) }
+  const geoip = { ...obj(admin.geoip) }
   const web = { ...obj(admin.web) }
 
   const patchAdmin = (fn: (next: Record<string, unknown>) => void) => {
@@ -254,6 +256,20 @@ function AdminModuleForm({
               setStr(nextDB, 'driver', nextDriver)
               setStr(nextDB, 'dsn', nextDsn)
               n.database = nextDB
+            })
+          }
+        />
+      </FormSection>
+      <FormSection title="GeoIP（WAF 攻击地图）">
+        <AdminGeoIPFormFields
+          geoip={geoip}
+          onChange={(nextGeoIP) =>
+            patchAdmin((n) => {
+              if (Object.keys(nextGeoIP).length === 0) {
+                delete n.geoip
+              } else {
+                n.geoip = nextGeoIP
+              }
             })
           }
         />

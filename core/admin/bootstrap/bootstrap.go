@@ -7,6 +7,7 @@ import (
 	"github.com/go-zoox/gormx"
 	"github.com/go-zoox/ingress/core/admin/config"
 	"github.com/go-zoox/ingress/core/admin/model"
+	"github.com/go-zoox/ingress/core/admin/service/geoip"
 )
 
 // Init connects SQLite (or other engines) and migrates admin tables.
@@ -31,6 +32,14 @@ func Init(cfg *config.Config) error {
 	}
 	if err := seedAccessLogIfEmpty(cfg); err != nil {
 		return fmt.Errorf("bootstrap: access log: %w", err)
+	}
+	if _, err := geoip.Init(geoip.Config{
+		Database:     cfg.GeoIP.Database,
+		IngressLat:   cfg.GeoIP.IngressLat,
+		IngressLng:   cfg.GeoIP.IngressLng,
+		IngressLabel: cfg.GeoIP.IngressLabel,
+	}); err != nil {
+		return fmt.Errorf("bootstrap: geoip: %w", err)
 	}
 	return nil
 }

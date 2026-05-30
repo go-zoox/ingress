@@ -9,6 +9,8 @@ import (
 	"github.com/go-zoox/ingress/core/admin/model"
 )
 
+const seedWAFEventCount = 360
+
 // seedSampleDataIfEmpty inserts example rows when the DB has no WAF events yet.
 // Used by examples/admin-console on first start (admin.db); not a runtime demo fallback.
 func seedSampleDataIfEmpty() error {
@@ -26,27 +28,43 @@ func seedSampleDataIfEmpty() error {
 	rng := rand.New(rand.NewSource(42))
 
 	wafRules := []weightedWAF{
-		{"block", "path-traversal", "waf-demo.example.com", "/admin", 12},
-		{"block", "path-traversal", "waf-demo.example.com", "/../etc/passwd", 8},
-		{"block", "sql-injection-uri", "api.example.com", "/search?q=1' OR '1'='1", 10},
-		{"block", "sql-injection-uri", "waf-demo.example.com", "/search?q=union+select", 6},
-		{"audit", "scanner-ua", "api.example.com", "/", 15},
-		{"audit", "scanner-ua", "cdn.example.com", "/assets/app.js", 8},
-		{"block", "ip-deny", "api.example.com", "/api/users", 5},
-		{"audit", "suspicious-method", "admin.internal", "/healthz", 4},
+		{"block", "path-traversal", "waf-demo.example.com", "/admin", 14},
+		{"block", "path-traversal", "waf-demo.example.com", "/../etc/passwd", 10},
+		{"block", "sql-injection-uri", "api.example.com", "/search?q=1' OR '1'='1", 12},
+		{"block", "sql-injection-uri", "waf-demo.example.com", "/search?q=union+select", 8},
+		{"block", "sql-injection-uri", "api.example.com", "/api/report?id=1;DROP+TABLE", 6},
+		{"audit", "scanner-ua", "api.example.com", "/", 18},
+		{"audit", "scanner-ua", "cdn.example.com", "/assets/app.js", 10},
+		{"audit", "scanner-ua", "waf-demo.example.com", "/.env", 7},
+		{"block", "ip-deny", "api.example.com", "/api/users", 6},
+		{"block", "ip-deny", "api.example.com", "/api/admin", 4},
+		{"audit", "suspicious-method", "admin.internal", "/healthz", 5},
+		{"audit", "suspicious-method", "api.example.com", "/debug", 3},
 	}
 
-	waf := make([]model.WAFEvent, 0, 180)
-	for i := 0; i < 180; i++ {
+	scannerUAs := []string{
+		"Mozilla/5.0 (compatible; Nikto/2.1.6)",
+		"sqlmap/1.7.2#stable",
+		"Acunetix-Web-Security-Scanner",
+		"Mozilla/5.0 (compatible; Nmap Scripting Engine)",
+		"python-requests/2.31.0 scanner-probe",
+	}
+
+	waf := make([]model.WAFEvent, 0, seedWAFEventCount)
+	for i := 0; i < seedWAFEventCount; i++ {
 		pick := weightedPick(rng, wafRules)
-		waf = append(waf, model.WAFEvent{
+		ev := model.WAFEvent{
 			Action:    pick.action,
 			Rule:      pick.rule,
 			Host:      pick.host,
 			Path:      pick.path,
 			ClientIP:  sampleIP(rng),
-			CreatedAt: randomTime(rng, start, end, i, 180),
-		})
+			CreatedAt: randomTime(rng, start, end, i, seedWAFEventCount),
+		}
+		if pick.rule == "scanner-ua" {
+			ev.UserAgent = scannerUAs[rng.Intn(len(scannerUAs))]
+		}
+		waf = append(waf, ev)
 	}
 	if err := db.Create(&waf).Error; err != nil {
 		return fmt.Errorf("seed waf events: %w", err)
@@ -126,12 +144,58 @@ func weightedPick(rng *rand.Rand, rules []weightedWAF) weightedWAF {
 	return rules[0]
 }
 
+// sampleGeoIPs uses RFC5737 TEST-NET addresses; geo labels live in service/geoip/fallback.go.
+var sampleGeoIPs = []weightedIP{
+	{"203.0.113.44", 16},  // 北京
+	{"203.0.113.101", 14}, // 香港
+	{"203.0.113.102", 10}, // 台北
+	{"203.0.113.77", 12},  // 首尔
+	{"198.51.100.22", 14}, // 东京
+	{"203.0.113.55", 12},  // 新加坡
+	{"203.0.113.66", 10},  // 孟买
+	{"192.0.2.22", 8},     // 曼谷
+	{"192.0.2.33", 8},     // 雅加达
+	{"192.0.2.44", 6},     // 马尼拉
+	{"203.0.113.88", 10},  // 伦敦
+	{"203.0.113.33", 9},   // 法兰克福
+	{"203.0.113.99", 8},   // 阿姆斯特丹
+	{"198.51.100.11", 9},  // 巴黎
+	{"198.51.100.77", 6},  // 斯德哥尔摩
+	{"192.0.2.77", 5},     // 爱丁堡
+	{"203.0.113.21", 11},  // 纽约
+	{"192.0.2.99", 10},    // 旧金山
+	{"192.0.2.55", 7},     // 温哥华
+	{"198.51.100.33", 7},  // 多伦多
+	{"203.0.113.12", 9},   // 圣保罗
+	{"198.51.100.88", 6},  // 布宜诺斯艾利斯
+	{"192.0.2.11", 7},     // 墨西哥城
+	{"198.51.100.8", 8},   // 莫斯科
+	{"192.0.2.66", 6},     // 伊斯坦布尔
+	{"198.51.100.44", 7},  // 迪拜
+	{"198.51.100.55", 5},  // 开罗
+	{"198.51.100.66", 5},  // 约翰内斯堡
+	{"192.0.2.17", 9},     // 悉尼
+	{"10.0.0.5", 4},       // 内网（不显示在地球上）
+}
+
+type weightedIP struct {
+	ip     string
+	weight int
+}
+
 func sampleIP(rng *rand.Rand) string {
-	ips := []string{
-		"203.0.113.44", "198.51.100.8", "192.0.2.99", "203.0.113.12",
-		"198.51.100.22", "203.0.113.88", "192.0.2.17", "10.0.0.5",
+	total := 0
+	for _, row := range sampleGeoIPs {
+		total += row.weight
 	}
-	return ips[rng.Intn(len(ips))]
+	n := rng.Intn(total)
+	for _, row := range sampleGeoIPs {
+		n -= row.weight
+		if n < 0 {
+			return row.ip
+		}
+	}
+	return sampleGeoIPs[0].ip
 }
 
 func randomTime(rng *rand.Rand, start, end time.Time, idx, total int) time.Time {

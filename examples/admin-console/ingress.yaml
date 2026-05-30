@@ -8,6 +8,11 @@ admin:
     dsn: file:./admin.db?cache=shared&_fk=1
   web:
     dev_proxy: true
+  # WAF 攻击地图 GeoIP（默认 database: /etc/geoip/GeoLite2-City.mmdb，Docker 镜像已内置）
+  geoip:
+    ingress_label: 上海
+    ingress_lat: 31.2304
+    ingress_lng: 121.4737
 # Shared cache engine (matcher + http response cache keys)
 cache:
   ttl: 300
@@ -142,3 +147,6 @@ rules:
         protocol: https
         name: httpbin.zcorky.com
         port: 443
+maintenance:
+  hosts:
+    - host: api.example.com

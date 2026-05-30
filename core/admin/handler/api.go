@@ -75,6 +75,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/waf/events/:id", a.WAFEventDetail)
 	g.Post("/waf/events/:id/status", a.UpdateWAFEventStatus)
 	g.Post("/waf/match", a.WAFMatch)
+	g.Get("/waf/visualization", a.WAFVisualization)
 	g.Get("/waf/hosts", a.WAFHosts)
 	g.Get("/waf/rules", a.WAFRules)
 	g.Get("/waf/rules/catalog", a.WAFRulesCatalog)
@@ -323,6 +324,73 @@ func (a *API) WAFEvents(ctx *zoox.Context) {
 		rows = scoped
 	}
 	ok(ctx, rows)
+}
+
+func (a *API) WAFVisualization(ctx *zoox.Context) {
+	f := service.WAFAuditFilter{Limit: 500}
+
+	pathMatch := strings.ToLower(strings.TrimSpace(ctx.Query().Get("path_match").String()))
+	if pathMatch == "" {
+		pathMatch = "prefix"
+	}
+
+	if v := strings.TrimSpace(ctx.Query().Get("action").String()); v != "" {
+		f.Action = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("host").String()); v != "" {
+		f.Host = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("path").String()); v != "" {
+		f.Path = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("client_ip").String()); v != "" {
+		f.ClientIP = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("rule").String()); v != "" {
+		f.Rule = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("status").String()); v != "" {
+		f.Status = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("time_start").String()); v != "" {
+		f.TimeStart = v
+	}
+	if v := strings.TrimSpace(ctx.Query().Get("time_end").String()); v != "" {
+		f.TimeEnd = v
+	}
+	scopeHostOverride := strings.TrimSpace(f.Host)
+	scopePathOverride := strings.TrimSpace(f.Path)
+	if _, _, routeFilter := parseRouteQueryIndices(ctx); routeFilter {
+		if scopePathOverride != "" && pathMatch == "prefix" {
+			f.Path = ""
+		}
+	}
+
+	rows, err := a.audit.ListWAFEvents(f)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if ri, pi, ok := parseRouteQueryIndices(ctx); ok {
+		if icfg, err := a.ingress.LoadConfig(); err == nil {
+			rows = service.FilterWAFEventsForRoute(icfg, ri, pi, rows)
+		}
+	}
+	if scopeHostOverride != "" || scopePathOverride != "" {
+		scoped := rows[:0]
+		for _, row := range rows {
+			if scopeHostOverride != "" && !strings.EqualFold(strings.TrimSpace(row.Host), scopeHostOverride) {
+				continue
+			}
+			if scopePathOverride != "" && !service.MatchPathForScope(row.Path, scopePathOverride, pathMatch) {
+				continue
+			}
+			scoped = append(scoped, row)
+		}
+		rows = scoped
+	}
+
+	ok(ctx, service.BuildWAFVisualization(rows))
 }
 
 func (a *API) WAFEventDetail(ctx *zoox.Context) {
@@ -631,6 +699,7 @@ func (a *API) Reload(ctx *zoox.Context) {
 		fail(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
+	service.SyncGeoIPFromIngress(a.ingress)
 	_ = a.audit.Record("ingress.reload", a.ingress.ConfigPath(), "admin")
 	ok(ctx, zoox.H{"ok": true})
 }

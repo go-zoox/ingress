@@ -30,6 +30,7 @@ func ResolvePaths(cfg *Config, ingressConfigFile string) error {
 	if strings.TrimSpace(cfg.ErrorLogPath) != "" {
 		cfg.ErrorLogPath = resolveFilePath(base, cfg.ErrorLogPath)
 	}
+	cfg.GeoIP.Database = resolveFilePath(base, cfg.GeoIP.Database)
 	cfg.Database.DSN = resolveSQLiteDSN(base, cfg.Database.DSN)
 	if err := resolveIngressLogPaths(cfg); err != nil {
 		return err

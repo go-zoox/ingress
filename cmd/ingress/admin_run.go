@@ -39,6 +39,12 @@ func buildAdminConfig(ingressApp core.Core, ingressCfg *core.Config, ingressConf
 		Web:               admincfg.Web{DevProxy: a.Web.DevProxy},
 		AccessLogPath:     a.AccessLogPath,
 		ErrorLogPath:      a.ErrorLogPath,
+		GeoIP: admincfg.GeoIP{
+			Database:     a.GeoIP.Database,
+			IngressLat:   a.GeoIP.IngressLat,
+			IngressLng:   a.GeoIP.IngressLng,
+			IngressLabel: a.GeoIP.IngressLabel,
+		},
 		IngressConfigPath: ingressConfigFile,
 		PidFile:           pidFile,
 		ReloadFn:          reloadFn,

@@ -81,6 +81,26 @@ export const api = {
   wafHosts: () => request<string[]>('/waf/hosts'),
   wafRules: () => request<string[]>('/waf/rules'),
   wafRulesCatalog: () => request<WAFRuleDetail[]>('/waf/rules/catalog'),
+  wafVisualization: (params?: {
+    action?: string
+    host?: string
+    path?: string
+    client_ip?: string
+    rule?: string
+    time_start?: string
+    time_end?: string
+  }) => {
+    const q = new URLSearchParams()
+    if (params?.action) q.set('action', params.action)
+    if (params?.host) q.set('host', params.host)
+    if (params?.path) q.set('path', params.path)
+    if (params?.client_ip) q.set('client_ip', params.client_ip)
+    if (params?.rule) q.set('rule', params.rule)
+    if (params?.time_start) q.set('time_start', params.time_start)
+    if (params?.time_end) q.set('time_end', params.time_end)
+    const qs = q.toString()
+    return request<WAFVisualization>(`/waf/visualization${qs ? `?${qs}` : ''}`)
+  },
   tlsCerts: () => request<TLSCert[]>('/tls/certs'),
   tlsCheck: (domain: string) =>
     request<TLSCertCheck>('/tls/certs/check', {
@@ -258,6 +278,33 @@ export type WAFEvent = {
   status?: 'open' | 'ignored' | 'resolved' | ''
   note?: string
   created_at: string
+}
+
+export type WAFAttackPoint = {
+  lat: number
+  lng: number
+  label: string
+  count: number
+  block: number
+  audit: number
+  ips: string[]
+  approx?: boolean
+}
+
+export type WAFVisualization = {
+  points: WAFAttackPoint[]
+  total: number
+  unknown_ips: number
+  server: { lat: number; lng: number; label: string }
+  geoip?: {
+    configured?: boolean
+    enabled: boolean
+    loaded: boolean
+    source: 'maxmind' | 'fallback' | string
+    database?: string
+    error?: string
+    reason?: string
+  }
 }
 
 export type WAFTrialInput = {
@@ -447,6 +494,28 @@ export type SettingsView = {
     access_exists: boolean
     error_configured: boolean
     error_exists: boolean
+  }
+  geoip: {
+    database?: string
+    ingress_label?: string
+    ingress_lat?: number
+    ingress_lng?: number
+    database_exists: boolean
+    database_readable: boolean
+    runtime: {
+      configured?: boolean
+      enabled: boolean
+      loaded: boolean
+      source: string
+      database?: string
+      error?: string
+      reason?: string
+    }
+    ingress: {
+      lat: number
+      lng: number
+      label: string
+    }
   }
 }
 

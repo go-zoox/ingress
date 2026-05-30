@@ -7,6 +7,7 @@ import (
 	"github.com/go-zoox/gormx"
 	"github.com/go-zoox/ingress/core/admin/config"
 	"github.com/go-zoox/ingress/core/admin/model"
+	"github.com/go-zoox/ingress/core/admin/service/geoip"
 )
 
 // SettingsView is runtime admin configuration and integration status.
@@ -14,6 +15,7 @@ type SettingsView struct {
 	Admin    AdminSettings    `json:"admin"`
 	Ingress  IngressSettings  `json:"ingress"`
 	Database DatabaseSettings `json:"database"`
+	GeoIP    GeoIPSettings    `json:"geoip"`
 	Logs     LogsSettings     `json:"logs"`
 }
 
@@ -46,6 +48,17 @@ type LogsSettings struct {
 	AccessExists     bool `json:"access_exists"`
 	ErrorConfigured  bool `json:"error_configured"`
 	ErrorExists      bool `json:"error_exists"`
+}
+
+type GeoIPSettings struct {
+	Database         string             `json:"database,omitempty"`
+	IngressLabel     string             `json:"ingress_label,omitempty"`
+	IngressLat       float64            `json:"ingress_lat,omitempty"`
+	IngressLng       float64            `json:"ingress_lng,omitempty"`
+	DatabaseExists   bool               `json:"database_exists"`
+	DatabaseReadable bool               `json:"database_readable"`
+	Runtime          geoip.Status       `json:"runtime"`
+	Ingress          geoip.IngressPoint `json:"ingress"`
 }
 
 // Settings reads admin server configuration for the settings page.
@@ -85,6 +98,7 @@ func (s *Settings) Get(configHash string) SettingsView {
 			ErrorConfigured:  strings.TrimSpace(s.logs.ErrorLogPath()) != "",
 			ErrorExists:      fileExists(s.logs.ErrorLogPath()),
 		},
+		GeoIP: geoIPSettingsFromIngress(s.ingress),
 	}
 	db := gormx.GetDB()
 	if db != nil {
@@ -113,4 +127,28 @@ func fileExists(p string) bool {
 	}
 	_, err := os.Stat(p)
 	return err == nil
+}
+
+func geoIPSettingsFromIngress(ingress *Ingress) GeoIPSettings {
+	out := GeoIPSettings{
+		Runtime: geoip.GlobalStatus(),
+		Ingress: geoip.GlobalIngress(),
+	}
+	if ingress == nil {
+		return out
+	}
+	icfg, err := ingress.LoadConfig()
+	if err != nil {
+		return out
+	}
+	g := icfg.Admin.GeoIP
+	out.Database = g.Database
+	out.IngressLabel = g.IngressLabel
+	out.IngressLat = g.IngressLat
+	out.IngressLng = g.IngressLng
+	out.DatabaseExists = geoip.DatabaseExists(g.Database)
+	if ok, _, _ := geoip.DatabaseCheck(g.Database); ok {
+		out.DatabaseReadable = true
+	}
+	return out
 }

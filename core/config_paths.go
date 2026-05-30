@@ -31,6 +31,7 @@ func resolveAdminPaths(admin *Admin, base string) {
 	}
 	admin.AccessLogPath = resolveConfigFilePath(base, admin.AccessLogPath)
 	admin.ErrorLogPath = resolveConfigFilePath(base, admin.ErrorLogPath)
+	admin.GeoIP.Database = resolveConfigFilePath(base, admin.GeoIP.Database)
 }
 
 func ingressConfigDir(configFilePath string) (string, error) {

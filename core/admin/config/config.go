@@ -15,6 +15,7 @@ type Config struct {
 	Web          Web
 	AccessLogPath string
 	ErrorLogPath string
+	GeoIP        GeoIP
 	//
 	IngressConfigPath string
 	PidFile           string
@@ -31,6 +32,13 @@ type Database struct {
 type Web struct {
 	// DevProxy when true serves API only; frontend runs on Vite dev server.
 	DevProxy bool
+}
+
+type GeoIP struct {
+	Database     string
+	IngressLat   float64
+	IngressLng   float64
+	IngressLabel string
 }
 
 func (c *Config) Validate() error {

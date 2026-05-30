@@ -8,6 +8,7 @@ import {
   savePreferences,
   type UIPreferences,
 } from '../lib/preferences'
+import { geoipPathHint, geoipRuntimeLabel } from '../lib/geoipStatus'
 
 function boolLabel(v: boolean) {
   return v ? '是' : '否'
@@ -160,6 +161,53 @@ export function SettingsPage() {
               </button>
               {demoMsg ? <p className="settings-saved">{demoMsg}</p> : null}
             </div>
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="panel-head">
+            <h2>GeoIP（WAF 地图）</h2>
+            <span className="chart-hint">配置在「配置 → Admin 控制台」；发布后可热加载</span>
+          </div>
+          <div className="panel-body settings-body">
+            <SettingsRow label="数据库路径">
+              {data?.geoip?.database ? (
+                <>
+                  <PathValue path={data.geoip.database} />
+                  {(() => {
+                    const hint = geoipPathHint(
+                      Boolean(data.geoip.database_exists),
+                      Boolean(data.geoip.database_readable),
+                    )
+                    return hint ? <span className="settings-hint"> · {hint}</span> : null
+                  })()}
+                </>
+              ) : (
+                '—（未配置，近似定位）'
+              )}
+            </SettingsRow>
+            <SettingsRow label="运行时">
+              {(() => {
+                const r = data?.geoip?.runtime
+                const { tone, text } = geoipRuntimeLabel(r)
+                const cls = tone === 'ok' ? 'text-ok' : tone === 'warn' ? 'text-warn' : ''
+                return <span className={cls}>{text}</span>
+              })()}
+            </SettingsRow>
+            {data?.geoip?.runtime?.error ? (
+              <SettingsRow label="详情">
+                <span className="settings-hint">{data.geoip.runtime.error}</span>
+              </SettingsRow>
+            ) : null}
+            <SettingsRow label="地图 Ingress 节点">
+              {data?.geoip?.ingress ? (
+                <>
+                  {data.geoip.ingress.label}（{data.geoip.ingress.lat}, {data.geoip.ingress.lng}）
+                </>
+              ) : (
+                '—'
+              )}
+            </SettingsRow>
           </div>
         </div>
 

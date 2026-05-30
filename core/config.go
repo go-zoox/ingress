@@ -44,12 +44,23 @@ type Config struct {
 
 // Admin configures the embedded operations console (HTTP API + optional UI).
 type Admin struct {
-	Enabled      bool          `config:"enabled"`
-	Port         int64         `config:"port,default=9080"`
-	Database     AdminDatabase `config:"database"`
-	Web          AdminWeb      `config:"web"`
+	Enabled       bool          `config:"enabled"`
+	Port          int64         `config:"port,default=9080"`
+	Database      AdminDatabase `config:"database"`
+	Web           AdminWeb      `config:"web"`
 	AccessLogPath string        `config:"access_log_path"`
-	ErrorLogPath string        `config:"error_log_path"`
+	ErrorLogPath  string        `config:"error_log_path"`
+	GeoIP         AdminGeoIP    `config:"geoip"`
+}
+
+// AdminGeoIP configures MaxMind GeoLite2 for WAF attack map geolocation.
+type AdminGeoIP struct {
+	// Database is the path to GeoLite2-City.mmdb (relative to ingress.yaml directory, or absolute).
+	Database string `config:"database,default=/etc/geoip/GeoLite2-City.mmdb"`
+	// IngressLat/Lng/Label override the defender node on the attack map.
+	IngressLat   float64 `config:"ingress_lat"`
+	IngressLng   float64 `config:"ingress_lng"`
+	IngressLabel string  `config:"ingress_label"`
 }
 
 type AdminDatabase struct {

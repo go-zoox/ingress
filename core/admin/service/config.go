@@ -171,6 +171,7 @@ func (c *Config) Publish(content, note string) (string, error) {
 	if err := c.ingress.Reload(); err != nil {
 		return hash, err
 	}
+	SyncGeoIPFromIngress(c.ingress)
 	_ = c.audit.Record("ingress.reload", c.ingress.ConfigPath(), "admin")
 	return hash, nil
 }
