@@ -85,6 +85,11 @@ func (c *core) prepare() error {
 		return fmt.Errorf("compile global maintenance: %w", err)
 	}
 
+	c.ingressStatusPath, err = compileIngressStatusPath(c.cfg.Maintenance.StatusPath)
+	if err != nil {
+		return fmt.Errorf("maintenance.status_path: %w", err)
+	}
+
 	return nil
 }
 

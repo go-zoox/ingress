@@ -26,6 +26,7 @@ export type GlobalMaintenanceForm = MaintenanceBypassFormSlice &
   maintenance_retry_after: number
   maintenance_title: string
   maintenance_subtitle: string
+  maintenance_status_path: string
 }
 
 export function emptyMaintenanceHostEntry(): MaintenanceHostFormEntry {
@@ -38,6 +39,7 @@ export function emptyGlobalMaintenanceForm(): GlobalMaintenanceForm {
     maintenance_retry_after: 0,
     maintenance_title: '',
     maintenance_subtitle: '',
+    maintenance_status_path: '',
     maintenance_bypass_paths: '',
     maintenance_bypass_allow_ips: '',
     maintenance_bypass_header_name: '',
@@ -99,6 +101,7 @@ export function globalMaintenanceFromDoc(doc: Record<string, unknown>): GlobalMa
     maintenance_retry_after: num(m.retry_after, 0),
     maintenance_title: str(m.title),
     maintenance_subtitle: str(m.subtitle),
+    maintenance_status_path: str(m.status_path),
     maintenance_bypass_paths: paths.join(', '),
     maintenance_bypass_allow_ips: allowIPs.join(', '),
     maintenance_bypass_header_name: str(header.name),
@@ -141,6 +144,7 @@ export function globalMaintenanceConfigured(form: GlobalMaintenanceForm): boolea
     form.maintenance_retry_after > 0 ||
     form.maintenance_title.trim() !== '' ||
     form.maintenance_subtitle.trim() !== '' ||
+    form.maintenance_status_path.trim() !== '' ||
     form.maintenance_bypass_paths.trim() !== '' ||
     form.maintenance_bypass_allow_ips.trim() !== '' ||
     form.maintenance_bypass_header_name.trim() !== '' ||
@@ -165,6 +169,7 @@ export function patchGlobalMaintenance(
   if (form.maintenance_retry_after > 0) block.retry_after = form.maintenance_retry_after
   if (form.maintenance_title.trim()) block.title = form.maintenance_title.trim()
   if (form.maintenance_subtitle.trim()) block.subtitle = form.maintenance_subtitle.trim()
+  if (form.maintenance_status_path.trim()) block.status_path = form.maintenance_status_path.trim()
   const bypass = buildMaintenanceBypass(form)
   if (bypass) block.bypass = bypass
   const responseHeader = buildMaintenanceResponseHeader(form)

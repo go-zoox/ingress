@@ -128,17 +128,26 @@ Use **`GET /_/ingress/status`** for load-balancer / monitoring probes (host-leve
 
 ## Ingress status probe
 
-`GET /_/ingress/status` is handled **before** routing, WAF, and maintenance bypass. It reports whether the request **Host** is currently in maintenance (global or matched rule), regardless of path bypass rules.
+`GET /_/ingress/status` by default — handled **before** routing, WAF, and maintenance bypass. Override with **`maintenance.status_path`** (must start with `/`).
 
-| Condition | HTTP | JSON `status` | `X-Ingress-Maintenance` |
-|-----------|------|---------------|-------------------------|
+| Condition | HTTP | JSON `status` | Maintenance header |
+|-----------|------|---------------|----------------------|
 | Host not in maintenance | `200` | `"ok"` | _(absent)_ |
-| Host in maintenance | `503` | `"maintenance"` (+ optional `title`, `subtitle`, `retry_after`, `maintenance_header_name`, `maintenance_header_value`) | configured (default `true`) |
+| Host in maintenance | `503` | `"maintenance"` (+ optional fields) | configured (default `X-Ingress-Maintenance: true`) |
 
-Example:
+JSON maintenance responses include `maintenance_header_name` and `maintenance_header_value` with the effective `response_header` settings.
+
+Example (default path):
 
 ```bash
 curl -sS -D - http://app.example.com/_/ingress/status
+```
+
+Custom path:
+
+```yaml
+maintenance:
+  status_path: /internal/ingress-status
 ```
 
 ## Admin console

@@ -307,6 +307,48 @@ func TestBuild_IngressStatus_IncludesCustomHeaderInJSON(t *testing.T) {
 	}
 }
 
+func TestBuild_IngressStatus_CustomPath(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Maintenance: MaintenanceConfig{
+			StatusPath: "/internal/ingress-status",
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	ins := mustBuildIngressCore(t, cfg)
+
+	reqCustom := httptest.NewRequest(http.MethodGet, "http://app.example.com/internal/ingress-status", nil)
+	recCustom := httptest.NewRecorder()
+	ins.app.ServeHTTP(recCustom, reqCustom)
+	if recCustom.Code != http.StatusOK {
+		t.Fatalf("expected 200 on custom status path, got %d body=%q", recCustom.Code, recCustom.Body.String())
+	}
+
+	reqDefault := httptest.NewRequest(http.MethodGet, "http://app.example.com/_/ingress/status", nil)
+	recDefault := httptest.NewRecorder()
+	ins.app.ServeHTTP(recDefault, reqDefault)
+	// Default path is not registered when status_path is customized.
+	if recDefault.Code == http.StatusOK {
+		var body ingressStatusBody
+		if err := json.Unmarshal(recDefault.Body.Bytes(), &body); err == nil && body.Status == "ok" {
+			t.Fatal("expected default status path to not be handled")
+		}
+	}
+}
+
 func TestBuild_IngressStatus_OK(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,

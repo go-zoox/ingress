@@ -453,6 +453,24 @@ func TestMaintenanceDecision_BypassMergesGlobalAndRule(t *testing.T) {
 	}
 }
 
+func TestCompileIngressStatusPath_DefaultAndCustom(t *testing.T) {
+	got, err := compileIngressStatusPath("")
+	if err != nil || got != ingressStatusPathDefault {
+		t.Fatalf("default: got=%q err=%v", got, err)
+	}
+	got, err = compileIngressStatusPath("/internal/ingress-status")
+	if err != nil || got != "/internal/ingress-status" {
+		t.Fatalf("custom: got=%q err=%v", got, err)
+	}
+	got, err = compileIngressStatusPath("internal/ingress-status")
+	if err != nil || got != "/internal/ingress-status" {
+		t.Fatalf("no leading slash: got=%q err=%v", got, err)
+	}
+	if _, err := compileIngressStatusPath("/../secret"); err == nil {
+		t.Fatal("expected .. to fail")
+	}
+}
+
 func TestCompileMaintenanceResponseHeader_Defaults(t *testing.T) {
 	h, err := compileMaintenanceResponseHeader(service.MaintenanceResponseHeader{}, "maintenance.response_header")
 	if err != nil {

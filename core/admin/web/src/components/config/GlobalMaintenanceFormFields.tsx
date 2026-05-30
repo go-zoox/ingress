@@ -38,6 +38,14 @@ export function GlobalMaintenanceFormFields({
 
       <FormSection title="默认响应">
         <FormField
+          label="状态 API 路径 status_path"
+          keyName={`${idPrefix}maintenance.status_path`}
+          hint="留空使用默认 /_/ingress/status；JSON 维护状态探测端点"
+          placeholder="/_/ingress/status"
+          value={form.maintenance_status_path}
+          onChange={(e) => patch((n) => { n.maintenance_status_path = e.target.value })}
+        />
+        <FormField
           label="Retry-After（秒）"
           keyName={`${idPrefix}maintenance.retry_after`}
           type="number"

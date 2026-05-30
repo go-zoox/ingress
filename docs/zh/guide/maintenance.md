@@ -117,7 +117,7 @@ rules:
 | 响应体 | Ingress 错误页（可配 `title` / `subtitle`） | 上游原始 body |
 | 是否连上游 | **否**（代理前短路） | **是** |
 
-负载均衡 / 监控可用 **`GET /_/ingress/status`** 探测 Host 级维护状态（不受 path bypass 影响）。
+负载均衡 / 监控可用 **`GET {status_path}`**（默认 `/_/ingress/status`）探测 Host 级维护状态（不受 path bypass 影响）。
 
 ## 响应与日志
 
@@ -128,17 +128,26 @@ rules:
 
 ## Ingress 状态探测
 
-`GET /_/ingress/status` 在路由、WAF 与维护 bypass **之前**处理，按请求 **Host** 报告是否处于维护（全局或匹配规则），**不受** path bypass 影响。
+默认 **`GET /_/ingress/status`** — 在路由、WAF 与 bypass **之前**处理。可用 **`maintenance.status_path`** 自定义路径（须以 `/` 开头）。
 
-| 条件 | HTTP | JSON `status` | `X-Ingress-Maintenance` |
-|------|------|---------------|-------------------------|
+| 条件 | HTTP | JSON `status` | 维护响应头 |
+|------|------|---------------|------------|
 | Host 未维护 | `200` | `"ok"` | _(无)_ |
-| Host 维护中 | `503` | `"maintenance"`（可选 `title`、`subtitle`、`retry_after`、`maintenance_header_name`、`maintenance_header_value`） | 已配置（默认 `true`） |
+| Host 维护中 | `503` | `"maintenance"`（含可选字段） | 已配置（默认 `X-Ingress-Maintenance: true`） |
 
-示例：
+JSON 响应含 `maintenance_header_name`、`maintenance_header_value`，与 `response_header` 一致。
+
+示例（默认路径）：
 
 ```bash
 curl -sS -D - http://app.example.com/_/ingress/status
+```
+
+自定义路径：
+
+```yaml
+maintenance:
+  status_path: /internal/ingress-status
 ```
 
 ## Admin 控制台

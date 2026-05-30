@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -116,13 +117,37 @@ func compileGlobalMaintenance(cfg MaintenanceConfig) (compiledGlobalMaintenance,
 }
 
 func validateGlobalMaintenance(cfg *Config) error {
-	if cfg == nil || !cfg.Maintenance.Configured() {
+	if cfg == nil {
+		return nil
+	}
+	if _, err := compileIngressStatusPath(cfg.Maintenance.StatusPath); err != nil {
+		return err
+	}
+	if !cfg.Maintenance.Configured() {
 		return nil
 	}
 	if _, err := compileGlobalMaintenance(cfg.Maintenance); err != nil {
 		return err
 	}
 	return nil
+}
+
+func compileIngressStatusPath(raw string) (string, error) {
+	p := strings.TrimSpace(raw)
+	if p == "" {
+		return ingressStatusPathDefault, nil
+	}
+	if strings.Contains(p, "..") {
+		return "", fmt.Errorf("maintenance.status_path %q must not contain ..", raw)
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	p = path.Clean(p)
+	if p == "/" || p == "." {
+		return "", fmt.Errorf("maintenance.status_path %q is invalid", raw)
+	}
+	return p, nil
 }
 
 func compileMaintenanceByRule(cfg *Config) ([]compiledRuleMaintenance, error) {

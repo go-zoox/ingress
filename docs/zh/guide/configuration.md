@@ -96,8 +96,9 @@ rules:
 | `bypass.header.name` / `value` | string | 请求头放行键值对 |
 | `response_header.name` | string | 维护标识响应头名称 | `X-Ingress-Maintenance` |
 | `response_header.value` | string | 维护标识响应头值 | `true` |
+| `status_path` | string | JSON 维护状态探测路径 | `/_/ingress/status` |
 
-**内置状态探测：** `GET /_/ingress/status` — 按请求 Host 返回 JSON `{"status":"ok"}`（200）或 `{"status":"maintenance",...}`（503）；详见 [维护模式](maintenance.md#ingress-状态探测)。不可配置。
+**内置状态探测：** `GET {status_path}` — 按请求 Host 返回 JSON；详见 [维护模式](maintenance.md#ingress-状态探测)。
 
 **路由 `rules[].backend.service.maintenance`**（仅 Host 级 **service** 后端）：
 

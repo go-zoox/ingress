@@ -35,7 +35,7 @@ func (c *core) build() error {
 
 	// middlewares
 	c.app.Use(func(ctx *zoox.Context) {
-		if ctx.Path == ingressStatusPath {
+		if ctx.Path == c.ingressStatusPath {
 			c.writeIngressStatus(ctx)
 			return
 		}

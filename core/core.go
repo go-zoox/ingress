@@ -56,6 +56,8 @@ type core struct {
 
 	globalMaintenance compiledGlobalMaintenance
 
+	ingressStatusPath string
+
 	plugins []Plugin
 
 	wafRuntimeOverride *bool

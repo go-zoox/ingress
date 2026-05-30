@@ -134,8 +134,9 @@ Evaluated after route match and WAF; returns **503** before redirect/handler/ups
 | `bypass.header.name` / `value` | string | Header bypass pair |
 | `response_header.name` | string | Maintenance indicator header name | `X-Ingress-Maintenance` |
 | `response_header.value` | string | Maintenance indicator header value | `true` |
+| `status_path` | string | JSON maintenance status probe path | `/_/ingress/status` |
 
-**Built-in status probe:** `GET /_/ingress/status` — JSON `{"status":"ok"}` (200) or `{"status":"maintenance",...}` (503) for the request Host; see [Maintenance guide](maintenance.md#ingress-status-probe). Not configurable.
+**Built-in status probe:** `GET {status_path}` — JSON `{"status":"ok"}` (200) or `{"status":"maintenance",...}` (503) for the request Host; see [Maintenance guide](maintenance.md#ingress-status-probe).
 
 **Route `rules[].backend.service.maintenance`** (host-level **service** backend only):
 

@@ -31,6 +31,10 @@ curl -sS -D - http://app.example.com/api   # 维护中时 503 + X-Ingress-Mainte
 
 <<< @/../examples/maintenance/custom-response-header.yaml
 
+## 自定义状态 API 路径
+
+<<< @/../examples/maintenance/custom-status-path.yaml
+
 ## 全局 + 路由级组合
 
 <<< @/../examples/maintenance/ingress.yaml
@@ -43,6 +47,7 @@ ingress validate -c examples/maintenance/global-bypass.yaml
 ingress validate -c examples/maintenance/route-scope-all.yaml
 ingress validate -c examples/maintenance/route-scope-listed.yaml
 ingress validate -c examples/maintenance/custom-response-header.yaml
+ingress validate -c examples/maintenance/custom-status-path.yaml
 ingress validate -c examples/maintenance/ingress.yaml
 ```
 

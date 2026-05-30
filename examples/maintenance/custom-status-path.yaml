@@ -1,0 +1,18 @@
+version: v1
+port: 8080
+
+# Custom JSON status probe path (default is /_/ingress/status).
+maintenance:
+  status_path: /internal/ingress-status
+  hosts:
+    - host: app.example.com
+  title: Planned maintenance
+
+rules:
+  - host: app.example.com
+    backend:
+      type: service
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https
