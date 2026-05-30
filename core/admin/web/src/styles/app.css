@@ -5446,12 +5446,19 @@ table.data.config-revisions code {
   background: var(--surface-2);
 }
 
+.web-terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .web-terminal-status {
   font-size: 12px;
   color: var(--text-muted);
 }
 
-.web-terminal-status--open {
+.web-terminal-status--open,
+.web-terminal-status--reconnecting {
   color: var(--accent);
 }
 

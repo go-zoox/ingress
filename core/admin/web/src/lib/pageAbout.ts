@@ -50,7 +50,7 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
   },
   '/terminal': {
     title: 'Web 终端',
-    desc: '通过 Xterm 连接 Admin 进程所在主机的交互式 Shell',
+    desc: '通过 Xterm 连接 Admin 主机 Shell；断线 60 秒内自动重连并恢复同一会话',
   },
   '/config': {
     title: '配置',

@@ -1,14 +1,52 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 
-type ConnState = 'idle' | 'connecting' | 'open' | 'closed' | 'error'
+type ConnState = 'idle' | 'connecting' | 'open' | 'closed' | 'reconnecting' | 'error'
 
-function terminalWebSocketURL() {
+const SESSION_STORAGE_KEY = 'ingress_admin_terminal_session'
+const RECONNECT_GRACE_MS = 60_000
+const RECONNECT_BASE_MS = 300
+const RECONNECT_MAX_MS = 5_000
+
+type TerminalSessionMsg = {
+  type: 'session'
+  id: string
+  reattach: boolean
+}
+
+function terminalWebSocketURL(sessionId?: string | null) {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${proto}//${window.location.host}/api/v1/terminal/ws`
+  const base = `${proto}//${window.location.host}/api/v1/terminal/ws`
+  const id = sessionId?.trim()
+  if (!id) return base
+  return `${base}?session=${encodeURIComponent(id)}`
+}
+
+function readStoredSessionId() {
+  try {
+    return sessionStorage.getItem(SESSION_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function storeSessionId(id: string) {
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, id)
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearStoredSessionId() {
+  try {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
 }
 
 export function WebTerminal() {
@@ -17,10 +55,22 @@ export function WebTerminal() {
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
-  const sessionRef = useRef(0)
+  const wsGenRef = useRef(0)
   const lastDimsRef = useRef<{ rows: number; cols: number } | null>(null)
   const fitFrameRef = useRef(0)
+  const reconnectTimerRef = useRef(0)
+  const reconnectStartedRef = useRef(0)
+  const reconnectAttemptRef = useRef(0)
+  const manualCloseRef = useRef(false)
+  const newSessionRef = useRef(false)
   const [connState, setConnState] = useState<ConnState>('idle')
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      window.clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = 0
+    }
+  }, [])
 
   const applyFit = useCallback((force = false) => {
     const fit = fitRef.current
@@ -50,47 +100,94 @@ export function WebTerminal() {
     [applyFit],
   )
 
-  const connect = useCallback(() => {
-    const term = termRef.current
-    if (!term) return
+  const connect = useCallback(
+    (opts?: { forceNew?: boolean; auto?: boolean }) => {
+      const term = termRef.current
+      if (!term) return
 
-    wsRef.current?.close()
-    const session = ++sessionRef.current
-    setConnState('connecting')
+      clearReconnectTimer()
+      manualCloseRef.current = false
 
-    const ws = new WebSocket(terminalWebSocketURL())
-    ws.binaryType = 'arraybuffer'
-    wsRef.current = ws
+      if (opts?.forceNew) {
+        newSessionRef.current = true
+        clearStoredSessionId()
+      }
 
-    ws.onopen = () => {
-      if (sessionRef.current !== session) return
-      setConnState('open')
-      lastDimsRef.current = null
-      term.reset()
-      scheduleFit(true)
-    }
+      wsRef.current?.close()
+      const gen = ++wsGenRef.current
+      setConnState(opts?.auto ? 'reconnecting' : 'connecting')
 
-    ws.onmessage = (ev) => {
-      if (sessionRef.current !== session) return
-      if (typeof ev.data === 'string') {
-        term.write(ev.data)
-      } else {
+      const sessionId = newSessionRef.current ? null : readStoredSessionId()
+      newSessionRef.current = false
+
+      const ws = new WebSocket(terminalWebSocketURL(sessionId))
+      ws.binaryType = 'arraybuffer'
+      wsRef.current = ws
+
+      ws.onopen = () => {
+        if (wsGenRef.current !== gen) return
+        setConnState('open')
+        reconnectAttemptRef.current = 0
+        reconnectStartedRef.current = 0
+        clearReconnectTimer()
+        scheduleFit(true)
+      }
+
+      ws.onmessage = (ev) => {
+        if (wsGenRef.current !== gen) return
+        if (typeof ev.data === 'string') {
+          try {
+            const msg = JSON.parse(ev.data) as TerminalSessionMsg
+            if (msg.type === 'session' && msg.id) {
+              storeSessionId(msg.id)
+              if (!msg.reattach) {
+                term.reset()
+              }
+              scheduleFit(true)
+              return
+            }
+          } catch {
+            /* fall through */
+          }
+          term.write(ev.data)
+          return
+        }
         term.write(new Uint8Array(ev.data))
       }
-    }
 
-    ws.onclose = () => {
-      if (sessionRef.current !== session) return
-      setConnState('closed')
-      term.writeln('\r\n\x1b[90m[连接已断开]\x1b[0m')
-    }
+      ws.onclose = () => {
+        if (wsGenRef.current !== gen) return
+        if (manualCloseRef.current) {
+          setConnState('closed')
+          return
+        }
 
-    ws.onerror = () => {
-      if (sessionRef.current !== session) return
-      setConnState('error')
-      term.writeln('\r\n\x1b[31m[连接失败]\x1b[0m')
-    }
-  }, [scheduleFit])
+        const started = reconnectStartedRef.current
+        if (started === 0) {
+          reconnectStartedRef.current = Date.now()
+        } else if (Date.now()-started >= RECONNECT_GRACE_MS) {
+          setConnState('closed')
+          term.writeln('\r\n\x1b[90m[会话已过期，请新建终端或重新连接]\x1b[0m')
+          return
+        }
+
+        setConnState('reconnecting')
+        const attempt = reconnectAttemptRef.current++
+        const delay = Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_MAX_MS)
+        reconnectTimerRef.current = window.setTimeout(() => {
+          connect({ auto: true })
+        }, delay)
+      }
+
+      ws.onerror = () => {
+        if (wsGenRef.current !== gen) return
+        if (ws.readyState === WebSocket.OPEN) {
+          setConnState('error')
+        }
+      }
+    },
+    [clearReconnectTimer, scheduleFit],
+  )
 
   useEffect(() => {
     const mount = containerRef.current
@@ -132,7 +229,9 @@ export function WebTerminal() {
     ro.observe(screen)
 
     return () => {
-      sessionRef.current += 1
+      manualCloseRef.current = true
+      wsGenRef.current += 1
+      clearReconnectTimer()
       cancelAnimationFrame(fitFrameRef.current)
       window.removeEventListener('resize', onResize)
       ro.disconnect()
@@ -142,27 +241,45 @@ export function WebTerminal() {
       termRef.current = null
       fitRef.current = null
     }
-  }, [applyFit, connect, scheduleFit])
+  }, [applyFit, clearReconnectTimer, connect, scheduleFit])
 
   const connLabel =
     connState === 'open'
       ? '已连接'
       : connState === 'connecting'
         ? '连接中…'
-        : connState === 'error'
-          ? '连接失败'
-          : connState === 'closed'
-            ? '已断开'
-            : '未连接'
+        : connState === 'reconnecting'
+          ? '重连中…'
+          : connState === 'error'
+            ? '连接失败'
+            : connState === 'closed'
+              ? '已断开'
+              : '未连接'
 
   return (
     <div className="web-terminal">
       <div className="web-terminal-toolbar">
         <span className={`web-terminal-status web-terminal-status--${connState}`}>{connLabel}</span>
-        <button type="button" className="btn btn-sm" onClick={connect} disabled={connState === 'connecting'}>
-          <RefreshCw size={14} aria-hidden />
-          重新连接
-        </button>
+        <div className="web-terminal-actions">
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => connect({ forceNew: true })}
+            disabled={connState === 'connecting' || connState === 'reconnecting'}
+          >
+            <Plus size={14} aria-hidden />
+            新建终端
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => connect()}
+            disabled={connState === 'connecting' || connState === 'reconnecting'}
+          >
+            <RefreshCw size={14} aria-hidden />
+            重新连接
+          </button>
+        </div>
       </div>
       <div className="web-terminal-screen" ref={screenRef}>
         <div className="web-terminal-mount" ref={containerRef} />
