@@ -35,6 +35,9 @@ func BuiltinPermissions() []permissionDef {
 		{Code: "jobs:write", Name: "管理定时任务", Group: "维护", Description: "创建、编辑与触发定时任务"},
 		{Code: "terminal:use", Name: "使用 Web 终端", Group: "维护", Description: "连接 Admin 主机 Shell"},
 
+		{Code: "scenarios:read", Name: "查看场景", Group: "维护", Description: "查看运行场景列表与当前生效场景"},
+		{Code: "scenarios:write", Name: "切换场景", Group: "维护", Description: "切换 scenarios.active 并热加载 ingress"},
+
 		{Code: "rbac:read", Name: "查看权限", Group: "权限", Description: "查看用户、角色与权限"},
 		{Code: "rbac:write", Name: "管理权限", Group: "权限", Description: "管理 RBAC 用户、角色与权限"},
 

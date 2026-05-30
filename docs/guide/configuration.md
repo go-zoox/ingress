@@ -79,6 +79,7 @@ rules:
 | `rate_limit` | object | Optional global request throttling; per-route overrides use **`rules[].rate_limit`** | off when omitted |
 | `security` | object | Profile-based security response headers (HSTS, frame, CSP, CORS); per-route **`rules[].security`** | off when omitted |
 | `maintenance` | object | Global maintenance host registry and default 503 settings ([Maintenance guide](maintenance.md)) | off when omitted |
+| `scenarios` | object | Named runtime overlays; `active: default` uses root config ([Scenarios guide](scenarios.md)) | off when omitted |
 | `logging` | object | Zoox logger config (console + optional file transports); see [Logging](#logging-logging) | console only when omitted |
 | `admin` | object | Embedded operations console ([Admin guide](admin.md)) | disabled when omitted |
 
@@ -155,6 +156,18 @@ Evaluated after route match and WAF; returns **503** before redirect/handler/ups
 | `response_header.value` | string | Maintenance indicator header value | `true` |
 
 Access logs append `maintenance_block=1` on 503 maintenance responses. Maintenance 503 responses include the configured maintenance header (default **`X-Ingress-Maintenance: true`**; upstream 503 does not).
+
+### Scenarios (`scenarios`)
+
+Optional **overlay scenes** merged at load/reload when `scenarios.active` is not **`default`**. Root `ingress.yaml` is the baseline. See [Scenarios guide](scenarios.md).
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `active` | string | Current scene id; **`default`** = no overlay | `default` when items exist |
+| `items[]` | array | Overlay scenes (`id`, `label`, `description`, `overlay`) | `[]` |
+| `items[].overlay` | object | Partial `cache`, `rate_limit`, `waf`, `maintenance`, `security`, `rules` | — |
+
+**Reserved:** do not use `id: default` in `items[]`. Runtime env **`INGRESS_SCENARIO`** overrides `active`.
 
 ### WAF (`waf` / `rules[].waf`)
 

@@ -21,6 +21,7 @@ import { TopologyPage } from './pages/TopologyPage'
 import { HealthPage } from './pages/HealthPage'
 import { WAFPage } from './pages/WAFPage'
 import { MaintenancePage } from './pages/MaintenancePage'
+import { ScenariosPage } from './pages/ScenariosPage'
 import { TerminalPage } from './pages/TerminalPage'
 import { JobsPage } from './pages/JobsPage'
 import { RbacUsersPage } from './pages/rbac/RbacUsersPage'
@@ -54,6 +55,7 @@ export default function App() {
               <Route path="cache" element={<CachePage />} />
               <Route path="waf" element={<WAFPage />} />
               <Route path="maintenance" element={<MaintenancePage />} />
+              <Route path="scenarios" element={<ScenariosPage />} />
               <Route path="terminal" element={<TerminalPage />} />
               <Route path="tls" element={<TLSPage />} />
               <Route path="config" element={<ConfigPage />} />

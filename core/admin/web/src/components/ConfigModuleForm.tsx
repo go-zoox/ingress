@@ -17,6 +17,7 @@ import { SslCertsEditor } from './config/SslCertsEditor'
 import { WafRulesEditor } from './config/WafRulesEditor'
 import { ErrorPagesFormFields } from './config/ErrorPagesFormFields'
 import { GlobalMaintenanceFormFields } from './config/GlobalMaintenanceFormFields'
+import { ScenariosEditor } from './scenarios/ScenariosEditor'
 import {
   globalMaintenanceFromDoc,
   patchGlobalMaintenance,
@@ -532,6 +533,16 @@ function LoggingModuleForm({
   )
 }
 
+function ScenariosModuleForm({
+  doc,
+  onChange,
+}: {
+  doc: Record<string, unknown>
+  onChange: (doc: Record<string, unknown>) => void
+}) {
+  return <ScenariosEditor doc={doc} onChange={onChange} />
+}
+
 function MaintenanceModuleForm({
   doc,
   onChange,
@@ -852,6 +863,16 @@ export function ConfigModuleForm({
       return <ServicesModuleForm doc={doc} onChange={onDocChange} />
     case 'fallback':
       return <FallbackModuleForm doc={doc} onChange={onDocChange} />
+    case 'jobs':
+      return (
+        <YamlFallbackForm
+          yamlText={moduleYAML}
+          onChange={onYAMLChange}
+          hint="定时任务模块；结构见 docs 与 examples/jobs。"
+        />
+      )
+    case 'scenarios':
+      return <ScenariosModuleForm doc={doc} onChange={onDocChange} />
     case 'other':
       return (
         <YamlFallbackForm

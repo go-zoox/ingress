@@ -1,0 +1,23 @@
+# 日常场景（独立文件，legacy）。
+#
+# 推荐改用单文件方案 C：examples/scenarios/ecommerce.yaml
+#
+# 验证：
+#   ingress validate -c examples/scenarios/ecommerce-daily.yaml
+
+version: v1
+port: 8080
+
+cache:
+  ttl: 60
+
+rules:
+  - host: shop.example.com
+    backend:
+      type: service
+      service:
+        name: origin-shop.internal
+        port: 8080
+      # 日常：不启用 HTTP 响应缓存，所有请求打到原站
+      cache:
+        enabled: false

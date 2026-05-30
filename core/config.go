@@ -45,6 +45,8 @@ type Config struct {
 	Maintenance MaintenanceConfig `config:"maintenance"`
 	// Jobs configures scheduled tasks (built-in ops jobs and custom platform jobs).
 	Jobs jobs.Config `config:"jobs"`
+	// Scenarios optional named overlays; scenarios.active selects the effective overlay at runtime.
+	Scenarios Scenarios `config:"scenarios"`
 	// Match func(host string, path string) (cfg *service.Service, err error)
 }
 

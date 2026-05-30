@@ -94,6 +94,15 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 - **Status probe**: `GET {maintenance.status_path}` (default `/_/ingress/status`) returns JSON ok/maintenance for the request Host; uses same `response_header` as 503. Optional **`status_response`** (`ok` / `maintenance` JSON templates with `${host}` / `${title}` / `${retry_after}` placeholders).
 - **Tests / examples**: `core/maintenance_test.go`, `core/maintenance_build_test.go`, `core/service/maintenance_hosts_test.go`; `examples/maintenance/` (`global-always-on.yaml`, `global-bypass.yaml`, `route-scope-all.yaml`, `route-scope-listed.yaml`, `ingress.yaml`). Docs: `docs/guide/maintenance.md`, `docs/zh/guide/maintenance.md`, `docs/examples/maintenance.md`.
 
+## Runtime scenarios (`scenarios`)
+
+- **Schema (方案 C)**: `scenarios.active` + `scenarios.items[]` with per-item `overlay`. Reserved **`default`** active id = root config, no overlay merge; do not put `id: default` in `items[]`.
+- **Apply path**: `FinalizeLoadedConfig` → `enrichScenariosFromYAML` (overlay maps from raw YAML) → `ValidateScenariosConfig` → `ApplyScenarios` (`core/scenario.go`, `core/scenario_yaml_load.go`, `core/load_config.go`).
+- **Overlay merge**: top-level `cache`, `rate_limit`, `waf`, `maintenance`, `security`; `rules` merged by **host** via YAML map merge.
+- **Override**: env **`INGRESS_SCENARIO`** wins over `scenarios.active`.
+- **Admin**: `GET /api/v1/scenarios`, `PUT /api/v1/scenarios/active`; console **维护 → 场景管理** (`core/admin/web/src/pages/ScenariosPage.tsx`); config module `scenarios`.
+- **Tests / examples**: `core/scenario_test.go`, `core/scenario_yaml_test.go`, `core/admin/web/src/lib/scenarios.test.ts`; `examples/scenarios/`. Docs: `docs/guide/scenarios.md`, `docs/zh/guide/scenarios.md`, `docs/examples/scenarios.md`.
+
 ## Redirect and config validation
 
 - Route redirect (`rules[].backend.redirect` and path backends): evaluated before proxy/handler in `core/build.go`. **`backend.type`** is **`service`**, **`handler`**, or **`redirect`** (`core/constants.go`). **`inferBackendTypes` / `inferRuleBackends`** (`core/backend_type.go`) run during **`prepare`** and **`ingress validate`**, inferring the type when `type` is omitted and exactly one of service/handler/redirect blocks looks configured; otherwise validation demands an explicit `backend.type`. Each typed backend permits only its matching block (`core/validate.go`). **`expandRedirectURL`** (`core/match.go`) applies `${host.N}`/`${path.N}`/`$1`-style templates in redirect URLs (aligned with service naming). Route **`redirect.with_origin_method_and_body`** mirrors global semantics (**307**/**308** vs **302**/**301**).

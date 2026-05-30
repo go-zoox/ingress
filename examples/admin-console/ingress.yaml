@@ -171,3 +171,17 @@ rules:
 maintenance:
   hosts:
     - host: api.example.com
+
+scenarios:
+  active: default
+  items:
+    - id: peak
+      label: 高峰
+      description: Admin 演示 — 延长 api.example.com 缓存 TTL
+      overlay:
+        rules:
+          - host: api.example.com
+            backend:
+              cache:
+                enabled: true
+                ttl: 900

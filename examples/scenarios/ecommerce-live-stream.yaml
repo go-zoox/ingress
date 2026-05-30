@@ -1,0 +1,71 @@
+# 直播场景：高并发 + 商品读接口缓存，减轻原站 DB 压力。
+#
+# 与日常配置 examples/scenarios/ecommerce-daily.yaml 对比：
+# - 启用 Redis 分布式缓存（多 ingress 实例共享）
+# - 商品列表 / 详情走 HTTP 响应缓存（default: bypass，只缓存白名单路径）
+# - 下单、库存、购物车等写路径不缓存
+#
+# 切换场景（运维）：
+#   ingress run -c examples/scenarios/ecommerce-live-stream.yaml
+#   # 或 SIGHUP / admin POST /api/v1/reload 指向该文件
+#
+# 验证：
+#   ingress validate -c examples/scenarios/ecommerce-live-stream.yaml
+
+version: v1
+port: 8080
+
+# 直播建议 Redis，多副本共享 httpcache 键
+cache:
+  ttl: 300
+  host: 127.0.0.1
+  port: 6379
+  prefix: "ingress:live:"
+
+rules:
+  - host: shop.example.com
+    backend:
+      type: service
+      service:
+        name: origin-shop.internal
+        port: 8080
+      cache:
+        enabled: true
+        ttl: 120
+        max_body_bytes: 2097152
+        skip_vary: true
+        default: bypass
+        paths:
+          # 商品列表（REST GET）
+          - match: /api/v1/products
+            match_type: prefix
+            action: cache
+            ttl: 60
+          # 商品详情 GET /api/v1/products/{id}
+          - match: ^/api/v1/products/[^/]+$
+            match_type: regex
+            action: cache
+            ttl: 120
+          # 若列表接口是 POST + JSON（只读查询），用 key_json 指纹
+          - match: /api/v1/product/list
+            match_type: exact
+            action: cache
+            ttl: 60
+            methods: [POST]
+            key_json: [page, page_size, category_id]
+          - match: /api/v1/product/detail
+            match_type: exact
+            action: cache
+            ttl: 120
+            methods: [POST]
+            key_json: [product_id]
+          # 写操作 / 实时库存 — 永不缓存
+          - match: /api/v1/cart
+            match_type: prefix
+            action: bypass
+          - match: /api/v1/order
+            match_type: prefix
+            action: bypass
+          - match: /api/v1/stock
+            match_type: prefix
+            action: bypass

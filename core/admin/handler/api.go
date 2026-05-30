@@ -27,6 +27,7 @@ type API struct {
 	cache    *service.Cache
 	settings *service.Settings
 	config   *service.Config
+	scenarios *service.Scenarios
 	broker   *service.SSEBroker
 	health   *service.HealthCheckService
 	system   *service.SystemMetrics
@@ -49,6 +50,7 @@ func NewAPI(cfg *config.Config, auth *adminauth.Service) *API {
 	metrics := service.NewMetrics(logs, parseIssues)
 	tlsSvc := service.NewTLS(ingress)
 	configSvc := service.NewConfig(ingress, audit)
+	scenariosSvc := service.NewScenarios(ingress, audit, configSvc)
 	overviewBuilder := service.NewOverviewBuilder(ingress, metrics, systemSvc, tlsSvc, healthSvc, audit, parseIssues, configSvc)
 	jobsSvc := jobs.New(cfg, ingress, audit, tlsSvc)
 	return &API{
@@ -61,6 +63,7 @@ func NewAPI(cfg *config.Config, auth *adminauth.Service) *API {
 		cache:            service.NewCache(ingress, logs),
 		settings:         service.NewSettings(cfg, ingress, logs),
 		config:           configSvc,
+		scenarios:        scenariosSvc,
 		broker:           broker,
 		health:           healthSvc,
 		system:           systemSvc,
@@ -103,6 +106,8 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/config/revisions/:id", a.ConfigRevision)
 	g.Get("/audit/logs", a.AuditLogs)
 	g.Post("/reload", a.Reload)
+	g.Get("/scenarios", a.Scenarios)
+	g.Put("/scenarios/active", a.SetScenarioActive)
 	g.Get("/logs", a.Logs)
 	g.Get("/logs/hosts", a.LogHosts)
 	g.Get("/metrics/overview", a.OverviewMetrics)

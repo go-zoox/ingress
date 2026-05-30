@@ -77,6 +77,7 @@ rules:
 | `waf` | object | WAF 基线；路由级补丁为 **`rules[].waf`** 映射（参见 [WAF](waf.md)） | 省略或 `enabled: false` 时不启用 |
 | `security` | object | 安全响应头预设（HSTS / frame / CSP / CORS）；路由级 **`rules[].security`** | 省略或 `profile: off` 时不启用 |
 | `maintenance` | object | 全局维护域名列表与默认 503 设置（参见 [维护模式](maintenance.md)） | 省略时不启用 |
+| `scenarios` | object | 命名运行场景 overlay；`active: default` 为根配置（参见 [运行场景](scenarios.md)） | 省略时不启用 |
 | `logging` | object | Zoox 日志配置（控制台 + 可选文件 transport）；见 [Logging](#logging-日志) | 省略时仅控制台 |
 | `admin` | object | 内嵌运维控制台（参见 [Admin 指南](admin.md)） | 省略时不启用 |
 
@@ -117,6 +118,18 @@ rules:
 | `response_header.value` | string | 维护标识响应头值 | `true` |
 
 维护 503 的访问日志附加 `maintenance_block=1`；维护 503 附带已配置的维护响应头（默认 **`X-Ingress-Maintenance: true`**；上游 503 不会）。
+
+### 运行场景（`scenarios`）
+
+可选 **overlay 场景**，在 load/reload 时合并到基线；`scenarios.active` 为 **`default`** 时不合并。根 `ingress.yaml` 为基线。详见 [运行场景](scenarios.md)。
+
+| 字段 | 类型 | 说明 | 默认 |
+|------|------|------|------|
+| `active` | string | 当前场景 id；**`default`** = 不应用 overlay | 有 items 时可为 `default` |
+| `items[]` | array | overlay 场景（`id`、`label`、`description`、`overlay`） | `[]` |
+| `items[].overlay` | object | 部分 `cache`、`rate_limit`、`waf`、`maintenance`、`security`、`rules` | — |
+
+**保留：** `items[]` 中勿使用 `id: default`。运行时环境变量 **`INGRESS_SCENARIO`** 可覆盖 `active`。
 
 ### WAF（`waf` / `rules[].waf`）
 

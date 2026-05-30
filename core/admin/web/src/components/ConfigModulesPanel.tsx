@@ -14,7 +14,8 @@ export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
   onContentChange: (next: string) => void
   onError: (message: string) => void
   onSwitchToYaml?: () => void
-}>(function ConfigModulesPanel({ content, onContentChange, onError, onSwitchToYaml }, ref) {
+  initialModuleId?: string
+}>(function ConfigModulesPanel({ content, onContentChange, onError, onSwitchToYaml, initialModuleId }, ref) {
   const [modules, setModules] = useState<ConfigModule[]>([])
   const [activeId, setActiveId] = useState('general')
   const [moduleYAML, setModuleYAML] = useState('')
@@ -52,10 +53,14 @@ export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
       .then((rows) => {
         const list = Array.isArray(rows) ? rows : []
         // Hide empty catch-all module; unknown keys still appear when non-empty.
-        setModules(list.filter((m) => m.id !== 'other' || m.yaml.trim() !== ''))
+        const filtered = list.filter((m) => m.id !== 'other' || m.yaml.trim() !== '')
+        setModules(filtered)
+        if (initialModuleId && filtered.some((m) => m.id === initialModuleId)) {
+          setActiveId(initialModuleId)
+        }
       })
       .catch((e: Error) => onError(e.message))
-  }, [content, onError])
+  }, [content, onError, initialModuleId])
 
   useEffect(() => {
     const mod = modules.find((m) => m.id === activeId)

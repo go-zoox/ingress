@@ -8,7 +8,6 @@ import (
 	"github.com/go-zoox/core-utils/fmt"
 	"github.com/go-zoox/fs"
 	"github.com/go-zoox/ingress/core"
-	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/logger"
 	"gopkg.in/yaml.v3"
 )
@@ -62,14 +61,8 @@ func validateConfigFile(configFilePath string) error {
 	}); err != nil {
 		return fmt.Errorf("invalid config format in file(%s): %s", configFilePath, err)
 	}
-	if err := core.ResolveConfigPaths(&cfg, configFilePath); err != nil {
-		return fmt.Errorf("resolve config paths in file(%s): %w", configFilePath, err)
-	}
-	if err := cfg.Logging.Normalize(); err != nil {
-		return fmt.Errorf("logging in file(%s): %w", configFilePath, err)
-	}
-	if err := waf.ApplyRulePatchesFromFile(configFilePath, cfg.Rules); err != nil {
-		return fmt.Errorf("rules[].waf in file(%s): %w", configFilePath, err)
+	if err := core.FinalizeLoadedConfig(&cfg, configFilePath, content); err != nil {
+		return fmt.Errorf("prepare config in file(%s): %w", configFilePath, err)
 	}
 
 	if err := core.ValidateConfig(&cfg); err != nil {

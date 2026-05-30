@@ -8,6 +8,7 @@ import {
   HardDrive,
   HeartPulse,
   KeyRound,
+  Layers,
   LayoutDashboard,
   Lock,
   ScrollText,
@@ -39,6 +40,7 @@ const navIconMap: Record<string, LucideIcon> = {
   users: Users,
   'user-cog': UserCog,
   'key-round': KeyRound,
+  layers: Layers,
   'file-code-2': FileCode2,
   settings: Settings,
 }

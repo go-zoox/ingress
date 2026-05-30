@@ -39,6 +39,7 @@ func BuiltinMenus() []menuItemDef {
 		{Key: "healths", To: "/healths", Label: "健康检查", Icon: "heart-pulse", Group: "安全", BadgeKey: "healths"},
 
 		{Key: "maintenance", To: "/maintenance", Label: "维护模式", Icon: "construction", Group: "维护"},
+		{Key: "scenarios", To: "/scenarios", Label: "场景管理", Icon: "layers", Group: "维护"},
 		{Key: "jobs", To: "/jobs", Label: "定时任务", Icon: "clock", Group: "维护"},
 		{Key: "terminal", To: "/terminal", Label: "Web 终端", Icon: "terminal", Group: "维护"},
 

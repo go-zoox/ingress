@@ -152,6 +152,12 @@ export const api = {
       body: JSON.stringify({ content }),
     }),
   reload: () => request<{ ok: boolean }>('/reload', { method: 'POST' }),
+  scenarios: () => request<ScenariosResult>('/scenarios'),
+  setScenarioActive: (id: string) =>
+    request<ScenariosResult>('/scenarios/active', {
+      method: 'PUT',
+      body: JSON.stringify({ id }),
+    }),
   overviewMetrics: (window = '15m') =>
     request<OverviewMetrics>(`/metrics/overview?window=${encodeURIComponent(window)}`),
   overviewSnapshot: (window = '15m') =>
@@ -1180,6 +1186,18 @@ export type NavMenuGroup = {
 export type NavMenuResult = {
   username?: string
   groups: NavMenuGroup[]
+}
+
+export type ScenarioSummary = {
+  id: string
+  label: string
+  description?: string
+  active: boolean
+}
+
+export type ScenariosResult = {
+  active: string
+  scenarios: ScenarioSummary[]
 }
 
 export type AuthUser = {

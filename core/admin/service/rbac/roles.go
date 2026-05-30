@@ -59,9 +59,12 @@ func operatorPermissionCodes() []string {
 		"jobs:read",
 		"jobs:write",
 		"terminal:use",
+		"scenarios:read",
+		"scenarios:write",
 		menuPerm("maintenance"),
 		menuPerm("jobs"),
 		menuPerm("terminal"),
+		menuPerm("scenarios"),
 	)
 	return out
 }
@@ -100,6 +103,8 @@ func builtinRoleDefs() []builtinRoleDef {
 				"services:write",
 				"cache:read",
 				"cache:write",
+				"scenarios:read",
+				"scenarios:write",
 				"config:read",
 				"config:write",
 				"settings:read",
@@ -107,6 +112,7 @@ func builtinRoleDefs() []builtinRoleDef {
 				menuPerm("routes"),
 				menuPerm("services"),
 				menuPerm("cache"),
+				menuPerm("scenarios"),
 				menuPerm("config"),
 				menuPerm("settings"),
 			},

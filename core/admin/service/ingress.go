@@ -10,9 +10,8 @@ import (
 
 	zcfg "github.com/go-zoox/config"
 	"github.com/go-zoox/fs"
-	admincfg "github.com/go-zoox/ingress/core/admin/config"
+	admincfg 	"github.com/go-zoox/ingress/core/admin/config"
 	ingcore "github.com/go-zoox/ingress/core"
-	"github.com/go-zoox/ingress/core/waf"
 	"gopkg.in/yaml.v3"
 )
 
@@ -68,10 +67,7 @@ func (s *Ingress) LoadConfigFromYAML(content string) (*ingcore.Config, error) {
 	if err := zcfg.Load(&cfg, &zcfg.LoadOptions{FilePath: tmpPath}); err != nil {
 		return nil, err
 	}
-	if err := waf.ApplyRulePatchesFromYAML([]byte(content), cfg.Rules); err != nil {
-		return nil, err
-	}
-	if err := ingcore.ResolveConfigPaths(&cfg, s.ConfigPath()); err != nil {
+	if err := ingcore.FinalizeLoadedConfig(&cfg, s.ConfigPath(), []byte(content)); err != nil {
 		return nil, err
 	}
 	return &cfg, nil
@@ -86,10 +82,7 @@ func (s *Ingress) LoadConfig() (*ingcore.Config, error) {
 	if err := zcfg.Load(&cfg, &zcfg.LoadOptions{FilePath: path}); err != nil {
 		return nil, err
 	}
-	if err := waf.ApplyRulePatchesFromFile(path, cfg.Rules); err != nil {
-		return nil, err
-	}
-	if err := ingcore.ResolveConfigPaths(&cfg, path); err != nil {
+	if err := ingcore.FinalizeLoadedConfig(&cfg, path, nil); err != nil {
 		return nil, err
 	}
 	return &cfg, nil
@@ -118,7 +111,7 @@ func (s *Ingress) ValidateYAML(content string) error {
 	if err := zcfg.Load(&cfg, &zcfg.LoadOptions{FilePath: tmpPath}); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
-	if err := waf.ApplyRulePatchesFromYAML([]byte(content), cfg.Rules); err != nil {
+	if err := ingcore.FinalizeLoadedConfig(&cfg, s.ConfigPath(), []byte(content)); err != nil {
 		return err
 	}
 	return ingcore.ValidateConfig(&cfg)

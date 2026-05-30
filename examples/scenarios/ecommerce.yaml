@@ -1,0 +1,56 @@
+# E-commerce daily vs live streaming in one file (方案 C).
+#
+# Baseline (scenarios.active: default) = daily traffic, no overlay.
+# Switch to live for high-concurrency product read caching.
+#
+#   ingress validate -c examples/scenarios/ecommerce.yaml
+#   INGRESS_SCENARIO=live ingress run -c examples/scenarios/ecommerce.yaml
+
+version: v1
+port: 8080
+
+cache:
+  ttl: 300
+
+rules:
+  - host: shop.example.com
+    backend:
+      type: service
+      service:
+        name: origin-shop.internal
+        port: 8080
+      cache:
+        enabled: false
+
+scenarios:
+  active: default
+  items:
+    - id: live
+      label: 直播
+      description: Redis + 商品列表/详情缓存；下单/库存不缓存
+      overlay:
+        cache:
+          host: 127.0.0.1
+          port: 6379
+          prefix: "ingress:live:"
+        rules:
+          - host: shop.example.com
+            backend:
+              cache:
+                enabled: true
+                default: bypass
+                paths:
+                  - match: /api/v1/products
+                    match_type: prefix
+                    action: cache
+                    ttl: 60
+                  - match: /api/v1/products/
+                    match_type: prefix
+                    action: cache
+                    ttl: 120
+                  - match: /api/v1/cart
+                    match_type: prefix
+                    action: bypass
+                  - match: /api/v1/order
+                    match_type: prefix
+                    action: bypass

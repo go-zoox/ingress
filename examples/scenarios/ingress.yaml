@@ -1,0 +1,62 @@
+# Runnable scenarios demo (方案 C).
+#
+#   ingress validate -c examples/scenarios/ingress.yaml
+#   ingress run -c examples/scenarios/ingress.yaml
+#
+# Switch active scene:
+#   export INGRESS_SCENARIO=live   # env override (runtime)
+#   # or edit scenarios.active + reload / Admin Console
+
+version: v1
+port: 8080
+
+rules:
+  - host: shop.example.com
+    backend:
+      type: service
+      service:
+        name: origin-shop.internal
+        port: 8080
+
+scenarios:
+  active: default
+  items:
+    - id: live
+      label: 直播
+      description: 商品读接口缓存，减轻原站 DB 压力
+      overlay:
+        cache:
+          host: 127.0.0.1
+          port: 6379
+          prefix: "ingress:live:"
+        rules:
+          - host: shop.example.com
+            backend:
+              cache:
+                enabled: true
+                default: bypass
+                paths:
+                  - match: /api/v1/products
+                    match_type: prefix
+                    action: cache
+                    ttl: 60
+                  - match: /api/v1/order
+                    match_type: prefix
+                    action: bypass
+
+    - id: drill
+      label: 演练
+      description: 短 TTL 压测
+      overlay:
+        rules:
+          - host: shop.example.com
+            backend:
+              cache:
+                enabled: true
+                ttl: 10
+                default: bypass
+                paths:
+                  - match: /api/v1/products
+                    match_type: prefix
+                    action: cache
+                    ttl: 5

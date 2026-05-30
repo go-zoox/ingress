@@ -48,6 +48,10 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
     title: '维护',
     desc: '全局 maintenance.hosts 登记与默认 503；规则级 scope 在路由编辑器配置',
   },
+  '/scenarios': {
+    title: '场景管理',
+    desc: '日常 / 直播等运行场景；切换 scenarios.active 合并 overlay 并重载 ingress',
+  },
   '/terminal': {
     title: 'Web 终端',
     desc: '通过 Xterm 连接 Admin 主机 Shell；断线 60 秒内可自动重连恢复同一会话',

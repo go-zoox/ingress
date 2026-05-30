@@ -1,0 +1,110 @@
+# 方案 A：scenario + scenarios 映射 + overlay（推荐）
+#
+# - 根配置 = 共享基线（完整 rules、https、admin 等）
+# - scenarios.<id>.overlay = 仅该场景相对基线的差异
+# - scenario = 当前生效场景 id
+#
+# Admin 读取：
+#   active  ← scenario
+#   list    ← scenarios 各 id + label + description
+
+version: v1
+port: 8080
+
+admin:
+  enabled: true
+  port: 9080
+
+# 共享：HTTPS、WAF、完整路由骨架（场景只 patch 差异）
+https:
+  port: 443
+
+rules:
+  - host: shop.example.com
+    backend:
+      type: service
+      service:
+        name: origin-shop.internal
+        port: 8080
+      cache:
+        enabled: false
+
+  - host: api.example.com
+    backend:
+      service:
+        name: origin-api.internal
+        port: 8080
+
+# ---------- 场景 ----------
+scenario: daily
+
+scenarios:
+  daily:
+    label: 日常
+    description: 直连原站，商品读接口不缓存，便于联调与实时数据
+    overlay:
+      cache:
+        ttl: 60
+      rules:
+        - host: shop.example.com
+          backend:
+            cache:
+              enabled: false
+
+  live:
+    label: 直播
+    description: 高并发；商品列表/详情 HTTP 缓存，购物车/下单/库存 bypass
+    overlay:
+      cache:
+        ttl: 300
+        host: redis.internal
+        port: 6379
+        prefix: "ingress:live:"
+      rules:
+        - host: shop.example.com
+          backend:
+            cache:
+              enabled: true
+              ttl: 120
+              max_body_bytes: 2097152
+              skip_vary: true
+              default: bypass
+              paths:
+                - match: /api/v1/products
+                  match_type: prefix
+                  action: cache
+                  ttl: 60
+                - match: ^/api/v1/products/[^/]+$
+                  match_type: regex
+                  action: cache
+                  ttl: 120
+                - match: /api/v1/cart
+                  match_type: prefix
+                  action: bypass
+                - match: /api/v1/order
+                  match_type: prefix
+                  action: bypass
+                - match: /api/v1/stock
+                  match_type: prefix
+                  action: bypass
+
+  drill:
+    label: 演练
+    description: 压测/演练：更短 TTL，限流放宽（示例）
+    overlay:
+      rate_limit:
+        enabled: true
+        requests: 10000
+        period: 60
+      rules:
+        - host: shop.example.com
+          backend:
+            cache:
+              enabled: true
+              ttl: 15
+              default: bypass
+              paths:
+                - match: /api/v1/products
+                  match_type: prefix
+                  action: cache
+                  ttl: 10

@@ -1,0 +1,58 @@
+# 方案 B：scenario + scenarios 映射，场景块内直接写可覆盖顶层键（无 overlay）
+#
+# 元数据（label / description）与配置键同级；实现时需保留字：label, description, icon, order
+
+version: v1
+port: 8080
+
+rules:
+  - host: shop.example.com
+    backend:
+      type: service
+      service:
+        name: origin-shop.internal
+        port: 8080
+      cache:
+        enabled: false
+
+scenario: daily
+
+scenarios:
+  daily:
+    label: 日常
+    description: 直连原站，不缓存商品接口
+    cache:
+      ttl: 60
+    rules:
+      - host: shop.example.com
+        backend:
+          cache:
+            enabled: false
+
+  live:
+    label: 直播
+    description: Redis + 商品读路径缓存
+    cache:
+      ttl: 300
+      host: redis.internal
+      port: 6379
+      prefix: "ingress:live:"
+    rules:
+      - host: shop.example.com
+        backend:
+          cache:
+            enabled: true
+            default: bypass
+            skip_vary: true
+            paths:
+              - match: /api/v1/products
+                match_type: prefix
+                action: cache
+                ttl: 60
+              - match: ^/api/v1/products/[^/]+$
+                match_type: regex
+                action: cache
+                ttl: 120
+              - match: /api/v1/order
+                match_type: prefix
+                action: bypass

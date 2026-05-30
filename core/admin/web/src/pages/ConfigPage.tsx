@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { ConfigModulesPanel, type ConfigModulesPanelHandle } from '../components/ConfigModulesPanel'
 import { ConfigVersionsPanel } from '../components/ConfigVersionsPanel'
@@ -16,6 +17,8 @@ import { useUndo } from '../hooks/useUndo'
 type ConfigView = 'modules' | 'yaml' | 'versions'
 
 export function ConfigPage() {
+  const [searchParams] = useSearchParams()
+  const moduleParam = searchParams.get('module') ?? undefined
   const [content, setContent] = useState('')
   const [saved, setSaved] = useState('')
   const [path, setPath] = useState('')
@@ -313,6 +316,7 @@ export function ConfigPage() {
             <ConfigModulesPanel
               ref={modulesRef}
               content={content}
+              initialModuleId={moduleParam}
               onContentChange={(next) => {
                 setContent(next)
                 undoState.push(next)

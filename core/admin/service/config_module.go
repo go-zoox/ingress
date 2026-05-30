@@ -41,6 +41,7 @@ var configModuleDefs = []configModuleDef{
 	{ID: "healthcheck", Label: "健康检查", Keys: []string{"healthcheck"}},
 	{ID: "https", Label: "HTTPS", Keys: []string{"https"}},
 	{ID: "fallback", Label: "Fallback", Keys: []string{"fallback"}},
+	{ID: "scenarios", Label: "场景", Keys: []string{"scenarios"}},
 	{ID: "jobs", Label: "定时任务", Keys: []string{"jobs"}},
 }
 

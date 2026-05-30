@@ -11,7 +11,6 @@ import (
 	"github.com/go-zoox/fs"
 	"github.com/go-zoox/ingress"
 	"github.com/go-zoox/ingress/core"
-	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/logger"
 )
 
@@ -62,11 +61,8 @@ func Run() *cli.Command {
 				}); err != nil {
 					return fmt.Errorf("failed to read config file: %s", err)
 				}
-				if err := core.ResolveConfigPaths(&cfg, configFilePath); err != nil {
-					return fmt.Errorf("failed to resolve config paths: %w", err)
-				}
-				if err := waf.ApplyRulePatchesFromFile(configFilePath, cfg.Rules); err != nil {
-					return fmt.Errorf("failed to apply rules[].waf patches: %w", err)
+				if err := core.FinalizeLoadedConfig(&cfg, configFilePath, nil); err != nil {
+					return fmt.Errorf("failed to prepare config: %w", err)
 				}
 			}
 
@@ -110,12 +106,8 @@ func Run() *cli.Command {
 							logger.Errorf("failed to read config file: %s", err)
 							return
 						}
-						if err := core.ResolveConfigPaths(&cfg, configFilePath); err != nil {
-							logger.Errorf("failed to resolve config paths: %s", err)
-							return
-						}
-						if err := waf.ApplyRulePatchesFromFile(configFilePath, cfg.Rules); err != nil {
-							logger.Errorf("failed to apply rules[].waf patches: %s", err)
+						if err := core.FinalizeLoadedConfig(&cfg, configFilePath, nil); err != nil {
+							logger.Errorf("failed to prepare config: %s", err)
 							return
 						}
 

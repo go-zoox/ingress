@@ -1,0 +1,58 @@
+# 方案 C：scenarios.active + scenarios.items[] 显式列表
+#
+# active: default = 根配置（不应用 overlay）；其它 id 为 overlay 场景
+# Admin 下拉顺序 = 默认 + items 数组顺序
+
+version: v1
+port: 8080
+
+rules:
+  - host: shop.example.com
+    backend:
+      type: service
+      service:
+        name: origin-shop.internal
+        port: 8080
+
+scenarios:
+  active: default
+  items:
+    - id: live
+      label: 直播
+      description: 商品读接口缓存
+      overlay:
+        cache:
+          host: redis.internal
+          port: 6379
+          prefix: "ingress:live:"
+        rules:
+          - host: shop.example.com
+            backend:
+              cache:
+                enabled: true
+                default: bypass
+                paths:
+                  - match: /api/v1/products
+                    match_type: prefix
+                    action: cache
+                    ttl: 60
+                  - match: /api/v1/order
+                    match_type: prefix
+                    action: bypass
+
+    - id: drill
+      label: 演练
+      description: 短 TTL 压测
+      overlay:
+        rules:
+          - host: shop.example.com
+            backend:
+              cache:
+                enabled: true
+                ttl: 10
+                default: bypass
+                paths:
+                  - match: /api/v1/products
+                    match_type: prefix
+                    action: cache
+                    ttl: 5
