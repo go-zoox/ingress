@@ -24,6 +24,7 @@ type RouteRow struct {
 	Cache       bool   `json:"cache"`
 	Auth        string `json:"auth"`
 	HealthCheck string `json:"health_check"`
+	Maintenance string `json:"maintenance"`
 }
 
 // MatchPreview is the result of a dry-run host/path match.
@@ -40,6 +41,7 @@ type MatchPreview struct {
 	Auth        string `json:"auth"`
 	HealthCheck string `json:"health_check"`
 	Fallback    bool   `json:"fallback"`
+	Maintenance string `json:"maintenance"`
 	Message     string `json:"message,omitempty"`
 }
 
@@ -102,6 +104,7 @@ func routeRowFromBackend(id, ruleIndex, pathIndex int, r *rule.Rule, hostType, p
 		Cache:       cache,
 		Auth:        authLabelFromBackend(b),
 		HealthCheck: healthCheckLabelFromBackend(b),
+		Maintenance: maintenanceLabelFromRule(r),
 	}
 }
 
@@ -374,6 +377,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 		WAF:         "inherit",
 		Auth:        authLabelFromService(svc),
 		HealthCheck: healthCheckLabelFromService(svc),
+		Maintenance: maintenanceLabelFromRule(t),
 	}, nil
 }
 

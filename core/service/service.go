@@ -19,6 +19,8 @@ type Service struct {
 	Auth Auth `config:"auth"`
 	//
 	HealthCheck HealthCheck `config:"health_check"`
+	//
+	Maintenance Maintenance `config:"maintenance"`
 }
 
 type Request struct {

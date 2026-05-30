@@ -7,6 +7,7 @@ import { EntityFormLayout, EntityFormUnavailable, type EntityFormSection } from 
 import { HealthCheckFormFields } from './HealthCheckFormFields'
 import { RateLimitFormFields } from './RateLimitFormFields'
 import { RouteSecurityFormFields } from './RouteSecurityFormFields'
+import { MaintenanceFormFields } from './MaintenanceFormFields'
 import { ServiceRequestFormFields } from './ServiceRequestFormFields'
 import type { BackendForm, PathForm, RuleForm } from '../../lib/configEntities'
 import { securityLayerBadge, serviceRequestConfigured } from '../../lib/configEntities'
@@ -17,6 +18,7 @@ export type RuleEntitySectionId =
   | 'paths'
   | 'health'
   | 'auth'
+  | 'maintenance'
   | 'upstream'
   | 'cache'
   | 'security'
@@ -43,6 +45,10 @@ const SECTION_COPY: Record<RuleEntitySectionId, { label: string; description: st
     label: '认证授权',
     description: '上游 service 访问认证（仅 service backend）。',
   },
+  maintenance: {
+    label: '维护模式',
+    description: 'Host 级上游维护；开启后整站返回 503 并跳过 auth。',
+  },
   upstream: {
     label: '上游转发',
     description: 'request / response 改写（Host、路径、头、超时等；仅 service backend）。',
@@ -67,8 +73,8 @@ function serviceOnly(form: BackendForm): boolean {
 
 function ruleSections(form: BackendForm & { paths?: PathForm[] }, includePaths: boolean): EntityFormSection[] {
   const ids: RuleEntitySectionId[] = includePaths
-    ? ['basic', 'backend', 'paths', 'health', 'auth', 'upstream', 'cache', 'security', 'rate_limit']
-    : ['basic', 'backend', 'health', 'auth', 'upstream', 'cache', 'security']
+    ? ['basic', 'backend', 'paths', 'health', 'auth', 'maintenance', 'upstream', 'cache', 'security', 'rate_limit']
+    : ['basic', 'backend', 'health', 'auth', 'maintenance', 'upstream', 'cache', 'security']
 
   return ids.map((id) => {
     const copy = SECTION_COPY[id]
@@ -83,6 +89,9 @@ function ruleSections(form: BackendForm & { paths?: PathForm[] }, includePaths: 
     }
     if (id === 'cache' && form.cache_enabled) section.badge = '开'
     if (id === 'auth' && form.auth_type) section.badge = form.auth_type
+    if (id === 'maintenance' && form.maintenance_enabled) {
+      section.badge = form.maintenance_scope === 'listed' ? '部分' : '开'
+    }
     if (id === 'health' && form.health_check_enable) section.badge = '开'
     if (id === 'upstream' && serviceRequestConfigured(form)) section.badge = '已配'
     if (id === 'security' && 'security_override' in form) {
@@ -94,7 +103,7 @@ function ruleSections(form: BackendForm & { paths?: PathForm[] }, includePaths: 
         section.badge = '开'
       }
     }
-    if ((id === 'health' || id === 'auth' || id === 'upstream') && !serviceOnly(form)) {
+    if ((id === 'health' || id === 'auth' || id === 'upstream' || id === 'maintenance') && !serviceOnly(form)) {
       section.disabled = true
     }
     return section
@@ -186,6 +195,28 @@ function SharedBackendSections<T extends BackendForm>({
       return (
         <FormGrid columns={1}>
           <AuthFormFields form={form} onChange={onChange} idPrefix={idPrefix} embedded />
+        </FormGrid>
+      )
+    case 'maintenance':
+      if (variant !== 'rule') {
+        return (
+          <EntityFormUnavailable
+            title="维护模式仅适用于 Host 级 service backend。"
+            detail="Path 级 backend 不支持 service.maintenance。"
+          />
+        )
+      }
+      if (!serviceOnly(form)) {
+        return (
+          <EntityFormUnavailable
+            title="维护模式仅适用于 service backend。"
+            detail="handler / redirect backend 不支持 service.maintenance。"
+          />
+        )
+      }
+      return (
+        <FormGrid columns={1}>
+          <MaintenanceFormFields form={form} onChange={onChange} idPrefix={idPrefix} embedded />
         </FormGrid>
       )
     case 'upstream':

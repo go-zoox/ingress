@@ -9,6 +9,7 @@ import {
   Shield,
   Lock,
   HeartPulse,
+  Construction,
   FileCode2,
   Settings,
 } from 'lucide-react'
@@ -52,6 +53,10 @@ export const navGroups: NavGroup[] = [
       { to: '/tls', label: 'TLS', icon: Lock, badgeKey: 'tls' },
       { to: '/healths', label: '健康检查', icon: HeartPulse, badgeKey: 'healths' },
     ],
+  },
+  {
+    label: '维护',
+    items: [{ to: '/maintenance', label: '维护模式', icon: Construction }],
   },
   {
     label: '系统',

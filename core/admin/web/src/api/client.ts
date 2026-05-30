@@ -229,6 +229,9 @@ export type RouteRow = {
   target: string
   waf: string
   cache: boolean
+  auth?: string
+  health_check?: string
+  maintenance?: string
 }
 
 export type MatchPreview = {

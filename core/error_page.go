@@ -30,14 +30,17 @@ func matchErrorReason(err error) string {
 // writeIngressErrorPage renders an HTML error response. If exposeDetails is false, the body
 // contains only a generic message (no host/path/method, no error strings, no product hints).
 func writeIngressErrorPage(ctx *zoox.Context, status int, title, subtitle string, exposeDetails bool, hostname, path, method, reason string) {
-	ctx.HTML(status, ingressErrorPageHTML(status, title, subtitle, exposeDetails, hostname, path, method, reason))
+	ctx.HTML(status, ingressErrorPageHTML(status, title, subtitle, exposeDetails, hostname, path, method, reason, ""))
 }
 
-func ingressErrorPageHTML(status int, title, subtitle string, exposeDetails bool, hostname, path, method, reason string) string {
+func ingressErrorPageHTML(status int, title, subtitle string, exposeDetails bool, hostname, path, method, reason, categoryTag string) string {
 	code := strconv.Itoa(status)
 	title = html.EscapeString(title)
 	subtitle = html.EscapeString(subtitle)
-	tag := errorPageCategoryTag(status)
+	tag := strings.TrimSpace(categoryTag)
+	if tag == "" {
+		tag = errorPageCategoryTag(status)
+	}
 
 	reasonBlock := ""
 	dlBlock := ""

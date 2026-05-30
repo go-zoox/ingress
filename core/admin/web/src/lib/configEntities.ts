@@ -1,4 +1,9 @@
 import { arr, obj, str, num, bool } from './ingressModuleForms'
+import {
+  maintenanceHostEntriesFromYAML,
+  maintenanceHostEntriesToYAML,
+  type MaintenanceHostFormEntry,
+} from './maintenance'
 
 export type SSLForm = {
   domain: string
@@ -168,6 +173,17 @@ export type BackendForm = {
   health_check_path: string
   health_check_status: string
   health_check_ok: boolean
+  // maintenance (host-level service only)
+  maintenance_enabled: boolean
+  maintenance_scope: 'all' | 'listed' | ''
+  maintenance_host_entries: MaintenanceHostFormEntry[]
+  maintenance_retry_after: number
+  maintenance_title: string
+  maintenance_subtitle: string
+  maintenance_bypass_paths: string
+  maintenance_bypass_allow_ips: string
+  maintenance_bypass_header_name: string
+  maintenance_bypass_header_value: string
   // service request / response
   service_request_host_rewrite: ServiceRequestHostRewrite
   service_request_path_rewrites: string[]
@@ -567,6 +583,33 @@ function healthCheckToForm(service: Record<string, unknown>): Pick<BackendForm,
   }
 }
 
+function maintenanceToForm(service: Record<string, unknown>): Pick<BackendForm,
+  'maintenance_enabled' | 'maintenance_scope' | 'maintenance_host_entries' |
+  'maintenance_retry_after' | 'maintenance_title' | 'maintenance_subtitle' |
+  'maintenance_bypass_paths' | 'maintenance_bypass_allow_ips' |
+  'maintenance_bypass_header_name' | 'maintenance_bypass_header_value'
+> {
+  const m = obj(service.maintenance)
+  const bypass = obj(m.bypass)
+  const header = obj(bypass.header)
+  const paths = arr<string>(bypass.paths)
+  const allowIPs = arr<string>(bypass.allow_ips)
+  const scopeRaw = str(m.scope, 'all').toLowerCase()
+  const scope = scopeRaw === 'listed' ? 'listed' : 'all'
+  return {
+    maintenance_enabled: bool(m.enabled),
+    maintenance_scope: scope,
+    maintenance_host_entries: maintenanceHostEntriesFromYAML(m.hosts),
+    maintenance_retry_after: num(m.retry_after, 0),
+    maintenance_title: str(m.title),
+    maintenance_subtitle: str(m.subtitle),
+    maintenance_bypass_paths: paths.join(', '),
+    maintenance_bypass_allow_ips: allowIPs.join(', '),
+    maintenance_bypass_header_name: str(header.name),
+    maintenance_bypass_header_value: str(header.value),
+  }
+}
+
 export function backendToForm(backend: Record<string, unknown>): BackendForm {
   const backendType = inferBackendType(backend)
   const service = obj(backend.service)
@@ -584,6 +627,7 @@ export function backendToForm(backend: Record<string, unknown>): BackendForm {
     ...cacheToForm(backend),
     ...authToForm(service),
     ...healthCheckToForm(service),
+    ...maintenanceToForm(service),
     ...requestToForm(service),
   }
 }
@@ -648,6 +692,16 @@ export function emptyBackendForm(): BackendForm {
     health_check_path: '',
     health_check_status: '',
     health_check_ok: false,
+    maintenance_enabled: false,
+    maintenance_scope: 'all',
+    maintenance_host_entries: [],
+    maintenance_retry_after: 0,
+    maintenance_title: '',
+    maintenance_subtitle: '',
+    maintenance_bypass_paths: '',
+    maintenance_bypass_allow_ips: '',
+    maintenance_bypass_header_name: '',
+    maintenance_bypass_header_value: '',
     service_request_host_rewrite: 'default',
     service_request_path_rewrites: [],
     service_request_headers: [{ key: '', value: '' }],
@@ -967,6 +1021,46 @@ function buildHealthCheck(form: BackendForm): Record<string, unknown> | undefine
   return hc
 }
 
+function buildMaintenance(form: BackendForm): Record<string, unknown> | undefined {
+  if (!form.maintenance_enabled &&
+      form.maintenance_retry_after <= 0 &&
+      !form.maintenance_title.trim() &&
+      !form.maintenance_subtitle.trim() &&
+      !form.maintenance_bypass_paths.trim() &&
+      !form.maintenance_bypass_allow_ips.trim() &&
+      !form.maintenance_bypass_header_name.trim() &&
+      !form.maintenance_bypass_header_value.trim() &&
+      !(form.maintenance_scope === 'listed' && form.maintenance_host_entries.length > 0)) {
+    return undefined
+  }
+
+  const block: Record<string, unknown> = {}
+  if (form.maintenance_enabled) block.enabled = true
+  const scope = form.maintenance_scope === 'listed' ? 'listed' : 'all'
+  if (form.maintenance_enabled && scope === 'listed') {
+    block.scope = 'listed'
+    const hosts = maintenanceHostEntriesToYAML(form.maintenance_host_entries)
+    if (hosts.length) block.hosts = hosts
+  }
+  if (form.maintenance_retry_after > 0) block.retry_after = form.maintenance_retry_after
+  if (form.maintenance_title.trim()) block.title = form.maintenance_title.trim()
+  if (form.maintenance_subtitle.trim()) block.subtitle = form.maintenance_subtitle.trim()
+
+  const bypass: Record<string, unknown> = {}
+  const paths = form.maintenance_bypass_paths.split(',').map((s) => s.trim()).filter(Boolean)
+  if (paths.length) bypass.paths = paths
+  const allowIPs = form.maintenance_bypass_allow_ips.split(',').map((s) => s.trim()).filter(Boolean)
+  if (allowIPs.length) bypass.allow_ips = allowIPs
+  if (form.maintenance_bypass_header_name.trim() || form.maintenance_bypass_header_value.trim()) {
+    bypass.header = {
+      name: form.maintenance_bypass_header_name.trim(),
+      value: form.maintenance_bypass_header_value,
+    }
+  }
+  if (Object.keys(bypass).length) block.bypass = bypass
+  return block
+}
+
 export function formToBackend(form: BackendForm, original?: Record<string, unknown>): Record<string, unknown> {
   const orig = original ? { ...original } : {}
   const core = buildBackendCore(form)
@@ -990,6 +1084,9 @@ export function formToBackend(form: BackendForm, original?: Record<string, unkno
     const respBlock = buildServiceResponse(form)
     if (respBlock) svc.response = respBlock
     else delete svc.response
+    const maintBlock = buildMaintenance(form)
+    if (maintBlock) svc.maintenance = maintBlock
+    else delete svc.maintenance
     next.service = svc
     delete next.handler
     delete next.redirect

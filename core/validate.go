@@ -42,6 +42,10 @@ func ValidateConfig(cfg *Config) error {
 		return err
 	}
 
+	if err := validateGlobalMaintenance(cfg); err != nil {
+		return err
+	}
+
 	if cfg.HTTPS.Port != 0 && len(cfg.HTTPS.SSL) == 0 {
 		return fmt.Errorf("https.ssl is required when https.port is set")
 	}
@@ -159,6 +163,10 @@ func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string
 			return fmt.Errorf("%s.service: %w", ruleBackendLoc(ruleIdx, host, pathPattern), err)
 		}
 		if err := validateServiceAuth(backend.Service.Auth, ruleBackendLoc(ruleIdx, host, pathPattern)+".service"); err != nil {
+			return err
+		}
+		hostLevel := pathPattern == "/" && ruleIdx >= 0
+		if err := validateServiceMaintenance(backend.Service.Maintenance, backendType, ruleBackendLoc(ruleIdx, host, pathPattern)+".service", hostLevel); err != nil {
 			return err
 		}
 	case backendTypeRedirect:

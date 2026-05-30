@@ -30,6 +30,7 @@ func TestFormatAccessLog_demoShape(t *testing.T) {
 		`203.0.113.44 api.example.com -> api.internal:8080 "GET /api/users HTTP/1.1" 200 12ms`,
 		`cache_hit=0`,
 		`waf_block=0`,
+		`maintenance_block=0`,
 		`real_ip=203.0.113.44`,
 		`upstream_status=200`,
 		`upstream_response_length=456`,
@@ -72,6 +73,7 @@ func TestBuild_AccessLogExtraFields_WithTLS(t *testing.T) {
 		`upstream_response_time=123ms`,
 		`cache_hit=0`,
 		`waf_block=0`,
+		`maintenance_block=0`,
 	}
 
 	for _, item := range required {

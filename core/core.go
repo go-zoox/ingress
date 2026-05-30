@@ -52,6 +52,10 @@ type core struct {
 
 	errorPages *compiledErrorPages
 
+	maintenanceByRule []compiledRuleMaintenance
+
+	globalMaintenance compiledGlobalMaintenance
+
 	plugins []Plugin
 
 	wafRuntimeOverride *bool

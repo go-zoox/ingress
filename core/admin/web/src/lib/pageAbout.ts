@@ -40,6 +40,10 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
     title: '健康检查',
     desc: '探测路由 backend.service.healthcheck 配置的后端可用性',
   },
+  '/maintenance': {
+    title: '维护',
+    desc: '全局 maintenance.hosts 登记与默认 503；规则级 scope 在路由编辑器配置',
+  },
   '/config': {
     title: '配置',
     desc: '分模块编辑 ingress.yaml → 预览变更 → 保存版本 → 发布 reload',

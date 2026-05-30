@@ -37,6 +37,8 @@ type Config struct {
 	RateLimit rule.RateLimit `config:"rate_limit"`
 	// Security optional global baseline for HTTP security response headers (HSTS, CORS, frame, etc.).
 	Security rule.Security `config:"security"`
+	// Maintenance global host registry and default 503 settings (see maintenance.hosts).
+	Maintenance MaintenanceConfig `config:"maintenance"`
 	// Match func(host string, path string) (cfg *service.Service, err error)
 }
 

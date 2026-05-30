@@ -83,6 +83,16 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 - **Semantics**: IP deny list, optional allow gate, then regex/contains signatures (optional starters from `StarterRules()`; disable via `disable_builtin`). Global **`allow_hosts`** skips all WAF phases; per-rule **`rules[].allow_hosts`** skips that signature only when Host matches (same pattern inference as routing). Custom `waf.rules[]` entries **overlay** same-id builtins at compile time (`combineSignatureRules` / `overlayWAFRule`). Per-rule / built-in **`action`**: `block` (default), `audit` (log only, keep checking), `pass` (allow on match, stop further signatures). **`builtin_rule_actions`** sets action per built-in id. Global/per-rule **`log_only`** still maps to audit when `action` is omitted. Logs/callbacks use `block` / `audit` / `pass`. No HTTP body scanning in v1.
 - **Tests / examples**: `core/waf/compile_test.go`, `eval_test.go`, `patch_test.go`, `yaml_test.go`; `examples/waf/`.
 
+## Maintenance mode
+
+- **When**: After route match and WAF in `core/build.go`, before redirect/handler/upstream (`maintenanceDecision` + `writeMaintenanceResponse`).
+- **Global**: Top-level `maintenance:` (`core/config_maintenance.go`) — `hosts[]` with optional per-entry `window.start` / `window.end` (RFC3339), default 503 copy, and `bypass`.
+- **Route-level**: `rules[].backend.service.maintenance` only (host-level **service** backend); `scope: all | listed`; listed hosts use the same entry shape as global `hosts`.
+- **Host entries**: Plain string or `{ host, window }` via `service.MaintenanceHostList.UnmarshalYAML` (`core/service/maintenance_hosts.go`).
+- **Runtime**: `compiledMaintenanceHostList.MatchesActive(hostname, now)` — host pattern match **and** per-entry window (empty window ⇒ always active when matched). Global and route hits merge bypass; route `title` / `subtitle` / `retry_after` override global when the route maintenance triggered.
+- **Logs**: Access log `maintenance_block=1` on 503 maintenance responses.
+- **Tests / examples**: `core/maintenance_test.go`, `core/maintenance_build_test.go`, `core/service/maintenance_hosts_test.go`; `examples/maintenance/`. Docs: `docs/guide/maintenance.md`, `docs/zh/guide/maintenance.md`.
+
 ## Redirect and config validation
 
 - Route redirect (`rules[].backend.redirect` and path backends): evaluated before proxy/handler in `core/build.go`. **`backend.type`** is **`service`**, **`handler`**, or **`redirect`** (`core/constants.go`). **`inferBackendTypes` / `inferRuleBackends`** (`core/backend_type.go`) run during **`prepare`** and **`ingress validate`**, inferring the type when `type` is omitted and exactly one of service/handler/redirect blocks looks configured; otherwise validation demands an explicit `backend.type`. Each typed backend permits only its matching block (`core/validate.go`). **`expandRedirectURL`** (`core/match.go`) applies `${host.N}`/`${path.N}`/`$1`-style templates in redirect URLs (aligned with service naming). Route **`redirect.with_origin_method_and_body`** mirrors global semantics (**307**/**308** vs **302**/**301**).

@@ -13,6 +13,12 @@ import { SecurityFormFields } from './config/SecurityFormFields'
 import { SslCertsEditor } from './config/SslCertsEditor'
 import { WafRulesEditor } from './config/WafRulesEditor'
 import { ErrorPagesFormFields } from './config/ErrorPagesFormFields'
+import { GlobalMaintenanceFormFields } from './config/GlobalMaintenanceFormFields'
+import {
+  globalMaintenanceFromDoc,
+  patchGlobalMaintenance,
+  type GlobalMaintenanceForm,
+} from '../lib/maintenance'
 import {
   WAF_GLOBAL_MODE_OPTIONS,
   type WAFGlobalMode,
@@ -373,6 +379,18 @@ function LoggingModuleForm({
   )
 }
 
+function MaintenanceModuleForm({
+  doc,
+  onChange,
+}: {
+  doc: Record<string, unknown>
+  onChange: (doc: Record<string, unknown>) => void
+}) {
+  const form = globalMaintenanceFromDoc(doc)
+  const patch = (next: GlobalMaintenanceForm) => onChange(patchGlobalMaintenance(doc, next))
+  return <GlobalMaintenanceFormFields form={form} onChange={patch} />
+}
+
 function WAFModuleForm({
   doc,
   onChange,
@@ -640,6 +658,8 @@ export function ConfigModuleForm({
       return <LoggingModuleForm doc={doc} onChange={onDocChange} />
     case 'waf':
       return <WAFModuleForm doc={doc} onChange={onDocChange} />
+    case 'maintenance':
+      return <MaintenanceModuleForm doc={doc} onChange={onDocChange} />
     case 'rate_limit':
       return <RateLimitModuleForm doc={doc} onChange={onDocChange} />
     case 'security':

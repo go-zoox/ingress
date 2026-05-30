@@ -94,3 +94,61 @@ func hostMatchesAllowList(hostname string, matchers []hostMatcher) bool {
 	}
 	return false
 }
+
+// SingleHostPattern is one compiled host pattern (exact, wildcard, or regex).
+type SingleHostPattern struct {
+	m hostMatcher
+}
+
+// CompileSingleHostPattern compiles one host pattern.
+func CompileSingleHostPattern(raw string) (SingleHostPattern, error) {
+	m, err := compileHostPattern(raw)
+	if err != nil {
+		return SingleHostPattern{}, err
+	}
+	return SingleHostPattern{m: m}, nil
+}
+
+// Matches reports whether hostname matches this pattern.
+func (p SingleHostPattern) Matches(hostname string) bool {
+	host := normalizeRequestHost(hostname)
+	if host == "" {
+		return false
+	}
+	if p.m.exact != "" && p.m.exact == host {
+		return true
+	}
+	return p.m.re != nil && p.m.re.MatchString(host)
+}
+
+// HostPatternList is a compiled host pattern list (exact, wildcard, or regex).
+type HostPatternList struct {
+	matchers []hostMatcher
+}
+
+// CompileHostPatternList compiles host patterns using the same syntax as allow_hosts.
+func CompileHostPatternList(hosts []string, loc string) (HostPatternList, error) {
+	var out HostPatternList
+	for _, raw := range hosts {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		m, err := compileHostPattern(raw)
+		if err != nil {
+			return HostPatternList{}, fmt.Errorf("%s[%q]: %w", loc, raw, err)
+		}
+		out.matchers = append(out.matchers, m)
+	}
+	return out, nil
+}
+
+// Len reports how many non-empty host patterns were compiled.
+func (l HostPatternList) Len() int {
+	return len(l.matchers)
+}
+
+// Matches reports whether hostname matches any compiled pattern.
+func (l HostPatternList) Matches(hostname string) bool {
+	return hostMatchesAllowList(hostname, l.matchers)
+}

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Drawer } from './Drawer'
 
 export function ConfigEntityModal({
@@ -83,19 +84,50 @@ export function EntityRowActions({
   disableMoveDown?: boolean
   menuItems?: EntityRowMenuItem[]
 }) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuId = useId()
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({})
+
+  const updateMenuPosition = useCallback(() => {
+    const el = triggerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const panelW = 148
+    const panelH = 200
+    let top = rect.bottom + 4
+    let left = rect.right - panelW
+    if (left < 12) left = 12
+    if (top + panelH > window.innerHeight - 12) {
+      top = Math.max(12, rect.top - panelH - 4)
+    }
+    setMenuStyle({ top, left, minWidth: panelW })
+  }, [])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    updateMenuPosition()
+    const onScrollOrResize = () => updateMenuPosition()
+    window.addEventListener('scroll', onScrollOrResize, true)
+    window.addEventListener('resize', onScrollOrResize)
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize, true)
+      window.removeEventListener('resize', onScrollOrResize)
+    }
+  }, [menuOpen, updateMenuPosition])
 
   useEffect(() => {
     if (!menuOpen) return
     const close = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
+      const target = e.target as Node
+      if (triggerRef.current?.contains(target)) return
+      const panel = document.getElementById(menuId)
+      if (panel?.contains(target)) return
+      setMenuOpen(false)
     }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
-  }, [menuOpen])
+  }, [menuOpen, menuId])
 
   const runMenuItem = (item: EntityRowMenuItem) => {
     if (item.disabled) return
@@ -111,75 +143,86 @@ export function EntityRowActions({
   const canMove = onMoveUp != null || onMoveDown != null
   const extraItems = menuItems ?? []
 
+  const menuPanel = menuOpen ? (
+    <div
+      id={menuId}
+      className="action-menu-panel action-menu-panel--fixed"
+      role="menu"
+      style={menuStyle}
+    >
+      {canMove && (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            className="action-menu-item"
+            disabled={disableMoveUp}
+            onClick={() => {
+              if (disableMoveUp) return
+              setMenuOpen(false)
+              onMoveUp?.()
+            }}
+          >
+            上移
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="action-menu-item"
+            disabled={disableMoveDown}
+            onClick={() => {
+              if (disableMoveDown) return
+              setMenuOpen(false)
+              onMoveDown?.()
+            }}
+          >
+            下移
+          </button>
+        </>
+      )}
+      {extraItems.map((item) => (
+        <button
+          key={item.label}
+          type="button"
+          role="menuitem"
+          className={`action-menu-item${item.danger ? ' action-danger' : ''}`}
+          disabled={item.disabled}
+          onClick={() => runMenuItem(item)}
+        >
+          {item.label}
+        </button>
+      ))}
+      {(canMove || extraItems.length > 0) && <div className="action-menu-sep" aria-hidden />}
+      <button
+        type="button"
+        role="menuitem"
+        className="action-menu-item action-danger"
+        onClick={runDelete}
+      >
+        删除
+      </button>
+    </div>
+  ) : null
+
   return (
     <div className="row-actions">
       <button type="button" className="action-link" onClick={onEdit}>
         编辑
       </button>
-      <div className="action-menu" ref={menuRef}>
+      <div className="action-menu">
         <button
+          ref={triggerRef}
           type="button"
           className="action-link action-advanced"
           aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
+          onClick={() => {
+            if (!menuOpen) updateMenuPosition()
+            setMenuOpen((v) => !v)
+          }}
         >
           高级
         </button>
-        {menuOpen && (
-          <div className="action-menu-panel" role="menu">
-            {canMove && (
-              <>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="action-menu-item"
-                  disabled={disableMoveUp}
-                  onClick={() => {
-                    if (disableMoveUp) return
-                    setMenuOpen(false)
-                    onMoveUp?.()
-                  }}
-                >
-                  上移
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="action-menu-item"
-                  disabled={disableMoveDown}
-                  onClick={() => {
-                    if (disableMoveDown) return
-                    setMenuOpen(false)
-                    onMoveDown?.()
-                  }}
-                >
-                  下移
-                </button>
-              </>
-            )}
-            {extraItems.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                role="menuitem"
-                className={`action-menu-item${item.danger ? ' action-danger' : ''}`}
-                disabled={item.disabled}
-                onClick={() => runMenuItem(item)}
-              >
-                {item.label}
-              </button>
-            ))}
-            {(canMove || extraItems.length > 0) && <div className="action-menu-sep" aria-hidden />}
-            <button
-              type="button"
-              role="menuitem"
-              className="action-menu-item action-danger"
-              onClick={runDelete}
-            >
-              删除
-            </button>
-          </div>
-        )}
+        {menuPanel && createPortal(menuPanel, document.body)}
       </div>
     </div>
   )

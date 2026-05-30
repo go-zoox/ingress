@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState } from 'react'
 import {
   FormCheckbox,
   FormField,
@@ -52,6 +51,7 @@ import { Drawer } from '../Drawer'
 import { EllipsisTooltip } from '../EllipsisTooltip'
 import { arr, obj, str, bool } from '../../lib/ingressModuleForms'
 import { moveAdjacent } from '../../lib/arrayMove'
+import { EditableStringList } from '../EditableStringList'
 
 function WafActionTag({
   action,
@@ -209,8 +209,9 @@ function WAFRuleFormFields({
           </option>
         ))}
       </FormSelectField>
-      <WafStringListEditor
-        title={`域名白名单 (${form.allow_hosts.length})`}
+      <EditableStringList
+        title="域名白名单"
+        showCount
         titleTooltip="精确域名、*.wildcard.example.com，或 Go 正则（含 ( ) [ ] ^ $ 等时自动识别）"
         items={form.allow_hosts}
         valueLabel="Host 模式"
@@ -243,184 +244,6 @@ function RuleEnabledToggle({
       />
       <span>{enabled ? '开' : '关'}</span>
     </label>
-  )
-}
-
-function HintTooltip({ label, text }: { label: string; text: string }) {
-  const [visible, setVisible] = useState(false)
-  const [pos, setPos] = useState({ x: 0, y: 0 })
-
-  const showAt = useCallback((el: HTMLElement) => {
-    const rect = el.getBoundingClientRect()
-    const popW = 320
-    let x = rect.left
-    const y = rect.bottom + 8
-    if (x + popW > window.innerWidth - 12) {
-      x = Math.max(12, window.innerWidth - popW - 12)
-    }
-    setPos({ x, y })
-    setVisible(true)
-  }, [])
-
-  const hide = useCallback(() => setVisible(false), [])
-
-  const pop =
-    visible &&
-    createPortal(
-      <div
-        className="waf-rule-tooltip-pop waf-rule-tooltip-pop--fixed"
-        role="tooltip"
-        style={{ left: pos.x, top: pos.y }}
-      >
-        <span className="waf-rule-tooltip-line">{text}</span>
-      </div>,
-      document.body,
-    )
-
-  return (
-    <>
-      <span
-        className="waf-rule-tooltip waf-list-toolbar-title-tooltip"
-        onMouseEnter={(e) => showAt(e.currentTarget)}
-        onMouseLeave={hide}
-        onFocus={(e) => showAt(e.currentTarget)}
-        onBlur={hide}
-        tabIndex={0}
-      >
-        <span className="waf-list-toolbar-title">{label}</span>
-      </span>
-      {pop}
-    </>
-  )
-}
-
-function WafStringListEditor({
-  title,
-  titleTooltip,
-  items,
-  onChange,
-  hint,
-  valueLabel,
-  fieldKeyName,
-  emptyHint,
-  placeholder,
-  addTitle,
-  editTitle,
-}: {
-  title: string
-  titleTooltip?: string
-  items: string[]
-  onChange: (items: string[]) => void
-  hint?: string
-  valueLabel: string
-  fieldKeyName: string
-  emptyHint: string
-  placeholder?: string
-  addTitle: string
-  editTitle: string
-}) {
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editIndex, setEditIndex] = useState<number | null>(null)
-  const [draft, setDraft] = useState('')
-
-  const openAdd = () => {
-    setEditIndex(null)
-    setDraft('')
-    setModalOpen(true)
-  }
-
-  const openEdit = (index: number) => {
-    setEditIndex(index)
-    setDraft(items[index] ?? '')
-    setModalOpen(true)
-  }
-
-  const save = () => {
-    const value = draft.trim()
-    if (!value) return
-    const next = [...items]
-    if (editIndex == null) next.push(value)
-    else next[editIndex] = value
-    onChange(next)
-    setModalOpen(false)
-  }
-
-  const remove = (index: number) => {
-    const value = items[index] ?? ''
-    if (!window.confirm(`删除 ${value || `#${index + 1}`}？`)) return
-    onChange(items.filter((_, i) => i !== index))
-  }
-
-  const moveItem = (index: number, delta: -1 | 1) => {
-    onChange(moveAdjacent(items, index, delta))
-  }
-
-  return (
-    <>
-      <section className="waf-list-editor">
-        <div className="waf-list-toolbar">
-          {titleTooltip ? (
-            <HintTooltip label={title} text={titleTooltip} />
-          ) : (
-            <span className="waf-list-toolbar-title">{title}</span>
-          )}
-          {hint ? <span className="waf-list-toolbar-hint">{hint}</span> : null}
-          <button type="button" className="btn btn-ghost waf-list-toolbar-add" onClick={openAdd}>
-            + 添加
-          </button>
-        </div>
-        <table className="data config-waf-list-table">
-          <thead>
-            <tr>
-              <th>{valueLabel}</th>
-              <th className="col-actions">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
-              <tr>
-                <td colSpan={2} className="empty-hint">
-                  {emptyHint}
-                </td>
-              </tr>
-            ) : (
-              items.map((item, i) => (
-                <tr key={`${item}-${i}`}>
-                  <td><code className="path-cell">{item}</code></td>
-                  <td className="col-actions">
-                    <EntityRowActions
-                      onEdit={() => openEdit(i)}
-                      onDelete={() => remove(i)}
-                      onMoveUp={() => moveItem(i, -1)}
-                      onMoveDown={() => moveItem(i, 1)}
-                      disableMoveUp={i === 0}
-                      disableMoveDown={i === items.length - 1}
-                    />
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </section>
-
-      <ConfigEntityModal
-        open={modalOpen}
-        title={editIndex == null ? addTitle : editTitle}
-        onClose={() => setModalOpen(false)}
-        onSave={save}
-        disableSave={!draft.trim()}
-      >
-        <FormField
-          label={valueLabel}
-          keyName={fieldKeyName}
-          hint={hint}
-          placeholder={placeholder}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-        />
-      </ConfigEntityModal>
-    </>
   )
 }
 
@@ -609,8 +432,9 @@ function CustomRuleDetailDrawer({
         <dt>说明</dt>
         <dd>{wafCustomRuleDescription(row)}</dd>
         <dd className="waf-detail-allow-hosts">
-          <WafStringListEditor
-            title={`域名白名单 (${ruleAllowHosts.length})`}
+          <EditableStringList
+            title="域名白名单"
+            showCount
             titleTooltip="精确域名、*.wildcard.example.com，或 Go 正则"
             items={ruleAllowHosts}
             valueLabel="Host 模式"
@@ -717,8 +541,9 @@ function BuiltinRuleDetailDrawer({
           </>
         ) : null}
         <dd className="waf-detail-allow-hosts">
-          <WafStringListEditor
-            title={`域名白名单 (${ruleAllowHosts.length})`}
+          <EditableStringList
+            title="域名白名单"
+            showCount
             titleTooltip="精确域名、*.wildcard.example.com，或 Go 正则"
             items={ruleAllowHosts}
             valueLabel="Host 模式"
@@ -859,8 +684,9 @@ export function WafRulesEditor({
         </table>
       </section>
 
-      <WafStringListEditor
-        title={`IP 黑名单 deny (${denyList.length})`}
+      <EditableStringList
+        title="IP 黑名单 deny"
+        showCount
         items={denyList}
         valueLabel="IP / CIDR"
         fieldKeyName="waf.deny[]"
@@ -872,8 +698,9 @@ export function WafRulesEditor({
         onChange={(items) => onChange(patchWafDeny(doc, items))}
       />
 
-      <WafStringListEditor
-        title={`IP 白名单 allow (${allowList.length})`}
+      <EditableStringList
+        title="IP 白名单 allow"
+        showCount
         items={allowList}
         valueLabel="IP / CIDR"
         fieldKeyName="waf.allow[]"
@@ -885,8 +712,9 @@ export function WafRulesEditor({
         onChange={(items) => onChange(patchWafAllow(doc, items))}
       />
 
-      <WafStringListEditor
-        title={`域名白名单 allow_hosts (${allowHostsList.length})`}
+      <EditableStringList
+        title="域名白名单 allow_hosts"
+        showCount
         items={allowHostsList}
         valueLabel="Host 模式"
         fieldKeyName="waf.allow_hosts[]"

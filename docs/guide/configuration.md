@@ -78,6 +78,7 @@ rules:
 | `waf` | object | Optional WAF baseline; route patches use **`rules[].waf`** YAML maps ([WAF guide](waf.md)) | _(inactive when omitted or `enabled: false`)_ |
 | `rate_limit` | object | Optional global request throttling; per-route overrides use **`rules[].rate_limit`** | off when omitted |
 | `security` | object | Profile-based security response headers (HSTS, frame, CSP, CORS); per-route **`rules[].security`** | off when omitted |
+| `maintenance` | object | Global maintenance host registry and default 503 settings ([Maintenance guide](maintenance.md)) | off when omitted |
 | `logging` | object | Zoox logger config (console + optional file transports); see [Logging](#logging-logging) | console only when omitted |
 | `admin` | object | Embedded operations console ([Admin guide](admin.md)) | disabled when omitted |
 
@@ -116,6 +117,34 @@ Profile-based HTTP security headers applied after route match. See [Security hea
 | `cors.max_age` | int | Preflight cache seconds |
 
 The `api` profile enables CORS and requires at least one origin. OPTIONS preflight is answered by ingress when CORS is active.
+
+### Maintenance (`maintenance` / `rules[].backend.service.maintenance`)
+
+Evaluated after route match and WAF; returns **503** before redirect/handler/upstream. See [Maintenance guide](maintenance.md).
+
+**Global `maintenance:`**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hosts` | array | Host entries (plain string or `{ host, window? }`); each may set `window.start` / `window.end` (RFC3339) |
+| `retry_after` | int | `Retry-After` header in seconds (`0` = omit) |
+| `title` / `subtitle` | string | 503 page heading / message |
+| `bypass.allow_ips` | string array | Client IP/CIDR allowlist |
+| `bypass.paths` | string array | Exact or trailing-`*` prefix paths |
+| `bypass.header.name` / `value` | string | Header bypass pair |
+
+**Route `rules[].backend.service.maintenance`** (host-level **service** backend only):
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `enabled` | bool | Enable route maintenance | `false` |
+| `scope` | string | `all` or `listed` | `all` |
+| `hosts` | array | Required when `scope: listed`; same shape as global `hosts` | — |
+| `retry_after` | int | Overrides global when route maintenance triggers | `0` |
+| `title` / `subtitle` | string | Overrides global when route maintenance triggers | — |
+| `bypass` | object | Merged with global bypass | — |
+
+Access logs append `maintenance_block=1` on 503 maintenance responses.
 
 ### WAF (`waf` / `rules[].waf`)
 

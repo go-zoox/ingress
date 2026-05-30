@@ -224,7 +224,7 @@ func (p *compiledErrorPages) renderHTML(status int, exposeDetails bool, detail E
 	page := p.byStatus[status]
 	if page == nil {
 		title, subtitle := builtinErrorPageCopy(status)
-		return ingressErrorPageHTML(status, title, subtitle, exposeDetails, detail.Hostname, detail.Path, detail.Method, detail.Reason)
+		return ingressErrorPageHTML(status, title, subtitle, exposeDetails, detail.Hostname, detail.Path, detail.Method, detail.Reason, "")
 	}
 	switch page.pageType {
 	case errorPageTypeFile, errorPageTypeInline:
@@ -234,7 +234,7 @@ func (p *compiledErrorPages) renderHTML(status int, exposeDetails bool, detail E
 		if !exposeDetails {
 			host, path, method, reason = "", "", "", ""
 		}
-		return ingressErrorPageHTML(status, page.title, page.subtitle, exposeDetails, host, path, method, reason)
+		return ingressErrorPageHTML(status, page.title, page.subtitle, exposeDetails, host, path, method, reason, "")
 	}
 }
 

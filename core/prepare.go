@@ -75,6 +75,16 @@ func (c *core) prepare() error {
 		return fmt.Errorf("compile error_pages: %w", err)
 	}
 
+	c.maintenanceByRule, err = compileMaintenanceByRule(c.cfg)
+	if err != nil {
+		return fmt.Errorf("compile maintenance: %w", err)
+	}
+
+	c.globalMaintenance, err = compileGlobalMaintenance(c.cfg.Maintenance)
+	if err != nil {
+		return fmt.Errorf("compile global maintenance: %w", err)
+	}
+
 	return nil
 }
 

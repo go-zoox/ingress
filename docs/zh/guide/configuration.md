@@ -76,8 +76,37 @@ rules:
 | `rules` | array | 路由规则 | `[]` |
 | `waf` | object | WAF 基线；路由级补丁为 **`rules[].waf`** 映射（参见 [WAF](waf.md)） | 省略或 `enabled: false` 时不启用 |
 | `security` | object | 安全响应头预设（HSTS / frame / CSP / CORS）；路由级 **`rules[].security`** | 省略或 `profile: off` 时不启用 |
+| `maintenance` | object | 全局维护域名列表与默认 503 设置（参见 [维护模式](maintenance.md)） | 省略时不启用 |
 | `logging` | object | Zoox 日志配置（控制台 + 可选文件 transport）；见 [Logging](#logging-日志) | 省略时仅控制台 |
 | `admin` | object | 内嵌运维控制台（参见 [Admin 指南](admin.md)） | 省略时不启用 |
+
+### 维护（`maintenance` / `rules[].backend.service.maintenance`）
+
+在路由匹配与 WAF 之后判定；于重定向 / Handler / 上游之前返回 **503**。详见 [维护模式](maintenance.md)。
+
+**全局 `maintenance:`**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `hosts` | array | 域名条目（纯字符串或 `{ host, window? }`）；可设 `window.start` / `window.end`（RFC3339） |
+| `retry_after` | int | `Retry-After` 响应头（秒，`0` 表示不发送） |
+| `title` / `subtitle` | string | 503 页面标题 / 说明 |
+| `bypass.allow_ips` | string 数组 | 客户端 IP/CIDR 白名单 |
+| `bypass.paths` | string 数组 | 精确路径或后缀 `*` 前缀匹配 |
+| `bypass.header.name` / `value` | string | 请求头放行键值对 |
+
+**路由 `rules[].backend.service.maintenance`**（仅 Host 级 **service** 后端）：
+
+| 字段 | 类型 | 说明 | 默认 |
+|------|------|------|------|
+| `enabled` | bool | 启用路由维护 | `false` |
+| `scope` | string | `all` 或 `listed` | `all` |
+| `hosts` | array | `scope: listed` 时必填；格式同全局 `hosts` | — |
+| `retry_after` | int | 路由维护命中时覆盖全局 | `0` |
+| `title` / `subtitle` | string | 路由维护命中时覆盖全局 | — |
+| `bypass` | object | 与全局 bypass 合并 | — |
+
+维护 503 的访问日志附加 `maintenance_block=1`。
 
 ### WAF（`waf` / `rules[].waf`）
 

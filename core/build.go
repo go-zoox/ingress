@@ -140,6 +140,20 @@ func (c *core) build() error {
 			return false, true, nil
 		}
 
+		if block, settings := c.maintenanceDecision(ruleIdx, hostname, path, ctx.Request); block {
+			c.writeMaintenanceResponse(ctx, secProf, settings, pageDetail)
+			target := "-"
+			if serviceIns != nil {
+				target = serviceIns.Target()
+			}
+			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, target, method, path, ctx.Request.Proto, http.StatusServiceUnavailable, time.Since(reqStart), accessLogMeta{
+				MaintenanceBlock:       true,
+				UpstreamStatus:         http.StatusServiceUnavailable,
+				UpstreamResponseLength: -1,
+			}))
+			return false, true, nil
+		}
+
 		// After route resolution: apply backend.redirect when Redirect.URL is set (path backend overrides rule backend).
 		// Redirect-only configs keep Backend.Type as default "service" with backend.redirect only; otherwise matched upstream proxy continues below.
 		// Next block handles Backend.Type "handler".
