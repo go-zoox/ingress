@@ -8,7 +8,7 @@ import (
 	"github.com/go-zoox/zoox"
 )
 
-type terminalResizeMsg struct {
+type terminalControlMsg struct {
 	Type string `json:"type"`
 	Rows uint16 `json:"rows"`
 	Cols uint16 `json:"cols"`
@@ -53,10 +53,18 @@ func handleTerminalMessage(conn wsconn.Conn, typ int, message []byte) error {
 	}
 
 	if typ == wsconn.TextMessage {
-		var msg terminalResizeMsg
-		if json.Unmarshal(message, &msg) == nil && msg.Type == "resize" {
-			sess.resize(msg.Rows, msg.Cols)
-			return nil
+		var msg terminalControlMsg
+		if json.Unmarshal(message, &msg) == nil && msg.Type != "" {
+			switch msg.Type {
+			case "resize":
+				if msg.Rows > 0 && msg.Cols > 0 {
+					sess.resize(msg.Rows, msg.Cols)
+				}
+				return nil
+			case "close":
+				defaultTerminalManager.destroy(id)
+				return nil
+			}
 		}
 	}
 
