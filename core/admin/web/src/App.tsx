@@ -18,6 +18,7 @@ import { TopologyPage } from './pages/TopologyPage'
 import { HealthPage } from './pages/HealthPage'
 import { WAFPage } from './pages/WAFPage'
 import { MaintenancePage } from './pages/MaintenancePage'
+import { TerminalPage } from './pages/TerminalPage'
 import { MessagesPage } from './pages/MessagesPage'
 
 export default function App() {
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="cache" element={<CachePage />} />
           <Route path="waf" element={<WAFPage />} />
           <Route path="maintenance" element={<MaintenancePage />} />
+          <Route path="terminal" element={<TerminalPage />} />
           <Route path="tls" element={<TLSPage />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="settings" element={<SettingsPage />} />

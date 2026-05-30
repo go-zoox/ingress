@@ -114,6 +114,9 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/services/:name/metrics", serviceDetailHandler.GetMetrics)
 	healthHandler := NewHealthHandler(a.health)
 	g.Get("/healthcheck", healthHandler.ListChecks)
+	if err := MountTerminal(g); err != nil {
+		panic(err)
+	}
 }
 
 func (a *API) Status(ctx *zoox.Context) {

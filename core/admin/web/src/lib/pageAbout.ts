@@ -48,6 +48,10 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
     title: '维护',
     desc: '全局 maintenance.hosts 登记与默认 503；规则级 scope 在路由编辑器配置',
   },
+  '/terminal': {
+    title: 'Web 终端',
+    desc: '通过 Xterm 连接 Admin 进程所在主机的交互式 Shell',
+  },
   '/config': {
     title: '配置',
     desc: '分模块编辑 ingress.yaml → 保存与发布（查看变更 → 仅保存或热加载）',

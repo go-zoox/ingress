@@ -11,6 +11,7 @@ import {
   Lock,
   HeartPulse,
   Construction,
+  Terminal,
   FileCode2,
   Settings,
 } from 'lucide-react'
@@ -58,7 +59,10 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: '维护',
-    items: [{ to: '/maintenance', label: '维护模式', icon: Construction }],
+    items: [
+      { to: '/maintenance', label: '维护模式', icon: Construction },
+      { to: '/terminal', label: 'Web 终端', icon: Terminal },
+    ],
   },
   {
     label: '系统',
