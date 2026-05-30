@@ -35,7 +35,12 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route element={<RequireAuth />}>
+          <Route
+            path="/"
+            element={
+              <RequireAuth />
+            }
+          >
             <Route
               element={
                 <OverviewStreamProvider>

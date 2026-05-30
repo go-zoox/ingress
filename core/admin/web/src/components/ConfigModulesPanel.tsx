@@ -69,6 +69,11 @@ export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
     dirtyRef.current = false
   }, [modules, activeId])
 
+  useEffect(() => {
+    if (!initialModuleId || !modules.some((m) => m.id === initialModuleId)) return
+    setActiveId(initialModuleId)
+  }, [initialModuleId, modules])
+
   const doApply = useCallback(async (targetId: string, yaml: string, baseContent: string): Promise<string | null> => {
     const mod = modules.find((m) => m.id === targetId)
     if (!mod) return null

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { FlaskConical } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { EmptyStateGuide } from '../components/EmptyStateGuide'
@@ -7,14 +8,14 @@ import { WafTrialDrawer } from '../components/WafTrialDrawer'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { WafAttackMap } from '../components/WafAttackMap'
 import { api, type WAFEvent, type WAFEventDetail, type WAFVisualization } from '../api/client'
+import { useRouteSearchKey } from '../hooks/useRouteSearchKey'
 import { useSSE } from '../hooks/useSSE'
 import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
 import { formatWafRuleTooltip, resolveWafRule } from '../lib/wafRuleTooltip'
 
 type DrawerMode = 'detail' | 'trial' | null
 
-function wafFiltersFromLocation() {
-  const sp = new URLSearchParams(window.location.search)
+function wafFiltersFromSearchParams(sp: URLSearchParams) {
   return {
     action: sp.get('action') || 'all',
     host: sp.get('host') || '',
@@ -26,8 +27,9 @@ function wafFiltersFromLocation() {
 }
 
 export function WAFPage() {
-  const urlInit = wafFiltersFromLocation()
-  const urlInitRef = useRef(false)
+  const [searchParams] = useSearchParams()
+  const searchKey = useRouteSearchKey()
+  const urlFilters = useMemo(() => wafFiltersFromSearchParams(searchParams), [searchKey])
   const [status, setStatus] = useState<Record<string, unknown> | null>(null)
   const [events, setEvents] = useState<WAFEvent[]>([])
   const [err, setErr] = useState('')
@@ -35,11 +37,11 @@ export function WAFPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [trialSeed, setTrialSeed] = useState<WAFEvent | WAFEventDetail | null>(null)
 
-  const [filterAction, setFilterAction] = useState(urlInit.action)
-  const [filterHost, setFilterHost] = useState(urlInit.host)
-  const [filterPath, setFilterPath] = useState(urlInit.path)
+  const [filterAction, setFilterAction] = useState(urlFilters.action)
+  const [filterHost, setFilterHost] = useState(urlFilters.host)
+  const [filterPath, setFilterPath] = useState(urlFilters.path)
   const [filterClientIP, setFilterClientIP] = useState('')
-  const [filterRule, setFilterRule] = useState(urlInit.rule)
+  const [filterRule, setFilterRule] = useState(urlFilters.rule)
   const [filterTimeStart, setFilterTimeStart] = useState('')
   const [filterTimeEnd, setFilterTimeEnd] = useState('')
 
@@ -108,9 +110,14 @@ export function WAFPage() {
   }
 
   useEffect(() => {
-    if (urlInitRef.current) return
-    urlInitRef.current = true
-    const { host, path, rule, trial, eventId } = urlInit
+    setFilterAction(urlFilters.action)
+    setFilterHost(urlFilters.host)
+    setFilterPath(urlFilters.path)
+    setFilterRule(urlFilters.rule)
+  }, [urlFilters])
+
+  useEffect(() => {
+    const { host, path, rule, trial, eventId } = urlFilters
     if (!trial && !eventId) return
     const seed: Partial<WAFEvent> = {
       host: host || 'api.example.com',
@@ -132,7 +139,7 @@ export function WAFPage() {
       }
     }
     openTrial(seed as WAFEvent)
-  }, [])
+  }, [searchKey, urlFilters])
 
   useEffect(() => {
     loadStatus()

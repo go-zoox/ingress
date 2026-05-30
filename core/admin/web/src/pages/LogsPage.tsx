@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { investigateLink } from '../lib/deepLinks'
 import { parseAccessLogLine } from '../lib/parseAccessLogLine'
@@ -7,6 +7,7 @@ import { normalizeLogLine } from '../lib/normalizeLogLine'
 import { EmptyStateGuide } from '../components/EmptyStateGuide'
 import { api } from '../api/client'
 import { loadPreferences } from '../lib/preferences'
+import { useRouteSearchKey } from '../hooks/useRouteSearchKey'
 import { useSSE } from '../hooks/useSSE'
 
 const REFRESH_OPTIONS = [
@@ -20,8 +21,7 @@ const REFRESH_OPTIONS = [
 
 const MAX_LINES = 500
 
-function logFiltersFromLocation() {
-  const sp = new URLSearchParams(window.location.search)
+function logFiltersFromSearchParams(sp: URLSearchParams) {
   const log = sp.get('log')
   return {
     logKind: (log === 'error' ? 'error' : 'access') as 'access' | 'error',
@@ -43,13 +43,16 @@ function logLineClass(line: string) {
 }
 
 export function LogsPage() {
-  const initFilters = logFiltersFromLocation()
-  const [logKind, setLogKind] = useState<'access' | 'error'>(initFilters.logKind)
-  const [q, setQ] = useState(initFilters.q)
-  const [host, setHost] = useState(initFilters.host)
-  const [status, setStatus] = useState(initFilters.status)
-  const [cacheHit, setCacheHit] = useState(initFilters.cacheHit)
-  const [wafBlock, setWafBlock] = useState(initFilters.wafBlock)
+  const [searchParams] = useSearchParams()
+  const searchKey = useRouteSearchKey()
+  const urlFilters = useMemo(() => logFiltersFromSearchParams(searchParams), [searchKey])
+
+  const [logKind, setLogKind] = useState<'access' | 'error'>(urlFilters.logKind)
+  const [q, setQ] = useState(urlFilters.q)
+  const [host, setHost] = useState(urlFilters.host)
+  const [status, setStatus] = useState(urlFilters.status)
+  const [cacheHit, setCacheHit] = useState(urlFilters.cacheHit)
+  const [wafBlock, setWafBlock] = useState(urlFilters.wafBlock)
   const [live, setLive] = useState(false)
   const [intervalMs, setIntervalMs] = useState(() => loadPreferences().logLiveIntervalMs)
   const [lines, setLines] = useState<string[]>([])
@@ -121,6 +124,16 @@ export function LogsPage() {
     fetchLogs(false)
   }
 
+  // Deep links update query params without remounting; sync local filters from the router.
+  useEffect(() => {
+    setLogKind(urlFilters.logKind)
+    setQ(urlFilters.q)
+    setHost(urlFilters.host)
+    setStatus(urlFilters.status)
+    setCacheHit(urlFilters.cacheHit)
+    setWafBlock(urlFilters.wafBlock)
+  }, [urlFilters])
+
   const clear = () => {
     setQ('')
     setHost('')
@@ -134,7 +147,7 @@ export function LogsPage() {
   useEffect(() => {
     offsetRef.current = 0
     fetchLogs(false)
-  }, [logKind, fetchLogs])
+  }, [logKind, q, host, status, cacheHit, wafBlock, fetchLogs])
 
   // fetch distinct hosts for filter dropdown
   useEffect(() => {

@@ -180,7 +180,7 @@ export function AppLayout() {
             />
           </div>
           <div className="main-body">
-            <Outlet />
+            <Outlet key={location.pathname} />
           </div>
         </main>
       </div>
