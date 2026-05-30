@@ -27,7 +27,7 @@ admin:
 
 Without a readable database file, the map still works using demo-IP labels (bootstrap seed) and approximate public-IP placement. Private/LB client IPs are skipped. For production, enable **`waf.trust_proxy`** when behind a load balancer so `client_ip` reflects `X-Forwarded-For`.
 
-Default UI login: **`admin` / `admin`** (`admin.auth.type: basic`). Smaller auth-only bundle: [`examples/admin-auth/`](../admin-auth/).
+Default auth is **`none`** (no login). This bundle sets **`auth.type: basic`** for demo login **`admin` / `admin`**. See [`examples/admin-auth/`](../admin-auth/).
 
 Regenerate log files:
 

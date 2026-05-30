@@ -63,8 +63,8 @@ type Admin struct {
 
 // AdminAuth configures Admin Console authentication (none | basic | oauth).
 type AdminAuth struct {
-	// Type is none, basic (default), or oauth.
-	Type  string          `config:"type,default=basic"`
+	// Type is none (default), basic, or oauth.
+	Type  string          `config:"type,default=none"`
 	Basic AdminAuthBasic  `config:"basic"`
 	OAuth AdminAuthOAuth  `config:"oauth"`
 }
@@ -85,13 +85,13 @@ type AdminAuthOAuth struct {
 	Scopes       []string `config:"scopes"`
 }
 
-// EffectiveAdminAuthType returns none, basic (default), or oauth.
+// EffectiveAdminAuthType returns none (default), basic, or oauth.
 func EffectiveAdminAuthType(t string) string {
 	switch strings.ToLower(strings.TrimSpace(t)) {
 	case "none", "basic", "oauth":
 		return strings.ToLower(strings.TrimSpace(t))
 	default:
-		return "basic"
+		return "none"
 	}
 }
 

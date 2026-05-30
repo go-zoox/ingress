@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setConfig(next)
       setUser(next.authenticated ? next.user ?? null : null)
     } catch {
-      setConfig({ type: 'basic', authenticated: false })
+      setConfig({ type: 'none', authenticated: false })
       setUser(null)
     } finally {
       setLoading(false)
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setConfig((prev) =>
       prev
         ? { ...prev, authenticated: true, user: result.user }
-        : { type: 'basic', authenticated: true, user: result.user },
+        : { type: 'none', authenticated: true, user: result.user },
     )
   }, [])
 
@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api.authLogout()
     setUser(null)
     setConfig((prev) =>
-      prev ? { ...prev, authenticated: false, user: undefined } : { type: 'basic', authenticated: false },
+      prev ? { ...prev, authenticated: false, user: undefined } : { type: 'none', authenticated: false },
     )
   }, [])
 

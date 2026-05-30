@@ -1,10 +1,18 @@
 # Admin authentication & RBAC
 
-Minimal Admin Console login with **local Basic auth** and seeded RBAC roles.
+Minimal Admin Console login with **local Basic auth** (opt-in; default auth type is **`none`**).
 
 Source: [`examples/admin-auth/`](https://github.com/go-zoox/ingress/tree/master/examples/admin-auth).
 
-## Basic login (default)
+## Open mode (default)
+
+When **`admin.auth.type`** is omitted, ingress uses **`none`** — no login page. Example:
+
+<<< @/../examples/admin-auth/open-no-auth.yaml{yaml}
+
+Use **`none`** only on localhost or trusted networks. For production, set **`basic`** or **`oauth`**.
+
+## Basic login (recommended for production)
 
 <<< @/../examples/admin-auth/ingress.yaml{yaml}
 
@@ -22,12 +30,6 @@ ingress run -c examples/admin-auth/ingress.yaml
 ```
 
 After login, open **权限** in the sidebar to manage users, roles, and permissions.
-
-## Open mode (dev only)
-
-<<< @/../examples/admin-auth/open-no-auth.yaml{yaml}
-
-`admin.auth.type: none` skips the login page. Use only on localhost or trusted networks.
 
 ## Related docs
 

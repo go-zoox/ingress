@@ -85,7 +85,7 @@ func New(cfg *admincfg.Config, rbacSvc *rbac.Service) *Service {
 
 func (s *Service) Type() string {
 	if s == nil || s.cfg == nil {
-		return "basic"
+		return "none"
 	}
 	return admincfg.EffectiveAuthType(s.cfg.Auth.Type)
 }

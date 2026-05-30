@@ -25,13 +25,13 @@ type AuthOAuth struct {
 	Scopes       []string
 }
 
-// EffectiveAuthType returns none, basic (default), or oauth.
+// EffectiveAuthType returns none (default), basic, or oauth.
 func EffectiveAuthType(t string) string {
 	switch strings.ToLower(strings.TrimSpace(t)) {
 	case "none", "basic", "oauth":
 		return strings.ToLower(strings.TrimSpace(t))
 	default:
-		return "basic"
+		return "none"
 	}
 }
 

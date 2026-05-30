@@ -43,10 +43,30 @@ func TestBasicLogin(t *testing.T) {
 }
 
 func TestEffectiveAuthType(t *testing.T) {
-	if admincfg.EffectiveAuthType("") != "basic" {
-		t.Fatal("empty auth type should default to basic")
+	if admincfg.EffectiveAuthType("") != "none" {
+		t.Fatal("empty auth type should default to none")
 	}
 	if admincfg.EffectiveAuthType("none") != "none" {
 		t.Fatal("expected none")
+	}
+	if admincfg.EffectiveAuthType("basic") != "basic" {
+		t.Fatal("expected basic")
+	}
+}
+
+func TestNoneAuthOpenAPI(t *testing.T) {
+	svc := New(&admincfg.Config{Auth: admincfg.Auth{Type: "none"}}, rbac.New())
+	if svc.Type() != "none" {
+		t.Fatalf("expected none auth, got %q", svc.Type())
+	}
+	if svc.RequiresAuth() {
+		t.Fatal("none should not require auth")
+	}
+}
+
+func TestDefaultAuthTypeIsNone(t *testing.T) {
+	svc := New(&admincfg.Config{}, rbac.New())
+	if svc.Type() != "none" {
+		t.Fatalf("expected default auth type none, got %q", svc.Type())
 	}
 }

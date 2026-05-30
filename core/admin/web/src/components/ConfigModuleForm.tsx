@@ -213,7 +213,7 @@ function AdminModuleForm({
   const auth = { ...obj(admin.auth) }
   const authBasic = { ...obj(auth.basic) }
   const authOAuth = { ...obj(auth.oauth) }
-  const authType = str(auth.type, 'basic') || 'basic'
+  const authType = str(auth.type, 'none') || 'none'
 
   const patchAdmin = (fn: (next: Record<string, unknown>) => void) => {
     const nextAdmin = { ...admin }

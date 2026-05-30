@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -26,10 +27,14 @@ type apiEnvelope struct {
 func testAdminConfig(t *testing.T) (*admincfg.Config, string) {
 	t.Helper()
 	dir := t.TempDir()
+	ingressPath := filepath.Join(dir, "ingress.yaml")
+	if err := os.WriteFile(ingressPath, []byte("version: v1\nport: 8080\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	cfg := &admincfg.Config{
 		Enabled:           true,
 		Port:              9080,
-		IngressConfigPath: filepath.Join(dir, "ingress.yaml"),
+		IngressConfigPath: ingressPath,
 		Database: admincfg.Database{
 			Driver: "sqlite",
 			DSN:    "file:" + filepath.Join(dir, "admin.db") + "?cache=shared&_fk=1",
@@ -282,5 +287,58 @@ func TestAdminMenusIncludeOverviewAfterLogin(t *testing.T) {
 	}
 	if !foundOverview {
 		t.Fatalf("expected overview menu for admin user, got %s", body)
+	}
+}
+
+func TestAdminDefaultOpenModeNoLogin(t *testing.T) {
+	cfg, _ := testAdminConfig(t)
+	cfg.Auth = admincfg.Auth{Type: "none"}
+	ts, client := startTestAdminServer(t, cfg)
+
+	configResp, err := client.Get(ts.URL + "/api/v1/auth/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer configResp.Body.Close()
+	body, err := io.ReadAll(configResp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var configEnv apiEnvelope
+	if err := json.Unmarshal(body, &configEnv); err != nil {
+		t.Fatal(err)
+	}
+	var authView struct {
+		Type          string `json:"type"`
+		Authenticated bool   `json:"authenticated"`
+	}
+	if err := json.Unmarshal(configEnv.Result, &authView); err != nil {
+		t.Fatal(err)
+	}
+	if authView.Type != "none" {
+		t.Fatalf("expected auth type none, got %+v body=%s", authView, body)
+	}
+	if authView.Authenticated {
+		t.Fatalf("open mode should not report authenticated user, body=%s", body)
+	}
+
+	statusResp, err := client.Get(ts.URL + "/api/v1/status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer statusResp.Body.Close()
+	if statusResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(statusResp.Body)
+		t.Fatalf("expected open API without login, status=%d body=%s", statusResp.StatusCode, body)
+	}
+
+	menuResp, err := client.Get(ts.URL + "/api/v1/rbac/menus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer menuResp.Body.Close()
+	if menuResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(menuResp.Body)
+		t.Fatalf("menus should be public when auth is none, status=%d body=%s", menuResp.StatusCode, body)
 	}
 }

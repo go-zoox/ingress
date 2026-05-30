@@ -1,17 +1,25 @@
 # Admin 认证与 RBAC
 
-最小 Admin Console **本地 Basic 登录**示例，含内置 RBAC 角色。
+最小 Admin Console **本地 Basic 登录**示例（需显式配置；默认 auth 类型为 **`none`**）。
 
 源码：[`examples/admin-auth/`](https://github.com/go-zoox/ingress/tree/master/examples/admin-auth)。
 
-## Basic 登录（默认）
+## 开放模式（默认）
+
+省略 **`admin.auth.type`** 时使用 **`none`** — 无登录页。示例：
+
+<<< @/../examples/admin-auth/open-no-auth.yaml{yaml}
+
+**`none`** 仅适合 localhost 或可信网络。生产环境请设置 **`basic`** 或 **`oauth`**。
+
+## Basic 登录（生产推荐）
 
 <<< @/../examples/admin-auth/ingress.yaml{yaml}
 
 | 项 | 值 |
 |----|-----|
 | Admin 地址 | `http://127.0.0.1:9080` |
-| 默认账号 | `admin` / `admin`（来自 `admin.auth.basic`） |
+| 示例账号 | `admin` / `admin`（来自 `admin.auth.basic`） |
 | RBAC 数据库 | 与本 YAML 同目录的 `./admin-auth.db` |
 
 ## 校验与运行
@@ -22,12 +30,6 @@ ingress run -c examples/admin-auth/ingress.yaml
 ```
 
 登录后在侧栏 **权限** 中管理用户、角色与权限。
-
-## 开放模式（仅开发）
-
-<<< @/../examples/admin-auth/open-no-auth.yaml{yaml}
-
-`admin.auth.type: none` 跳过登录页，仅适合 localhost 或可信网络。
 
 ## 相关文档
 

@@ -380,7 +380,7 @@ Optional embedded console (HTTP API + UI). Enabled with **`admin.enabled: true`*
 | `admin.database.driver` | string | SQLite driver for audit / revisions | `sqlite` |
 | `admin.database.dsn` | string | Database DSN | `file:admin.db?cache=shared&_fk=1` |
 | `admin.web.dev_proxy` | bool | API only; UI from Vite dev server | `false` |
-| `admin.auth.type` | string | Console login: `none`, `basic` (default), `oauth` | `basic` |
+| `admin.auth.type` | string | Console login: `none` (default), `basic`, `oauth` | `none` |
 | `admin.auth.basic.username` | string | Bootstrap super-admin RBAC username | `admin` when used with default password |
 | `admin.auth.basic.password` | string | Bootstrap user password (first create only) | `admin` when used with default username |
 | `admin.access_log_path` | string | Access log path for the log viewer | from `logging` |

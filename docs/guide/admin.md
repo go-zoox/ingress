@@ -39,6 +39,8 @@ Server started at http://127.0.0.1:8080
 
 Open **http://127.0.0.1:9080** for the built-in UI (when `admin.web.dev_proxy` is `false`, the default in production builds).
 
+By default **`admin.auth.type`** is **`none`** (no login gate). Set **`basic`** or **`oauth`** before exposing the admin port on untrusted networks — see [Authentication & RBAC](#authentication--rbac).
+
 Full demo bundle: [`examples/admin-console/`](https://github.com/go-zoox/ingress/tree/master/examples/admin-console) — multi-route sample, sample logs, TLS certs, and SQLite state. See the [Admin console example](/examples/admin-console).
 
 ## Configuration
@@ -50,7 +52,7 @@ Full demo bundle: [`examples/admin-console/`](https://github.com/go-zoox/ingress
 | `admin.database.driver` | string | Audit / revision DB driver | `sqlite` |
 | `admin.database.dsn` | string | SQLite DSN (relative paths resolve beside the ingress config file) | `file:admin.db?cache=shared&_fk=1` |
 | `admin.web.dev_proxy` | bool | API only; run the UI from Vite dev server (proxies `/api`) | `false` |
-| `admin.auth.type` | string | Console login mode: `none`, `basic` (default), or `oauth` | `basic` |
+| `admin.auth.type` | string | Console login mode: `none` (default), `basic`, or `oauth` | `none` |
 | `admin.auth.basic.username` | string | Bootstrap super-admin RBAC username (synced on every startup) | `admin` when password set; else internal default |
 | `admin.auth.basic.password` | string | Password for the bootstrap user (RBAC bcrypt hash; only applied on first create) | `admin` when username set; else internal default |
 | `admin.auth.oauth.*` | object | Third-party OAuth (`provider`, `client_id`, `client_secret`, optional `redirect_url`, `scopes`) | — |
@@ -210,8 +212,8 @@ Focused examples: [`examples/admin-auth/`](https://github.com/go-zoox/ingress/tr
 
 | `admin.auth.type` | Behavior |
 |-------------------|----------|
-| `basic` (default) | Local login page; credentials validated against **RBAC users** in SQLite |
-| `none` | No login gate — local development only (`examples/admin-auth/open-no-auth.yaml`) |
+| `none` (default) | No login gate — suitable for localhost / trusted networks only |
+| `basic` | Local login page; credentials validated against **RBAC users** in SQLite |
 | `oauth` | Redirect to a supported provider (GitHub, GitLab, Google, Feishu, …) |
 
 When **`admin.auth.type`** is `basic` or `oauth`, all **`/api/v1/*`** routes except the auth endpoints require a valid **session cookie**.
@@ -276,8 +278,7 @@ After OAuth, the session username is derived from the provider profile. Assign m
 
 ## Security notes
 
-- **`admin.auth.type: basic`** (default) protects the API with session cookies. Still bind to localhost or place the admin port behind a trusted network / VPN when possible.
-- **`admin.auth.type: none`** disables console login — never expose on untrusted networks.
+- **`admin.auth.type`** defaults to **`none`** (open API/UI). Enable **`basic`** or **`oauth`** before exposing the admin port beyond localhost or a trusted network.
 - Config publish writes the live `ingress.yaml` and reloads the proxy — restrict who can reach the admin port even when auth is enabled.
 - Do not expose **`admin.web.dev_proxy: true`** on untrusted networks.
 

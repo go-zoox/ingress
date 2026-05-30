@@ -11,7 +11,7 @@
 要点：
 
 - **`admin.enabled: true`** — 与代理（**8080** / **8443**）同进程，API 监听 **9080**。
-- **`admin.auth.type: basic`** — 本地登录（默认 `admin` / `admin`）；详见 [Admin 认证示例](/zh/examples/admin-auth)。
+- **`admin.auth.type: basic`** — 本演示包显式启用登录（`admin` / `admin`）；默认 auth 类型为 **`none`** — 见 [Admin 认证示例](/zh/examples/admin-auth)。
 - **`admin.web.dev_proxy: true`** — 仅 API；UI 需 `cd core/admin/web && pnpm dev`。
 - 省略 **`logging`** 时，默认在 YAML 同目录写入 **`./access.log`**、**`./error.log`**（无需 `/var/log/ingress`）。
 
