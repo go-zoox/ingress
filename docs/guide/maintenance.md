@@ -137,6 +137,16 @@ Use **`GET /_/ingress/status`** for load-balancer / monitoring probes (host-leve
 
 JSON maintenance responses include `maintenance_header_name` and `maintenance_header_value` with the effective `response_header` settings.
 
+Customize the JSON body with **`maintenance.status_response`** (`ok` / `maintenance` templates). Placeholders: `${host}`, `${title}`, `${subtitle}`, `${retry_after}` (bare number), `${maintenance_header_name}`, `${maintenance_header_value}`, `${status}` (`ok` | `maintenance`). String placeholders expand inside JSON quotes; omit a template to keep the built-in body for that state.
+
+```yaml
+maintenance:
+  status_response:
+    ok: '{"ready":true,"host":"${host}"}'
+    maintenance: '{"ready":false,"message":"${title}","retry_after":${retry_after}}'
+    content_type: application/json; charset=utf-8
+```
+
 Example (default path):
 
 ```bash

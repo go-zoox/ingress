@@ -14,6 +14,7 @@ type MaintenanceConfig struct {
 	Subtitle       string                              `config:"subtitle"`
 	Bypass         service.MaintenanceBypass           `config:"bypass"`
 	ResponseHeader service.MaintenanceResponseHeader   `config:"response_header"`
+	StatusResponse service.MaintenanceStatusResponse   `config:"status_response"`
 	// StatusPath is the JSON maintenance status probe path (default /_/ingress/status).
 	StatusPath string `config:"status_path"`
 }
@@ -28,5 +29,6 @@ func (m MaintenanceConfig) Configured() bool {
 		m.Bypass.Header.Name != "" ||
 		m.Bypass.Header.Value != "" ||
 		m.ResponseHeader.Configured() ||
+		m.StatusResponse.Configured() ||
 		strings.TrimSpace(m.StatusPath) != ""
 }

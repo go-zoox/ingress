@@ -1,19 +1,48 @@
-import { FormField, FormGrid, FormItem, FormSection } from '../Form'
+import { useEffect, useState } from 'react'
+import {
+  CollapsibleFormSection,
+  FormField,
+  FormGrid,
+  FormItem,
+  FormTextareaField,
+} from '../Form'
 import { MaintenanceHostListEditor } from './MaintenanceHostListEditor'
 import type { GlobalMaintenanceForm } from '../../lib/maintenance'
+import { globalMaintenanceSectionOpen } from '../../lib/maintenance'
 
 const HOST_TOOLTIP =
   '精确域名、*.wildcard.example.com，或 Go 正则。每个域名可单独设置维护时间；留空时间表示该域名始终处于维护（匹配时）。'
+
+type SectionKey = 'hosts' | 'response' | 'statusApi' | 'bypass'
+
+type SectionOpenState = Record<SectionKey, boolean>
+
+function emptySectionOpen(): SectionOpenState {
+  return { hosts: false, response: false, statusApi: false, bypass: false }
+}
 
 export function GlobalMaintenanceFormFields({
   form,
   onChange,
   idPrefix = '',
+  formRevision = '',
 }: {
   form: GlobalMaintenanceForm
   onChange: (next: GlobalMaintenanceForm) => void
   idPrefix?: string
+  /** Changes when config is loaded/saved from server — re-syncs section switches. */
+  formRevision?: string
 }) {
+  const [sectionsOpen, setSectionsOpen] = useState<SectionOpenState>(emptySectionOpen)
+
+  useEffect(() => {
+    setSectionsOpen(globalMaintenanceSectionOpen(form))
+  }, [formRevision])
+
+  const setSectionOpen = (key: SectionKey, open: boolean) => {
+    setSectionsOpen((prev) => ({ ...prev, [key]: open }))
+  }
+
   const patch = (fn: (next: GlobalMaintenanceForm) => void) => {
     const next = { ...form }
     fn(next)
@@ -22,7 +51,11 @@ export function GlobalMaintenanceFormFields({
 
   return (
     <FormGrid columns={1}>
-      <FormSection title="全局维护域名 maintenance.hosts">
+      <CollapsibleFormSection
+        title="全局维护域名 maintenance.hosts"
+        open={sectionsOpen.hosts}
+        onOpenChange={(open) => setSectionOpen('hosts', open)}
+      >
         <MaintenanceHostListEditor
           title="维护域名"
           showCount
@@ -34,17 +67,13 @@ export function GlobalMaintenanceFormFields({
           editTitle="编辑维护域名"
           onChange={(items) => patch((n) => { n.maintenance_host_entries = items })}
         />
-      </FormSection>
+      </CollapsibleFormSection>
 
-      <FormSection title="默认响应">
-        <FormField
-          label="状态 API 路径 status_path"
-          keyName={`${idPrefix}maintenance.status_path`}
-          hint="留空使用默认 /_/ingress/status；JSON 维护状态探测端点"
-          placeholder="/_/ingress/status"
-          value={form.maintenance_status_path}
-          onChange={(e) => patch((n) => { n.maintenance_status_path = e.target.value })}
-        />
+      <CollapsibleFormSection
+        title="默认响应"
+        open={sectionsOpen.response}
+        onOpenChange={(open) => setSectionOpen('response', open)}
+      >
         <FormField
           label="Retry-After（秒）"
           keyName={`${idPrefix}maintenance.retry_after`}
@@ -66,7 +95,10 @@ export function GlobalMaintenanceFormFields({
           value={form.maintenance_subtitle}
           onChange={(e) => patch((n) => { n.maintenance_subtitle = e.target.value })}
         />
-        <FormItem label="维护响应头 response_header" hint="留空使用默认 X-Ingress-Maintenance: true">
+        <FormItem
+          label="维护响应头 response_header"
+          hint="作用于所有维护 503（业务请求与维护中的状态 API）；留空使用默认 X-Ingress-Maintenance: true"
+        >
           <div className="form-list-row">
             <FormField
               label="Header 名"
@@ -84,9 +116,67 @@ export function GlobalMaintenanceFormFields({
             />
           </div>
         </FormItem>
-      </FormSection>
+      </CollapsibleFormSection>
 
-      <FormSection title="Bypass（全局默认）">
+      <CollapsibleFormSection
+        title="状态 API"
+        open={sectionsOpen.statusApi}
+        onOpenChange={(open) => setSectionOpen('statusApi', open)}
+      >
+        <p className="form-hint">
+          仅配置维护状态探测端点（路径与 JSON 响应体）；与上方维护响应头无关。
+        </p>
+        <FormField
+          label="路径 status_path"
+          keyName={`${idPrefix}maintenance.status_path`}
+          hint="留空使用默认 /_/ingress/status"
+          placeholder="/_/ingress/status"
+          value={form.maintenance_status_path}
+          onChange={(e) => patch((n) => { n.maintenance_status_path = e.target.value })}
+        />
+        <FormField
+          label="Content-Type status_response.content_type"
+          keyName={`${idPrefix}maintenance.status_response.content_type`}
+          hint="留空使用 application/json; charset=utf-8"
+          placeholder="application/json; charset=utf-8"
+          value={form.maintenance_status_response_content_type}
+          onChange={(e) => patch((n) => { n.maintenance_status_response_content_type = e.target.value })}
+        />
+        <p className="form-hint">
+          响应体 JSON 模板占位符：${'{'}host{'}'}、${'{'}title{'}'}、${'{'}subtitle{'}'}、${'{'}retry_after{'}'}（裸数字）、
+          ${'{'}maintenance_header_name{'}'}、${'{'}maintenance_header_value{'}'}、${'{'}status{'}'}（ok | maintenance）。字符串写在引号内。
+        </p>
+        <FormTextareaField
+          label="正常 ok status_response.ok"
+          keyName={`${idPrefix}maintenance.status_response.ok`}
+          hint={'留空使用内置 {"status":"ok"}'}
+          full
+          mono
+          rows={4}
+          spellCheck={false}
+          placeholder='{"ready":true,"host":"${host}"}'
+          value={form.maintenance_status_response_ok}
+          onChange={(e) => patch((n) => { n.maintenance_status_response_ok = e.target.value })}
+        />
+        <FormTextareaField
+          label="维护 maintenance status_response.maintenance"
+          keyName={`${idPrefix}maintenance.status_response.maintenance`}
+          hint={'留空使用内置 {"status":"maintenance","title":"…","subtitle":"…","retry_after":300,"maintenance_header_name":"…","maintenance_header_value":"…"}'}
+          full
+          mono
+          rows={5}
+          spellCheck={false}
+          placeholder='{"status":"maintenance","title":"${title}","retry_after":${retry_after}}'
+          value={form.maintenance_status_response_maintenance}
+          onChange={(e) => patch((n) => { n.maintenance_status_response_maintenance = e.target.value })}
+        />
+      </CollapsibleFormSection>
+
+      <CollapsibleFormSection
+        title="Bypass（全局默认）"
+        open={sectionsOpen.bypass}
+        onOpenChange={(open) => setSectionOpen('bypass', open)}
+      >
         <p className="form-hint">与规则级 bypass 合并（OR）；任一匹配即放行。</p>
         <FormField
           label="Bypass 路径 bypass.paths"
@@ -118,7 +208,7 @@ export function GlobalMaintenanceFormFields({
             />
           </div>
         </FormItem>
-      </FormSection>
+      </CollapsibleFormSection>
     </FormGrid>
   )
 }

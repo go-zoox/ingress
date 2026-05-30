@@ -1,0 +1,22 @@
+version: v1
+port: 8080
+
+# Custom JSON body for the maintenance status probe (default is built-in status/title fields).
+maintenance:
+  hosts:
+    - host: app.example.com
+  title: Planned maintenance
+  retry_after: 300
+  status_response:
+    ok: '{"ready":true,"host":"${host}"}'
+    maintenance: '{"ready":false,"message":"${title}","retry_after":${retry_after}}'
+    content_type: application/json; charset=utf-8
+
+rules:
+  - host: app.example.com
+    backend:
+      type: service
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

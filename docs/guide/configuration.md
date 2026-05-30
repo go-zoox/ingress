@@ -135,6 +135,9 @@ Evaluated after route match and WAF; returns **503** before redirect/handler/ups
 | `response_header.name` | string | Maintenance indicator header name | `X-Ingress-Maintenance` |
 | `response_header.value` | string | Maintenance indicator header value | `true` |
 | `status_path` | string | JSON maintenance status probe path | `/_/ingress/status` |
+| `status_response.ok` | string | JSON template when host is not in maintenance | built-in `{"status":"ok"}` |
+| `status_response.maintenance` | string | JSON template when host is in maintenance | built-in fields |
+| `status_response.content_type` | string | `Content-Type` for status probe responses | `application/json; charset=utf-8` |
 
 **Built-in status probe:** `GET {status_path}` — JSON `{"status":"ok"}` (200) or `{"status":"maintenance",...}` (503) for the request Host; see [Maintenance guide](maintenance.md#ingress-status-probe).
 

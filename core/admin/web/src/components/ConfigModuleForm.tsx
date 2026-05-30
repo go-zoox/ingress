@@ -1,4 +1,5 @@
 import {
+  CollapsibleFormSection,
   FormCheckbox,
   FormField,
   FormGrid,
@@ -399,6 +400,7 @@ function WAFModuleForm({
   onChange: (doc: Record<string, unknown>) => void
 }) {
   const waf = { ...obj(doc.waf) }
+  const wafEnabled = bool(waf.enabled, false)
   const patchWaf = (fn: (next: Record<string, unknown>) => void) => {
     const next = { ...waf }
     fn(next)
@@ -407,47 +409,48 @@ function WAFModuleForm({
 
   return (
     <FormGrid columns={1}>
-      <FormCheckbox
-        label="启用 WAF"
-        checked={bool(waf.enabled, true)}
-        onChange={(v) => patchWaf((n) => { n.enabled = v })}
-      />
-      <FormSelectField
-        label="全局处置"
-        keyName="waf.log_only"
-        hint="未单独设置 action 的规则默认跟随此项；写入 log_only: true 表示记录"
-        value={wafGlobalModeFromLogOnly(bool(waf.log_only))}
-        onChange={(e) => {
-          const mode = e.target.value as WAFGlobalMode
-          patchWaf((n) => {
-            if (mode === 'audit') n.log_only = true
-            else delete n.log_only
-          })
-        }}
+      <CollapsibleFormSection
+        title="WAF"
+        open={wafEnabled}
+        onOpenChange={(open) => patchWaf((n) => { n.enabled = open })}
       >
-        {WAF_GLOBAL_MODE_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value} title={o.hint}>
-            {o.label} — {o.hint}
-          </option>
-        ))}
-      </FormSelectField>
-      <p className="form-hint">
-        单条规则选「继承」时跟随全局处置；可显式覆盖为 拦截 / 仅记录 / 通过。
-      </p>
-      <FormCheckbox
-        label="禁用内置规则"
-        checked={bool(waf.disable_builtin)}
-        onChange={(v) => patchWaf((n) => setBool(n, 'disable_builtin', v))}
-      />
-      <FormField
-        label="拦截状态码"
-        keyName="block_status_code"
-        hint="默认 403"
-        type="number"
-        value={num(waf.block_status_code, 403)}
-        onChange={(e) => patchWaf((n) => setNum(n, 'block_status_code', Number(e.target.value)))}
-      />
-      <WafRulesEditor doc={doc} onChange={onChange} />
+        <FormSelectField
+          label="全局处置"
+          keyName="waf.log_only"
+          hint="未单独设置 action 的规则默认跟随此项；写入 log_only: true 表示记录"
+          value={wafGlobalModeFromLogOnly(bool(waf.log_only))}
+          onChange={(e) => {
+            const mode = e.target.value as WAFGlobalMode
+            patchWaf((n) => {
+              if (mode === 'audit') n.log_only = true
+              else delete n.log_only
+            })
+          }}
+        >
+          {WAF_GLOBAL_MODE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value} title={o.hint}>
+              {o.label} — {o.hint}
+            </option>
+          ))}
+        </FormSelectField>
+        <p className="form-hint">
+          单条规则选「继承」时跟随全局处置；可显式覆盖为 拦截 / 仅记录 / 通过。
+        </p>
+        <FormCheckbox
+          label="禁用内置规则"
+          checked={bool(waf.disable_builtin)}
+          onChange={(v) => patchWaf((n) => setBool(n, 'disable_builtin', v))}
+        />
+        <FormField
+          label="拦截状态码"
+          keyName="block_status_code"
+          hint="默认 403"
+          type="number"
+          value={num(waf.block_status_code, 403)}
+          onChange={(e) => patchWaf((n) => setNum(n, 'block_status_code', Number(e.target.value)))}
+        />
+        <WafRulesEditor doc={doc} onChange={onChange} />
+      </CollapsibleFormSection>
     </FormGrid>
   )
 }

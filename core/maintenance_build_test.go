@@ -467,6 +467,89 @@ func TestBuild_IngressStatus_IgnoresBypass(t *testing.T) {
 	}
 }
 
+func TestBuild_IngressStatus_CustomResponseBody(t *testing.T) {
+	okCfg := &Config{
+		Port: 8080,
+		Maintenance: MaintenanceConfig{
+			StatusResponse: service.MaintenanceStatusResponse{
+				OK:          `{"ready":true,"host":"${host}"}`,
+				ContentType: "application/json; charset=utf-8",
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	insOK := mustBuildIngressCore(t, okCfg)
+	reqOK := httptest.NewRequest(http.MethodGet, "http://app.example.com/_/ingress/status", nil)
+	recOK := httptest.NewRecorder()
+	insOK.app.ServeHTTP(recOK, reqOK)
+	if recOK.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%q", recOK.Code, recOK.Body.String())
+	}
+	if ct := recOK.Header().Get("Content-Type"); ct != "application/json; charset=utf-8" {
+		t.Fatalf("expected custom content type, got %q", ct)
+	}
+	var okBody map[string]any
+	if err := json.Unmarshal(recOK.Body.Bytes(), &okBody); err != nil {
+		t.Fatal(err)
+	}
+	if okBody["ready"] != true || okBody["host"] != "app.example.com" {
+		t.Fatalf("unexpected ok body: %v", okBody)
+	}
+
+	maintCfg := &Config{
+		Port: 8080,
+		Maintenance: MaintenanceConfig{
+			Hosts:      hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Title:      "Planned downtime",
+			RetryAfter: 300,
+			StatusResponse: service.MaintenanceStatusResponse{
+				Maintenance: `{"ready":false,"message":"${title}","retry_after":${retry_after}}`,
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	insMaint := mustBuildIngressCore(t, maintCfg)
+	reqMaint := httptest.NewRequest(http.MethodGet, "http://app.example.com/_/ingress/status", nil)
+	recMaint := httptest.NewRecorder()
+	insMaint.app.ServeHTTP(recMaint, reqMaint)
+	if recMaint.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d body=%q", recMaint.Code, recMaint.Body.String())
+	}
+	var maintBody map[string]any
+	if err := json.Unmarshal(recMaint.Body.Bytes(), &maintBody); err != nil {
+		t.Fatal(err)
+	}
+	if maintBody["ready"] != false || maintBody["message"] != "Planned downtime" || maintBody["retry_after"] != float64(300) {
+		t.Fatalf("unexpected maintenance body: %v", maintBody)
+	}
+}
+
 func parseTestUpstreamHostPort(t *testing.T, rawURL string) (string, int64) {
 	t.Helper()
 	u, err := url.Parse(rawURL)

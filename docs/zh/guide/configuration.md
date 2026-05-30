@@ -97,6 +97,9 @@ rules:
 | `response_header.name` | string | 维护标识响应头名称 | `X-Ingress-Maintenance` |
 | `response_header.value` | string | 维护标识响应头值 | `true` |
 | `status_path` | string | JSON 维护状态探测路径 | `/_/ingress/status` |
+| `status_response.ok` | string | Host 未维护时的 JSON 模板 | 内置 `{"status":"ok"}` |
+| `status_response.maintenance` | string | Host 维护中时的 JSON 模板 | 内置字段 |
+| `status_response.content_type` | string | 状态探测响应 `Content-Type` | `application/json; charset=utf-8` |
 
 **内置状态探测：** `GET {status_path}` — 按请求 Host 返回 JSON；详见 [维护模式](maintenance.md#ingress-状态探测)。
 

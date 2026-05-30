@@ -172,7 +172,7 @@ export function MaintenancePage() {
           {loading ? (
             <p className="empty-hint">加载中…</p>
           ) : (
-            <GlobalMaintenanceFormFields form={form} onChange={setForm} />
+            <GlobalMaintenanceFormFields form={form} onChange={setForm} formRevision={savedYAML} />
           )}
           {!loading && !globalMaintenanceConfigured(form) ? (
             <p className="form-hint" style={{ marginTop: '1rem' }}>

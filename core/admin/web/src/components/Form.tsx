@@ -3,7 +3,57 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
 } from 'react'
+
+export function FormSwitch({
+  checked,
+  onChange,
+  label,
+  id: idProp,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  label?: string
+  id?: string
+}) {
+  const autoId = useId()
+  const id = idProp ?? autoId
+  return (
+    <label className="form-switch" htmlFor={id} title={label}>
+      <input
+        id={id}
+        type="checkbox"
+        role="switch"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="form-switch-track" aria-hidden />
+    </label>
+  )
+}
+
+export function CollapsibleFormSection({
+  title,
+  open,
+  onOpenChange,
+  children,
+}: {
+  title?: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  children: ReactNode
+}) {
+  return (
+    <section className={`form-section${open ? ' form-section--open' : ' form-section--collapsed'}`}>
+      <div className="form-section-head">
+        {title ? <h4 className="form-section-title">{title}</h4> : <span />}
+        <FormSwitch checked={open} onChange={onOpenChange} label={open ? '展开' : '折叠'} />
+      </div>
+      {open ? <div className="form-section-body">{children}</div> : null}
+    </section>
+  )
+}
 
 export function FormGrid({
   children,
@@ -120,6 +170,46 @@ export function FormField({
   return (
     <FormItem label={label} hint={hint} full={full} htmlFor={id}>
       <FormInput id={id} {...inputProps} />
+    </FormItem>
+  )
+}
+
+/** Multiline text with label spacing baked in (compact; not full-page YAML editors). */
+export function FormTextareaField({
+  label,
+  keyName: _keyName,
+  hint,
+  full,
+  mono,
+  rows = 4,
+  className,
+  ...textareaProps
+}: {
+  label: string
+  /** @deprecated Config key is no longer shown in the UI */
+  keyName?: string
+  hint?: string
+  full?: boolean
+  mono?: boolean
+  rows?: number
+  className?: string
+} & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'className' | 'rows'>) {
+  const id = useId()
+  return (
+    <FormItem label={label} hint={hint} full={full} htmlFor={id}>
+      <textarea
+        id={id}
+        rows={rows}
+        className={[
+          'form-control',
+          'form-textarea',
+          mono ? 'form-textarea--mono' : '',
+          className,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        {...textareaProps}
+      />
     </FormItem>
   )
 }

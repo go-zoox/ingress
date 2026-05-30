@@ -1,7 +1,6 @@
 package core
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -80,8 +79,9 @@ type compiledRuleMaintenance struct {
 }
 
 type compiledGlobalMaintenance struct {
-	hosts    compiledMaintenanceHostList
-	settings compiledMaintenanceSettings
+	hosts          compiledMaintenanceHostList
+	settings       compiledMaintenanceSettings
+	statusResponse compiledMaintenanceStatusResponse
 }
 
 type compiledMaintenanceBypass struct {
@@ -107,6 +107,11 @@ func compileGlobalMaintenance(cfg MaintenanceConfig) (compiledGlobalMaintenance,
 		return out, err
 	}
 	out.settings = settings
+	statusResponse, err := compileMaintenanceStatusResponse(cfg.StatusResponse, "maintenance.status_response")
+	if err != nil {
+		return out, err
+	}
+	out.statusResponse = statusResponse
 	if len(cfg.Hosts) > 0 {
 		out.hosts, err = compileMaintenanceHostList(cfg.Hosts, "maintenance.hosts")
 		if err != nil {
@@ -121,6 +126,9 @@ func validateGlobalMaintenance(cfg *Config) error {
 		return nil
 	}
 	if _, err := compileIngressStatusPath(cfg.Maintenance.StatusPath); err != nil {
+		return err
+	}
+	if _, err := compileMaintenanceStatusResponse(cfg.Maintenance.StatusResponse, "maintenance.status_response"); err != nil {
 		return err
 	}
 	if !cfg.Maintenance.Configured() {
@@ -515,32 +523,23 @@ func (c *core) writeIngressStatus(ctx *zoox.Context) {
 	}
 
 	active, settings := c.maintenanceActiveForHost(ruleIdx, hostname, time.Now())
-	body := ingressStatusBody{Status: "ok"}
 	status := http.StatusOK
 	if active {
 		status = http.StatusServiceUnavailable
-		body.Status = "maintenance"
-		body.Title = settings.Title
-		body.Subtitle = settings.Subtitle
-		body.MaintenanceHeaderName = settings.responseHeader.name
-		body.MaintenanceHeaderValue = settings.responseHeader.value
-		if settings.RetryAfter > 0 {
-			body.RetryAfter = settings.RetryAfter
-		}
 		applyMaintenanceResponseHeader(ctx, settings.responseHeader)
 		if settings.RetryAfter > 0 {
 			ctx.SetHeader("Retry-After", strconv.FormatInt(settings.RetryAfter, 10))
 		}
 	}
 
-	raw, err := json.Marshal(body)
+	raw, err := c.renderIngressStatusBody(active, settings, hostname)
 	if err != nil {
 		ctx.SetHeader("Content-Type", errorPageContentTypeJSON)
 		ctx.String(http.StatusInternalServerError, `{"status":"error","message":"failed to encode status"}`)
 		return
 	}
-	ctx.SetHeader("Content-Type", errorPageContentTypeJSON)
-	ctx.String(status, string(raw))
+	ctx.SetHeader("Content-Type", c.globalMaintenance.statusResponse.contentType)
+	ctx.String(status, raw)
 }
 
 func maintenanceClientIP(r *http.Request) net.IP {

@@ -137,6 +137,16 @@ rules:
 
 JSON 响应含 `maintenance_header_name`、`maintenance_header_value`，与 `response_header` 一致。
 
+可用 **`maintenance.status_response`** 自定义 JSON 响应体（`ok` / `maintenance` 模板）。占位符：`${host}`、`${title}`、`${subtitle}`、`${retry_after}`（裸数字）、`${maintenance_header_name}`、`${maintenance_header_value}`、`${status}`（`ok` | `maintenance`）。字符串占位符写在 JSON 引号内；省略某模板则该状态仍用内置 JSON。
+
+```yaml
+maintenance:
+  status_response:
+    ok: '{"ready":true,"host":"${host}"}'
+    maintenance: '{"ready":false,"message":"${title}","retry_after":${retry_after}}'
+    content_type: application/json; charset=utf-8
+```
+
 示例（默认路径）：
 
 ```bash

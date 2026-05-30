@@ -20,8 +20,15 @@ export type MaintenanceResponseHeaderFormSlice = {
   maintenance_response_header_value: string
 }
 
+export type MaintenanceStatusResponseFormSlice = {
+  maintenance_status_response_ok: string
+  maintenance_status_response_maintenance: string
+  maintenance_status_response_content_type: string
+}
+
 export type GlobalMaintenanceForm = MaintenanceBypassFormSlice &
-  MaintenanceResponseHeaderFormSlice & {
+  MaintenanceResponseHeaderFormSlice &
+  MaintenanceStatusResponseFormSlice & {
   maintenance_host_entries: MaintenanceHostFormEntry[]
   maintenance_retry_after: number
   maintenance_title: string
@@ -46,6 +53,9 @@ export function emptyGlobalMaintenanceForm(): GlobalMaintenanceForm {
     maintenance_bypass_header_value: '',
     maintenance_response_header_name: '',
     maintenance_response_header_value: '',
+    maintenance_status_response_ok: '',
+    maintenance_status_response_maintenance: '',
+    maintenance_status_response_content_type: '',
   }
 }
 
@@ -94,6 +104,7 @@ export function globalMaintenanceFromDoc(doc: Record<string, unknown>): GlobalMa
   const bypass = obj(m.bypass)
   const header = obj(bypass.header)
   const responseHeader = obj(m.response_header)
+  const statusResponse = obj(m.status_response)
   const paths = arr<string>(bypass.paths)
   const allowIPs = arr<string>(bypass.allow_ips)
   return {
@@ -108,6 +119,9 @@ export function globalMaintenanceFromDoc(doc: Record<string, unknown>): GlobalMa
     maintenance_bypass_header_value: str(header.value),
     maintenance_response_header_name: str(responseHeader.name),
     maintenance_response_header_value: str(responseHeader.value),
+    maintenance_status_response_ok: str(statusResponse.ok),
+    maintenance_status_response_maintenance: str(statusResponse.maintenance),
+    maintenance_status_response_content_type: str(statusResponse.content_type),
   }
 }
 
@@ -120,6 +134,20 @@ function buildMaintenanceResponseHeader(
   const block: Record<string, unknown> = {}
   if (name) block.name = name
   if (value) block.value = value
+  return block
+}
+
+function buildMaintenanceStatusResponse(
+  form: MaintenanceStatusResponseFormSlice,
+): Record<string, unknown> | undefined {
+  const ok = form.maintenance_status_response_ok.trim()
+  const maintenance = form.maintenance_status_response_maintenance.trim()
+  const contentType = form.maintenance_status_response_content_type.trim()
+  if (!ok && !maintenance && !contentType) return undefined
+  const block: Record<string, unknown> = {}
+  if (ok) block.ok = ok
+  if (maintenance) block.maintenance = maintenance
+  if (contentType) block.content_type = contentType
   return block
 }
 
@@ -150,7 +178,10 @@ export function globalMaintenanceConfigured(form: GlobalMaintenanceForm): boolea
     form.maintenance_bypass_header_name.trim() !== '' ||
     form.maintenance_bypass_header_value.trim() !== '' ||
     form.maintenance_response_header_name.trim() !== '' ||
-    form.maintenance_response_header_value.trim() !== ''
+    form.maintenance_response_header_value.trim() !== '' ||
+    form.maintenance_status_response_ok.trim() !== '' ||
+    form.maintenance_status_response_maintenance.trim() !== '' ||
+    form.maintenance_status_response_content_type.trim() !== ''
   )
 }
 
@@ -174,7 +205,40 @@ export function patchGlobalMaintenance(
   if (bypass) block.bypass = bypass
   const responseHeader = buildMaintenanceResponseHeader(form)
   if (responseHeader) block.response_header = responseHeader
+  const statusResponse = buildMaintenanceStatusResponse(form)
+  if (statusResponse) block.status_response = statusResponse
   return { ...doc, maintenance: block }
+}
+
+export function globalMaintenanceSectionOpen(form: GlobalMaintenanceForm): {
+  hosts: boolean
+  response: boolean
+  statusApi: boolean
+  bypass: boolean
+} {
+  const hasHosts = form.maintenance_host_entries.some((e) => e.host.trim() !== '')
+  const hasResponse =
+    form.maintenance_retry_after > 0 ||
+    form.maintenance_title.trim() !== '' ||
+    form.maintenance_subtitle.trim() !== '' ||
+    form.maintenance_response_header_name.trim() !== '' ||
+    form.maintenance_response_header_value.trim() !== ''
+  const hasStatusApi =
+    form.maintenance_status_path.trim() !== '' ||
+    form.maintenance_status_response_ok.trim() !== '' ||
+    form.maintenance_status_response_maintenance.trim() !== '' ||
+    form.maintenance_status_response_content_type.trim() !== ''
+  const hasBypass =
+    form.maintenance_bypass_paths.trim() !== '' ||
+    form.maintenance_bypass_allow_ips.trim() !== '' ||
+    form.maintenance_bypass_header_name.trim() !== '' ||
+    form.maintenance_bypass_header_value.trim() !== ''
+  return {
+    hosts: hasHosts,
+    response: hasResponse,
+    statusApi: hasStatusApi,
+    bypass: hasBypass,
+  }
 }
 
 export function maintenanceHostCount(form: GlobalMaintenanceForm): number {

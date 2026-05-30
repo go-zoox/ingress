@@ -87,7 +87,10 @@ export function MaintenanceFormFields<T extends BackendForm>({
               value={form.maintenance_subtitle}
               onChange={(e) => patch((n) => { n.maintenance_subtitle = e.target.value })}
             />
-            <FormItem label="维护响应头 response_header" hint="留空继承全局；仅填一项时另一项用默认值">
+            <FormItem
+              label="维护响应头 response_header"
+              hint="作用于该规则触发的所有维护 503（业务请求与维护中的状态 API）；留空继承全局"
+            >
               <div className="form-list-row">
                 <FormField
                   label="Header 名"
