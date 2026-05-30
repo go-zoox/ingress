@@ -37,6 +37,7 @@ func ingressErrorPageHTML(status int, title, subtitle string, exposeDetails bool
 	code := strconv.Itoa(status)
 	title = html.EscapeString(title)
 	subtitle = html.EscapeString(subtitle)
+	tag := errorPageCategoryTag(status)
 
 	reasonBlock := ""
 	dlBlock := ""
@@ -48,7 +49,7 @@ func ingressErrorPageHTML(status int, title, subtitle string, exposeDetails bool
 		h := html.EscapeString(hostname)
 		p := html.EscapeString(path)
 		m := html.EscapeString(strings.ToUpper(method))
-		dlBlock = fmt.Sprintf(`<dl>
+		dlBlock = fmt.Sprintf(`<dl class="meta">
       <div><dt>Host</dt><dd>%s</dd></div>
       <div><dt>Path</dt><dd>%s</dd></div>
       <div><dt>Method</dt><dd>%s</dd></div>
@@ -60,7 +61,7 @@ func ingressErrorPageHTML(status int, title, subtitle string, exposeDetails bool
 		footer = `Response from the ingress gateway. Details below are for debugging; disable error_page_expose_details for public deployments.`
 	}
 
-	footer = html.EscapeString(footer)
+	footerBlock := fmt.Sprintf(`<footer class="foot">%s</footer>`, html.EscapeString(footer))
 
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
@@ -69,37 +70,117 @@ func ingressErrorPageHTML(status int, title, subtitle string, exposeDetails bool
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>%s · %s</title>
 <style>
-:root { --fg:#0f172a; --muted:#64748b; --line:#e2e8f0; --accent:#2563eb; --bg:#f1f5f9; --card:#fff; }
-@media (prefers-color-scheme: dark) {
-  :root { --fg:#f8fafc; --muted:#94a3b8; --line:#334155; --accent:#60a5fa; --bg:#0f172a; --card:#1e293b; }
+:root {
+  --bg: #050508;
+  --card: rgba(12,14,20,.76);
+  --ink: #eceff4;
+  --muted: #8b93a7;
+  --line: rgba(255,255,255,.09);
+  --glow: rgba(147,197,253,.35);
 }
 * { box-sizing: border-box; }
-body { margin:0; min-height:100vh; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: linear-gradient(160deg, var(--bg) 0%%, #e0e7ff 100%%); color: var(--fg); display:flex; align-items:center; justify-content:center; padding:24px; }
-@media (prefers-color-scheme: dark) { body { background: linear-gradient(160deg, var(--bg) 0%%, #1e1b4b 100%%); } }
-.wrap { max-width: 520px; width: 100%%; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 32px 28px; box-shadow: 0 10px 40px rgba(15,23,42,.08); }
-.badge { display:inline-block; font-weight:700; font-size: 2.5rem; line-height:1; letter-spacing:-0.02em; color: var(--accent); margin-bottom: 8px; }
-h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 8px; line-height: 1.3; }
-.sub { margin: 0 0 20px; color: var(--muted); font-size: 0.95rem; line-height: 1.5; }
-.reason { margin: 0 0 20px; padding: 12px 14px; background: rgba(37,99,235,.06); border-radius: 10px; border-left: 3px solid var(--accent); font-size: 0.9rem; line-height: 1.5; color: var(--fg); }
-dl { margin: 0; display: grid; gap: 10px; font-size: 0.875rem; }
-dt { color: var(--muted); font-weight: 500; margin: 0; }
-dd { margin: 2px 0 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.82rem; word-break: break-all; }
-footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+body {
+  margin: 0;
+  min-height: 100svh;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+.ambient {
+  position: fixed; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(900px 520px at 12%% -8%%, rgba(59,130,246,.12), transparent 58%%),
+    radial-gradient(700px 420px at 88%% 8%%, rgba(167,139,250,.1), transparent 55%%),
+    radial-gradient(600px 400px at 50%% 110%%, rgba(56,189,248,.06), transparent 60%%);
+}
+.noise {
+  position: fixed; inset: 0; pointer-events: none; opacity: .035;
+  background-image: url("data:image/svg+xml,%%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%%3E%%3Cfilter id='n'%%3E%%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%%3E%%3C/filter%%3E%%3Crect width='100%%25' height='100%%25' filter='url(%%23n)'/%%3E%%3C/svg%%3E");
+}
+.page {
+  position: relative; z-index: 1;
+  min-height: 100svh; display: grid; place-items: center; padding: 56px 24px;
+}
+.card {
+  width: min(520px, 100%%); padding: 36px 32px 30px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--line);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.02) inset, 0 40px 100px rgba(0,0,0,.55);
+  backdrop-filter: blur(24px);
+  position: relative; overflow: hidden;
+}
+.card::after {
+  content: ""; position: absolute; top: 0; left: 32px; right: 32px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent);
+}
+.row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.tag {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+}
+.code {
+  font-size: clamp(3rem, 10vw, 4.2rem); font-weight: 700; line-height: 1; letter-spacing: -.05em; margin: 0;
+  text-shadow: 0 0 40px var(--glow);
+}
+.title { font-size: 1.25rem; font-weight: 600; margin: 0 0 10px; letter-spacing: -.01em; }
+.sub {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .84rem; line-height: 1.7; color: var(--muted); margin: 0;
+}
+.reason {
+  margin: 20px 0 0; padding: 12px 14px;
+  background: rgba(147,197,253,.06); border: 1px solid rgba(255,255,255,.08); border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .8rem; line-height: 1.6; color: var(--ink);
+}
+.meta { margin: 20px 0 0; display: grid; gap: 10px; font-size: .78rem; }
+.meta dt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-size: .68rem; margin: 0;
+}
+.meta dd {
+  margin: 4px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .82rem; word-break: break-all; color: var(--ink);
+}
+.foot {
+  margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .72rem; color: var(--muted); line-height: 1.6;
+}
+.bar {
+  margin-top: 28px; height: 3px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,.06);
+}
+.bar span {
+  display: block; height: 100%%; width: 38%%; border-radius: inherit;
+  background: linear-gradient(90deg, rgba(147,197,253,.2), rgba(167,139,250,.75));
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="card">
-    <div class="badge">%s</div>
-    <h1>%s</h1>
+<div class="ambient"></div>
+<div class="noise"></div>
+<main class="page">
+  <article class="card">
+    <div class="row"><span class="tag">%s</span><p class="code">%s</p></div>
+    <h1 class="title">%s</h1>
     <p class="sub">%s</p>
     %s
     %s
-    <footer>%s</footer>
-  </div>
-</div>
+    %s
+    <div class="bar"><span></span></div>
+  </article>
+</main>
 </body>
-</html>`, title, code, code, title, subtitle, reasonBlock, dlBlock, footer)
+</html>`, title, code, tag, code, title, subtitle, reasonBlock, dlBlock, footerBlock)
+}
+
+func errorPageCategoryTag(status int) string {
+	switch status {
+	case 401, 403, 404:
+		return "client"
+	case 500:
+		return "origin"
+	default:
+		return "upstream"
+	}
 }

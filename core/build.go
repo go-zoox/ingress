@@ -55,7 +55,7 @@ func (c *core) build() error {
 		path := ctx.Path
 		rawQuery := ctx.Request.URL.RawQuery
 		pageDetail := ErrorPageDetail{Hostname: hostname, Path: path, Method: method}
-		c.fillProxyErrorPages(cfg, pageDetail)
+		c.fillProxyErrorPages(cfg, ctx.Request, pageDetail)
 
 		if shouldRedirectFromHTTP(ctx.Request, path, c.cfg) {
 			redirectURL := buildHTTPSRedirectURL(hostname, path, rawQuery, c.cfg.HTTPS.Port)

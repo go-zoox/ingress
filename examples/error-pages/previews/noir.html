@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Noir · Error pages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050508;
+  --card: rgba(12,14,20,.76);
+  --ink: #eceff4;
+  --muted: #8b93a7;
+  --line: rgba(255,255,255,.09);
+  --glow: rgba(147,197,253,.35);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Syne", ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+.ambient {
+  position: fixed; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(59,130,246,.12), transparent 58%),
+    radial-gradient(700px 420px at 88% 8%, rgba(167,139,250,.1), transparent 55%),
+    radial-gradient(600px 400px at 50% 110%, rgba(56,189,248,.06), transparent 60%);
+}
+.noise {
+  position: fixed; inset: 0; pointer-events: none; opacity: .035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.sidebar {
+  position: fixed; inset: 0 auto 0 0; width: 220px; z-index: 5;
+  padding: 28px 20px; border-right: 1px solid var(--line);
+  background: rgba(5,5,8,.55); backdrop-filter: blur(18px);
+}
+.brand { font-family: "IBM Plex Mono", monospace; font-size: .68rem; color: var(--muted); margin: 0 0 8px; }
+.sidebar h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 28px; letter-spacing: -.02em; }
+.back { display: inline-block; margin-bottom: 20px; font-size: .78rem; color: var(--muted); text-decoration: none; font-family: "IBM Plex Mono", monospace; }
+.back:hover { color: var(--ink); }
+.nav { display: grid; gap: 2px; }
+.nav a {
+  padding: 9px 12px; border-radius: 8px; text-decoration: none; color: var(--muted);
+  font-family: "IBM Plex Mono", monospace; font-size: .78rem;
+  transition: background .2s, color .2s;
+}
+.nav a:hover { background: rgba(255,255,255,.04); color: var(--ink); }
+main { margin-left: 220px; position: relative; z-index: 1; }
+.page {
+  min-height: 100svh; display: grid; place-items: center; padding: 56px 32px;
+  border-bottom: 1px solid var(--line);
+}
+.card {
+  width: min(520px, 100%); padding: 36px 32px 30px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--line);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.02) inset, 0 40px 100px rgba(0,0,0,.55);
+  backdrop-filter: blur(24px);
+  position: relative; overflow: hidden;
+}
+.card::after {
+  content: ""; position: absolute; top: 0; left: 32px; right: 32px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent);
+}
+.row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.tag {
+  font-family: "IBM Plex Mono", monospace; font-size: .68rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted);
+}
+.code {
+  font-size: 4.2rem; font-weight: 700; line-height: 1; letter-spacing: -.05em; margin: 0;
+  text-shadow: 0 0 40px var(--glow);
+}
+.title { font-size: 1.25rem; font-weight: 600; margin: 0 0 10px; letter-spacing: -.01em; }
+.sub {
+  font-family: "IBM Plex Mono", monospace; font-size: .84rem; line-height: 1.7;
+  color: var(--muted); margin: 0;
+}
+.bar {
+  margin-top: 28px; height: 3px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,.06);
+}
+.bar span {
+  display: block; height: 100%; width: 38%; border-radius: inherit;
+  background: linear-gradient(90deg, rgba(147,197,253,.2), rgba(167,139,250,.75));
+}
+@media (max-width: 900px) {
+  .sidebar { position: static; width: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  main { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<div class="ambient"></div>
+<div class="noise"></div>
+<aside class="sidebar">
+  <a class="back" href="index.html">← themes</a>
+  <p class="brand">// theme</p>
+  <h1>Noir</h1>
+  <nav class="nav">
+    <a href="#401">401</a><a href="#403">403</a><a href="#404">404</a>
+    <a href="#500">500</a><a href="#502">502</a><a href="#503">503</a><a href="#504">504</a>
+  </nav>
+</aside>
+<main>
+<section class="page" id="401"><article class="card"><div class="row"><span class="tag">client</span><p class="code">401</p></div><h2 class="title">Unauthorized</h2><p class="sub">Authentication is required to access this resource.</p><div class="bar"><span></span></div></article></section>
+<section class="page" id="403"><article class="card"><div class="row"><span class="tag">client</span><p class="code">403</p></div><h2 class="title">Forbidden</h2><p class="sub">You do not have permission to access this resource.</p><div class="bar"><span></span></div></article></section>
+<section class="page" id="404"><article class="card"><div class="row"><span class="tag">client</span><p class="code">404</p></div><h2 class="title">Not Found</h2><p class="sub">The requested resource could not be found.</p><div class="bar"><span></span></div></article></section>
+<section class="page" id="500"><article class="card"><div class="row"><span class="tag">origin</span><p class="code">500</p></div><h2 class="title">Internal Server Error</h2><p class="sub">An unexpected error occurred. Please try again later.</p><div class="bar"><span></span></div></article></section>
+<section class="page" id="502"><article class="card"><div class="row"><span class="tag">upstream</span><p class="code">502</p></div><h2 class="title">Bad Gateway</h2><p class="sub">The upstream server returned an invalid response.</p><div class="bar"><span></span></div></article></section>
+<section class="page" id="503"><article class="card"><div class="row"><span class="tag">upstream</span><p class="code">503</p></div><h2 class="title">Service Unavailable</h2><p class="sub">The service is temporarily unavailable. Please try again later.</p><div class="bar"><span></span></div></article></section>
+<section class="page" id="504"><article class="card"><div class="row"><span class="tag">upstream</span><p class="code">504</p></div><h2 class="title">Gateway Timeout</h2><p class="sub">The upstream server did not respond in time.</p><div class="bar"><span></span></div></article></section>
+</main>
+</body>
+</html>

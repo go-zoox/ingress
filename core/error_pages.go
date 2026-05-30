@@ -209,6 +209,18 @@ func resolveErrorPagePaths(cfg *Config, base string) {
 }
 
 func (p *compiledErrorPages) Render(status int, exposeDetails bool, detail ErrorPageDetail) string {
+	body, _ := p.RenderWithNegotiation(status, exposeDetails, detail, false)
+	return body
+}
+
+func (p *compiledErrorPages) RenderWithNegotiation(status int, exposeDetails bool, detail ErrorPageDetail, asJSON bool) (body, contentType string) {
+	if !asJSON {
+		return p.renderHTML(status, exposeDetails, detail), errorPageContentTypeHTML
+	}
+	return p.renderJSON(status, exposeDetails, detail), errorPageContentTypeJSON
+}
+
+func (p *compiledErrorPages) renderHTML(status int, exposeDetails bool, detail ErrorPageDetail) string {
 	page := p.byStatus[status]
 	if page == nil {
 		title, subtitle := builtinErrorPageCopy(status)
@@ -226,14 +238,50 @@ func (p *compiledErrorPages) Render(status int, exposeDetails bool, detail Error
 	}
 }
 
-func (c *core) writeErrorPage(ctx *zoox.Context, status int, secProf *security.Profile, detail ErrorPageDetail) {
-	applySecurityHeaders(ctx, secProf)
-	html := c.errorPages.Render(status, c.cfg.ErrorPageExposeDetails, detail)
-	ctx.SetHeader("Content-Type", "text/html; charset=utf-8")
-	ctx.HTML(status, html)
+func (p *compiledErrorPages) renderJSON(status int, exposeDetails bool, detail ErrorPageDetail) string {
+	page := p.byStatus[status]
+	if page != nil {
+		switch page.pageType {
+		case errorPageTypeInline:
+			if inlineBodyLooksLikeJSON(page.body) {
+				return page.body
+			}
+		case errorPageTypeFile:
+			return p.renderBuiltinJSON(status, exposeDetails, detail, "", "")
+		}
+	}
+
+	title, subtitle := builtinErrorPageCopy(status)
+	if page != nil && page.pageType == errorPageTypeBuiltin {
+		title, subtitle = page.title, page.subtitle
+	}
+	return p.renderBuiltinJSON(status, exposeDetails, detail, title, subtitle)
 }
 
-func (c *core) fillProxyErrorPages(cfg *middleware.ProxyConfig, detail ErrorPageDetail) {
+func (p *compiledErrorPages) renderBuiltinJSON(status int, exposeDetails bool, detail ErrorPageDetail, title, subtitle string) string {
+	if title == "" || subtitle == "" {
+		title, subtitle = builtinErrorPageCopy(status)
+	}
+	host, path, method, reason := detail.Hostname, detail.Path, detail.Method, detail.Reason
+	if !exposeDetails {
+		host, path, method, reason = "", "", "", ""
+	}
+	return ingressErrorPageJSON(status, title, subtitle, exposeDetails, host, path, method, reason)
+}
+
+func (c *core) writeErrorPage(ctx *zoox.Context, status int, secProf *security.Profile, detail ErrorPageDetail) {
+	applySecurityHeaders(ctx, secProf)
+	asJSON := requestPrefersJSON(ctx.Request)
+	body, contentType := c.errorPages.RenderWithNegotiation(status, c.cfg.ErrorPageExposeDetails, detail, asJSON)
+	ctx.SetHeader("Content-Type", contentType)
+	if asJSON {
+		ctx.String(status, body)
+		return
+	}
+	ctx.HTML(status, body)
+}
+
+func (c *core) fillProxyErrorPages(cfg *middleware.ProxyConfig, req *http.Request, detail ErrorPageDetail) {
 	if c.errorPages == nil {
 		return
 	}
@@ -241,11 +289,21 @@ func (c *core) fillProxyErrorPages(cfg *middleware.ProxyConfig, detail ErrorPage
 	if c.cfg.ErrorPageExposeDetails {
 		safe = detail
 	}
-	cfg.ErrorPages.NotFound = c.errorPages.Render(http.StatusNotFound, c.cfg.ErrorPageExposeDetails, safe)
-	cfg.ErrorPages.InternalServiceError = c.errorPages.Render(http.StatusInternalServerError, c.cfg.ErrorPageExposeDetails, safe)
-	cfg.ErrorPages.BadGateway = c.errorPages.Render(http.StatusBadGateway, c.cfg.ErrorPageExposeDetails, safe)
-	cfg.ErrorPages.ServiceUnavailable = c.errorPages.Render(http.StatusServiceUnavailable, c.cfg.ErrorPageExposeDetails, safe)
-	cfg.ErrorPages.GatewayTimeout = c.errorPages.Render(http.StatusGatewayTimeout, c.cfg.ErrorPageExposeDetails, safe)
+	asJSON := requestPrefersJSON(req)
+	render := func(status int) string {
+		body, _ := c.errorPages.RenderWithNegotiation(status, c.cfg.ErrorPageExposeDetails, safe, asJSON)
+		return body
+	}
+	if asJSON {
+		cfg.ErrorPages.ContentType = errorPageContentTypeJSON
+	} else {
+		cfg.ErrorPages.ContentType = errorPageContentTypeHTML
+	}
+	cfg.ErrorPages.NotFound = render(http.StatusNotFound)
+	cfg.ErrorPages.InternalServiceError = render(http.StatusInternalServerError)
+	cfg.ErrorPages.BadGateway = render(http.StatusBadGateway)
+	cfg.ErrorPages.ServiceUnavailable = render(http.StatusServiceUnavailable)
+	cfg.ErrorPages.GatewayTimeout = render(http.StatusGatewayTimeout)
 }
 
 func shouldUseWAFErrorPage(status int, contentType, body string) bool {

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>错误页主题 · Ingress</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #09090b;
+  --surface: #111114;
+  --border: rgba(255,255,255,.08);
+  --text: #fafafa;
+  --muted: #a1a1aa;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+.bg {
+  position: fixed; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120,119,198,.18), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(56,189,248,.08), transparent);
+}
+.wrap { position: relative; max-width: 1080px; margin: 0 auto; padding: 72px 28px 96px; }
+.eyebrow {
+  font-size: .72rem; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); margin-bottom: 18px;
+}
+h1 {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  font-weight: 400; line-height: 1.05; margin: 0 0 16px; letter-spacing: -.02em;
+}
+.lead { max-width: 42rem; color: var(--muted); font-size: 1.05rem; line-height: 1.7; margin: 0 0 48px; }
+.grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.theme {
+  position: relative; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+  padding: 0; text-decoration: none; color: inherit;
+  transition: transform .35s cubic-bezier(.22,1,.36,1), border-color .35s, box-shadow .35s;
+}
+.theme:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255,255,255,.14);
+  box-shadow: 0 32px 64px rgba(0,0,0,.45);
+}
+.preview {
+  height: 168px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.preview-lumen { background: linear-gradient(180deg, #f4f1ea 0%, #ebe6dc 100%); }
+.preview-noir { background: radial-gradient(circle at 30% 30%, #1a1f2e, #07080d 70%); }
+.preview-bloom { background: linear-gradient(145deg, #fff8f3 0%, #fdeee4 55%, #f5e6dc 100%); }
+.body { padding: 22px 22px 24px; }
+.theme h2 { margin: 0 0 6px; font-size: 1.15rem; font-weight: 600; }
+.theme p { margin: 0 0 16px; color: var(--muted); font-size: .9rem; line-height: 1.55; }
+.cta {
+  display: inline-flex; align-items: center; gap: 8px; font-size: .84rem; font-weight: 500; color: var(--text);
+}
+.cta svg { opacity: .5; transition: transform .25s, opacity .25s; }
+.theme:hover .cta svg { transform: translateX(3px); opacity: 1; }
+.mock {
+  width: 72%; max-width: 220px; border-radius: 10px; padding: 14px 16px;
+  font-size: .65rem; line-height: 1.35; box-shadow: 0 12px 40px rgba(0,0,0,.12);
+}
+.mock-lumen { background: #fff; color: #44403c; border: 1px solid rgba(0,0,0,.06); font-family: Georgia, serif; }
+.mock-noir { background: rgba(255,255,255,.06); color: #e2e8f0; border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(8px); font-family: ui-monospace, monospace; }
+.mock-bloom { background: rgba(255,255,255,.82); color: #57534e; border-radius: 16px; font-family: ui-sans-serif, system-ui, sans-serif; }
+.mock strong { display: block; font-size: 1.35rem; margin-bottom: 4px; letter-spacing: -.03em; }
+footer { margin-top: 56px; color: #71717a; font-size: .82rem; }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="wrap">
+  <p class="eyebrow">Ingress error pages</p>
+  <h1>三套内置错误页主题</h1>
+  <p class="lead">覆盖 401–504 全状态。每套独立视觉语言，支持 safe / verbose 模式变量。滚动预览页查看全部状态，选定后回复主题名即可写入内置模板。</p>
+  <div class="grid">
+    <a class="theme" href="lumen.html">
+      <div class="preview preview-lumen"><div class="mock mock-lumen"><strong>404</strong>Not Found</div></div>
+      <div class="body"><h2>Lumen</h2><p>纸感浅色、衬线标题与精确留白。适合文档站、企业官网与控制台。</p><span class="cta">打开预览 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+    </a>
+    <a class="theme" href="noir.html">
+      <div class="preview preview-noir"><div class="mock mock-noir"><strong>502</strong>Bad Gateway</div></div>
+      <div class="body"><h2>Noir</h2><p>深色雾面、细线框与克制高光。适合 API 网关、开发者工具与夜间界面。</p><span class="cta">打开预览 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+    </a>
+    <a class="theme" href="bloom.html">
+      <div class="preview preview-bloom"><div class="mock mock-bloom"><strong>503</strong>Service Unavailable</div></div>
+      <div class="body"><h2>Bloom</h2><p>暖灰陶土色、柔和层次与圆角节奏。适合面向终端用户的产品站点。</p><span class="cta">打开预览 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+    </a>
+  </div>
+  <footer>本地预览 · http://127.0.0.1:8765</footer>
+</div>
+</body>
+</html>
