@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/go-zoox/ingress/core/rule"
@@ -238,23 +239,94 @@ func mergeRulesByHostMaps(base []rule.Rule, patches []map[string]any) ([]rule.Ru
 	for _, patch := range patches {
 		host, _ := patch["host"].(string)
 		host = strings.TrimSpace(host)
-		idx := -1
-		for i := range out {
-			if out[i].Host == host {
-				idx = i
-				break
+		if host == "" {
+			return nil, fmt.Errorf("scenarios overlay rules: host is required")
+		}
+		idx := ruleIndexByExactHost(out, host)
+		if idx >= 0 {
+			merged, err := mergeRulePatchMap(out[idx], patch)
+			if err != nil {
+				return nil, fmt.Errorf("scenarios overlay rules host %q: %w", host, err)
 			}
+			out[idx] = merged
+			continue
 		}
-		if idx < 0 {
-			return nil, fmt.Errorf("scenarios overlay rules: unknown host %q (not in base rules)", host)
-		}
-		merged, err := mergeRulePatchMap(out[idx], patch)
+		inserted, err := ruleFromOverlayPatch(patch)
 		if err != nil {
 			return nil, fmt.Errorf("scenarios overlay rules host %q: %w", host, err)
 		}
-		out[idx] = merged
+		insertAt := ruleInsertIndexBeforeMatch(out, host)
+		out = insertRuleAt(out, insertAt, inserted)
 	}
 	return out, nil
+}
+
+func ruleIndexByExactHost(rules []rule.Rule, host string) int {
+	for i := range rules {
+		if rules[i].Host == host {
+			return i
+		}
+	}
+	return -1
+}
+
+// ruleInsertIndexBeforeMatch returns the index before the first base rule that would match host at runtime.
+// When no rule matches, append at len(rules).
+func ruleInsertIndexBeforeMatch(rules []rule.Rule, host string) int {
+	for i := range rules {
+		if ruleHostMatches(rules[i], host) {
+			return i
+		}
+	}
+	return len(rules)
+}
+
+func ruleHostMatches(r rule.Rule, host string) bool {
+	ht := effectiveHostType(r.HostType, r.Host)
+	switch ht {
+	case hostTypeExact:
+		return r.Host == host
+	case hostTypeRegex:
+		re, err := regexp.Compile(r.Host)
+		if err != nil {
+			return false
+		}
+		return re.MatchString(host)
+	case hostTypeWildcard:
+		re, err := regexp.Compile(wildCardToRegexp(r.Host))
+		if err != nil {
+			return false
+		}
+		return re.MatchString(host)
+	default:
+		return false
+	}
+}
+
+func ruleFromOverlayPatch(patch map[string]any) (rule.Rule, error) {
+	raw, err := yaml.Marshal(patch)
+	if err != nil {
+		return rule.Rule{}, err
+	}
+	var r rule.Rule
+	if err := yaml.Unmarshal(raw, &r); err != nil {
+		return rule.Rule{}, err
+	}
+	return r, nil
+}
+
+func insertRuleAt(rules []rule.Rule, idx int, r rule.Rule) []rule.Rule {
+	if idx < 0 {
+		idx = 0
+	}
+	if idx > len(rules) {
+		idx = len(rules)
+	}
+	out := make([]rule.Rule, 0, len(rules)+1)
+	out = append(out, rules[:idx]...)
+	out = append(out, r)
+	out = append(out, rules[idx:]...)
+	return out
 }
 
 func mergeRulePatchMap(base rule.Rule, patch map[string]any) (rule.Rule, error) {

@@ -129,6 +129,8 @@ rules:
 | `items[]` | array | overlay 场景（`id`、`label`、`description`、`overlay`） | `[]` |
 | `items[].overlay` | object | 部分 `cache`、`rate_limit`、`waf`、`maintenance`、`security`、`rules` | — |
 
+**`items[].overlay.rules[]`：** overlay `host` 与基线某条 rule **完全相同** → deep-merge；否则插入到**第一条**会匹配该 host 的基线 rule **之前**（如 `sh.example.com` 插在 `*.example.com` 前）。见 [运行场景](scenarios.md#overlay-合并规则)。
+
 **保留：** `items[]` 中勿使用 `id: default`。运行时环境变量 **`INGRESS_SCENARIO`** 可覆盖 `active`。
 
 ### WAF（`waf` / `rules[].waf`）

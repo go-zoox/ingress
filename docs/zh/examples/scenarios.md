@@ -18,6 +18,12 @@
 
 <<< @/../examples/scenarios/ecommerce.yaml
 
+## 通配符基线 + 精确域名 overlay
+
+基线 `*.example.com`；场景 `sh-live` 在通配符 rule **之前**插入 `sh.example.com`，上海流量优先走 overlay。
+
+<<< @/../examples/scenarios/wildcard-with-exact-overlay.yaml
+
 ## 旧版独立文件
 
 以下为引入 `scenarios` 前的独立配置，推荐改用 [`ecommerce.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/scenarios/ecommerce.yaml)。
@@ -32,6 +38,7 @@
 ingress validate -c examples/scenarios/design-option-c-list.yaml
 ingress validate -c examples/scenarios/ingress.yaml
 ingress validate -c examples/scenarios/ecommerce.yaml
+ingress validate -c examples/scenarios/wildcard-with-exact-overlay.yaml
 ```
 
 语义与 Admin 用法见 [运行场景指南](../guide/scenarios.md)。

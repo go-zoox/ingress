@@ -45,7 +45,33 @@ scenarios:
 Supported overlay keys: `cache`, `rate_limit`, `waf`, `maintenance`, `security`, `rules`.
 
 - Top-level keys **deep-merge** onto the baseline.
-- `rules[]` patches match by **`host`** and merge into existing route rows (unknown hosts fail validation).
+- **`rules[]` overlay** (match order matters — first matching host rule wins at runtime):
+  - **Exact `host` match** on an existing rule → **deep-merge** into that row.
+  - **No exact match** → **insert** a new rule **before** the first baseline rule whose host pattern would match that hostname (e.g. overlay `sh.example.com` before baseline `*.example.com`).
+  - **No baseline rule matches** → append the new rule at the end.
+
+Example — baseline wildcard, scenario-specific exact host:
+
+```yaml
+rules:
+  - host: "*.example.com"
+    backend:
+      service: { name: default-origin, port: 8080 }
+
+scenarios:
+  active: default
+  items:
+    - id: sh-live
+      label: 上海直播
+      overlay:
+        rules:
+          - host: sh.example.com
+            backend:
+              service: { name: sh-origin, port: 8080 }
+              cache: { enabled: true, ttl: 30 }
+```
+
+With `active: sh-live`, ingress inserts an exact `sh.example.com` rule **before** `*.example.com`, so Shanghai traffic hits the overlay backend/cache first.
 
 ### Runtime override
 

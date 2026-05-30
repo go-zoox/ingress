@@ -98,7 +98,7 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 
 - **Schema (方案 C)**: `scenarios.active` + `scenarios.items[]` with per-item `overlay`. Reserved **`default`** active id = root config, no overlay merge; do not put `id: default` in `items[]`.
 - **Apply path**: `FinalizeLoadedConfig` → `enrichScenariosFromYAML` (overlay maps from raw YAML) → `ValidateScenariosConfig` → `ApplyScenarios` (`core/scenario.go`, `core/scenario_yaml_load.go`, `core/load_config.go`).
-- **Overlay merge**: top-level `cache`, `rate_limit`, `waf`, `maintenance`, `security`; `rules` merged by **host** via YAML map merge.
+- **Overlay merge**: top-level `cache`, `rate_limit`, `waf`, `maintenance`, `security`; `rules` — exact `host` string → deep-merge into that row; else insert new rule **before** the first baseline rule that would match the overlay host (preserves first-match routing).
 - **Override**: env **`INGRESS_SCENARIO`** wins over `scenarios.active`.
 - **Admin**: `GET /api/v1/scenarios`, `PUT /api/v1/scenarios/active`; console **维护 → 场景管理** (`core/admin/web/src/pages/ScenariosPage.tsx`); config module `scenarios`.
 - **Tests / examples**: `core/scenario_test.go`, `core/scenario_yaml_test.go`, `core/admin/web/src/lib/scenarios.test.ts`; `examples/scenarios/`. Docs: `docs/guide/scenarios.md`, `docs/zh/guide/scenarios.md`, `docs/examples/scenarios.md`.

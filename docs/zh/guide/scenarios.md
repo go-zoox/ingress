@@ -45,7 +45,33 @@ scenarios:
 支持的 overlay 键：`cache`、`rate_limit`、`waf`、`maintenance`、`security`、`rules`。
 
 - 顶层键对基线同名字段 **deep-merge**。
-- `rules[]` 按 **`host`** 匹配并合并到已有路由（未知 host 校验失败）。
+- **`rules[]` overlay**（顺序影响命中 — 运行时按 rules 数组先后匹配 host）：
+  - overlay **`host` 与某条基线 rule 完全相同** → **deep-merge** 到该条。
+  - **无 exact 匹配** → **插入**新 rule 到**第一条**会匹配该 host 的基线 rule **之前**（例如 overlay `sh.example.com` 插在基线 `*.example.com` 前）。
+  - **基线没有任何 rule 能匹配该 host** → 追加到 `rules` 末尾。
+
+示例 — 基线通配符 + 场景专用精确域名：
+
+```yaml
+rules:
+  - host: "*.example.com"
+    backend:
+      service: { name: default-origin, port: 8080 }
+
+scenarios:
+  active: default
+  items:
+    - id: sh-live
+      label: 上海直播
+      overlay:
+        rules:
+          - host: sh.example.com
+            backend:
+              service: { name: sh-origin, port: 8080 }
+              cache: { enabled: true, ttl: 30 }
+```
+
+`active: sh-live` 时，会在 `*.example.com` **之前**插入精确 `sh.example.com` 规则，上海流量优先走 overlay 配置。
 
 ### 运行时覆盖
 

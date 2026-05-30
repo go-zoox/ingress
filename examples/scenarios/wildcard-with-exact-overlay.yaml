@@ -1,0 +1,42 @@
+# Baseline wildcard + scenario exact host (上海直播)
+#
+# active: default  → only *.example.com
+# active: sh-live → sh.example.com rule inserted before wildcard
+#
+#   ingress validate -c examples/scenarios/wildcard-with-exact-overlay.yaml
+
+version: v1
+port: 8080
+
+rules:
+  - host: "*.example.com"
+    host_type: wildcard
+    backend:
+      type: service
+      service:
+        name: default-origin.internal
+        port: 8080
+
+scenarios:
+  active: default
+  items:
+    - id: sh-live
+      label: 上海直播
+      description: sh.example.com 精确域名 + 短 TTL 缓存
+      overlay:
+        rules:
+          - host: sh.example.com
+            backend:
+              type: service
+              service:
+                name: sh-origin.internal
+                port: 8080
+              cache:
+                enabled: true
+                ttl: 30
+                default: bypass
+                paths:
+                  - match: /api/v1/products
+                    match_type: prefix
+                    action: cache
+                    ttl: 15

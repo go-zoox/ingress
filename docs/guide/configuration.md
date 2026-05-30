@@ -167,6 +167,8 @@ Optional **overlay scenes** merged at load/reload when `scenarios.active` is not
 | `items[]` | array | Overlay scenes (`id`, `label`, `description`, `overlay`) | `[]` |
 | `items[].overlay` | object | Partial `cache`, `rate_limit`, `waf`, `maintenance`, `security`, `rules` | — |
 
+**`items[].overlay.rules[]`:** exact `host` match on a baseline rule → deep-merge; otherwise insert before the first baseline rule that would match that hostname (e.g. `sh.example.com` before `*.example.com`). See [Scenarios guide](scenarios.md#overlay-merge-rules).
+
 **Reserved:** do not use `id: default` in `items[]`. Runtime env **`INGRESS_SCENARIO`** overrides `active`.
 
 ### WAF (`waf` / `rules[].waf`)
