@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -57,6 +58,9 @@ func TestBuild_GlobalMaintenance_Returns503(t *testing.T) {
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503, got %d body=%q", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get(headerXIngressMaintenance); got != ingressMaintenanceHeaderVal {
+		t.Fatalf("expected %s: %s, got %q", headerXIngressMaintenance, ingressMaintenanceHeaderVal, got)
 	}
 	if !strings.Contains(rec.Body.String(), "Planned downtime") {
 		t.Fatalf("expected maintenance title in body, got %q", rec.Body.String())
@@ -217,6 +221,124 @@ func TestBuild_Maintenance_NotBlockedWhenHostOutsideGlobalList(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected upstream 200 when host not in maintenance list, got %d", rec.Code)
+	}
+}
+
+func TestBuild_IngressStatus_OK(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	ins := mustBuildIngressCore(t, cfg)
+	req := httptest.NewRequest(http.MethodGet, "http://app.example.com/_/ingress/status", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%q", rec.Code, rec.Body.String())
+	}
+	var body ingressStatusBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Status != "ok" {
+		t.Fatalf("expected status ok, got %+v", body)
+	}
+	if rec.Header().Get(headerXIngressMaintenance) != "" {
+		t.Fatalf("expected no maintenance header when ok, got %q", rec.Header().Get(headerXIngressMaintenance))
+	}
+}
+
+func TestBuild_IngressStatus_Maintenance(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Maintenance: MaintenanceConfig{
+			Hosts:      hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Title:      "Planned downtime",
+			RetryAfter: 600,
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	ins := mustBuildIngressCore(t, cfg)
+	req := httptest.NewRequest(http.MethodGet, "http://app.example.com/_/ingress/status", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d body=%q", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get(headerXIngressMaintenance); got != ingressMaintenanceHeaderVal {
+		t.Fatalf("expected maintenance header on status endpoint, got %q", got)
+	}
+	if rec.Header().Get("Retry-After") != "600" {
+		t.Fatalf("expected Retry-After 600, got %q", rec.Header().Get("Retry-After"))
+	}
+	var body ingressStatusBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Status != "maintenance" || body.Title != "Planned downtime" || body.RetryAfter != 600 {
+		t.Fatalf("unexpected body: %+v", body)
+	}
+}
+
+func TestBuild_IngressStatus_IgnoresBypass(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Maintenance: MaintenanceConfig{
+			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Bypass: service.MaintenanceBypass{
+				Paths: []string{"/healthz"},
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	ins := mustBuildIngressCore(t, cfg)
+	req := httptest.NewRequest(http.MethodGet, "http://app.example.com/_/ingress/status", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status endpoint to report maintenance regardless of bypass paths, got %d", rec.Code)
 	}
 }
 

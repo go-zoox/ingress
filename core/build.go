@@ -35,6 +35,11 @@ func (c *core) build() error {
 
 	// middlewares
 	c.app.Use(func(ctx *zoox.Context) {
+		if ctx.Path == ingressStatusPath {
+			c.writeIngressStatus(ctx)
+			return
+		}
+
 		if c.cfg.HealthCheck.Outer.Enable {
 			if ctx.Path == c.cfg.HealthCheck.Outer.Path {
 				if c.cfg.HealthCheck.Outer.Ok {

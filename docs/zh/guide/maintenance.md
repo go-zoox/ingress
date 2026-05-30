@@ -100,8 +100,24 @@ rules:
 ## 响应与日志
 
 - HTTP **503**，HTML 错误页（`Accept` 偏好 JSON 时返回 JSON）。
+- 维护 503 响应附带 **`X-Ingress-Maintenance: true`**。
 - `retry_after` > 0 时设置 **`Retry-After`**。
 - 访问日志附加 **`maintenance_block=1`**。
+
+## Ingress 状态探测
+
+`GET /_/ingress/status` 在路由、WAF 与维护 bypass **之前**处理，按请求 **Host** 报告是否处于维护（全局或匹配规则），**不受** path bypass 影响。
+
+| 条件 | HTTP | JSON `status` | `X-Ingress-Maintenance` |
+|------|------|---------------|-------------------------|
+| Host 未维护 | `200` | `"ok"` | _(无)_ |
+| Host 维护中 | `503` | `"maintenance"`（可选 `title`、`subtitle`、`retry_after`） | `true` |
+
+示例：
+
+```bash
+curl -sS -D - http://app.example.com/_/ingress/status
+```
 
 ## Admin 控制台
 

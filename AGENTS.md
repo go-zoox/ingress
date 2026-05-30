@@ -90,7 +90,8 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 - **Route-level**: `rules[].backend.service.maintenance` only (host-level **service** backend); `scope: all | listed`; listed hosts use the same entry shape as global `hosts`.
 - **Host entries**: Plain string or `{ host, window }` via `service.MaintenanceHostList.UnmarshalYAML` (`core/service/maintenance_hosts.go`).
 - **Runtime**: `compiledMaintenanceHostList.MatchesActive(hostname, now)` — host pattern match **and** per-entry window (empty window ⇒ always active when matched). Global and route hits merge bypass; route `title` / `subtitle` / `retry_after` override global when the route maintenance triggered.
-- **Logs**: Access log `maintenance_block=1` on 503 maintenance responses.
+- **Logs**: Access log `maintenance_block=1` on 503 maintenance responses; maintenance 503s also send **`X-Ingress-Maintenance: true`**.
+- **Status probe**: `GET /_/ingress/status` returns JSON `{"status":"ok"}` (200) or `{"status":"maintenance",...}` (503) for the request Host, before bypass; see `core/maintenance.go` `writeIngressStatus`.
 - **Tests / examples**: `core/maintenance_test.go`, `core/maintenance_build_test.go`, `core/service/maintenance_hosts_test.go`; `examples/maintenance/`. Docs: `docs/guide/maintenance.md`, `docs/zh/guide/maintenance.md`.
 
 ## Redirect and config validation

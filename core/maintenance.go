@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -293,11 +294,9 @@ func validateServiceMaintenance(m service.Maintenance, backendType, loc string, 
 	return err
 }
 
-func (c *core) maintenanceDecision(ruleIdx int, hostname, path string, req *http.Request) (block bool, settings compiledMaintenanceSettings) {
-	now := time.Now()
-	globalHit := c.globalMaintenance.hosts.MatchesActive(hostname, now)
+func (c *core) maintenanceMatch(ruleIdx int, hostname string, now time.Time) (globalHit, ruleHit bool, settings compiledMaintenanceSettings) {
+	globalHit = c.globalMaintenance.hosts.MatchesActive(hostname, now)
 
-	ruleHit := false
 	var ruleMaint compiledRuleMaintenance
 	if ruleIdx >= 0 && ruleIdx < len(c.maintenanceByRule) {
 		ruleMaint = c.maintenanceByRule[ruleIdx]
@@ -310,16 +309,30 @@ func (c *core) maintenanceDecision(ruleIdx int, hostname, path string, req *http
 		}
 	}
 
+	settings = mergeMaintenanceSettings(c.globalMaintenance.settings, ruleMaint.settings, ruleHit)
+	return globalHit, ruleHit, settings
+}
+
+func (c *core) maintenanceActiveForHost(ruleIdx int, hostname string, now time.Time) (active bool, settings compiledMaintenanceSettings) {
+	globalHit, ruleHit, settings := c.maintenanceMatch(ruleIdx, hostname, now)
+	return globalHit || ruleHit, settings
+}
+
+func (c *core) maintenanceDecision(ruleIdx int, hostname, path string, req *http.Request) (block bool, settings compiledMaintenanceSettings) {
+	globalHit, ruleHit, settings := c.maintenanceMatch(ruleIdx, hostname, time.Now())
 	if !globalHit && !ruleHit {
 		return false, compiledMaintenanceSettings{}
 	}
 
+	var ruleMaint compiledRuleMaintenance
+	if ruleIdx >= 0 && ruleIdx < len(c.maintenanceByRule) {
+		ruleMaint = c.maintenanceByRule[ruleIdx]
+	}
 	bypass := mergeMaintenanceBypass(c.globalMaintenance.settings.bypass, ruleMaint.settings.bypass)
 	if maintenanceBypassAllows(bypass, req, path) {
 		return false, compiledMaintenanceSettings{}
 	}
 
-	settings = mergeMaintenanceSettings(c.globalMaintenance.settings, ruleMaint.settings, ruleHit)
 	return true, settings
 }
 
@@ -384,6 +397,7 @@ func maintenanceBypassPathMatches(patterns []maintenanceBypassPath, path string)
 
 func (c *core) writeMaintenanceResponse(ctx *zoox.Context, secProf *security.Profile, settings compiledMaintenanceSettings, detail ErrorPageDetail) {
 	applySecurityHeaders(ctx, secProf)
+	ctx.SetHeader(headerXIngressMaintenance, ingressMaintenanceHeaderVal)
 	if settings.RetryAfter > 0 {
 		ctx.SetHeader("Retry-After", strconv.FormatInt(settings.RetryAfter, 10))
 	}
@@ -411,6 +425,47 @@ func (c *core) writeMaintenanceResponse(ctx *zoox.Context, secProf *security.Pro
 		return
 	}
 	ctx.HTML(status, body)
+}
+
+type ingressStatusBody struct {
+	Status     string `json:"status"`
+	Title      string `json:"title,omitempty"`
+	Subtitle   string `json:"subtitle,omitempty"`
+	RetryAfter int64  `json:"retry_after,omitempty"`
+}
+
+func (c *core) writeIngressStatus(ctx *zoox.Context) {
+	hostname := ctx.Hostname()
+	ruleIdx := -1
+	if matcher, err := matchHostIndex(c.router, c.cfg.Rules, c.cfg.Fallback, hostname); err == nil {
+		ruleIdx = matcher.ruleIndex
+	}
+
+	active, settings := c.maintenanceActiveForHost(ruleIdx, hostname, time.Now())
+	body := ingressStatusBody{Status: "ok"}
+	status := http.StatusOK
+	if active {
+		status = http.StatusServiceUnavailable
+		body.Status = "maintenance"
+		body.Title = settings.Title
+		body.Subtitle = settings.Subtitle
+		if settings.RetryAfter > 0 {
+			body.RetryAfter = settings.RetryAfter
+		}
+		ctx.SetHeader(headerXIngressMaintenance, ingressMaintenanceHeaderVal)
+		if settings.RetryAfter > 0 {
+			ctx.SetHeader("Retry-After", strconv.FormatInt(settings.RetryAfter, 10))
+		}
+	}
+
+	raw, err := json.Marshal(body)
+	if err != nil {
+		ctx.SetHeader("Content-Type", errorPageContentTypeJSON)
+		ctx.String(http.StatusInternalServerError, `{"status":"error","message":"failed to encode status"}`)
+		return
+	}
+	ctx.SetHeader("Content-Type", errorPageContentTypeJSON)
+	ctx.String(status, string(raw))
 }
 
 func maintenanceClientIP(r *http.Request) net.IP {

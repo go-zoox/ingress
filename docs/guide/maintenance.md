@@ -100,8 +100,24 @@ Global and route bypass entries are **unioned**.
 ## Response and logging
 
 - Status **503** with HTML error page (or JSON when `Accept` prefers JSON).
+- Response header **`X-Ingress-Maintenance: true`** on maintenance 503 responses.
 - Optional **`Retry-After`** when `retry_after` > 0.
 - Access log appends **`maintenance_block=1`**.
+
+## Ingress status probe
+
+`GET /_/ingress/status` is handled **before** routing, WAF, and maintenance bypass. It reports whether the request **Host** is currently in maintenance (global or matched rule), regardless of path bypass rules.
+
+| Condition | HTTP | JSON `status` | `X-Ingress-Maintenance` |
+|-----------|------|---------------|-------------------------|
+| Host not in maintenance | `200` | `"ok"` | _(absent)_ |
+| Host in maintenance | `503` | `"maintenance"` (+ optional `title`, `subtitle`, `retry_after`) | `true` |
+
+Example:
+
+```bash
+curl -sS -D - http://app.example.com/_/ingress/status
+```
 
 ## Admin console
 

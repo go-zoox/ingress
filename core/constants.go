@@ -65,4 +65,11 @@ const (
 	oauth2SessionToken           = "ingress_oauth2_token"
 	oauth2SessionUser            = "ingress_oauth2_user"
 	oauth2SessionRedirect        = "ingress_oauth2_redirect"
+
+	// Built-in ingress introspection (handled before route proxy).
+	ingressStatusPath = "/_/ingress/status"
+
+	// Set on maintenance 503 responses and on /_/ingress/status when the host is in maintenance.
+	headerXIngressMaintenance   = "X-Ingress-Maintenance"
+	ingressMaintenanceHeaderVal = "true"
 )

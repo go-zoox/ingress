@@ -452,3 +452,22 @@ func TestMaintenanceDecision_BypassMergesGlobalAndRule(t *testing.T) {
 		t.Fatal("expected merged global path bypass")
 	}
 }
+
+func TestMaintenanceActiveForHost_Global(t *testing.T) {
+	c := &core{
+		cfg: &Config{},
+		globalMaintenance: mustCompileGlobal(t, MaintenanceConfig{
+			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Title: "Global maintenance",
+		}),
+		maintenanceByRule: []compiledRuleMaintenance{},
+	}
+	active, settings := c.maintenanceActiveForHost(-1, "app.example.com", time.Now())
+	if !active || settings.Title != "Global maintenance" {
+		t.Fatalf("expected active global maintenance, got active=%v settings=%+v", active, settings)
+	}
+	active, _ = c.maintenanceActiveForHost(-1, "other.example.com", time.Now())
+	if active {
+		t.Fatal("expected inactive for non-listed host")
+	}
+}
