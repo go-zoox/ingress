@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-zoox/ingress/core/security"
+	"github.com/go-zoox/proxy"
 	"github.com/go-zoox/zoox"
 	"github.com/go-zoox/zoox/middleware"
 )
@@ -294,16 +295,74 @@ func (c *core) fillProxyErrorPages(cfg *middleware.ProxyConfig, req *http.Reques
 		body, _ := c.errorPages.RenderWithNegotiation(status, c.cfg.ErrorPageExposeDetails, safe, asJSON)
 		return body
 	}
-	if asJSON {
-		cfg.ErrorPages.ContentType = errorPageContentTypeJSON
-	} else {
-		cfg.ErrorPages.ContentType = errorPageContentTypeHTML
-	}
 	cfg.ErrorPages.NotFound = render(http.StatusNotFound)
 	cfg.ErrorPages.InternalServiceError = render(http.StatusInternalServerError)
 	cfg.ErrorPages.BadGateway = render(http.StatusBadGateway)
 	cfg.ErrorPages.ServiceUnavailable = render(http.StatusServiceUnavailable)
 	cfg.ErrorPages.GatewayTimeout = render(http.StatusGatewayTimeout)
+}
+
+// ingressProxy mirrors zoox middleware.Proxy but sets Content-Type for negotiated JSON error bodies.
+func (c *core) ingressProxy(fn func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next, stop bool, err error)) zoox.Middleware {
+	return func(ctx *zoox.Context) {
+		var cfg middleware.ProxyConfig
+		next, stop, err := fn(ctx, &cfg)
+		if err != nil {
+			ctx.Logger.Errorf("[middleware.proxy] proxy error: %#v", err)
+			if v, ok := err.(*proxy.HTTPError); ok {
+				body := v.Error()
+				switch v.Status() {
+				case http.StatusNotFound:
+					if cfg.ErrorPages.NotFound != "" {
+						body = cfg.ErrorPages.NotFound
+					}
+				case http.StatusInternalServerError:
+					if cfg.ErrorPages.InternalServiceError != "" {
+						body = cfg.ErrorPages.InternalServiceError
+					}
+				case http.StatusBadGateway:
+					if cfg.ErrorPages.BadGateway != "" {
+						body = cfg.ErrorPages.BadGateway
+					}
+				case http.StatusServiceUnavailable:
+					if cfg.ErrorPages.ServiceUnavailable != "" {
+						body = cfg.ErrorPages.ServiceUnavailable
+					}
+				case http.StatusGatewayTimeout:
+					if cfg.ErrorPages.GatewayTimeout != "" {
+						body = cfg.ErrorPages.GatewayTimeout
+					}
+				}
+				c.writeProxyErrorResponse(ctx, v.Status(), body)
+			} else {
+				body := err.Error()
+				if cfg.ErrorPages.InternalServiceError != "" {
+					body = cfg.ErrorPages.InternalServiceError
+				}
+				c.writeProxyErrorResponse(ctx, http.StatusInternalServerError, body)
+			}
+			return
+		}
+
+		if stop {
+			return
+		}
+
+		if next {
+			ctx.Next()
+		} else {
+			zoox.WrapH(proxy.New(&cfg.Config))(ctx)
+		}
+	}
+}
+
+func (c *core) writeProxyErrorResponse(ctx *zoox.Context, status int, body string) {
+	if requestPrefersJSON(ctx.Request) {
+		ctx.SetHeader("Content-Type", errorPageContentTypeJSON)
+		ctx.String(status, body)
+		return
+	}
+	ctx.HTML(status, body)
 }
 
 func shouldUseWAFErrorPage(status int, contentType, body string) bool {

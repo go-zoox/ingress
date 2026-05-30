@@ -53,7 +53,7 @@ func (c *core) build() error {
 	})
 
 	// services (core plugin)
-	c.app.Use(middleware.Proxy(func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next, stop bool, err error) {
+	c.app.Use(c.ingressProxy(func(ctx *zoox.Context, cfg *middleware.ProxyConfig) (next, stop bool, err error) {
 		reqStart := time.Now()
 		hostname := ctx.Hostname()
 		method := ctx.Method
