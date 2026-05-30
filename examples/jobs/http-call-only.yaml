@@ -1,0 +1,44 @@
+version: v1
+port: 8080
+
+admin:
+  enabled: true
+  port: 9080
+  database:
+    driver: sqlite
+    dsn: file:./admin.db?cache=shared&_fk=1
+
+# Custom http_call jobs do not require admin.jobs.allow_command.
+jobs:
+  items:
+    - id: export-webhook
+      name: Trigger nightly export
+      kind: http_call
+      schedule: "30 2 * * *"
+      enabled: true
+      timeout_sec: 120
+      on_failure: log
+      params:
+        method: POST
+        url: https://httpbin.org/post
+        headers:
+          Authorization: Bearer replace-me
+          Content-Type: application/json
+        body: '{"action":"export","window":"daily"}'
+        expect_status: [200, 202]
+    - id: status-page
+      name: Status page ping
+      kind: http_call
+      schedule: "*/15 * * * *"
+      enabled: true
+      params:
+        url: https://httpbin.org/status/200
+
+rules:
+  - host: export.example.com
+    backend:
+      type: service
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

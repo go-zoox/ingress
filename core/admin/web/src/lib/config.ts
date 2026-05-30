@@ -73,5 +73,6 @@ export const CONFIG_MODULE_LABELS: Record<string, string> = {
   fallback: 'Fallback',
   services: '服务',
   rules: '路由规则',
+  jobs: '定时任务',
   other: '其他',
 }

@@ -1,0 +1,57 @@
+version: v1
+port: 8080
+
+# Minimal scheduled-jobs demo: requires admin + SQLite for job_run history.
+admin:
+  enabled: true
+  port: 9080
+  database:
+    driver: sqlite
+    dsn: file:./admin.db?cache=shared&_fk=1
+  jobs:
+    allow_command: true
+    command_allowlist:
+      - /bin/sh
+    command_workdir: /tmp
+    command_max_output_bytes: 65536
+
+jobs:
+  builtins:
+    purge_waf_events:
+      enabled: true
+      schedule: "0 3 * * *"
+      params:
+        retain_days: 14
+  items:
+    - id: nightly-health
+      name: Nightly health probe
+      kind: http_call
+      schedule: "0 1 * * *"
+      enabled: true
+      timeout_sec: 30
+      on_failure: log
+      params:
+        method: GET
+        url: https://httpbin.org/status/200
+        expect_status: [200]
+
+    - id: echo-script
+      name: Echo script job
+      kind: script
+      schedule: "0 2 * * *"
+      enabled: false
+      params:
+        engine: shell
+        shell: sh
+        script: |
+          #!/bin/sh
+          echo jobs-demo
+
+rules:
+  - host: jobs-demo.example.com
+    backend:
+      type: service
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

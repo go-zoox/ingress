@@ -10,6 +10,7 @@ import (
 	"github.com/go-zoox/ingress/core/admin/config"
 	"github.com/go-zoox/ingress/core/admin/service"
 	ingcore "github.com/go-zoox/ingress/core"
+	"github.com/go-zoox/ingress/core/admin/service/jobs"
 	"github.com/go-zoox/zoox"
 )
 
@@ -30,6 +31,7 @@ type API struct {
 	parseIssues      *service.ParseIssues
 	overviewBuilder  *service.OverviewBuilder
 	overviewStreamer *service.OverviewStreamer
+	jobs             *jobs.Service
 }
 
 func NewAPI(cfg *config.Config) *API {
@@ -44,6 +46,7 @@ func NewAPI(cfg *config.Config) *API {
 	tlsSvc := service.NewTLS(ingress)
 	configSvc := service.NewConfig(ingress, audit)
 	overviewBuilder := service.NewOverviewBuilder(ingress, metrics, systemSvc, tlsSvc, healthSvc, audit, parseIssues, configSvc)
+	jobsSvc := jobs.New(cfg, ingress, audit, tlsSvc)
 	return &API{
 		cfg:              cfg,
 		ingress:          ingress,
@@ -60,6 +63,7 @@ func NewAPI(cfg *config.Config) *API {
 		parseIssues:      parseIssues,
 		overviewBuilder:  overviewBuilder,
 		overviewStreamer: service.NewOverviewStreamer(overviewBuilder, broker),
+		jobs:             jobsSvc,
 	}
 }
 
@@ -114,6 +118,8 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/services/:name/metrics", serviceDetailHandler.GetMetrics)
 	healthHandler := NewHealthHandler(a.health)
 	g.Get("/healthcheck", healthHandler.ListChecks)
+	jobsHandler := NewJobsHandler(a.jobs)
+	jobsHandler.Mount(g)
 	if err := MountTerminal(g); err != nil {
 		panic(err)
 	}
@@ -706,6 +712,9 @@ func (a *API) Reload(ctx *zoox.Context) {
 		return
 	}
 	service.SyncGeoIPFromIngress(a.ingress)
+	if a.jobs != nil {
+		_ = a.jobs.Reload()
+	}
 	_ = a.audit.Record("ingress.reload", a.ingress.ConfigPath(), "admin")
 	ok(ctx, zoox.H{"ok": true})
 }
@@ -907,6 +916,10 @@ func (a *API) Settings(ctx *zoox.Context) {
 // Broker returns the SSE broker instance.
 func (a *API) Broker() *service.SSEBroker {
 	return a.broker
+}
+
+func (a *API) Jobs() *jobs.Service {
+	return a.jobs
 }
 
 // LogsService returns the logs service instance.

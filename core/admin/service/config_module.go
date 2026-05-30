@@ -41,6 +41,7 @@ var configModuleDefs = []configModuleDef{
 	{ID: "healthcheck", Label: "健康检查", Keys: []string{"healthcheck"}},
 	{ID: "https", Label: "HTTPS", Keys: []string{"https"}},
 	{ID: "fallback", Label: "Fallback", Keys: []string{"fallback"}},
+	{ID: "jobs", Label: "定时任务", Keys: []string{"jobs"}},
 }
 
 func moduleKeysSet() map[string]string {

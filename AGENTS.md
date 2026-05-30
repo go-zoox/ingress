@@ -115,6 +115,7 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 - **Dev**: `ingress run -c examples/admin-console/ingress.yaml` + `cd core/admin/web && pnpm dev` (proxy `/api`). **Build**: `cd core/admin && make build`. Demo config: `examples/admin-console/`.
 - **Logs API**: `GET /api/v1/logs` supports `offset` (byte tail), `cache_hit`, `waf_block` filters for live monitoring.
 - **Cache / TLS API**: `GET /api/v1/cache/overview`, `GET /api/v1/tls/certs` (x509 metadata from cert files).
+- **Scheduled jobs**: top-level `jobs:` (built-in ops + `items[]` custom `http_call`/`script`; `command` is a legacy alias); policy `admin.jobs` (`allow_command`, `command_allowlist`, …). UI `/jobs`; cron reload on config publish/reload and jobs API writes; run history in SQLite `job_run`. Docs: `docs/guide/jobs.md`, `examples/jobs/`.
 - **Static prototype** (no backend): `prototypes/admin-console/`.
 
 ## Verification

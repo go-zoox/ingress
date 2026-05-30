@@ -243,7 +243,7 @@ func (a *Audit) ClearDemoWAFEvents() (int64, error) {
 	return res.RowsAffected, res.Error
 }
 
-// pruneOldWAFEvents deletes events older than the given duration string (e.g. "720h").
+// PruneOldWAFEvents deletes events older than the given duration string (e.g. "720h").
 func (a *Audit) PruneOldWAFEvents(olderThan string) (int64, error) {
 	dur, err := time.ParseDuration(olderThan)
 	if err != nil {
@@ -251,5 +251,15 @@ func (a *Audit) PruneOldWAFEvents(olderThan string) (int64, error) {
 	}
 	cutoff := time.Now().Add(-dur)
 	res := gormx.GetDB().Where("created_at < ?", cutoff).Delete(&model.WAFEvent{})
+	return res.RowsAffected, res.Error
+}
+
+// PruneOlderThan deletes audit logs older than retainDays full calendar days.
+func (a *Audit) PruneOlderThan(retainDays int) (int64, error) {
+	if retainDays <= 0 {
+		retainDays = 90
+	}
+	cutoff := time.Now().AddDate(0, 0, -retainDays)
+	res := gormx.GetDB().Where("created_at < ?", cutoff).Delete(&model.AuditLog{})
 	return res.RowsAffected, res.Error
 }

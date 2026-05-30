@@ -19,6 +19,7 @@ import { HealthPage } from './pages/HealthPage'
 import { WAFPage } from './pages/WAFPage'
 import { MaintenancePage } from './pages/MaintenancePage'
 import { TerminalPage } from './pages/TerminalPage'
+import { JobsPage } from './pages/JobsPage'
 import { MessagesPage } from './pages/MessagesPage'
 
 export default function App() {
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="terminal" element={<TerminalPage />} />
           <Route path="tls" element={<TLSPage />} />
           <Route path="config" element={<ConfigPage />} />
+          <Route path="jobs" element={<JobsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="events" element={<EventsPage />} />

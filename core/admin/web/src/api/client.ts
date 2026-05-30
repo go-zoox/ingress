@@ -225,6 +225,36 @@ export const api = {
   },
   healthCheck: () =>
     request<{ checks: HealthCheckResult[]; summary: HealthSummary }>('/healthcheck'),
+  jobs: () => request<JobsListResult>('/jobs'),
+  jobsCapabilities: () => request<JobsCapabilities>('/jobs/capabilities'),
+  jobRunsForJob: (source: 'builtin' | 'config', id: string, limit = 30) => {
+    const q = new URLSearchParams()
+    if (limit) q.set('limit', String(limit))
+    const qs = q.toString()
+    return request<JobRunRow[]>(
+      `/jobs/${source}/${encodeURIComponent(id)}/runs${qs ? `?${qs}` : ''}`,
+    )
+  },
+  jobRunDetail: (runId: number) => request<JobRunRow>(`/jobs/runs/${runId}`),
+  updateBuiltinJob: (id: string, body: BuiltinJobPatch) =>
+    request<{ ok: boolean }>(`/jobs/builtins/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  createJobItem: (body: JobItemInput) =>
+    request<{ ok: boolean }>('/jobs/items', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateJobItem: (id: string, body: JobItemInput) =>
+    request<{ ok: boolean }>(`/jobs/items/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteJobItem: (id: string) =>
+    request<{ ok: boolean }>(`/jobs/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  runJob: (source: 'builtin' | 'config', id: string) =>
+    request<JobRunRow>(`/jobs/${source}/${encodeURIComponent(id)}/run`, { method: 'POST' }),
   investigate: (params: {
     host: string
     path?: string
@@ -930,4 +960,98 @@ export type InvestigateResult = {
   stats: InvestigateStats
   waf_recent: WAFEvent[]
   health_checks: HealthCheckResult[]
+}
+
+export type JobParams = {
+  method?: string
+  url?: string
+  headers?: Record<string, string>
+  body?: string
+  expect_status?: number[]
+  insecure_tls?: boolean
+  script?: string
+  engine?: string
+  shell?: string
+  workdir?: string
+  env?: Record<string, string>
+  /** @deprecated legacy script migration */
+  command?: string
+  /** @deprecated legacy script migration */
+  args?: string[]
+  retain_days?: number
+}
+
+export type JobView = {
+  id: string
+  name: string
+  source: 'builtin' | 'config'
+  kind: string
+  description?: string
+  schedule: string
+  enabled: boolean
+  timeout_sec?: number
+  on_failure?: string
+  params: JobParams
+  deletable: boolean
+  editable: boolean
+  last_run?: JobRunRow
+}
+
+export type JobsCapabilities = {
+  http_call: boolean
+  command: boolean
+  allow_command: boolean
+  command_restricted?: boolean
+  command_allowlist?: string[]
+  command_reason?: string
+}
+
+export type JobsListResult = {
+  capabilities: JobsCapabilities
+  builtins: JobView[]
+  items: JobView[]
+}
+
+export type JobRunResult = {
+  http?: {
+    status_code: number
+    headers: Record<string, string>
+    body: string
+  }
+  command?: {
+    log: string
+  }
+  message?: string
+}
+
+export type JobRunRow = {
+  id: number
+  job_id: string
+  source: string
+  kind: string
+  status: 'running' | 'success' | 'failed'
+  duration_ms: number
+  output_preview?: string
+  result?: JobRunResult
+  error?: string
+  trigger: string
+  started_at: string
+  finished_at: string
+}
+
+export type BuiltinJobPatch = {
+  enabled?: boolean
+  schedule?: string
+  params?: JobParams
+}
+
+export type JobItemInput = {
+  id?: string
+  name: string
+  kind: 'http_call' | 'script'
+  schedule: string
+  enabled: boolean
+  timeout_sec?: number
+  on_failure?: string
+  params: JobParams
 }

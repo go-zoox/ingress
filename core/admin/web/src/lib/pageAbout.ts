@@ -56,6 +56,10 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
     title: '配置',
     desc: '分模块编辑 ingress.yaml → 保存与发布（查看变更 → 仅保存或热加载）',
   },
+  '/jobs': {
+    title: '定时任务',
+    desc: '内置运维与自定义调度；在此增删改查，每个任务可查看自己的执行历史与结果',
+  },
   '/settings': {
     title: '设置',
     desc: 'Admin 服务配置、Ingress 集成路径、数据存储与界面偏好',

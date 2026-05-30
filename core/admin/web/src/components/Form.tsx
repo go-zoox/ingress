@@ -5,6 +5,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react'
+import { CodeEditor } from './CodeEditor'
 
 export function FormSwitch({
   checked,
@@ -294,6 +295,33 @@ export function FormMultiSelectField({
           })}
         </div>
       </details>
+    </FormItem>
+  )
+}
+
+/** Shell/script editor with label spacing baked in. */
+export function FormCodeEditorField({
+  label,
+  hint,
+  full,
+  value,
+  onChange,
+  language,
+  minHeight,
+  readOnly,
+}: {
+  label: string
+  hint?: string
+  full?: boolean
+  value: string
+  onChange: (value: string) => void
+  language?: import('../lib/scriptParams').ScriptEngine
+  minHeight?: string
+  readOnly?: boolean
+}) {
+  return (
+    <FormItem label={label} hint={hint} full={full}>
+      <CodeEditor value={value} onChange={onChange} language={language} minHeight={minHeight} readOnly={readOnly} />
     </FormItem>
   )
 }

@@ -9,6 +9,7 @@ func MigrateModels() []any {
 		&WAFEvent{},
 		&ConfigRevision{},
 		&AccessLogParseIssue{},
+		&JobRun{},
 	}
 }
 

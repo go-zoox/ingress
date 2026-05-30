@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/go-zoox/ingress/core/jobs"
 	"github.com/go-zoox/ingress/core/rule"
 )
 
@@ -39,6 +40,8 @@ type Config struct {
 	Security rule.Security `config:"security"`
 	// Maintenance global host registry and default 503 settings (see maintenance.hosts).
 	Maintenance MaintenanceConfig `config:"maintenance"`
+	// Jobs configures scheduled tasks (built-in ops jobs and custom platform jobs).
+	Jobs jobs.Config `config:"jobs"`
 	// Match func(host string, path string) (cfg *service.Service, err error)
 }
 
@@ -51,6 +54,7 @@ type Admin struct {
 	AccessLogPath string        `config:"access_log_path"`
 	ErrorLogPath  string        `config:"error_log_path"`
 	GeoIP         AdminGeoIP    `config:"geoip"`
+	Jobs          jobs.AdminJobs `config:"jobs"`
 }
 
 // AdminGeoIP configures MaxMind GeoLite2 for WAF attack map geolocation.

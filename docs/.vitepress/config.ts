@@ -39,6 +39,7 @@ export default defineConfig({
               items: [
                 { text: 'Routing', link: '/guide/routing' },
                 { text: 'Admin Console', link: '/guide/admin' },
+                { text: 'Scheduled Jobs', link: '/guide/jobs' },
                 { text: 'Web Application Firewall', link: '/guide/waf' },
                 { text: 'Maintenance Mode', link: '/guide/maintenance' },
                 { text: 'Security Headers', link: '/guide/security-headers' },
@@ -64,6 +65,7 @@ export default defineConfig({
                 { text: 'Maintenance', link: '/examples/maintenance' },
                 { text: 'Security headers', link: '/examples/security-headers' },
                 { text: 'Admin Console', link: '/examples/admin-console' },
+                { text: 'Scheduled Jobs', link: '/examples/jobs' },
                 { text: 'Advanced', link: '/examples/advanced' }
               ]
             }
@@ -101,6 +103,7 @@ export default defineConfig({
               items: [
                 { text: '路由', link: '/zh/guide/routing' },
                 { text: 'Admin 控制台', link: '/zh/guide/admin' },
+                { text: '定时任务', link: '/zh/guide/jobs' },
                 { text: 'Web 应用防火墙（WAF）', link: '/zh/guide/waf' },
                 { text: '维护模式', link: '/zh/guide/maintenance' },
                 { text: '安全响应头', link: '/zh/guide/security-headers' },
@@ -126,6 +129,7 @@ export default defineConfig({
                 { text: '维护模式', link: '/zh/examples/maintenance' },
                 { text: '安全响应头', link: '/zh/examples/security-headers' },
                 { text: 'Admin 控制台', link: '/zh/examples/admin-console' },
+                { text: '定时任务', link: '/zh/examples/jobs' },
                 { text: '高级用法', link: '/zh/examples/advanced' }
               ]
             }

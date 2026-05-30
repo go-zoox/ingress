@@ -1,0 +1,68 @@
+version: v1
+port: 8080
+
+# Shell / JavaScript(goja) / Go(yaegi) script engines for custom jobs.
+# Embedded javascript and go engines do not use command_allowlist (shell only).
+admin:
+  enabled: true
+  port: 9080
+  database:
+    driver: sqlite
+    dsn: file:./admin.db?cache=shared&_fk=1
+  jobs:
+    allow_command: true
+    command_allowlist:
+      - /bin/sh
+    command_max_output_bytes: 65536
+
+jobs:
+  items:
+    - id: shell-echo
+      name: Shell echo
+      kind: script
+      schedule: "0 * * * *"
+      enabled: false
+      params:
+        engine: shell
+        shell: sh
+        script: |
+          #!/bin/sh
+          echo "job started"
+
+    - id: js-http-probe
+      name: JavaScript HTTP probe
+      kind: script
+      schedule: "*/30 * * * *"
+      enabled: false
+      timeout_sec: 60
+      params:
+        engine: javascript
+        script: |
+          console.log("job started", new Date().toISOString())
+          const res = await fetch("https://httpbin.org/status/200")
+          console.log("status", res.status, "ok", res.ok)
+
+    - id: go-stdlib-report
+      name: Go stdlib report
+      kind: script
+      schedule: "0 6 * * *"
+      enabled: false
+      params:
+        engine: go
+        script: |
+          import (
+            "fmt"
+            "strings"
+            "time"
+          )
+
+          fmt.Println(strings.ToUpper("job started"), time.Now().Format(time.RFC3339))
+
+rules:
+  - host: jobs-scripts.example.com
+    backend:
+      type: service
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

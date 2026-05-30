@@ -49,6 +49,9 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 		api.OverviewStreamer().Start(5 * time.Second)
 		api.Health().Start()
 		api.SystemMetricsService().Start()
+		if err := api.Jobs().Start(app.Cron()); err != nil {
+			logger.Warnf("jobs scheduler: %v", err)
+		}
 		// Note: Health check service will be stopped when the process exits.
 		// zoox Application doesn't expose OnShutdown; cleanup is handled by process signals.
 	}

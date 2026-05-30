@@ -129,6 +129,10 @@ Base path: **`/api/v1`**. Responses use JSON envelopes from the admin handler la
 | `GET` | `/events/stream` | SSE real-time event stream (`?channels=...`) |
 | `GET` | `/healthcheck` | Health check probe results and summary |
 | `GET` | `/settings` | Admin + ingress settings snapshot |
+| `GET` | `/jobs` | Scheduled jobs (built-in + custom) |
+| `POST` | `/jobs/:source/:id/run` | Run one job immediately |
+
+**Scheduled jobs** (cron, `jobs:` in YAML, `job_run` history): see [Scheduled jobs](/guide/jobs).
 
 **Reload from the console** validates the config file, then triggers an in-process reload (same outcome as **`ingress reload`** / **SIGHUP** when started with `ingress run`).
 

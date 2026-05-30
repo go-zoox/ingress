@@ -1,0 +1,44 @@
+version: v1
+port: 8080
+
+admin:
+  enabled: true
+  port: 9080
+  database:
+    driver: sqlite
+    dsn: file:./admin.db?cache=shared&_fk=1
+  # Optional GeoIP block for sync_geoip builtin (see admin.geoip in admin-console example).
+  geoip:
+    ingress_label: Demo edge
+    ingress_lat: 31.2304
+    ingress_lng: 121.4737
+
+# Built-in ops jobs are always registered in code; jobs.builtins only overrides schedule / enabled / params.
+jobs:
+  builtins:
+    purge_waf_events:
+      enabled: true
+      schedule: "0 3 * * *"
+      params:
+        retain_days: 7
+    purge_audit_logs:
+      enabled: true
+      schedule: "0 4 * * 0"
+      params:
+        retain_days: 60
+    check_tls_expiry:
+      enabled: true
+      schedule: "0 8 * * *"
+    sync_geoip:
+      enabled: true
+      schedule: "0 2 * * *"
+    # Disable a builtin by setting enabled: false (omit entry to use code defaults).
+
+rules:
+  - host: ops.example.com
+    backend:
+      type: service
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https
