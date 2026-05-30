@@ -45,6 +45,20 @@ func buildAdminConfig(ingressApp core.Core, ingressCfg *core.Config, ingressConf
 			IngressLng:   a.GeoIP.IngressLng,
 			IngressLabel: a.GeoIP.IngressLabel,
 		},
+		Auth: admincfg.Auth{
+			Type: a.Auth.Type,
+			Basic: admincfg.AuthBasic{
+				Username: a.Auth.Basic.Username,
+				Password: a.Auth.Basic.Password,
+			},
+			OAuth: admincfg.AuthOAuth{
+				Provider:     a.Auth.OAuth.Provider,
+				ClientID:     a.Auth.OAuth.ClientID,
+				ClientSecret: a.Auth.OAuth.ClientSecret,
+				RedirectURL:  a.Auth.OAuth.RedirectURL,
+				Scopes:       append([]string(nil), a.Auth.OAuth.Scopes...),
+			},
+		},
 		IngressConfigPath: ingressConfigFile,
 		PidFile:           pidFile,
 		ReloadFn:          reloadFn,

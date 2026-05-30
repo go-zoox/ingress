@@ -11,6 +11,7 @@ Source: [`examples/admin-console/`](https://github.com/go-zoox/ingress/tree/mast
 Key points:
 
 - **`admin.enabled: true`** — API on port **9080** in the same process as the proxy (**8080** / **8443**).
+- **`admin.auth.type: basic`** — local login (`admin` / `admin` by default); see [Admin auth example](/examples/admin-auth).
 - **`admin.web.dev_proxy: true`** — API only; run `cd core/admin/web && pnpm dev` for the UI.
 - When **`logging`** is omitted, file logs default to **`./access.log`** and **`./error.log`** next to this YAML (no `/var/log/ingress` required).
 

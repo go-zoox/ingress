@@ -60,6 +60,18 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
     title: '定时任务',
     desc: '内置运维与自定义调度；在此增删改查，每个任务可查看自己的执行历史与结果',
   },
+  '/rbac/users': {
+    title: '用户管理',
+    desc: 'Admin Console 操作员账号；通过角色继承 RBAC 权限',
+  },
+  '/rbac/roles': {
+    title: '角色管理',
+    desc: '将权限组合为角色，再分配给用户',
+  },
+  '/rbac/permissions': {
+    title: '权限管理',
+    desc: 'Admin Console 功能权限目录；内置权限随版本同步，可追加自定义权限',
+  },
   '/settings': {
     title: '设置',
     desc: 'Admin 服务配置、Ingress 集成路径、数据存储与界面偏好',

@@ -65,6 +65,7 @@ export default defineConfig({
                 { text: 'Maintenance', link: '/examples/maintenance' },
                 { text: 'Security headers', link: '/examples/security-headers' },
                 { text: 'Admin Console', link: '/examples/admin-console' },
+                { text: 'Admin Auth & RBAC', link: '/examples/admin-auth' },
                 { text: 'Scheduled Jobs', link: '/examples/jobs' },
                 { text: 'Advanced', link: '/examples/advanced' }
               ]
@@ -129,6 +130,7 @@ export default defineConfig({
                 { text: '维护模式', link: '/zh/examples/maintenance' },
                 { text: '安全响应头', link: '/zh/examples/security-headers' },
                 { text: 'Admin 控制台', link: '/zh/examples/admin-console' },
+                { text: 'Admin 认证与 RBAC', link: '/zh/examples/admin-auth' },
                 { text: '定时任务', link: '/zh/examples/jobs' },
                 { text: '高级用法', link: '/zh/examples/advanced' }
               ]

@@ -1,0 +1,20 @@
+version: v1
+port: 8080
+
+# Admin API/UI without login — local development only.
+# Do not expose on untrusted networks.
+admin:
+  enabled: true
+  port: 9080
+  database:
+    driver: sqlite
+    dsn: file:./admin-open.db?cache=shared&_fk=1
+  auth:
+    type: none
+
+rules:
+  - host: app.example.com
+    backend:
+      service:
+        name: app-service
+        port: 8080

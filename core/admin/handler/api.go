@@ -8,9 +8,11 @@ import (
 
 	"github.com/go-zoox/ingress"
 	"github.com/go-zoox/ingress/core/admin/config"
+	adminauth "github.com/go-zoox/ingress/core/admin/auth"
 	"github.com/go-zoox/ingress/core/admin/service"
 	ingcore "github.com/go-zoox/ingress/core"
 	"github.com/go-zoox/ingress/core/admin/service/jobs"
+	"github.com/go-zoox/ingress/core/admin/service/rbac"
 	"github.com/go-zoox/zoox"
 )
 
@@ -32,9 +34,11 @@ type API struct {
 	overviewBuilder  *service.OverviewBuilder
 	overviewStreamer *service.OverviewStreamer
 	jobs             *jobs.Service
+	rbac             *rbac.Service
+	auth             *adminauth.Service
 }
 
-func NewAPI(cfg *config.Config) *API {
+func NewAPI(cfg *config.Config, auth *adminauth.Service) *API {
 	logs := service.NewLogs(cfg)
 	ingress := service.NewIngress(cfg)
 	audit := service.NewAudit()
@@ -64,6 +68,8 @@ func NewAPI(cfg *config.Config) *API {
 		overviewBuilder:  overviewBuilder,
 		overviewStreamer: service.NewOverviewStreamer(overviewBuilder, broker),
 		jobs:             jobsSvc,
+		rbac:             rbac.New(),
+		auth:             auth,
 	}
 }
 
@@ -120,6 +126,8 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Get("/healthcheck", healthHandler.ListChecks)
 	jobsHandler := NewJobsHandler(a.jobs)
 	jobsHandler.Mount(g)
+	rbacHandler := NewRBACHandler(a.rbac, a.auth)
+	rbacHandler.Mount(g)
 	if err := MountTerminal(g); err != nil {
 		panic(err)
 	}

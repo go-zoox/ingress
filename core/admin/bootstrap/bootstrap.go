@@ -8,6 +8,7 @@ import (
 	"github.com/go-zoox/ingress/core/admin/config"
 	"github.com/go-zoox/ingress/core/admin/model"
 	"github.com/go-zoox/ingress/core/admin/service/geoip"
+	"github.com/go-zoox/ingress/core/admin/service/rbac"
 )
 
 // Init connects SQLite (or other engines) and migrates admin tables.
@@ -29,6 +30,13 @@ func Init(cfg *config.Config) error {
 	}
 	if err := seedSampleDataIfEmpty(); err != nil {
 		return fmt.Errorf("bootstrap: sample data: %w", err)
+	}
+	seedOpts := rbac.SeedOptions{
+		BasicUsername: cfg.Auth.Basic.Username,
+		BasicPassword: cfg.Auth.Basic.Password,
+	}
+	if err := rbac.New().Seed(seedOpts); err != nil {
+		return fmt.Errorf("bootstrap: rbac: %w", err)
 	}
 	if err := seedAccessLogIfEmpty(cfg); err != nil {
 		return fmt.Errorf("bootstrap: access log: %w", err)

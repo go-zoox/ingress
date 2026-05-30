@@ -158,7 +158,7 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
     }
 
     const url = buildURL()
-    const es = new EventSource(url)
+    const es = new EventSource(url, { withCredentials: true })
     esRef.current = es
 
     es.onopen = () => {

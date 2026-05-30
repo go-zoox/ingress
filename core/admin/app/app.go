@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-zoox/ingress/core/admin/bootstrap"
 	"github.com/go-zoox/ingress/core/admin/config"
+	adminauth "github.com/go-zoox/ingress/core/admin/auth"
 	"github.com/go-zoox/ingress/core/admin/handler"
 	"github.com/go-zoox/ingress/core/admin/service"
+	"github.com/go-zoox/ingress/core/admin/service/rbac"
 	"github.com/go-zoox/ingress/core/admin/static"
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/zoox"
@@ -27,10 +30,17 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 
 	app := defaults.Default()
 	app.SetBanner("")
+	applyServeDefaults(app)
 	app.Config.Port = int(cfg.Port)
 
-	api := handler.NewAPI(cfg)
+	rbacSvc := rbac.New()
+	authSvc := adminauth.New(cfg, rbacSvc)
+	api := handler.NewAPI(cfg, authSvc)
+
 	g := app.Group("/api/v1")
+	g.Use(authSvc.Middleware())
+	authHandler := handler.NewAuthHandler(authSvc)
+	authHandler.Mount(g)
 	api.Mount(g)
 
 	// Wire WAF event callback so blocks/audits are persisted and pushed over SSE.
@@ -74,6 +84,7 @@ func Run(app *zoox.Application, cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("admin config is nil")
 	}
+	applyServeDefaults(app)
 	if app.Config.NetworkType == "" {
 		app.Config.NetworkType = "tcp"
 	}
@@ -96,6 +107,24 @@ func Run(app *zoox.Application, cfg *config.Config) error {
 
 	app.Logger().Info("Admin started at http://%s", app.AddressForLog())
 	return server.Serve(listener)
+}
+
+// applyServeDefaults mirrors zoox Run() defaults required when serving via http.Server directly.
+// Without a stable SecretKey, session cookies cannot be decrypted on subsequent requests.
+func applyServeDefaults(app *zoox.Application) {
+	if app == nil {
+		return
+	}
+	if app.Config.SecretKey == "" {
+		if v := os.Getenv(zoox.BuiltInEnvSecretKey); v != "" {
+			app.Config.SecretKey = v
+		} else {
+			app.Config.SecretKey = zoox.DefaultSecretKey
+		}
+	}
+	if app.Config.Session.MaxAge == 0 {
+		app.Config.Session.MaxAge = zoox.DefaultSessionMaxAge
+	}
 }
 
 // wafEventAdapter bridges the core WAFCallback interface to the audit service.

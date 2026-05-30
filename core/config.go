@@ -1,6 +1,9 @@
 package core
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/go-zoox/ingress/core/jobs"
 	"github.com/go-zoox/ingress/core/rule"
 )
@@ -51,10 +54,66 @@ type Admin struct {
 	Port          int64         `config:"port,default=9080"`
 	Database      AdminDatabase `config:"database"`
 	Web           AdminWeb      `config:"web"`
+	Auth          AdminAuth     `config:"auth"`
 	AccessLogPath string        `config:"access_log_path"`
 	ErrorLogPath  string        `config:"error_log_path"`
 	GeoIP         AdminGeoIP    `config:"geoip"`
 	Jobs          jobs.AdminJobs `config:"jobs"`
+}
+
+// AdminAuth configures Admin Console authentication (none | basic | oauth).
+type AdminAuth struct {
+	// Type is none, basic (default), or oauth.
+	Type  string          `config:"type,default=basic"`
+	Basic AdminAuthBasic  `config:"basic"`
+	OAuth AdminAuthOAuth  `config:"oauth"`
+}
+
+// AdminAuthBasic configures local username/password login backed by RBAC users.
+type AdminAuthBasic struct {
+	// Username and Password identify the bootstrap super-admin RBAC user (admin role).
+	Username string `config:"username"`
+	Password string `config:"password"`
+}
+
+// AdminAuthOAuth configures third-party OAuth login for the Admin Console.
+type AdminAuthOAuth struct {
+	Provider     string   `config:"provider"`
+	ClientID     string   `config:"client_id"`
+	ClientSecret string   `config:"client_secret"`
+	RedirectURL  string   `config:"redirect_url"`
+	Scopes       []string `config:"scopes"`
+}
+
+// EffectiveAdminAuthType returns none, basic (default), or oauth.
+func EffectiveAdminAuthType(t string) string {
+	switch strings.ToLower(strings.TrimSpace(t)) {
+	case "none", "basic", "oauth":
+		return strings.ToLower(strings.TrimSpace(t))
+	default:
+		return "basic"
+	}
+}
+
+// Validate checks admin.auth settings when admin is enabled.
+func (a AdminAuth) Validate() error {
+	switch EffectiveAdminAuthType(a.Type) {
+	case "none", "basic":
+		return nil
+	case "oauth":
+		if strings.TrimSpace(a.OAuth.Provider) == "" {
+			return fmt.Errorf("admin.auth.oauth.provider is required when admin.auth.type is oauth")
+		}
+		if strings.TrimSpace(a.OAuth.ClientID) == "" {
+			return fmt.Errorf("admin.auth.oauth.client_id is required when admin.auth.type is oauth")
+		}
+		if strings.TrimSpace(a.OAuth.ClientSecret) == "" {
+			return fmt.Errorf("admin.auth.oauth.client_secret is required when admin.auth.type is oauth")
+		}
+		return nil
+	default:
+		return fmt.Errorf("admin.auth.type must be none, basic, or oauth")
+	}
 }
 
 // AdminGeoIP configures MaxMind GeoLite2 for WAF attack map geolocation.

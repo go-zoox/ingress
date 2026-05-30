@@ -210,6 +210,10 @@ function AdminModuleForm({
   const database = { ...obj(admin.database) }
   const geoip = { ...obj(admin.geoip) }
   const web = { ...obj(admin.web) }
+  const auth = { ...obj(admin.auth) }
+  const authBasic = { ...obj(auth.basic) }
+  const authOAuth = { ...obj(auth.oauth) }
+  const authType = str(auth.type, 'basic') || 'basic'
 
   const patchAdmin = (fn: (next: Record<string, unknown>) => void) => {
     const nextAdmin = { ...admin }
@@ -274,6 +278,137 @@ function AdminModuleForm({
             })
           }
         />
+      </FormSection>
+      <FormSection title="认证">
+        <FormSelectField
+          label="认证方式 admin.auth.type"
+          hint="默认 basic；none 关闭登录，oauth 使用第三方登录"
+          value={authType}
+          onChange={(e) =>
+            patchAdmin((n) => {
+              const nextAuth = { ...obj(n.auth) }
+              setStr(nextAuth, 'type', e.target.value)
+              n.auth = nextAuth
+            })
+          }
+        >
+          <option value="basic">basic（本地账号）</option>
+          <option value="none">none（无需登录）</option>
+          <option value="oauth">oauth（第三方登录）</option>
+        </FormSelectField>
+        {authType === 'basic' ? (
+          <>
+            <FormField
+              label="初始管理员用户名 admin.auth.basic.username"
+              hint="对应 RBAC 超级管理员（admin 角色）；启动时会自动创建或补全该用户"
+              value={str(authBasic.username, 'admin')}
+              onChange={(e) =>
+                patchAdmin((n) => {
+                  const nextAuth = { ...obj(n.auth) }
+                  const nextBasic = { ...obj(nextAuth.basic) }
+                  setStr(nextBasic, 'username', e.target.value)
+                  nextAuth.basic = nextBasic
+                  n.auth = nextAuth
+                })
+              }
+            />
+            <FormField
+              label="初始管理员密码 admin.auth.basic.password"
+              type="password"
+              value={str(authBasic.password)}
+              onChange={(e) =>
+                patchAdmin((n) => {
+                  const nextAuth = { ...obj(n.auth) }
+                  const nextBasic = { ...obj(nextAuth.basic) }
+                  setStr(nextBasic, 'password', e.target.value)
+                  nextAuth.basic = nextBasic
+                  n.auth = nextAuth
+                })
+              }
+            />
+          </>
+        ) : null}
+        {authType === 'oauth' ? (
+          <>
+            <FormField
+              label="Provider admin.auth.oauth.provider"
+              hint="github / google / gitlab / microsoft 等"
+              value={str(authOAuth.provider)}
+              onChange={(e) =>
+                patchAdmin((n) => {
+                  const nextAuth = { ...obj(n.auth) }
+                  const nextOAuth = { ...obj(nextAuth.oauth) }
+                  setStr(nextOAuth, 'provider', e.target.value)
+                  nextAuth.oauth = nextOAuth
+                  n.auth = nextAuth
+                })
+              }
+            />
+            <FormField
+              label="Client ID admin.auth.oauth.client_id"
+              value={str(authOAuth.client_id)}
+              onChange={(e) =>
+                patchAdmin((n) => {
+                  const nextAuth = { ...obj(n.auth) }
+                  const nextOAuth = { ...obj(nextAuth.oauth) }
+                  setStr(nextOAuth, 'client_id', e.target.value)
+                  nextAuth.oauth = nextOAuth
+                  n.auth = nextAuth
+                })
+              }
+            />
+            <FormField
+              label="Client Secret admin.auth.oauth.client_secret"
+              type="password"
+              value={str(authOAuth.client_secret)}
+              onChange={(e) =>
+                patchAdmin((n) => {
+                  const nextAuth = { ...obj(n.auth) }
+                  const nextOAuth = { ...obj(nextAuth.oauth) }
+                  setStr(nextOAuth, 'client_secret', e.target.value)
+                  nextAuth.oauth = nextOAuth
+                  n.auth = nextAuth
+                })
+              }
+            />
+            <FormField
+              label="Redirect URL admin.auth.oauth.redirect_url"
+              hint="留空则自动使用 /api/v1/auth/oauth/callback"
+              value={str(authOAuth.redirect_url)}
+              onChange={(e) =>
+                patchAdmin((n) => {
+                  const nextAuth = { ...obj(n.auth) }
+                  const nextOAuth = { ...obj(nextAuth.oauth) }
+                  setStr(nextOAuth, 'redirect_url', e.target.value)
+                  nextAuth.oauth = nextOAuth
+                  n.auth = nextAuth
+                })
+              }
+            />
+            <FormField
+              label="Scopes admin.auth.oauth.scopes"
+              hint="逗号分隔，留空使用 provider 默认值"
+              value={arr<string>(authOAuth.scopes).join(', ')}
+              onChange={(e) =>
+                patchAdmin((n) => {
+                  const nextAuth = { ...obj(n.auth) }
+                  const nextOAuth = { ...obj(nextAuth.oauth) }
+                  const scopes = e.target.value
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                  if (scopes.length > 0) {
+                    nextOAuth.scopes = scopes
+                  } else {
+                    delete nextOAuth.scopes
+                  }
+                  nextAuth.oauth = nextOAuth
+                  n.auth = nextAuth
+                })
+              }
+            />
+          </>
+        ) : null}
       </FormSection>
       <FormSection title="Web UI">
         <FormCheckbox

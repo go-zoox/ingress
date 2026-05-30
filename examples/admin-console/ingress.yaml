@@ -8,6 +8,11 @@ admin:
     dsn: file:./admin.db?cache=shared&_fk=1
   web:
     dev_proxy: true
+  auth:
+    type: basic
+    basic:
+      username: admin
+      password: admin
   # WAF 攻击地图 GeoIP（默认 database: /etc/geoip/GeoLite2-City.mmdb，Docker 镜像已内置）
   geoip:
     ingress_label: 上海

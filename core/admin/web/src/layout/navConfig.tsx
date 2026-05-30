@@ -1,76 +1,52 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  LayoutDashboard,
-  ScrollText,
   Activity,
-  Search,
   ArrowLeftRight,
-  Server,
-  HardDrive,
-  Shield,
-  Lock,
-  HeartPulse,
-  Construction,
-  Terminal,
-  FileCode2,
-  Settings,
   Clock,
+  Construction,
+  FileCode2,
+  HardDrive,
+  HeartPulse,
+  KeyRound,
+  LayoutDashboard,
+  Lock,
+  ScrollText,
+  Search,
+  Server,
+  Settings,
+  Shield,
+  Terminal,
+  UserCog,
+  Users,
 } from 'lucide-react'
 
 export type NavBadgeKey = 'events' | 'healths' | 'tls' | 'waf'
 
-export type NavItem = {
-  to: string
-  label: string
-  icon: LucideIcon
-  end?: boolean
-  badgeKey?: NavBadgeKey
+const navIconMap: Record<string, LucideIcon> = {
+  'layout-dashboard': LayoutDashboard,
+  activity: Activity,
+  search: Search,
+  'scroll-text': ScrollText,
+  'arrow-left-right': ArrowLeftRight,
+  server: Server,
+  'hard-drive': HardDrive,
+  shield: Shield,
+  lock: Lock,
+  'heart-pulse': HeartPulse,
+  construction: Construction,
+  clock: Clock,
+  terminal: Terminal,
+  users: Users,
+  'user-cog': UserCog,
+  'key-round': KeyRound,
+  'file-code-2': FileCode2,
+  settings: Settings,
 }
 
-export type NavGroup = {
-  label: string
-  items: NavItem[]
+export function navIcon(name: string): LucideIcon {
+  return navIconMap[name] ?? LayoutDashboard
 }
 
-export const navGroups: NavGroup[] = [
-  {
-    label: '监控',
-    items: [
-      { to: '/', label: '总览', icon: LayoutDashboard, end: true },
-      { to: '/events', label: '事件', icon: Activity, badgeKey: 'events' },
-      { to: '/investigate', label: '调查', icon: Search },
-      { to: '/logs', label: '日志', icon: ScrollText },
-    ],
-  },
-  {
-    label: '流量',
-    items: [
-      { to: '/routes', label: '路由', icon: ArrowLeftRight },
-      { to: '/services', label: '服务', icon: Server },
-      { to: '/cache', label: '缓存', icon: HardDrive },
-    ],
-  },
-  {
-    label: '安全',
-    items: [
-      { to: '/waf', label: 'WAF', icon: Shield },
-      { to: '/tls', label: 'TLS', icon: Lock, badgeKey: 'tls' },
-      { to: '/healths', label: '健康检查', icon: HeartPulse, badgeKey: 'healths' },
-    ],
-  },
-  {
-    label: '维护',
-    items: [
-      { to: '/maintenance', label: '维护模式', icon: Construction },
-      { to: '/jobs', label: '定时任务', icon: Clock },
-      { to: '/terminal', label: 'Web 终端', icon: Terminal },
-    ],
-  },
-  {
-    label: '系统',
-    items: [
-      { to: '/config', label: '配置', icon: FileCode2 },
-      { to: '/settings', label: '设置', icon: Settings },
-    ],
-  },
-]
+export function isNavBadgeKey(value: string | undefined): value is NavBadgeKey {
+  return value === 'events' || value === 'healths' || value === 'tls' || value === 'waf'
+}

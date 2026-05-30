@@ -4,6 +4,7 @@ import { Settings } from 'lucide-react'
 import { SidebarGlobalStatus } from './SidebarGlobalStatus'
 import { SettingsAboutSection } from './SettingsAboutSection'
 import { OverviewStreamStatus } from './OverviewStreamStatus'
+import { useAuth } from '../context/AuthContext'
 
 type Props = {
   configPath: string
@@ -30,6 +31,7 @@ export const SettingsMenu = memo(function SettingsMenu({
 }: Props) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const { config, user, logout } = useAuth()
 
   useEffect(() => {
     if (!open) return
@@ -84,6 +86,20 @@ export const SettingsMenu = memo(function SettingsMenu({
           </div>
           <SettingsAboutSection version={version} />
           <div className="settings-menu-foot">
+            {config && config.type !== 'none' && user ? (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  void logout().then(() => {
+                    setOpen(false)
+                    window.location.assign('/login')
+                  })
+                }}
+              >
+                退出登录 ({user.username})
+              </button>
+            ) : null}
             <Link to="/settings" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>
               全部设置
             </Link>

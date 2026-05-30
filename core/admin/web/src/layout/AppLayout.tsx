@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api } from '../api/client'
-import { navGroups } from './navConfig'
+import { isNavBadgeKey, navIcon } from './navConfig'
+import { useNavigation } from '../hooks/useNavigation'
 import { useNavBadges } from '../hooks/useNavBadges'
+import { useAuth } from '../context/AuthContext'
 import { SettingsMenu } from '../components/SettingsMenu'
 import { NotificationMenu } from '../components/NotificationMenu'
 import { NotificationProvider } from '../context/NotificationContext'
@@ -20,6 +22,8 @@ export function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const location = useLocation()
   const badges = useNavBadges()
+  const { config } = useAuth()
+  const { groups: navGroups, loading: navLoading } = useNavigation()
 
   useEffect(() => {
     setDrawerOpen(false)
@@ -110,47 +114,54 @@ export function AppLayout() {
             <span>运维控制台</span>
           </div>
           <nav className="nav" aria-label="主导航">
-            {navGroups.map((group) => (
-              <div key={group.label} className="nav-group">
-                <div className="nav-group-label">{group.label}</div>
-                {group.items.map((item) => {
-                  const Icon = item.icon
-                  const badge =
-                    item.badgeKey && badges[item.badgeKey] > 0
-                      ? badges[item.badgeKey]
-                      : 0
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      end={item.end}
-                      className={({ isActive }) => (isActive ? 'active' : '')}
-                      onClick={close}
-                    >
-                      <span className="icon" aria-hidden>
-                        <Icon size={18} strokeWidth={1.75} />
-                      </span>
-                      <span className="nav-label">{item.label}</span>
-                      {badge > 0 ? (
-                        <span
-                          className={`nav-badge${
-                            item.badgeKey === 'events'
-                              ? badges.healths > 0
-                                ? ' danger'
-                                : ' warn'
-                              : item.badgeKey === 'healths'
-                                ? ' danger'
-                                : ' warn'
-                          }`}
-                        >
-                          {badge > 99 ? '99+' : badge}
+            {navLoading ? (
+              <p className="empty-hint nav-loading">加载菜单…</p>
+            ) : navGroups.length === 0 ? (
+              <p className="empty-hint nav-loading">
+                当前账号没有可见菜单，请联系管理员分配「菜单」权限或角色。
+                {config?.user?.username ? `（${config.user.username}）` : null}
+              </p>
+            ) : (
+              navGroups.map((group) => (
+                <div key={group.label} className="nav-group">
+                  <div className="nav-group-label">{group.label}</div>
+                  {group.items.map((item) => {
+                    const Icon = navIcon(item.icon)
+                    const badgeKey = isNavBadgeKey(item.badge_key) ? item.badge_key : undefined
+                    const badge = badgeKey && badges[badgeKey] > 0 ? badges[badgeKey] : 0
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.end}
+                        className={({ isActive }) => (isActive ? 'active' : '')}
+                        onClick={close}
+                      >
+                        <span className="icon" aria-hidden>
+                          <Icon size={18} strokeWidth={1.75} />
                         </span>
-                      ) : null}
-                    </NavLink>
-                  )
-                })}
-              </div>
-            ))}
+                        <span className="nav-label">{item.label}</span>
+                        {badge > 0 ? (
+                          <span
+                            className={`nav-badge${
+                              badgeKey === 'events'
+                                ? badges.healths > 0
+                                  ? ' danger'
+                                  : ' warn'
+                                : badgeKey === 'healths'
+                                  ? ' danger'
+                                  : ' warn'
+                            }`}
+                          >
+                            {badge > 99 ? '99+' : badge}
+                          </span>
+                        ) : null}
+                      </NavLink>
+                    )
+                  })}
+                </div>
+              ))
+            )}
           </nav>
         </aside>
         <main className="main">

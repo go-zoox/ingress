@@ -50,6 +50,10 @@ Full demo bundle: [`examples/admin-console/`](https://github.com/go-zoox/ingress
 | `admin.database.driver` | string | Audit / revision DB driver | `sqlite` |
 | `admin.database.dsn` | string | SQLite DSN (relative paths resolve beside the ingress config file) | `file:admin.db?cache=shared&_fk=1` |
 | `admin.web.dev_proxy` | bool | API only; run the UI from Vite dev server (proxies `/api`) | `false` |
+| `admin.auth.type` | string | Console login mode: `none`, `basic` (default), or `oauth` | `basic` |
+| `admin.auth.basic.username` | string | Bootstrap super-admin RBAC username (synced on every startup) | `admin` when password set; else internal default |
+| `admin.auth.basic.password` | string | Password for the bootstrap user (RBAC bcrypt hash; only applied on first create) | `admin` when username set; else internal default |
+| `admin.auth.oauth.*` | object | Third-party OAuth (`provider`, `client_id`, `client_secret`, optional `redirect_url`, `scopes`) | — |
 | `admin.access_log_path` | string | Override access log path for the log viewer | from `logging` file transport |
 | `admin.error_log_path` | string | Override error log path for the log viewer | from `logging` file transport |
 
@@ -124,6 +128,13 @@ Base path: **`/api/v1`**. Responses use JSON envelopes from the admin handler la
 | `GET` | `/config/revisions` | List saved revisions |
 | `GET` | `/config/revisions/:id` | One revision |
 | `POST` | `/reload` | Validate on-disk config and reload ingress |
+| `GET` | `/auth/config` | Login mode and current session user |
+| `POST` | `/auth/login` | Basic login (`username`, `password` JSON) |
+| `POST` | `/auth/logout` | Clear session |
+| `GET` | `/auth/oauth/login` | Start OAuth redirect (`?redirect=` optional) |
+| `GET` | `/auth/oauth/callback` | OAuth callback (handled by provider redirect) |
+| `GET` | `/rbac/menus` | Sidebar tree filtered by the current user's `menu:*` grants |
+| `GET`/`POST`/`PUT`/`DELETE` | `/rbac/users`, `/rbac/roles`, `/rbac/permissions` | RBAC management |
 | `GET` | `/routes/:ri/:pi` | Route detail (config + auth/cache/healthcheck) |
 | `GET` | `/routes/:ri/:pi/metrics` | Route-level aggregated metrics |
 | `GET` | `/events/stream` | SSE real-time event stream (`?channels=...`) |
@@ -185,10 +196,89 @@ The **Overview** page now reads real TLS certificate data instead of hard-coded 
 
 The Overview page compares the **running config hash** with the **latest revision hash**. A green badge means "config consistent"; yellow means "changes not yet published".
 
+## Authentication & RBAC
+
+Admin Console **login** is separate from route-level **`backend.service.auth`** (Basic/Bearer on proxied upstreams). Configure it under **`admin.auth`**.
+
+Minimal basic login:
+
+<<< @/../examples/admin-auth/ingress.yaml{yaml}
+
+Focused examples: [`examples/admin-auth/`](https://github.com/go-zoox/ingress/tree/master/examples/admin-auth) — see the [Admin auth example](/examples/admin-auth).
+
+### Login modes
+
+| `admin.auth.type` | Behavior |
+|-------------------|----------|
+| `basic` (default) | Local login page; credentials validated against **RBAC users** in SQLite |
+| `none` | No login gate — local development only (`examples/admin-auth/open-no-auth.yaml`) |
+| `oauth` | Redirect to a supported provider (GitHub, GitLab, Google, Feishu, …) |
+
+When **`admin.auth.type`** is `basic` or `oauth`, all **`/api/v1/*`** routes except the auth endpoints require a valid **session cookie**.
+
+### Bootstrap super-admin
+
+On every startup, ingress syncs the user named in **`admin.auth.basic.username`** (default **`admin`**) into RBAC:
+
+- Creates the user on first run (password from **`admin.auth.basic.password`**, default **`admin`** when omitted)
+- Ensures the user always has the builtin **`admin`** role (super-admin)
+- Password changes in the UI are kept; config password is **not** overwritten on later restarts
+
+Manage additional operators under **权限** in the sidebar (users, roles, permissions).
+
+### RBAC model
+
+| Entity | Purpose |
+|--------|---------|
+| **Permissions** | Fine-grained grants — action codes (`routes:read`, `config:write`, …) and **`menu:*`** sidebar visibility |
+| **Roles** | Named permission sets assigned to users |
+| **Users** | Console operator accounts (bcrypt password hashes) |
+
+**Menu vs action permissions**
+
+- Sidebar items require matching **`menu:*`** grants (for example `menu:routes` for the Routes link)
+- Action grants alone (for example `routes:read` without `menu:routes`) do **not** show a menu entry
+- When editing roles, enable both action and **菜单** groups as needed
+
+**Login gate**
+
+- Basic login succeeds only when the account has **at least one visible menu**
+- Otherwise the API returns **403** and **no session** is created (password-only roles without menus cannot sign in)
+
+### Builtin roles
+
+Seeded on startup (builtin roles cannot be deleted):
+
+| Code | Name | Typical use |
+|------|------|-------------|
+| `admin` | 管理员 | Full console access |
+| `viewer` | 只读观察 | Read-only monitoring, traffic, security pages |
+| `operator` | 运维工程师 | Viewer + maintenance, jobs, Web terminal |
+| `developer` | 路由开发 | Routes, services, cache, config, settings |
+| `security` | 安全工程师 | Events, logs, WAF, TLS, health checks |
+
+### OAuth (optional)
+
+```yaml
+admin:
+  auth:
+    type: oauth
+    oauth:
+      provider: github
+      client_id: "..."
+      client_secret: "..."
+      # redirect_url: https://admin.example.com/api/v1/auth/oauth/callback
+      scopes:
+        - user:email
+```
+
+After OAuth, the session username is derived from the provider profile. Assign matching RBAC users/roles if you need menu filtering beyond the OAuth identity.
+
 ## Security notes
 
-- The admin API has **no built-in authentication** in v1. Bind to localhost or place it behind a trusted network, VPN, or ingress route with auth.
-- Config publish writes the live `ingress.yaml` and reloads the proxy — restrict who can reach the admin port.
+- **`admin.auth.type: basic`** (default) protects the API with session cookies. Still bind to localhost or place the admin port behind a trusted network / VPN when possible.
+- **`admin.auth.type: none`** disables console login — never expose on untrusted networks.
+- Config publish writes the live `ingress.yaml` and reloads the proxy — restrict who can reach the admin port even when auth is enabled.
 - Do not expose **`admin.web.dev_proxy: true`** on untrusted networks.
 
 ## Related commands

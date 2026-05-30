@@ -1,0 +1,23 @@
+version: v1
+port: 8080
+
+# Minimal Admin Console with local login + RBAC.
+# Default UI login: admin / admin (see admin.auth.basic below).
+admin:
+  enabled: true
+  port: 9080
+  database:
+    driver: sqlite
+    dsn: file:./admin-auth.db?cache=shared&_fk=1
+  auth:
+    type: basic
+    basic:
+      username: admin
+      password: admin
+
+rules:
+  - host: app.example.com
+    backend:
+      service:
+        name: app-service
+        port: 8080

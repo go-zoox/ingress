@@ -16,6 +16,7 @@ type Config struct {
 	AccessLogPath string
 	ErrorLogPath string
 	GeoIP        GeoIP
+	Auth         Auth
 	//
 	IngressConfigPath string
 	PidFile           string
@@ -53,6 +54,9 @@ func (c *Config) Validate() error {
 	}
 	if strings.TrimSpace(c.IngressConfigPath) == "" {
 		return fmt.Errorf("ingress config path is required")
+	}
+	if err := c.Auth.Validate(); err != nil {
+		return err
 	}
 	d := strings.ToLower(strings.TrimSpace(c.Database.Driver))
 	switch d {

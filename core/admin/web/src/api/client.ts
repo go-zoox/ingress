@@ -9,7 +9,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!headers.has('Content-Type') && init?.body) {
     headers.set('Content-Type', 'application/json')
   }
-  const res = await fetch(`/api/v1${path}`, { ...init, headers })
+  const res = await fetch(`/api/v1${path}`, { ...init, headers, credentials: 'include' })
   const data = (await res.json()) as ApiEnvelope<T>
   if (!res.ok || data.code >= 400) {
     throw new Error(data.message || res.statusText)
@@ -18,6 +18,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  authConfig: () => request<AuthConfigView>('/auth/config'),
+  authLogin: (username: string, password: string) =>
+    request<{ ok: boolean; user: AuthUser }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+  authLogout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   status: () => request<IngressStatus>('/status'),
   routes: () => request<RouteRow[]>('/routes'),
   match: (host: string, path: string) =>
@@ -255,6 +262,51 @@ export const api = {
     request<{ ok: boolean }>(`/jobs/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   runJob: (source: 'builtin' | 'config', id: string) =>
     request<JobRunRow>(`/jobs/${source}/${encodeURIComponent(id)}/run`, { method: 'POST' }),
+  rbacPermissions: () => request<RBACPermissionRow[]>('/rbac/permissions'),
+  createRbacPermission: (body: RBACPermissionInput) =>
+    request<RBACPermissionRow>('/rbac/permissions', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateRbacPermission: (id: number, body: RBACPermissionInput) =>
+    request<RBACPermissionRow>(`/rbac/permissions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteRbacPermission: (id: number) =>
+    request<{ ok: boolean }>(`/rbac/permissions/${id}`, { method: 'DELETE' }),
+  rbacRoles: () => request<RBACRoleRow[]>('/rbac/roles'),
+  createRbacRole: (body: RBACRoleInput) =>
+    request<RBACRoleRow>('/rbac/roles', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateRbacRole: (id: number, body: RBACRoleInput) =>
+    request<RBACRoleRow>(`/rbac/roles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteRbacRole: (id: number) =>
+    request<{ ok: boolean }>(`/rbac/roles/${id}`, { method: 'DELETE' }),
+  rbacUsers: () => request<RBACUserRow[]>('/rbac/users'),
+  createRbacUser: (body: RBACUserInput) =>
+    request<RBACUserRow>('/rbac/users', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateRbacUser: (id: number, body: RBACUserInput) =>
+    request<RBACUserRow>(`/rbac/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  updateRbacUserPassword: (id: number, password: string) =>
+    request<{ ok: boolean }>(`/rbac/users/${id}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ password }),
+    }),
+  deleteRbacUser: (id: number) =>
+    request<{ ok: boolean }>(`/rbac/users/${id}`, { method: 'DELETE' }),
+  rbacMenus: () => request<NavMenuResult>('/rbac/menus'),
   investigate: (params: {
     host: string
     path?: string
@@ -1054,4 +1106,90 @@ export type JobItemInput = {
   timeout_sec?: number
   on_failure?: string
   params: JobParams
+}
+
+export type RBACPermissionRow = {
+  id: number
+  code: string
+  name: string
+  group: string
+  description?: string
+  builtin: boolean
+  role_count: number
+}
+
+export type RBACPermissionInput = {
+  code: string
+  name: string
+  group: string
+  description?: string
+}
+
+export type RBACRoleRow = {
+  id: number
+  code: string
+  name: string
+  description?: string
+  builtin: boolean
+  permission_ids: number[]
+  permissions?: string[]
+  user_count: number
+}
+
+export type RBACRoleInput = {
+  code: string
+  name: string
+  description?: string
+  permission_ids: number[]
+}
+
+export type RBACUserRow = {
+  id: number
+  username: string
+  display_name: string
+  email?: string
+  enabled: boolean
+  builtin: boolean
+  role_ids: number[]
+  roles?: string[]
+}
+
+export type RBACUserInput = {
+  username: string
+  display_name: string
+  email?: string
+  password?: string
+  enabled: boolean
+  role_ids: number[]
+}
+
+export type NavMenuItem = {
+  to: string
+  label: string
+  icon: string
+  end?: boolean
+  badge_key?: string
+  permission: string
+}
+
+export type NavMenuGroup = {
+  label: string
+  items: NavMenuItem[]
+}
+
+export type NavMenuResult = {
+  username?: string
+  groups: NavMenuGroup[]
+}
+
+export type AuthUser = {
+  username: string
+  display_name: string
+}
+
+export type AuthConfigView = {
+  type: 'none' | 'basic' | 'oauth'
+  authenticated: boolean
+  user?: AuthUser
+  oauth_login_url?: string
 }

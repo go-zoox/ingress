@@ -50,6 +50,10 @@ Server started at http://127.0.0.1:8080
 | `admin.database.driver` | string | 审计 / 修订记录数据库驱动 | `sqlite` |
 | `admin.database.dsn` | string | SQLite DSN（相对路径相对 ingress 配置文件目录解析） | `file:admin.db?cache=shared&_fk=1` |
 | `admin.web.dev_proxy` | bool | 仅 API；UI 由 Vite 开发服务器提供（代理 `/api`） | `false` |
+| `admin.auth.type` | string | 控制台登录模式：`none`、`basic`（默认）、`oauth` | `basic` |
+| `admin.auth.basic.username` | string | 引导超级管理员 RBAC 用户名（每次启动同步） | 配置密码时默认 `admin` |
+| `admin.auth.basic.password` | string | 引导用户密码（写入 RBAC；仅首次创建时使用） | 配置用户名时默认 `admin` |
+| `admin.auth.oauth.*` | object | 第三方 OAuth（`provider`、`client_id`、`client_secret` 等） | — |
 | `admin.access_log_path` | string | 日志页读取的 access 日志路径（覆盖） | 来自 `logging` 文件 transport |
 | `admin.error_log_path` | string | 日志页读取的 error 日志路径（覆盖） | 来自 `logging` 文件 transport |
 
@@ -124,6 +128,13 @@ Vite 开发服务器将 `/api` 代理到 admin 端口。生产 UI 在 `cd core/a
 | `GET` | `/config/revisions` | 修订历史列表 |
 | `GET` | `/config/revisions/:id` | 单条修订 |
 | `POST` | `/reload` | 校验磁盘配置并重载 ingress |
+| `GET` | `/auth/config` | 登录模式与当前会话用户 |
+| `POST` | `/auth/login` | Basic 登录（JSON：`username`、`password`） |
+| `POST` | `/auth/logout` | 清除会话 |
+| `GET` | `/auth/oauth/login` | 发起 OAuth 跳转（可选 `?redirect=`） |
+| `GET` | `/auth/oauth/callback` | OAuth 回调 |
+| `GET` | `/rbac/menus` | 按当前用户 `menu:*` 权限过滤的侧栏树 |
+| `GET`/`POST`/`PUT`/`DELETE` | `/rbac/users`、`/rbac/roles`、`/rbac/permissions` | RBAC 管理 |
 | `GET` | `/routes/:ri/:pi` | 路由详情（配置 + auth/cache/healthcheck） |
 | `GET` | `/routes/:ri/:pi/metrics` | 路由级聚合指标 |
 | `GET` | `/events/stream` | SSE 实时事件流（`?channels=...`） |
@@ -179,12 +190,91 @@ data: {"key": "value", ...}
 
 ## 版本一致性标识
 
-总览页对比**运行配置 hash** 与**最新修订 hash**。绿色徽章表示"配置一致"，黄色表示"有变更未发布"。
+总览页对比**运行配置 hash** 与**最新修订 hash**。绿色徽章表示「配置一致」，黄色表示「有变更未发布」。
+
+## 认证与 RBAC
+
+控制台**登录**与路由级 **`backend.service.auth`**（转发到上游的 Basic/Bearer）相互独立，在 **`admin.auth`** 下配置。
+
+最小 Basic 登录示例：
+
+<<< @/../examples/admin-auth/ingress.yaml{yaml}
+
+更多示例：[`examples/admin-auth/`](https://github.com/go-zoox/ingress/tree/master/examples/admin-auth) — 参见 [Admin 认证示例](/zh/examples/admin-auth)。
+
+### 登录模式
+
+| `admin.auth.type` | 行为 |
+|-------------------|------|
+| `basic`（默认） | 本地登录页；凭据与 SQLite 中的 **RBAC 用户** 校验 |
+| `none` | 无登录门禁 — 仅适合本地开发（`examples/admin-auth/open-no-auth.yaml`） |
+| `oauth` | 跳转第三方登录（GitHub、GitLab、Google、飞书等） |
+
+当 **`admin.auth.type`** 为 `basic` 或 `oauth` 时，除 auth 端点外的所有 **`/api/v1/*`** 均需有效 **session cookie**。
+
+### 引导超级管理员
+
+每次启动时，ingress 将 **`admin.auth.basic.username`**（默认 **`admin`**）同步到 RBAC：
+
+- 首次运行创建用户（密码来自 **`admin.auth.basic.password`**，省略时默认 **`admin`**）
+- 确保该用户始终拥有内置 **`admin`** 角色（超级管理员）
+- 在 UI 中修改的密码会保留；后续启动**不会**用配置覆盖已有密码
+
+更多操作员可在侧栏 **权限** 中管理（用户 / 角色 / 权限）。
+
+### RBAC 模型
+
+| 实体 | 作用 |
+|------|------|
+| **权限** | 细粒度授权 — 操作码（`routes:read`、`config:write` …）与侧栏 **`menu:*`** |
+| **角色** | 权限集合，分配给用户 |
+| **用户** | 控制台操作员（bcrypt 密码） |
+
+**菜单 vs 操作权限**
+
+- 侧栏入口需要对应 **`menu:*`**（例如 `menu:routes` 才显示「路由」）
+- 仅有操作权限（例如只有 `routes:read`、没有 `menu:routes`）**不会**显示菜单
+- 编辑角色时请同时勾选 **菜单** 分组
+
+**登录规则**
+
+- Basic 登录成功要求账号至少有一个**可见菜单**
+- 否则返回 **403** 且**不创建会话**（仅有操作权限、无菜单的角色无法登录）
+
+### 内置角色
+
+启动时种子同步（内置角色不可删除）：
+
+| Code | 名称 | 适用场景 |
+|------|------|----------|
+| `admin` | 管理员 | 全部功能 |
+| `viewer` | 只读观察 | 监控 / 流量 / 安全只读 |
+| `operator` | 运维工程师 | 只读 + 维护 / 定时任务 / Web 终端 |
+| `developer` | 路由开发 | 路由 / 服务 / 缓存 / 配置 / 设置 |
+| `security` | 安全工程师 | 事件 / 日志 / WAF / TLS / 健康检查 |
+
+### OAuth（可选）
+
+```yaml
+admin:
+  auth:
+    type: oauth
+    oauth:
+      provider: github
+      client_id: "..."
+      client_secret: "..."
+      # redirect_url: https://admin.example.com/api/v1/auth/oauth/callback
+      scopes:
+        - user:email
+```
+
+OAuth 登录后会话用户名为提供商 profile 推导值。若需按菜单过滤，请在 RBAC 中创建对应用户并分配角色。
 
 ## 安全说明
 
-- v1 **未内置** admin API 认证。请绑定 localhost，或置于可信网络 / VPN / 带认证的路由之后。
-- 配置发布会写入 live `ingress.yaml` 并重载代理 — 务必限制 admin 端口的访问面。
+- 默认 **`admin.auth.type: basic`** 通过 session cookie 保护 API；仍建议绑定 localhost 或置于可信网络 / VPN 之后。
+- **`admin.auth.type: none`** 关闭控制台登录 — 切勿暴露在不可信网络。
+- 配置发布会写入 live `ingress.yaml` 并重载代理 — 即使已启用认证，也应限制 admin 端口访问面。
 - 不要在不可信网络暴露 **`admin.web.dev_proxy: true`**。
 
 ## 相关命令
