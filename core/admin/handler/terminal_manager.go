@@ -119,7 +119,6 @@ func (s *managedTerminalSession) bind(conn terminalConn) {
 	old := s.conn
 	s.conn = conn
 	replay := append([]byte(nil), s.replay...)
-	s.replay = s.replay[:0]
 	s.mu.Unlock()
 
 	if old != nil && old != conn {
@@ -208,11 +207,10 @@ func (s *managedTerminalSession) deliverOutput(data []byte) {
 	if s.closed {
 		return
 	}
+	s.replay = appendReplay(s.replay, data, terminalReplayMaxBytes)
 	if s.conn != nil {
 		_ = s.conn.WriteBinaryMessage(data)
-		return
 	}
-	s.replay = appendReplay(s.replay, data, terminalReplayMaxBytes)
 }
 
 func appendReplay(buf, data []byte, max int) []byte {

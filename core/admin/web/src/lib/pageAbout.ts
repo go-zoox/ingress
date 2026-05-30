@@ -50,7 +50,7 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
   },
   '/terminal': {
     title: 'Web 终端',
-    desc: '多标签并行 Shell；每标签独立会话，断线 60 秒内可重连恢复',
+    desc: '通过 Xterm 连接 Admin 主机 Shell；断线 60 秒内可自动重连恢复同一会话',
   },
   '/config': {
     title: '配置',

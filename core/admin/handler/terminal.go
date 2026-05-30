@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	wsconn "github.com/go-zoox/websocket/conn"
@@ -103,8 +104,11 @@ func MountTerminal(g *zoox.RouterGroup) error {
 		}
 
 		sess.bind(conn)
-		_ = conn.Set("terminal_session_id", sess.id)
-		return nil
+		if !sess.isClosed() {
+			_ = conn.Set("terminal_session_id", sess.id)
+			return nil
+		}
+		return fmt.Errorf("terminal session %s is closed", sess.id)
 	})
 
 	server.OnMessage(func(conn wsconn.Conn, typ int, message []byte) error {

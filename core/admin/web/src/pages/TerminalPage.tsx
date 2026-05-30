@@ -6,7 +6,7 @@ export function TerminalPage() {
     <>
       <PageHeader
         title="Web 终端"
-        desc="支持多标签并行 Shell；每个标签独立会话，断线 60 秒内可自动重连恢复。"
+        desc="通过 Xterm 连接 Admin 进程所在主机的交互式 Shell；断线 60 秒内自动重连并恢复同一会话。"
       />
       <section className="panel web-terminal-panel">
         <div className="panel-body">

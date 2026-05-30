@@ -52,7 +52,7 @@ func TestTerminalManager_DetachAndReattachWithinGrace(t *testing.T) {
 	sess.deliverOutput([]byte("while-detached"))
 	sess.bind(conn2)
 
-	if len(conn2.writes) != 1 || string(conn2.writes[0]) != "while-detached" {
+	if len(conn2.writes) != 1 || string(conn2.writes[0]) != "hellowhile-detached" {
 		t.Fatalf("replay=%q", conn2.writes)
 	}
 
