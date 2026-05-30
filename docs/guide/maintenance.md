@@ -14,7 +14,7 @@ Either layer can trigger maintenance for a request. When both apply, **route-lev
 ```yaml
 maintenance:
   hosts:
-    - app.example.com
+    - host: app.example.com
     - host: staging-*.example.com
       window:
         start: "2026-05-30T02:00:00+08:00"
@@ -35,17 +35,15 @@ maintenance:
 
 ### `maintenance.hosts[]`
 
-Each entry is either a plain hostname / wildcard string or an object:
+Each entry is a `{ host, window? }` object (`host` is required). When **no `window`** is set (or both sides are empty), the host entry is **always active** once the hostname matches.
+
+Times use **RFC3339** (e.g. `2026-05-30T02:00:00+08:00`). Validation rejects `end` before `start`.
 
 | Field | Description |
 |-------|-------------|
 | `host` | Host pattern (exact, `*` wildcard, or Go regex — same inference as route `host`) |
 | `window.start` | Optional RFC3339; omit for no lower bound |
 | `window.end` | Optional RFC3339; omit for no upper bound |
-
-When **no `window`** is set (or both sides are empty), the host entry is **always active** once the hostname matches.
-
-Times use **RFC3339** (e.g. `2026-05-30T02:00:00+08:00`). Validation rejects `end` before `start`.
 
 ## Route-level maintenance
 
@@ -97,6 +95,19 @@ While maintenance is active for a request, bypass allows it through to the norma
 
 Global and route bypass entries are **unioned**.
 
+## Distinguishing maintenance 503 vs upstream 503
+
+Both may return HTTP **503**, but they come from different stages:
+
+| Signal | Maintenance 503 | Upstream 503 |
+|--------|-----------------|--------------|
+| Response header | **`X-Ingress-Maintenance: true`** | _(absent)_ |
+| Access log | **`maintenance_block=1`**, `upstream_response_length=-1` | `maintenance_block=0`, real upstream length/RTT |
+| Body | Ingress error page (custom `title` / `subtitle`) | Upstream response body |
+| Upstream contacted | **No** (short-circuited before proxy) | **Yes** |
+
+Use **`GET /_/ingress/status`** for load-balancer / monitoring probes (host-level maintenance state, ignores path bypass).
+
 ## Response and logging
 
 - Status **503** with HTML error page (or JSON when `Accept` prefers JSON).
@@ -125,8 +136,8 @@ When **`admin.enabled: true`**, use the **维护** section for global maintenanc
 
 ## Examples
 
-Runnable sample: [`examples/maintenance/ingress.yaml`](https://github.com/go-zoox/ingress/tree/master/examples/maintenance). Field tables: [Configuration reference](./configuration.md#maintenance-maintenance).
+Runnable samples: [`examples/maintenance/`](https://github.com/go-zoox/ingress/tree/master/examples/maintenance) (see [Maintenance examples](../examples/maintenance.md)). Field tables: [Configuration reference](./configuration.md#maintenance-maintenance).
 
 ```bash
-ingress validate -c examples/maintenance/ingress.yaml
+ingress validate -c examples/maintenance/global-always-on.yaml
 ```

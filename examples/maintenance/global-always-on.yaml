@@ -1,0 +1,26 @@
+version: v1
+port: 8080
+
+# Global maintenance for listed hosts (no time window = always active when host matches).
+# Probe: curl -sS -D - http://app.example.com/_/ingress/status
+maintenance:
+  hosts:
+    - host: app.example.com
+    - host: staging-*.example.com
+  title: Site maintenance
+  subtitle: We will be back shortly.
+  retry_after: 3600
+
+rules:
+  - host: app.example.com
+    backend:
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https
+  - host: staging-api.example.com
+    backend:
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

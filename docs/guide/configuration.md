@@ -126,12 +126,14 @@ Evaluated after route match and WAF; returns **503** before redirect/handler/ups
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `hosts` | array | Host entries (plain string or `{ host, window? }`); each may set `window.start` / `window.end` (RFC3339) |
+| `hosts` | array | Host entries as `{ host, window? }` objects; each may set `window.start` / `window.end` (RFC3339) |
 | `retry_after` | int | `Retry-After` header in seconds (`0` = omit) |
 | `title` / `subtitle` | string | 503 page heading / message |
 | `bypass.allow_ips` | string array | Client IP/CIDR allowlist |
 | `bypass.paths` | string array | Exact or trailing-`*` prefix paths |
 | `bypass.header.name` / `value` | string | Header bypass pair |
+
+**Built-in status probe:** `GET /_/ingress/status` — JSON `{"status":"ok"}` (200) or `{"status":"maintenance",...}` (503) for the request Host; see [Maintenance guide](maintenance.md#ingress-status-probe). Not configurable.
 
 **Route `rules[].backend.service.maintenance`** (host-level **service** backend only):
 
@@ -144,7 +146,7 @@ Evaluated after route match and WAF; returns **503** before redirect/handler/ups
 | `title` / `subtitle` | string | Overrides global when route maintenance triggers | — |
 | `bypass` | object | Merged with global bypass | — |
 
-Access logs append `maintenance_block=1` on 503 maintenance responses.
+Access logs append `maintenance_block=1` on 503 maintenance responses. Maintenance 503 responses include **`X-Ingress-Maintenance: true`** (upstream 503 does not).
 
 ### WAF (`waf` / `rules[].waf`)
 

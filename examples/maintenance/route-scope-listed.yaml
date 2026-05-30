@@ -1,0 +1,22 @@
+version: v1
+port: 8080
+
+# Route-level maintenance: scope listed applies only to maintenance.hosts on the rule.
+rules:
+  - host: "*.example.com"
+    backend:
+      type: service
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https
+        maintenance:
+          enabled: true
+          scope: listed
+          hosts:
+            - host: legacy.example.com
+            - host: beta.example.com
+              window:
+                start: "2026-12-01T00:00:00Z"
+                end: "2026-12-01T06:00:00Z"
+          title: Legacy stack maintenance

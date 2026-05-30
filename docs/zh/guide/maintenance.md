@@ -14,7 +14,7 @@ Ingress 可在计划内停机时对匹配的流量返回 **503 Service Unavailab
 ```yaml
 maintenance:
   hosts:
-    - app.example.com
+    - host: app.example.com
     - host: staging-*.example.com
       window:
         start: "2026-05-30T02:00:00+08:00"
@@ -35,17 +35,15 @@ maintenance:
 
 ### `maintenance.hosts[]`
 
-每条可为纯字符串（域名 / 通配符），或对象：
+每条为 `{ host, window? }` 对象（`host` 必填）。**未配置 `window`**（或起止均为空）时，Host 匹配即 **始终处于维护**。
+
+时间格式为 **RFC3339**（如 `2026-05-30T02:00:00+08:00`）。`end` 早于 `start` 会在校验阶段报错。
 
 | 字段 | 说明 |
 |------|------|
 | `host` | Host 模式（精确、`*` 通配符或 Go 正则，推断规则与路由 `host` 相同） |
 | `window.start` | 可选 RFC3339；省略表示无下限 |
 | `window.end` | 可选 RFC3339；省略表示无上限 |
-
-**未配置 `window`**（或起止均为空）时，Host 匹配即 **始终处于维护**。
-
-时间格式为 **RFC3339**（如 `2026-05-30T02:00:00+08:00`）。`end` 早于 `start` 会在校验阶段报错。
 
 ## 路由级维护
 
@@ -97,6 +95,19 @@ rules:
 
 全局与路由的 bypass **取并集**。
 
+## 区分维护 503 与上游 503
+
+两者 HTTP 状态码都可能是 **503**，但来源不同：
+
+| 信号 | 维护 503 | 上游 503 |
+|------|----------|----------|
+| 响应头 | **`X-Ingress-Maintenance: true`** | _(无)_ |
+| 访问日志 | **`maintenance_block=1`**，`upstream_response_length=-1` | `maintenance_block=0`，有真实上游长度/RTT |
+| 响应体 | Ingress 错误页（可配 `title` / `subtitle`） | 上游原始 body |
+| 是否连上游 | **否**（代理前短路） | **是** |
+
+负载均衡 / 监控可用 **`GET /_/ingress/status`** 探测 Host 级维护状态（不受 path bypass 影响）。
+
 ## 响应与日志
 
 - HTTP **503**，HTML 错误页（`Accept` 偏好 JSON 时返回 JSON）。
@@ -125,8 +136,8 @@ curl -sS -D - http://app.example.com/_/ingress/status
 
 ## 示例
 
-可运行样例：[`examples/maintenance/ingress.yaml`](https://github.com/go-zoox/ingress/tree/master/examples/maintenance)。字段表见 [配置参考](./configuration.md#maintenance-维护)。
+可运行样例：[`examples/maintenance/`](https://github.com/go-zoox/ingress/tree/master/examples/maintenance)（见 [维护示例](../examples/maintenance.md)）。字段表见 [配置参考](./configuration.md#maintenance-维护)。
 
 ```bash
-ingress validate -c examples/maintenance/ingress.yaml
+ingress validate -c examples/maintenance/global-always-on.yaml
 ```

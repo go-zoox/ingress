@@ -88,12 +88,14 @@ rules:
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `hosts` | array | 域名条目（纯字符串或 `{ host, window? }`）；可设 `window.start` / `window.end`（RFC3339） |
+| `hosts` | array | 域名条目，格式为 `{ host, window? }` 对象；可设 `window.start` / `window.end`（RFC3339） |
 | `retry_after` | int | `Retry-After` 响应头（秒，`0` 表示不发送） |
 | `title` / `subtitle` | string | 503 页面标题 / 说明 |
 | `bypass.allow_ips` | string 数组 | 客户端 IP/CIDR 白名单 |
 | `bypass.paths` | string 数组 | 精确路径或后缀 `*` 前缀匹配 |
 | `bypass.header.name` / `value` | string | 请求头放行键值对 |
+
+**内置状态探测：** `GET /_/ingress/status` — 按请求 Host 返回 JSON `{"status":"ok"}`（200）或 `{"status":"maintenance",...}`（503）；详见 [维护模式](maintenance.md#ingress-状态探测)。不可配置。
 
 **路由 `rules[].backend.service.maintenance`**（仅 Host 级 **service** 后端）：
 
@@ -106,7 +108,7 @@ rules:
 | `title` / `subtitle` | string | 路由维护命中时覆盖全局 | — |
 | `bypass` | object | 与全局 bypass 合并 | — |
 
-维护 503 的访问日志附加 `maintenance_block=1`。
+维护 503 的访问日志附加 `maintenance_block=1`；维护 503 响应包含 **`X-Ingress-Maintenance: true`**（上游 503 不会）。
 
 ### WAF（`waf` / `rules[].waf`）
 

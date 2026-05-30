@@ -1,0 +1,33 @@
+version: v1
+port: 8080
+
+# Global maintenance with bypass: /healthz still reaches the handler; other paths get 503.
+maintenance:
+  hosts:
+    - host: app.example.com
+  title: Planned maintenance
+  retry_after: 600
+  bypass:
+    paths:
+      - /healthz
+      - /metrics/*
+    header:
+      name: X-Maintenance-Bypass
+      value: secret-token
+
+rules:
+  - host: app.example.com
+    backend:
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https
+    paths:
+      - path: /healthz
+        backend:
+          type: handler
+          handler:
+            status_code: 200
+            headers:
+              Content-Type: application/json
+            body: '{"ok":true}'

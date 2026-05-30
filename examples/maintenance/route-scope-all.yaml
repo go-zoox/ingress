@@ -1,0 +1,18 @@
+version: v1
+port: 8080
+
+# Route-level maintenance: scope all blocks every host matched by the rule.
+rules:
+  - host: app.example.com
+    backend:
+      type: service
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https
+        maintenance:
+          enabled: true
+          scope: all
+          title: Application maintenance
+          subtitle: Upgrading the app stack.
+          retry_after: 1800
