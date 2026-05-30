@@ -224,6 +224,89 @@ func TestBuild_Maintenance_NotBlockedWhenHostOutsideGlobalList(t *testing.T) {
 	}
 }
 
+func TestBuild_Maintenance_CustomResponseHeader(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Maintenance: MaintenanceConfig{
+			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			ResponseHeader: service.MaintenanceResponseHeader{
+				Name:  "X-Custom-Maintenance",
+				Value: "yes",
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	ins := mustBuildIngressCore(t, cfg)
+	req := httptest.NewRequest(http.MethodGet, "http://app.example.com/api", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("X-Custom-Maintenance"); got != "yes" {
+		t.Fatalf("expected custom maintenance header, got %q", got)
+	}
+	if rec.Header().Get(headerXIngressMaintenance) != "" {
+		t.Fatalf("expected default header absent, got %q", rec.Header().Get(headerXIngressMaintenance))
+	}
+}
+
+func TestBuild_IngressStatus_IncludesCustomHeaderInJSON(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Maintenance: MaintenanceConfig{
+			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			ResponseHeader: service.MaintenanceResponseHeader{
+				Name:  "X-Custom-Maintenance",
+				Value: "yes",
+			},
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	ins := mustBuildIngressCore(t, cfg)
+	req := httptest.NewRequest(http.MethodGet, "http://app.example.com/_/ingress/status", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	var body ingressStatusBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.MaintenanceHeaderName != "X-Custom-Maintenance" || body.MaintenanceHeaderValue != "yes" {
+		t.Fatalf("unexpected status body header fields: %+v", body)
+	}
+	if rec.Header().Get("X-Custom-Maintenance") != "yes" {
+		t.Fatalf("expected custom header on status response")
+	}
+}
+
 func TestBuild_IngressStatus_OK(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,

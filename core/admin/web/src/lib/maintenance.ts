@@ -15,7 +15,13 @@ export type MaintenanceBypassFormSlice = {
   maintenance_bypass_header_value: string
 }
 
-export type GlobalMaintenanceForm = MaintenanceBypassFormSlice & {
+export type MaintenanceResponseHeaderFormSlice = {
+  maintenance_response_header_name: string
+  maintenance_response_header_value: string
+}
+
+export type GlobalMaintenanceForm = MaintenanceBypassFormSlice &
+  MaintenanceResponseHeaderFormSlice & {
   maintenance_host_entries: MaintenanceHostFormEntry[]
   maintenance_retry_after: number
   maintenance_title: string
@@ -36,6 +42,8 @@ export function emptyGlobalMaintenanceForm(): GlobalMaintenanceForm {
     maintenance_bypass_allow_ips: '',
     maintenance_bypass_header_name: '',
     maintenance_bypass_header_value: '',
+    maintenance_response_header_name: '',
+    maintenance_response_header_value: '',
   }
 }
 
@@ -68,7 +76,7 @@ export function maintenanceHostEntriesToYAML(entries: MaintenanceHostFormEntry[]
       if (!host) return null
       const start = entry.window_start.trim()
       const end = entry.window_end.trim()
-      if (!start && !end) return host
+      if (!start && !end) return { host }
       const row: Record<string, unknown> = { host }
       const window: Record<string, unknown> = {}
       if (start) window.start = start
@@ -83,6 +91,7 @@ export function globalMaintenanceFromDoc(doc: Record<string, unknown>): GlobalMa
   const m = obj(doc.maintenance)
   const bypass = obj(m.bypass)
   const header = obj(bypass.header)
+  const responseHeader = obj(m.response_header)
   const paths = arr<string>(bypass.paths)
   const allowIPs = arr<string>(bypass.allow_ips)
   return {
@@ -94,7 +103,21 @@ export function globalMaintenanceFromDoc(doc: Record<string, unknown>): GlobalMa
     maintenance_bypass_allow_ips: allowIPs.join(', '),
     maintenance_bypass_header_name: str(header.name),
     maintenance_bypass_header_value: str(header.value),
+    maintenance_response_header_name: str(responseHeader.name),
+    maintenance_response_header_value: str(responseHeader.value),
   }
+}
+
+function buildMaintenanceResponseHeader(
+  form: MaintenanceResponseHeaderFormSlice,
+): Record<string, unknown> | undefined {
+  const name = form.maintenance_response_header_name.trim()
+  const value = form.maintenance_response_header_value.trim()
+  if (!name && !value) return undefined
+  const block: Record<string, unknown> = {}
+  if (name) block.name = name
+  if (value) block.value = value
+  return block
 }
 
 function buildMaintenanceBypass(form: MaintenanceBypassFormSlice): Record<string, unknown> | undefined {
@@ -121,7 +144,9 @@ export function globalMaintenanceConfigured(form: GlobalMaintenanceForm): boolea
     form.maintenance_bypass_paths.trim() !== '' ||
     form.maintenance_bypass_allow_ips.trim() !== '' ||
     form.maintenance_bypass_header_name.trim() !== '' ||
-    form.maintenance_bypass_header_value.trim() !== ''
+    form.maintenance_bypass_header_value.trim() !== '' ||
+    form.maintenance_response_header_name.trim() !== '' ||
+    form.maintenance_response_header_value.trim() !== ''
   )
 }
 
@@ -142,6 +167,8 @@ export function patchGlobalMaintenance(
   if (form.maintenance_subtitle.trim()) block.subtitle = form.maintenance_subtitle.trim()
   const bypass = buildMaintenanceBypass(form)
   if (bypass) block.bypass = bypass
+  const responseHeader = buildMaintenanceResponseHeader(form)
+  if (responseHeader) block.response_header = responseHeader
   return { ...doc, maintenance: block }
 }
 

@@ -453,6 +453,61 @@ func TestMaintenanceDecision_BypassMergesGlobalAndRule(t *testing.T) {
 	}
 }
 
+func TestCompileMaintenanceResponseHeader_Defaults(t *testing.T) {
+	h, err := compileMaintenanceResponseHeader(service.MaintenanceResponseHeader{}, "maintenance.response_header")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.name != headerXIngressMaintenance || h.value != ingressMaintenanceHeaderVal {
+		t.Fatalf("unexpected defaults: %+v", h)
+	}
+}
+
+func TestCompileMaintenanceResponseHeader_Custom(t *testing.T) {
+	h, err := compileMaintenanceResponseHeader(service.MaintenanceResponseHeader{
+		Name:  "X-Custom-Maintenance",
+		Value: "yes",
+	}, "maintenance.response_header")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.name != "X-Custom-Maintenance" || h.value != "yes" {
+		t.Fatalf("unexpected custom header: %+v", h)
+	}
+}
+
+func TestCompileMaintenanceResponseHeader_PartialValueUsesDefaultName(t *testing.T) {
+	h, err := compileMaintenanceResponseHeader(service.MaintenanceResponseHeader{
+		Value: "on",
+	}, "maintenance.response_header")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.name != headerXIngressMaintenance || h.value != "on" {
+		t.Fatalf("unexpected partial header: %+v", h)
+	}
+}
+
+func TestMergeMaintenanceSettings_RuleResponseHeaderOverride(t *testing.T) {
+	global := compiledMaintenanceSettings{
+		responseHeader: compiledMaintenanceResponseHeader{
+			name:  headerXIngressMaintenance,
+			value: ingressMaintenanceHeaderVal,
+		},
+	}
+	rule := compiledMaintenanceSettings{
+		responseHeader: compiledMaintenanceResponseHeader{
+			name:  "X-Custom-Maintenance",
+			value: "yes",
+		},
+		responseHeaderConfigured: true,
+	}
+	merged := mergeMaintenanceSettings(global, rule, true)
+	if merged.responseHeader.name != "X-Custom-Maintenance" || merged.responseHeader.value != "yes" {
+		t.Fatalf("expected rule response header override, got %+v", merged.responseHeader)
+	}
+}
+
 func TestMaintenanceActiveForHost_Global(t *testing.T) {
 	c := &core{
 		cfg: &Config{},

@@ -132,6 +132,8 @@ Evaluated after route match and WAF; returns **503** before redirect/handler/ups
 | `bypass.allow_ips` | string array | Client IP/CIDR allowlist |
 | `bypass.paths` | string array | Exact or trailing-`*` prefix paths |
 | `bypass.header.name` / `value` | string | Header bypass pair |
+| `response_header.name` | string | Maintenance indicator header name | `X-Ingress-Maintenance` |
+| `response_header.value` | string | Maintenance indicator header value | `true` |
 
 **Built-in status probe:** `GET /_/ingress/status` — JSON `{"status":"ok"}` (200) or `{"status":"maintenance",...}` (503) for the request Host; see [Maintenance guide](maintenance.md#ingress-status-probe). Not configurable.
 
@@ -145,8 +147,10 @@ Evaluated after route match and WAF; returns **503** before redirect/handler/ups
 | `retry_after` | int | Overrides global when route maintenance triggers | `0` |
 | `title` / `subtitle` | string | Overrides global when route maintenance triggers | — |
 | `bypass` | object | Merged with global bypass | — |
+| `response_header.name` | string | Maintenance indicator header (overrides global when route maintenance triggers) | `X-Ingress-Maintenance` |
+| `response_header.value` | string | Maintenance indicator header value | `true` |
 
-Access logs append `maintenance_block=1` on 503 maintenance responses. Maintenance 503 responses include **`X-Ingress-Maintenance: true`** (upstream 503 does not).
+Access logs append `maintenance_block=1` on 503 maintenance responses. Maintenance 503 responses include the configured maintenance header (default **`X-Ingress-Maintenance: true`**; upstream 503 does not).
 
 ### WAF (`waf` / `rules[].waf`)
 

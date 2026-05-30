@@ -184,6 +184,8 @@ export type BackendForm = {
   maintenance_bypass_allow_ips: string
   maintenance_bypass_header_name: string
   maintenance_bypass_header_value: string
+  maintenance_response_header_name: string
+  maintenance_response_header_value: string
   // service request / response
   service_request_host_rewrite: ServiceRequestHostRewrite
   service_request_path_rewrites: string[]
@@ -587,11 +589,13 @@ function maintenanceToForm(service: Record<string, unknown>): Pick<BackendForm,
   'maintenance_enabled' | 'maintenance_scope' | 'maintenance_host_entries' |
   'maintenance_retry_after' | 'maintenance_title' | 'maintenance_subtitle' |
   'maintenance_bypass_paths' | 'maintenance_bypass_allow_ips' |
-  'maintenance_bypass_header_name' | 'maintenance_bypass_header_value'
+  'maintenance_bypass_header_name' | 'maintenance_bypass_header_value' |
+  'maintenance_response_header_name' | 'maintenance_response_header_value'
 > {
   const m = obj(service.maintenance)
   const bypass = obj(m.bypass)
   const header = obj(bypass.header)
+  const responseHeader = obj(m.response_header)
   const paths = arr<string>(bypass.paths)
   const allowIPs = arr<string>(bypass.allow_ips)
   const scopeRaw = str(m.scope, 'all').toLowerCase()
@@ -607,6 +611,8 @@ function maintenanceToForm(service: Record<string, unknown>): Pick<BackendForm,
     maintenance_bypass_allow_ips: allowIPs.join(', '),
     maintenance_bypass_header_name: str(header.name),
     maintenance_bypass_header_value: str(header.value),
+    maintenance_response_header_name: str(responseHeader.name),
+    maintenance_response_header_value: str(responseHeader.value),
   }
 }
 
@@ -702,6 +708,8 @@ export function emptyBackendForm(): BackendForm {
     maintenance_bypass_allow_ips: '',
     maintenance_bypass_header_name: '',
     maintenance_bypass_header_value: '',
+    maintenance_response_header_name: '',
+    maintenance_response_header_value: '',
     service_request_host_rewrite: 'default',
     service_request_path_rewrites: [],
     service_request_headers: [{ key: '', value: '' }],
@@ -1030,6 +1038,8 @@ function buildMaintenance(form: BackendForm): Record<string, unknown> | undefine
       !form.maintenance_bypass_allow_ips.trim() &&
       !form.maintenance_bypass_header_name.trim() &&
       !form.maintenance_bypass_header_value.trim() &&
+      !form.maintenance_response_header_name.trim() &&
+      !form.maintenance_response_header_value.trim() &&
       !(form.maintenance_scope === 'listed' && form.maintenance_host_entries.length > 0)) {
     return undefined
   }
@@ -1058,6 +1068,16 @@ function buildMaintenance(form: BackendForm): Record<string, unknown> | undefine
     }
   }
   if (Object.keys(bypass).length) block.bypass = bypass
+  if (form.maintenance_response_header_name.trim() || form.maintenance_response_header_value.trim()) {
+    const responseHeader: Record<string, unknown> = {}
+    if (form.maintenance_response_header_name.trim()) {
+      responseHeader.name = form.maintenance_response_header_name.trim()
+    }
+    if (form.maintenance_response_header_value.trim()) {
+      responseHeader.value = form.maintenance_response_header_value
+    }
+    block.response_header = responseHeader
+  }
   return block
 }
 

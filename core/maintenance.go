@@ -17,10 +17,17 @@ import (
 )
 
 type compiledMaintenanceSettings struct {
-	RetryAfter int64
-	Title      string
-	Subtitle   string
-	bypass     compiledMaintenanceBypass
+	RetryAfter               int64
+	Title                    string
+	Subtitle                 string
+	bypass                   compiledMaintenanceBypass
+	responseHeader           compiledMaintenanceResponseHeader
+	responseHeaderConfigured bool
+}
+
+type compiledMaintenanceResponseHeader struct {
+	name  string
+	value string
 }
 
 type compiledMaintenanceWindow struct {
@@ -94,7 +101,7 @@ type maintenanceBypassPath struct {
 
 func compileGlobalMaintenance(cfg MaintenanceConfig) (compiledGlobalMaintenance, error) {
 	out := compiledGlobalMaintenance{}
-	settings, err := compileMaintenanceSettings(cfg.RetryAfter, cfg.Title, cfg.Subtitle, cfg.Bypass, "maintenance")
+	settings, err := compileMaintenanceSettings(cfg.RetryAfter, cfg.Title, cfg.Subtitle, cfg.Bypass, cfg.ResponseHeader, "maintenance")
 	if err != nil {
 		return out, err
 	}
@@ -161,11 +168,12 @@ func compileServiceMaintenance(m service.Maintenance, loc string) (compiledRuleM
 	}
 	out.scopeAll = scope == service.MaintenanceScopeAll
 
-	settings, err := compileMaintenanceSettings(m.RetryAfter, m.Title, m.Subtitle, m.Bypass, loc+".maintenance")
+	settings, err := compileMaintenanceSettings(m.RetryAfter, m.Title, m.Subtitle, m.Bypass, m.ResponseHeader, loc+".maintenance")
 	if err != nil {
 		return out, err
 	}
 	out.settings = settings
+	out.settings.responseHeaderConfigured = m.ResponseHeader.Configured()
 	return out, nil
 }
 
@@ -227,7 +235,13 @@ func parseMaintenanceTime(raw, loc string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("%s %q is invalid (use RFC3339, e.g. 2026-05-30T02:00:00+08:00)", loc, raw)
 }
 
-func compileMaintenanceSettings(retryAfter int64, title, subtitle string, bypass service.MaintenanceBypass, loc string) (compiledMaintenanceSettings, error) {
+func compileMaintenanceSettings(
+	retryAfter int64,
+	title, subtitle string,
+	bypass service.MaintenanceBypass,
+	responseHeader service.MaintenanceResponseHeader,
+	loc string,
+) (compiledMaintenanceSettings, error) {
 	out := compiledMaintenanceSettings{
 		RetryAfter: retryAfter,
 		Title:      strings.TrimSpace(title),
@@ -241,7 +255,36 @@ func compileMaintenanceSettings(retryAfter int64, title, subtitle string, bypass
 		return out, err
 	}
 	out.bypass = b
+	out.responseHeader, err = compileMaintenanceResponseHeader(responseHeader, loc+".response_header")
+	if err != nil {
+		return out, err
+	}
 	return out, nil
+}
+
+func compileMaintenanceResponseHeader(h service.MaintenanceResponseHeader, loc string) (compiledMaintenanceResponseHeader, error) {
+	name := strings.TrimSpace(h.Name)
+	value := strings.TrimSpace(h.Value)
+	if name == "" {
+		name = headerXIngressMaintenance
+	}
+	if value == "" {
+		value = ingressMaintenanceHeaderVal
+	}
+	if strings.ContainsAny(name, " \t\r\n") {
+		return compiledMaintenanceResponseHeader{}, fmt.Errorf("%s.name must not contain whitespace", loc)
+	}
+	return compiledMaintenanceResponseHeader{
+		name:  http.CanonicalHeaderKey(name),
+		value: value,
+	}, nil
+}
+
+func applyMaintenanceResponseHeader(ctx *zoox.Context, h compiledMaintenanceResponseHeader) {
+	if h.name == "" {
+		return
+	}
+	ctx.SetHeader(h.name, h.value)
 }
 
 func compileMaintenanceBypass(bypass service.MaintenanceBypass, loc string) (compiledMaintenanceBypass, error) {
@@ -379,6 +422,9 @@ func mergeMaintenanceSettings(global, rule compiledMaintenanceSettings, ruleTrig
 	if rule.Subtitle != "" {
 		out.Subtitle = rule.Subtitle
 	}
+	if rule.responseHeaderConfigured {
+		out.responseHeader = rule.responseHeader
+	}
 	out.bypass = mergeMaintenanceBypass(global.bypass, rule.bypass)
 	return out
 }
@@ -397,7 +443,7 @@ func maintenanceBypassPathMatches(patterns []maintenanceBypassPath, path string)
 
 func (c *core) writeMaintenanceResponse(ctx *zoox.Context, secProf *security.Profile, settings compiledMaintenanceSettings, detail ErrorPageDetail) {
 	applySecurityHeaders(ctx, secProf)
-	ctx.SetHeader(headerXIngressMaintenance, ingressMaintenanceHeaderVal)
+	applyMaintenanceResponseHeader(ctx, settings.responseHeader)
 	if settings.RetryAfter > 0 {
 		ctx.SetHeader("Retry-After", strconv.FormatInt(settings.RetryAfter, 10))
 	}
@@ -428,10 +474,12 @@ func (c *core) writeMaintenanceResponse(ctx *zoox.Context, secProf *security.Pro
 }
 
 type ingressStatusBody struct {
-	Status     string `json:"status"`
-	Title      string `json:"title,omitempty"`
-	Subtitle   string `json:"subtitle,omitempty"`
-	RetryAfter int64  `json:"retry_after,omitempty"`
+	Status                 string `json:"status"`
+	Title                  string `json:"title,omitempty"`
+	Subtitle               string `json:"subtitle,omitempty"`
+	RetryAfter             int64  `json:"retry_after,omitempty"`
+	MaintenanceHeaderName  string `json:"maintenance_header_name,omitempty"`
+	MaintenanceHeaderValue string `json:"maintenance_header_value,omitempty"`
 }
 
 func (c *core) writeIngressStatus(ctx *zoox.Context) {
@@ -449,10 +497,12 @@ func (c *core) writeIngressStatus(ctx *zoox.Context) {
 		body.Status = "maintenance"
 		body.Title = settings.Title
 		body.Subtitle = settings.Subtitle
+		body.MaintenanceHeaderName = settings.responseHeader.name
+		body.MaintenanceHeaderValue = settings.responseHeader.value
 		if settings.RetryAfter > 0 {
 			body.RetryAfter = settings.RetryAfter
 		}
-		ctx.SetHeader(headerXIngressMaintenance, ingressMaintenanceHeaderVal)
+		applyMaintenanceResponseHeader(ctx, settings.responseHeader)
 		if settings.RetryAfter > 0 {
 			ctx.SetHeader("Retry-After", strconv.FormatInt(settings.RetryAfter, 10))
 		}

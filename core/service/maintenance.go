@@ -31,7 +31,19 @@ type Maintenance struct {
 	Title string `config:"title"`
 	// Subtitle overrides the built-in 503 message when non-empty.
 	Subtitle string `config:"subtitle"`
-	Bypass   MaintenanceBypass `config:"bypass"`
+	// ResponseHeader is sent on maintenance 503 and /_/ingress/status when active (defaults: X-Ingress-Maintenance / true).
+	ResponseHeader MaintenanceResponseHeader `config:"response_header"`
+	Bypass         MaintenanceBypass         `config:"bypass"`
+}
+
+// MaintenanceResponseHeader identifies maintenance responses for clients and probes.
+type MaintenanceResponseHeader struct {
+	Name  string `config:"name"`
+	Value string `config:"value"`
+}
+
+func (h MaintenanceResponseHeader) Configured() bool {
+	return strings.TrimSpace(h.Name) != "" || strings.TrimSpace(h.Value) != ""
 }
 
 // MaintenanceBypass allows selected requests through while maintenance is active.
@@ -56,7 +68,8 @@ func (m Maintenance) Configured() bool {
 		len(m.Bypass.AllowIPs) > 0 ||
 		len(m.Bypass.Paths) > 0 ||
 		m.Bypass.Header.Name != "" ||
-		m.Bypass.Header.Value != ""
+		m.Bypass.Header.Value != "" ||
+		m.ResponseHeader.Configured()
 }
 
 func (m Maintenance) EffectiveScope() string {

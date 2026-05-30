@@ -1,0 +1,20 @@
+version: v1
+port: 8080
+
+# Custom maintenance response header (default is X-Ingress-Maintenance: true).
+maintenance:
+  hosts:
+    - host: app.example.com
+  title: Planned maintenance
+  response_header:
+    name: X-Custom-Maintenance
+    value: "yes"
+
+rules:
+  - host: app.example.com
+    backend:
+      type: service
+      service:
+        name: httpbin.org
+        port: 443
+        protocol: https

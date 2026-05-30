@@ -95,13 +95,24 @@ rules:
 
 全局与路由的 bypass **取并集**。
 
+### 维护响应头（`response_header`）
+
+在维护 **503** 与 **`GET /_/ingress/status`**（Host 处于维护）时发送。
+
+| 字段 | 说明 | 默认 |
+|------|------|------|
+| `name` | 响应头名称 | `X-Ingress-Maintenance` |
+| `value` | 响应头值 | `true` |
+
+省略整块配置则使用默认值。只填 `name` 或只填 `value` 时，另一项仍用默认。路由级 `response_header` 在路由维护命中时覆盖全局。
+
 ## 区分维护 503 与上游 503
 
 两者 HTTP 状态码都可能是 **503**，但来源不同：
 
 | 信号 | 维护 503 | 上游 503 |
 |------|----------|----------|
-| 响应头 | **`X-Ingress-Maintenance: true`** | _(无)_ |
+| 响应头 | **`X-Ingress-Maintenance: true`**（默认；可通过 `response_header` 自定义） | _(无)_ |
 | 访问日志 | **`maintenance_block=1`**，`upstream_response_length=-1` | `maintenance_block=0`，有真实上游长度/RTT |
 | 响应体 | Ingress 错误页（可配 `title` / `subtitle`） | 上游原始 body |
 | 是否连上游 | **否**（代理前短路） | **是** |
@@ -111,7 +122,7 @@ rules:
 ## 响应与日志
 
 - HTTP **503**，HTML 错误页（`Accept` 偏好 JSON 时返回 JSON）。
-- 维护 503 响应附带 **`X-Ingress-Maintenance: true`**。
+- 维护 503 默认附带 **`X-Ingress-Maintenance: true`**（可通过 `maintenance.response_header` / `service.maintenance.response_header` 自定义）。
 - `retry_after` > 0 时设置 **`Retry-After`**。
 - 访问日志附加 **`maintenance_block=1`**。
 
@@ -122,7 +133,7 @@ rules:
 | 条件 | HTTP | JSON `status` | `X-Ingress-Maintenance` |
 |------|------|---------------|-------------------------|
 | Host 未维护 | `200` | `"ok"` | _(无)_ |
-| Host 维护中 | `503` | `"maintenance"`（可选 `title`、`subtitle`、`retry_after`） | `true` |
+| Host 维护中 | `503` | `"maintenance"`（可选 `title`、`subtitle`、`retry_after`、`maintenance_header_name`、`maintenance_header_value`） | 已配置（默认 `true`） |
 
 示例：
 

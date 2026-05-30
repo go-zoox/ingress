@@ -27,6 +27,10 @@ While maintenance is active, **`/healthz`** (handler) and requests with **`X-Mai
 
 <<< @/../examples/maintenance/route-scope-listed.yaml
 
+## Custom maintenance response header
+
+<<< @/../examples/maintenance/custom-response-header.yaml
+
 ## Global + route-level combined
 
 <<< @/../examples/maintenance/ingress.yaml
@@ -38,6 +42,7 @@ ingress validate -c examples/maintenance/global-always-on.yaml
 ingress validate -c examples/maintenance/global-bypass.yaml
 ingress validate -c examples/maintenance/route-scope-all.yaml
 ingress validate -c examples/maintenance/route-scope-listed.yaml
+ingress validate -c examples/maintenance/custom-response-header.yaml
 ingress validate -c examples/maintenance/ingress.yaml
 ```
 

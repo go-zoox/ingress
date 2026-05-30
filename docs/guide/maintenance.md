@@ -95,13 +95,24 @@ While maintenance is active for a request, bypass allows it through to the norma
 
 Global and route bypass entries are **unioned**.
 
+### Maintenance response header (`response_header`)
+
+Sent on maintenance **503** responses and on **`GET /_/ingress/status`** when the Host is in maintenance.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `name` | Response header name | `X-Ingress-Maintenance` |
+| `value` | Response header value | `true` |
+
+Omit the block entirely to use defaults. Set only `name` or only `value` to override one side; the other keeps its default. Route-level `response_header` overrides global when route maintenance triggers.
+
 ## Distinguishing maintenance 503 vs upstream 503
 
 Both may return HTTP **503**, but they come from different stages:
 
 | Signal | Maintenance 503 | Upstream 503 |
 |--------|-----------------|--------------|
-| Response header | **`X-Ingress-Maintenance: true`** | _(absent)_ |
+| Response header | **`X-Ingress-Maintenance: true`** (default; customizable via `response_header`) | _(absent)_ |
 | Access log | **`maintenance_block=1`**, `upstream_response_length=-1` | `maintenance_block=0`, real upstream length/RTT |
 | Body | Ingress error page (custom `title` / `subtitle`) | Upstream response body |
 | Upstream contacted | **No** (short-circuited before proxy) | **Yes** |
@@ -111,7 +122,7 @@ Use **`GET /_/ingress/status`** for load-balancer / monitoring probes (host-leve
 ## Response and logging
 
 - Status **503** with HTML error page (or JSON when `Accept` prefers JSON).
-- Response header **`X-Ingress-Maintenance: true`** on maintenance 503 responses.
+- Response header **`X-Ingress-Maintenance: true`** by default (`maintenance.response_header` / `service.maintenance.response_header` to customize).
 - Optional **`Retry-After`** when `retry_after` > 0.
 - Access log appends **`maintenance_block=1`**.
 
@@ -122,7 +133,7 @@ Use **`GET /_/ingress/status`** for load-balancer / monitoring probes (host-leve
 | Condition | HTTP | JSON `status` | `X-Ingress-Maintenance` |
 |-----------|------|---------------|-------------------------|
 | Host not in maintenance | `200` | `"ok"` | _(absent)_ |
-| Host in maintenance | `503` | `"maintenance"` (+ optional `title`, `subtitle`, `retry_after`) | `true` |
+| Host in maintenance | `503` | `"maintenance"` (+ optional `title`, `subtitle`, `retry_after`, `maintenance_header_name`, `maintenance_header_value`) | configured (default `true`) |
 
 Example:
 

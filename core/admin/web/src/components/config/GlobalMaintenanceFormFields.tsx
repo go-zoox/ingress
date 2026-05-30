@@ -58,6 +58,24 @@ export function GlobalMaintenanceFormFields({
           value={form.maintenance_subtitle}
           onChange={(e) => patch((n) => { n.maintenance_subtitle = e.target.value })}
         />
+        <FormItem label="维护响应头 response_header" hint="留空使用默认 X-Ingress-Maintenance: true">
+          <div className="form-list-row">
+            <FormField
+              label="Header 名"
+              keyName={`${idPrefix}maintenance.response_header.name`}
+              placeholder="X-Ingress-Maintenance"
+              value={form.maintenance_response_header_name}
+              onChange={(e) => patch((n) => { n.maintenance_response_header_name = e.target.value })}
+            />
+            <FormField
+              label="Header 值"
+              keyName={`${idPrefix}maintenance.response_header.value`}
+              placeholder="true"
+              value={form.maintenance_response_header_value}
+              onChange={(e) => patch((n) => { n.maintenance_response_header_value = e.target.value })}
+            />
+          </div>
+        </FormItem>
       </FormSection>
 
       <FormSection title="Bypass（全局默认）">
