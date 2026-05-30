@@ -384,7 +384,7 @@ export function RouteDetailPage() {
               scopeHost={scopeHost || undefined}
               scopePath={scopePath || undefined}
               pathMatch={pathMatchParam}
-              refreshMs={refreshMs}
+              refreshMs={METRICS_AUTO_REFRESH_MS}
             />
           )}
           {activeTab === 'waf' && (
@@ -394,7 +394,7 @@ export function RouteDetailPage() {
               scopeHost={scopeHost || undefined}
               scopePath={scopePath || undefined}
               pathMatch={pathMatchParam}
-              refreshMs={refreshMs}
+              refreshMs={METRICS_AUTO_REFRESH_MS}
             />
           )}
           {activeTab === 'cache' && (

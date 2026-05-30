@@ -4378,6 +4378,8 @@ table.data.config-revisions code {
   min-width: 0;
   max-width: 100%;
 }
+
+.waf-list-toolbar {
   display: flex;
   align-items: center;
   gap: 12px;

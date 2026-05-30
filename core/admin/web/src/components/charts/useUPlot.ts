@@ -31,11 +31,12 @@ export function useUPlot(opts: UPlotOptions | null, data: AlignedData | null, he
       const width = el.clientWidth || 320
       plotRef.current = new uPlot({ ...opts, width, height }, data, el)
     } else {
-      plotRef.current.setData(data)
-      plotRef.current.redraw()
+      const plot = plotRef.current
+      if (!plot) return
+      plot.setData(data)
+      plot.redraw()
     }
 
-    const plot = plotRef.current
     const ro = new ResizeObserver(() => {
       if (!plotRef.current || !rootRef.current) return
       plotRef.current.setSize({ width: rootRef.current.clientWidth, height })

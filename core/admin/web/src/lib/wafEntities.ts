@@ -111,7 +111,7 @@ export function patchBuiltinRuleAllowHosts(
     return patchWafRules(doc, next)
   }
 
-  const row = idx >= 0 ? { ...rules[idx] } : { id: ruleID }
+  const row: Record<string, unknown> = idx >= 0 ? { ...rules[idx] } : { id: ruleID }
   row.allow_hosts = filtered
   const next = [...rules]
   if (idx >= 0) next[idx] = row

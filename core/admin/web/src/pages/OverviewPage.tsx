@@ -133,9 +133,10 @@ export function OverviewPage() {
         if (fetchId !== windowFetchRef.current) return
         applySnapshot(snap, window)
       })
-      .catch(() => {
+      .catch((e: Error) => {
         if (fetchId !== windowFetchRef.current) return
         setMetricsLoading(false)
+        setErr(e.message)
       })
   }, [metricsWindow, applySnapshot])
 
@@ -232,7 +233,7 @@ export function OverviewPage() {
   const wafLabel = status?.waf_enabled ? (status.waf_log_only ? 'WAF 记录' : 'WAF 拦截') : 'WAF 关'
   const fileHash = String(status?.file_hash || status?.config_hash || '')
   const runtimeHash = String(status?.runtime_hash || '')
-  const latestHash = String(status.latest_revision_hash || (revisions.length > 0 ? revisions[0].hash : ''))
+  const latestHash = String(status?.latest_revision_hash || (revisions.length > 0 ? revisions[0].hash : ''))
 
   return (
     <div className="page overview-page">

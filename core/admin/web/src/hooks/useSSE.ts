@@ -87,7 +87,7 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
   const startPolling = useCallback(() => {
     if (pollTimerRef.current) return
 
-    const window = optionsRef.current?.window || '15m'
+    const metricsWindow = optionsRef.current?.window || '15m'
     const channels = channelsRef.current
 
     setFallbackPolling(true)
@@ -99,7 +99,7 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
       try {
         if (channels.includes('metrics')) {
           const res = await fetch(
-            `/api/v1/metrics/overview?window=${encodeURIComponent(window)}`,
+            `/api/v1/metrics/overview?window=${encodeURIComponent(metricsWindow)}`,
           )
           const envelope = await res.json()
           if (envelope.code >= 400) return

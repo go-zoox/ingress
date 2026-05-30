@@ -8,7 +8,6 @@ import {
 } from '../Form'
 import {
   ConfigEntityModal,
-  EntityRowActions,
 } from '../ConfigEntityModal'
 import {
   emptyWAFRuleForm,
