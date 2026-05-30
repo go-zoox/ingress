@@ -3,7 +3,7 @@ FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 
 WORKDIR /build/core/admin/web
 
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.15.0 --activate
 
 COPY core/admin/web/package.json core/admin/web/pnpm-lock.yaml ./
 
