@@ -46,6 +46,10 @@ export function healthLink(params?: { status?: string; host?: string }) {
   return `/healths${s ? `?${s}` : ''}`
 }
 
+export function serviceDetailLink(name: string) {
+  return `/services/${encodeURIComponent(name)}`
+}
+
 export function routeDetailLink(
   ruleIndex: number,
   pathIndex: number,

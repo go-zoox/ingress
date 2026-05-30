@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { Drawer } from './Drawer'
 
 type Step = 'validate' | 'write' | 'reload'
 
@@ -24,7 +25,12 @@ export function PublishModal({
     reload: 'idle',
   })
 
-  if (!open) return null
+  useEffect(() => {
+    if (open) return
+    setNote('')
+    setStatus('')
+    setStepState({ validate: 'idle', write: 'idle', reload: 'idle' })
+  }, [open])
 
   const run = async () => {
     setStepState({ validate: 'active', write: 'idle', reload: 'idle' })
@@ -39,7 +45,6 @@ export function PublishModal({
       setTimeout(() => {
         onDone()
         onClose()
-        setNote('')
       }, 900)
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
@@ -55,46 +60,46 @@ export function PublishModal({
   }
 
   return (
-    <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog">
-        <header>
-          <h2>发布配置</h2>
-        </header>
-        <div className="content">
-          <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: 13 }}>
-            将执行：<strong>validate</strong> → 写入 <code>{configPath}</code> →{' '}
-            <strong>SIGHUP reload</strong>，并记录版本。
-          </p>
-          <label className="field-label">版本说明（可选）</label>
-          <input
-            type="text"
-            className="field-input"
-            placeholder="例如：调整 WAF 规则 / 新增 CDN 路由"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-          <ul className="publish-steps">
-            <li className={stepClass('validate')}>
-              <span className="step-icon">1</span> 校验配置
-            </li>
-            <li className={stepClass('write')}>
-              <span className="step-icon">2</span> 保存 YAML + 版本
-            </li>
-            <li className={stepClass('reload')}>
-              <span className="step-icon">3</span> 热加载
-            </li>
-          </ul>
-          <p style={{ fontSize: 13, margin: 0 }}>{status}</p>
-        </div>
-        <footer>
+    <Drawer
+      open={open}
+      title="发布配置"
+      onClose={onClose}
+      width={480}
+      footer={
+        <>
           <button type="button" className="btn" onClick={onClose}>
             取消
           </button>
-          <button type="button" className="btn btn-primary" onClick={run}>
+          <button type="button" className="btn btn-primary" onClick={() => void run()}>
             开始发布
           </button>
-        </footer>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: 13 }}>
+        将执行：<strong>validate</strong> → 写入 <code>{configPath}</code> →{' '}
+        <strong>SIGHUP reload</strong>，并记录版本。
+      </p>
+      <label className="field-label">版本说明（可选）</label>
+      <input
+        type="text"
+        className="field-input"
+        placeholder="例如：调整 WAF 规则 / 新增 CDN 路由"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+      />
+      <ul className="publish-steps">
+        <li className={stepClass('validate')}>
+          <span className="step-icon">1</span> 校验配置
+        </li>
+        <li className={stepClass('write')}>
+          <span className="step-icon">2</span> 保存 YAML + 版本
+        </li>
+        <li className={stepClass('reload')}>
+          <span className="step-icon">3</span> 热加载
+        </li>
+      </ul>
+      <p style={{ fontSize: 13, margin: 0 }}>{status}</p>
+    </Drawer>
   )
 }

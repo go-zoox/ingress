@@ -109,6 +109,9 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	routeDetailHandler := NewRouteDetailHandler(a.ingress, a.metrics, a.health, a.audit)
 	g.Get("/routes/:ri/:pi", routeDetailHandler.GetDetail)
 	g.Get("/routes/:ri/:pi/metrics", routeDetailHandler.GetMetrics)
+	serviceDetailHandler := NewServiceDetailHandler(a.ingress, a.health)
+	g.Get("/services/:name", serviceDetailHandler.GetDetail)
+	g.Get("/services/:name/metrics", serviceDetailHandler.GetMetrics)
 	healthHandler := NewHealthHandler(a.health)
 	g.Get("/healthcheck", healthHandler.ListChecks)
 }

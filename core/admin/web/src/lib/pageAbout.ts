@@ -22,7 +22,11 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
   },
   '/routes': {
     title: '路由',
-    desc: '查看与匹配 ingress 路由规则',
+    desc: '路由规则增删改查、拓扑与试匹配',
+  },
+  '/services': {
+    title: '服务',
+    desc: '可复用的 upstream Service 目录，供路由 backend 选用',
   },
   '/cache': {
     title: '缓存',
@@ -46,7 +50,7 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
   },
   '/config': {
     title: '配置',
-    desc: '分模块编辑 ingress.yaml → 预览变更 → 保存版本 → 发布 reload',
+    desc: '分模块编辑 ingress.yaml → 保存与发布（查看变更 → 仅保存或热加载）',
   },
   '/settings': {
     title: '设置',
@@ -64,6 +68,9 @@ export function pageAboutForPath(pathname: string): PageAbout | null {
   }
   if (pathname.startsWith('/routes/')) {
     return { title: '路由详情', desc: '单条路由的后端、策略与 WAF 配置摘要' }
+  }
+  if (pathname.startsWith('/services/')) {
+    return { title: '服务详情', desc: '上游 Service 配置、引用路由与访问指标' }
   }
   return null
 }

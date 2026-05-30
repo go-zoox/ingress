@@ -5,6 +5,7 @@ import {
   Activity,
   Search,
   ArrowLeftRight,
+  Server,
   HardDrive,
   Shield,
   Lock,
@@ -43,6 +44,7 @@ export const navGroups: NavGroup[] = [
     label: '流量',
     items: [
       { to: '/routes', label: '路由', icon: ArrowLeftRight },
+      { to: '/services', label: '服务', icon: Server },
       { to: '/cache', label: '缓存', icon: HardDrive },
     ],
   },

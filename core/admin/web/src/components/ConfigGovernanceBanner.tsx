@@ -47,7 +47,7 @@ export function ConfigGovernanceBanner({
           </p>
         ) : null}
         <p className="config-governance-banner-hint">
-          详见 <Link to="/config">配置中心</Link> 的预览与版本 Tab。
+          详见 <Link to="/config">配置中心</Link> 的版本与变更 Tab。
         </p>
       </div>
     </div>

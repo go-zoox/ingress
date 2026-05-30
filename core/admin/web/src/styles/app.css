@@ -1451,8 +1451,18 @@ textarea.code {
   transition: background 0.15s, border-color 0.15s;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   border-color: var(--text-muted);
+}
+
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.42;
+  cursor: not-allowed;
+  color: var(--text-muted);
+  border-color: var(--border);
+  background: var(--bg-elevated);
+  box-shadow: none;
 }
 
 .btn-primary {
@@ -1462,8 +1472,18 @@ textarea.code {
   font-weight: 600;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: var(--accent);
+}
+
+.btn-primary:disabled,
+.btn-primary[disabled] {
+  opacity: 0.42;
+  cursor: not-allowed;
+  background: var(--bg-elevated);
+  border-color: var(--border);
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .btn-danger {
@@ -1668,6 +1688,18 @@ table.data tr:last-child td {
   overflow: auto;
 }
 
+.modal.modal-wide {
+  max-width: min(920px, 96vw);
+}
+
+.inline-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .modal header {
   padding: 18px 20px;
   border-bottom: 1px solid var(--border);
@@ -1792,6 +1824,21 @@ table.data tr:last-child td {
   border-radius: 6px;
   overflow: auto;
   max-height: 240px;
+}
+
+.diff-drawer,
+.drawer .diff {
+  max-height: none;
+  min-height: min(480px, calc(100vh - 220px));
+  margin: 0;
+}
+
+.diff-section-label {
+  font-family: var(--sans, inherit);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 10px;
 }
 
 .diff .add {
@@ -4737,6 +4784,25 @@ table.data.config-revisions code {
   text-decoration: underline;
 }
 
+.config-host-detail-link {
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.config-host-detail-link code {
+  color: var(--accent);
+}
+
+.config-host-detail-link:hover code {
+  text-decoration: underline;
+}
+
 .config-paths-modal header h2 {
   margin: 0;
 }
@@ -5343,7 +5409,15 @@ table.data.config-revisions code {
   color: var(--text);
   cursor: pointer;
 }
-.btn-sm:hover { background: var(--bg-card); }
+.btn-sm:hover:not(:disabled) { background: var(--bg-card); }
+
+.btn-sm:disabled,
+.btn-sm[disabled] {
+  opacity: 0.42;
+  cursor: not-allowed;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+}
 .btn-ghost { opacity: 0.6; }
 .btn-ghost:hover { opacity: 1; }
 
@@ -6064,8 +6138,8 @@ table.data.config-revisions code {
 
 .btn-undo:disabled,
 .btn-redo:disabled {
-  opacity: 0.35;
-  cursor: default;
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 /* Route row clickable */

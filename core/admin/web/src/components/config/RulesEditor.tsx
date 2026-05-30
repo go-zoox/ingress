@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { forwardRef, useImperativeHandle, useState } from 'react'
 import {
   ConfigEntityModal,
   EntityRowActions,
@@ -21,14 +21,35 @@ import {
 } from '../../lib/configEntities'
 import { arr, str } from '../../lib/ingressModuleForms'
 import { moveAdjacent } from '../../lib/arrayMove'
+import type { ServiceForm } from '../../lib/services'
 
-export function RulesEditor({
-  doc,
-  onChange,
-}: {
-  doc: Record<string, unknown>
-  onChange: (doc: Record<string, unknown>) => void
-}) {
+export type RulesEditorHandle = {
+  openAdd: () => void
+}
+
+export const RulesEditor = forwardRef<
+  RulesEditorHandle,
+  {
+    doc: Record<string, unknown>
+    onChange: (doc: Record<string, unknown>) => void
+    serviceCatalog?: ServiceForm[]
+    serviceFieldMode?: 'manual' | 'catalog-select'
+    /** pathIndex omitted or -1 = Host 级规则详情 */
+    onOpenDetail?: (ruleIndex: number, pathIndex?: number) => void
+    /** 路由页隐藏 rules 标签与优先级说明，添加按钮由外部工具栏提供 */
+    hideTableChrome?: boolean
+  }
+>(function RulesEditor(
+  {
+    doc,
+    onChange,
+    serviceCatalog,
+    serviceFieldMode = 'manual',
+    onOpenDetail,
+    hideTableChrome = false,
+  },
+  ref,
+) {
   const rules = rulesFromDoc(doc)
   const [modalOpen, setModalOpen] = useState(false)
   const [pathsModalIndex, setPathsModalIndex] = useState<number | null>(null)
@@ -46,6 +67,8 @@ export function RulesEditor({
     setActiveSection(defaultRuleEntitySection('rule'))
     setModalOpen(true)
   }
+
+  useImperativeHandle(ref, () => ({ openAdd }), [])
 
   const openEdit = (index: number) => {
     setEditIndex(index)
@@ -93,8 +116,12 @@ export function RulesEditor({
 
   return (
     <>
-      <EntityTableToolbar label="rules" onAdd={openAdd} />
-      <p className="form-hint">列表顺序即匹配优先级，排在前面的规则优先匹配。</p>
+      {!hideTableChrome ? (
+        <>
+          <EntityTableToolbar label="rules" onAdd={openAdd} />
+          <p className="form-hint">列表顺序即匹配优先级，排在前面的规则优先匹配。</p>
+        </>
+      ) : null}
       <table className="data config-rules-table">
         <thead>
           <tr>
@@ -120,7 +147,18 @@ export function RulesEditor({
                 <tr key={`${str(rule.host)}-${i}`}>
                   <td>{i + 1}</td>
                   <td>
-                    <code>{str(rule.host)}</code>
+                    {onOpenDetail ? (
+                      <button
+                        type="button"
+                        className="action-link config-host-detail-link"
+                        title="查看路由详情"
+                        onClick={() => onOpenDetail(i, -1)}
+                      >
+                        <code>{str(rule.host)}</code>
+                      </button>
+                    ) : (
+                      <code>{str(rule.host)}</code>
+                    )}
                   </td>
                   <td>{str(rule.host_type, 'auto')}</td>
                   <td>{ruleSummary(rule)}</td>
@@ -141,7 +179,12 @@ export function RulesEditor({
                       onMoveDown={() => moveRule(i, 1)}
                       disableMoveUp={i === 0}
                       disableMoveDown={i === rules.length - 1}
-                      menuItems={[{ label: 'Paths', onClick: () => openPaths(i) }]}
+                      menuItems={[
+                        { label: 'Paths', onClick: () => openPaths(i) },
+                        ...(onOpenDetail
+                          ? [{ label: '详情', onClick: () => onOpenDetail(i, -1) }]
+                          : []),
+                      ]}
                     />
                   </td>
                 </tr>
@@ -165,6 +208,8 @@ export function RulesEditor({
           activeSection={activeSection}
           onSectionChange={setActiveSection}
           variant="rule"
+          serviceCatalog={serviceCatalog}
+          serviceFieldMode={serviceFieldMode}
         />
       </ConfigEntityModal>
 
@@ -175,8 +220,10 @@ export function RulesEditor({
           rule={pathsRule}
           onClose={() => setPathsModalIndex(null)}
           onSave={savePaths}
+          serviceCatalog={serviceCatalog}
+          serviceFieldMode={serviceFieldMode}
         />
       )}
     </>
   )
-}
+})

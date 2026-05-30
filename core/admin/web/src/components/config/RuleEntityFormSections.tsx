@@ -11,6 +11,7 @@ import { MaintenanceFormFields } from './MaintenanceFormFields'
 import { ServiceRequestFormFields } from './ServiceRequestFormFields'
 import type { BackendForm, PathForm, RuleForm } from '../../lib/configEntities'
 import { securityLayerBadge, serviceRequestConfigured } from '../../lib/configEntities'
+import type { ServiceForm } from '../../lib/services'
 
 export type RuleEntitySectionId =
   | 'basic'
@@ -134,6 +135,8 @@ type RuleEntityFormSectionsProps =
       activeSection: RuleEntitySectionId
       onSectionChange: (id: RuleEntitySectionId) => void
       idPrefix?: string
+      serviceCatalog?: ServiceForm[]
+      serviceFieldMode?: 'manual' | 'catalog-select'
     }
   | {
       variant: 'path'
@@ -142,6 +145,8 @@ type RuleEntityFormSectionsProps =
       activeSection: RuleEntitySectionId
       onSectionChange: (id: RuleEntitySectionId) => void
       idPrefix?: string
+      serviceCatalog?: ServiceForm[]
+      serviceFieldMode?: 'manual' | 'catalog-select'
     }
 
 function SharedBackendSections<T extends BackendForm>({
@@ -150,12 +155,16 @@ function SharedBackendSections<T extends BackendForm>({
   activeSection,
   idPrefix,
   variant,
+  serviceCatalog,
+  serviceFieldMode = 'manual',
 }: {
   form: T
   onChange: (next: T) => void
   activeSection: RuleEntitySectionId
   idPrefix: string
   variant: 'rule' | 'path'
+  serviceCatalog?: ServiceForm[]
+  serviceFieldMode?: 'manual' | 'catalog-select'
 }) {
   switch (activeSection) {
     case 'backend':
@@ -166,6 +175,8 @@ function SharedBackendSections<T extends BackendForm>({
             onChange={onChange}
             idPrefix={idPrefix}
             variant={variant === 'path' ? 'path' : 'host'}
+            serviceCatalog={serviceCatalog}
+            serviceFieldMode={serviceFieldMode}
           />
         </FormGrid>
       )
@@ -251,7 +262,7 @@ function SharedBackendSections<T extends BackendForm>({
 }
 
 export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
-  const { form, onChange, activeSection, onSectionChange, variant, idPrefix = '' } = props
+  const { form, onChange, activeSection, onSectionChange, variant, idPrefix = '', serviceCatalog, serviceFieldMode = 'manual' } = props
   const sections = ruleSections(form, variant === 'rule')
 
   const renderSection = () => {
@@ -313,6 +324,8 @@ export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
               activeSection={activeSection}
               idPrefix={idPrefix}
               variant={variant}
+              serviceCatalog={serviceCatalog}
+              serviceFieldMode={serviceFieldMode}
             />
           )
       }
@@ -352,6 +365,8 @@ export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
             activeSection={activeSection}
             idPrefix={idPrefix}
             variant={variant}
+            serviceCatalog={serviceCatalog}
+            serviceFieldMode={serviceFieldMode}
           />
         )
     }

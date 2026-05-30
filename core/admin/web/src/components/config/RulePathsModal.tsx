@@ -20,6 +20,7 @@ import {
   type PathForm,
 } from '../../lib/configEntities'
 import { moveAdjacent } from '../../lib/arrayMove'
+import type { ServiceForm } from '../../lib/services'
 
 export function RulePathsModal({
   open,
@@ -27,12 +28,16 @@ export function RulePathsModal({
   rule,
   onClose,
   onSave,
+  serviceCatalog,
+  serviceFieldMode = 'manual',
 }: {
   open: boolean
   host: string
   rule: Record<string, unknown>
   onClose: () => void
   onSave: (nextRule: Record<string, unknown>) => void
+  serviceCatalog?: ServiceForm[]
+  serviceFieldMode?: 'manual' | 'catalog-select'
 }) {
   const [paths, setPaths] = useState<PathForm[]>([])
   const [pathModalOpen, setPathModalOpen] = useState(false)
@@ -165,6 +170,8 @@ export function RulePathsModal({
           onSectionChange={setActiveSection}
           variant="path"
           idPrefix="paths[]."
+          serviceCatalog={serviceCatalog}
+          serviceFieldMode={serviceFieldMode}
         />
       </ConfigEntityModal>
     </>

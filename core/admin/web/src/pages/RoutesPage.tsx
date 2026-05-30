@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
-import { RouteListTab } from '../components/routes/RouteListTab'
+import { RouteRulesManageTab } from '../components/routes/RouteRulesManageTab'
 import { RouteMatchTab } from '../components/routes/RouteMatchTab'
 import { RouteTopologyTab } from '../components/routes/RouteTopologyTab'
-import { api, type MatchPreview, type RouteRow } from '../api/client'
+import { ToastContainer, useToast } from '../components/Toast'
+import { api, type MatchPreview } from '../api/client'
 
 const TABS = [
   { id: 'list', label: '列表' },
@@ -25,34 +26,19 @@ export function RoutesPage() {
   const tab = parseTab(searchParams.get('tab'))
   const highlightRi = searchParams.get('ri') ? Number(searchParams.get('ri')) : undefined
   const highlightPi = searchParams.get('pi') ? Number(searchParams.get('pi')) : undefined
-  const highlightHost = searchParams.get('host') || undefined
 
-  const [rows, setRows] = useState<RouteRow[]>([])
-  const [filter, setFilter] = useState('')
   const [urlInput, setUrlInput] = useState('https://api.example.com/v2/users')
   const [match, setMatch] = useState<MatchPreview | null>(null)
   const [matchError, setMatchError] = useState('')
-  const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set())
+  const { toast, show, clear } = useToast()
+
+  const reloadRows = () => {
+    api.routes().catch(() => [])
+  }
 
   useEffect(() => {
-    api
-      .routes()
-      .then((data) => setRows(Array.isArray(data) ? data : []))
-      .catch(() => setRows([]))
+    reloadRows()
   }, [])
-
-  useEffect(() => {
-    if (highlightHost) {
-      setExpandedHosts((prev) => new Set(prev).add(highlightHost))
-    }
-  }, [highlightHost])
-
-  const matchedHost = match?.matched ? match.host : null
-  useEffect(() => {
-    if (matchedHost) {
-      setExpandedHosts((prev) => new Set(prev).add(matchedHost))
-    }
-  }, [matchedHost])
 
   const setTab = (id: TabId) => {
     const next = new URLSearchParams(searchParams)
@@ -77,15 +63,6 @@ export function RoutesPage() {
     }
   }
 
-  const toggleHost = (host: string) => {
-    setExpandedHosts((prev) => {
-      const next = new Set(prev)
-      if (next.has(host)) next.delete(host)
-      else next.add(host)
-      return next
-    })
-  }
-
   const tabDesc = useMemo(() => {
     switch (tab) {
       case 'topology':
@@ -93,7 +70,7 @@ export function RoutesPage() {
       case 'match':
         return '输入 URL 验证命中规则，可跳转路由详情'
       default:
-        return '按 Host 分组的路由表；点击进入单路由观测（日志、WAF、缓存）'
+        return '路由规则增删改查；保存或发布 reload 后生效，与配置中心 rules 模块同步'
     }
   }, [tab])
 
@@ -117,14 +94,10 @@ export function RoutesPage() {
       </div>
 
       {tab === 'list' ? (
-        <RouteListTab
-          rows={rows}
-          filter={filter}
-          onFilterChange={setFilter}
-          expandedHosts={expandedHosts}
-          onToggleHost={toggleHost}
-          match={match}
-          highlightHost={highlightHost}
+        <RouteRulesManageTab
+          onPublished={reloadRows}
+          onSaveSuccess={(msg) => show(msg)}
+          onSaveError={(msg) => show(msg, 'error')}
         />
       ) : null}
 
@@ -142,6 +115,7 @@ export function RoutesPage() {
           onOpenRoute={(ri, pi) => navigate(`/routes/${ri}/${pi}`)}
         />
       ) : null}
+      {toast && <ToastContainer message={toast.message} type={toast.type} onDone={clear} />}
     </div>
   )
 }

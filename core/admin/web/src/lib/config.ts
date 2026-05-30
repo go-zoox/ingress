@@ -71,6 +71,7 @@ export const CONFIG_MODULE_LABELS: Record<string, string> = {
   healthcheck: '健康检查',
   https: 'HTTPS',
   fallback: 'Fallback',
+  services: '服务',
   rules: '路由规则',
   other: '其他',
 }

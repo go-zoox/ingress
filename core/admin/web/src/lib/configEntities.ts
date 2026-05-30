@@ -1240,6 +1240,24 @@ export function pathSummary(row: Record<string, unknown>): string {
   return base
 }
 
+/** Short upstream target for route list rows (name:port, redirect URL, handler type). */
+export function backendTargetLabel(backend: Record<string, unknown>): string {
+  const backendType = inferBackendType(backend)
+  if (backendType === 'redirect') {
+    const url = str(obj(backend.redirect).url)
+    return url || '(redirect)'
+  }
+  if (backendType === 'handler') {
+    return str(obj(obj(backend.handler).type)) || '(handler)'
+  }
+  const svc = obj(backend.service)
+  const name = str(svc.name)
+  if (!name) return '—'
+  let port = num(svc.port, 0)
+  if (port <= 0) port = str(svc.protocol) === 'https' ? 443 : 80
+  return `${name}:${port}`
+}
+
 export function ruleSummary(rule: Record<string, unknown>): string {
   let base = backendSummary(obj(rule.backend))
   const rl = obj(rule.rate_limit)

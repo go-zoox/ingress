@@ -7,8 +7,8 @@ import { ConfigChangeTimeline } from '../components/ConfigChangeTimeline'
 import { RollbackConfirmModal } from '../components/RollbackConfirmModal'
 import { api, type ConfigRevisionSummary, type IngressStatus } from '../api/client'
 import { DiffModal } from '../components/DiffModal'
-import { PreviewModal } from '../components/PreviewModal'
 import { PublishModal } from '../components/PublishModal'
+import { SavePublishDrawer } from '../components/SavePublishDrawer'
 import { ToastContainer, useToast } from '../components/Toast'
 import { buildDiff } from '../lib/config'
 import { useUndo } from '../hooks/useUndo'
@@ -24,10 +24,12 @@ export function ConfigPage() {
   const [validateMessage, setValidateMessage] = useState('')
   const [err, setErr] = useState('')
   const [publishOpen, setPublishOpen] = useState(false)
-  const [previewOpen, setPreviewOpen] = useState(false)
-  const [diffOpen, setDiffOpen] = useState(false)
+  const [savePublishOpen, setSavePublishOpen] = useState(false)
+  const [pendingYaml, setPendingYaml] = useState('')
   const [diffHtml, setDiffHtml] = useState('')
   const [diffTitle, setDiffTitle] = useState('配置变更（草稿 vs 已发布）')
+  const [persistBusy, setPersistBusy] = useState(false)
+  const [compareDiffOpen, setCompareDiffOpen] = useState(false)
   const [gov, setGov] = useState<IngressStatus | null>(null)
   const [rollbackRevision, setRollbackRevision] = useState<ConfigRevisionSummary | null>(null)
   const { toast, show, clear } = useToast()
@@ -116,21 +118,23 @@ export function ConfigPage() {
     }
   }
 
-  const save = async () => {
+  const mergeDraft = async (): Promise<string> => {
+    const merged = await modulesRef.current?.autoApplyIfDirty()
+    const yaml = merged ?? content
+    if (merged != null && merged !== content) {
+      setContent(merged)
+      undoState.push(merged)
+    }
+    return yaml
+  }
+
+  const openSavePublish = async () => {
     setErr('')
     try {
-      const merged = await modulesRef.current?.autoApplyIfDirty()
-      const yaml = merged ?? content
-      if (merged != null && merged !== content) {
-        setContent(merged)
-        undoState.push(merged)
-      }
-      await api.validateConfig(yaml)
-      await api.putConfig(yaml, 'save')
-      setSaved(yaml)
-      undoState.reset(yaml)
-      clearValidate()
-      show('已保存到 ' + path)
+      const yaml = await mergeDraft()
+      setPendingYaml(yaml)
+      setDiffHtml(buildDiff(saved, yaml))
+      setSavePublishOpen(true)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       setErr(msg)
@@ -138,29 +142,39 @@ export function ConfigPage() {
     }
   }
 
-  const showDiff = async () => {
+  const onSaveOnly = async () => {
+    if (!pendingYaml) return
+    setPersistBusy(true)
+    setErr('')
     try {
-      const merged = await modulesRef.current?.autoApplyIfDirty()
-      const draft = merged ?? content
-      if (merged != null && merged !== content) {
-        setContent(merged)
-        undoState.push(merged)
-      }
-      setDiffTitle('配置变更（草稿 vs 已发布）')
-      setDiffHtml(buildDiff(saved, draft))
-      setDiffOpen(true)
+      await api.validateConfig(pendingYaml)
+      await api.putConfig(pendingYaml, 'save')
+      setSaved(pendingYaml)
+      setContent(pendingYaml)
+      undoState.reset(pendingYaml)
+      clearValidate()
+      setSavePublishOpen(false)
+      show('已保存到 ' + path)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       setErr(msg)
       show(msg, 'error')
+    } finally {
+      setPersistBusy(false)
     }
+  }
+
+  const onSaveAndPublish = () => {
+    if (!pendingYaml) return
+    setSavePublishOpen(false)
+    setPublishOpen(true)
   }
 
   const compareRevision = async (revision: ConfigRevisionSummary) => {
     const detail = await api.configRevision(revision.id)
     setDiffTitle(`版本 #${revision.id} vs 当前已发布`)
     setDiffHtml(buildDiff(saved, detail.content))
-    setDiffOpen(true)
+    setCompareDiffOpen(true)
   }
 
   const restoreDraft = (next: string) => {
@@ -180,7 +194,7 @@ export function ConfigPage() {
     <div className="page">
       <PageHeader
         title="配置"
-        desc="分模块编辑 ingress.yaml → 预览变更 → 保存版本 → 发布 reload"
+        desc="分模块编辑 ingress.yaml → 保存与发布（查看变更 → 仅保存或热加载）"
       />
       {err && <p className="err">{err}</p>}
       <ConfigGovernanceBanner
@@ -269,37 +283,13 @@ export function ConfigPage() {
             >
               {validateState === 'loading' ? '校验中…' : '校验'}
             </button>
-            <button type="button" className="btn" onClick={() => void showDiff()}>
-              查看变更
-            </button>
             <button
               type="button"
-              className="btn"
-              onClick={async () => {
-                try {
-                  const merged = await modulesRef.current?.autoApplyIfDirty()
-                  if (merged != null && merged !== content) {
-                    setContent(merged)
-                    undoState.push(merged)
-                  }
-                  setPreviewOpen(true)
-                } catch (e: unknown) {
-                  const msg = e instanceof Error ? e.message : String(e)
-                  setErr(msg)
-                  show(msg, 'error')
-                }
-              }}
+              className="btn btn-primary"
+              disabled={!dirty || persistBusy || validateState === 'loading'}
+              onClick={() => void openSavePublish()}
             >
-              预览
-            </button>
-            <button type="button" className="btn" onClick={save}>
-              保存到 YAML
-            </button>
-            <button type="button" className="btn btn-primary" onClick={async () => {
-              try { await modulesRef.current?.autoApplyIfDirty() } catch { /* error already shown */ }
-              setPublishOpen(true)
-            }}>
-              发布
+              保存与发布
             </button>
           </div>
         </div>
@@ -359,21 +349,24 @@ export function ConfigPage() {
           )}
         </div>
       </div>
-      <PreviewModal
-        open={previewOpen}
-        draft={content}
-        published={saved}
-        onClose={() => setPreviewOpen(false)}
-        onPublish={() => setPublishOpen(true)}
+      <SavePublishDrawer
+        open={savePublishOpen}
+        diffHtml={diffHtml}
+        busy={persistBusy}
+        onClose={() => setSavePublishOpen(false)}
+        onSaveOnly={() => void onSaveOnly()}
+        onSaveAndPublish={onSaveAndPublish}
       />
       <PublishModal
         open={publishOpen}
         configPath={path}
-        content={content}
+        content={pendingYaml || content}
         onClose={() => setPublishOpen(false)}
         onDone={() => {
-          setSaved(content)
-          undoState.reset(content)
+          const published = pendingYaml || content
+          setSaved(published)
+          setContent(published)
+          undoState.reset(published)
           show('配置已发布并 reload')
           refreshGovernance()
         }}
@@ -394,7 +387,12 @@ export function ConfigPage() {
           onCancel={() => setRollbackRevision(null)}
         />
       ) : null}
-      <DiffModal open={diffOpen} diffHtml={diffHtml} title={diffTitle} onClose={() => setDiffOpen(false)} />
+      <DiffModal
+        open={compareDiffOpen}
+        diffHtml={diffHtml}
+        title={diffTitle}
+        onClose={() => setCompareDiffOpen(false)}
+      />
       {toast && <ToastContainer message={toast.message} type={toast.type} onDone={clear} />}
     </div>
   )

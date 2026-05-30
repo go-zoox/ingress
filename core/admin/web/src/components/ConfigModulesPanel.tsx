@@ -159,7 +159,7 @@ export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
           <div>
             <h3>{active?.label || '模块'}</h3>
             <p className="config-module-keys">
-              修改后会自动合并到草稿 YAML，可用「查看变更」「校验」确认后再保存或发布。
+              修改后会自动合并到草稿 YAML，可用「校验」检查后再「保存与发布」。
             </p>
           </div>
           <span

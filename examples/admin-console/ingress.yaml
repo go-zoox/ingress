@@ -74,12 +74,22 @@ fallback:
   service:
     name: home
     port: 8080
+services:
+  - name: api.internal
+    port: 8080
+    note: API 主集群
+  - name: api-v2.internal
+    port: 8080
+    note: API v2 路径专用
+  - name: home
+    port: 8080
 rules:
   - host: api.example.com
     backend:
       service:
-        name: api.internal
+        name: api-v2.internal
         port: 8080
+      type: service
     paths:
       - path: /v2
         backend:
@@ -89,6 +99,8 @@ rules:
           cache:
             enabled: true
             ttl: 600
+            max_body_bytes: 2097152
+          type: service
       - path: /public
         backend:
           service:
@@ -97,6 +109,8 @@ rules:
           cache:
             enabled: true
             ttl: 300
+            max_body_bytes: 2097152
+          type: service
   - host: "*.cdn.example.com"
     host_type: wildcard
     backend:
@@ -119,7 +133,8 @@ rules:
       handler:
         headers:
           Content-Type: text/plain; charset=utf-8
-        body: "admin console demo host\n"
+        body: |
+          admin console demo host
       cache:
         enabled: true
         ttl: 60
@@ -130,7 +145,8 @@ rules:
           handler:
             headers:
               Content-Type: text/plain; charset=utf-8
-            body: "ok\n"
+            body: |
+              ok
   - host: legacy.example.com
     backend:
       type: redirect

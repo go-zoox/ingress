@@ -213,6 +213,16 @@ export const api = {
     const qs = q.toString()
     return request<RouteMetrics>(`/routes/${ri}/${pi}/metrics${qs ? `?${qs}` : ''}`)
   },
+  serviceDetail: (name: string) =>
+    request<ServiceDetail>(`/services/${encodeURIComponent(name)}`),
+  serviceMetrics: (name: string, window?: string) => {
+    const q = new URLSearchParams()
+    if (window) q.set('window', window)
+    const qs = q.toString()
+    return request<ServiceMetrics>(
+      `/services/${encodeURIComponent(name)}/metrics${qs ? `?${qs}` : ''}`,
+    )
+  },
   healthCheck: () =>
     request<{ checks: HealthCheckResult[]; summary: HealthSummary }>('/healthcheck'),
   investigate: (params: {
@@ -754,6 +764,67 @@ export type RouteCompareStats = {
   site_error_rate: number
   route_share_pct: number
   error_rate_vs_site: number
+}
+
+export type ServiceRouteRef = {
+  rule_index: number
+  path_index: number
+  host: string
+  path: string
+  target: string
+  backend_type: string
+}
+
+export type ServiceDetail = {
+  name: string
+  catalog_index: number
+  target: string
+  protocol: string
+  port: number
+  mode: string
+  note: string
+  health_check: {
+    enabled: boolean
+    method: string
+    path: string
+    status: number[]
+    ok: boolean
+  } | null
+  route_refs: ServiceRouteRef[]
+  route_ref_count: number
+  target_aliases: string[]
+}
+
+export type ServiceCompareStats = {
+  site_rpm: number
+  site_error_rate: number
+  service_share_pct: number
+  error_rate_vs_site: number
+}
+
+export type ServiceMetrics = {
+  window: string
+  source?: string
+  rpm: number
+  error_rate: number
+  p50_ms: number
+  p95_ms: number
+  cache_hit_rate: number
+  waf_blocks?: number
+  total: number
+  status_counts: Record<string, number>
+  timeline: MetricsTimelineBucket[]
+  slowest?: RouteSampleRow[]
+  error_samples?: RouteSampleRow[]
+  latency_histogram?: Array<{ label: string; count: number }>
+  top_hosts?: Array<{ name: string; count: number }>
+  top_paths?: Array<{ name: string; count: number }>
+  delta?: MetricsDelta
+  upstream?: RouteUpstreamStats
+  compare?: ServiceCompareStats
+  target_aliases?: string[]
+  health_checks?: HealthCheckResult[]
+  health_summary?: HealthSummary
 }
 
 export type RouteCacheStats = {

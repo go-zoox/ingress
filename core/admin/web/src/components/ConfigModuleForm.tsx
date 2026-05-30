@@ -10,6 +10,7 @@ import { AdminDatabaseFormFields } from './config/AdminDatabaseFormFields'
 import { AdminGeoIPFormFields } from './config/AdminGeoIPFormFields'
 import { FallbackEditor } from './config/FallbackEditor'
 import { RulesEditor } from './config/RulesEditor'
+import { ServicesEditor } from './config/ServicesEditor'
 import { RateLimitFormFields } from './config/RateLimitFormFields'
 import { SecurityFormFields } from './config/SecurityFormFields'
 import { SslCertsEditor } from './config/SslCertsEditor'
@@ -620,6 +621,20 @@ function RulesModuleForm({
   )
 }
 
+function ServicesModuleForm({
+  doc,
+  onChange,
+}: {
+  doc: Record<string, unknown>
+  onChange: (doc: Record<string, unknown>) => void
+}) {
+  return (
+    <FormGrid columns={1}>
+      <ServicesEditor doc={doc} onChange={onChange} />
+    </FormGrid>
+  )
+}
+
 function FallbackModuleForm({
   doc,
   onChange,
@@ -698,6 +713,8 @@ export function ConfigModuleForm({
           )}
         </>
       )
+    case 'services':
+      return <ServicesModuleForm doc={doc} onChange={onDocChange} />
     case 'fallback':
       return <FallbackModuleForm doc={doc} onChange={onDocChange} />
     case 'other':
