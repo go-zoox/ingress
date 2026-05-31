@@ -34,6 +34,8 @@ type Props = {
   minHeight?: string
   readOnly?: boolean
   placeholder?: string
+  /** Remount editor when external value is loaded (e.g. edit form hydrate). */
+  sessionKey?: string | number
 }
 
 export function CodeEditor({
@@ -43,6 +45,7 @@ export function CodeEditor({
   minHeight = '180px',
   readOnly = false,
   placeholder,
+  sessionKey,
 }: Props) {
   const extensions = useMemo(
     () => [
@@ -58,7 +61,7 @@ export function CodeEditor({
   return (
     <div className="code-editor" data-language={language} style={{ minHeight }}>
       <CodeMirror
-        key={language}
+        key={`${language}:${sessionKey ?? 'default'}`}
         value={value}
         height={minHeight}
         theme={vscodeDark}

@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -153,6 +154,70 @@ func TestService_CreateItem_LegacyCommandKindNormalizes(t *testing.T) {
 	}
 	if !strings.Contains(content, "script:") {
 		t.Fatalf("expected script content in yaml, got:\n%s", content)
+	}
+}
+
+func TestService_List_ReturnsScriptContent(t *testing.T) {
+	setupJobRunsDB(t)
+	svc := newTestService(t, testIngressBase)
+	wantScript := "#!/bin/sh\necho \"job started\""
+	item := ingjobs.Item{
+		ID:       "shell-job",
+		Name:     "Shell job",
+		Kind:     ingjobs.KindScript,
+		Schedule: "0 * * * *",
+		Enabled:  true,
+		Params: ingjobs.JobParams{
+			Engine: ingjobs.ScriptEngineShell,
+			Shell:  "sh",
+			Script: wantScript,
+		},
+	}
+	if err := svc.CreateItem(item); err != nil {
+		t.Fatal(err)
+	}
+	list, err := svc.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("items = %d", len(list.Items))
+	}
+	got := list.Items[0].Params.Script
+	if got != wantScript {
+		t.Fatalf("script = %q, want %q", got, wantScript)
+	}
+}
+
+func TestService_List_JSONIncludesScriptField(t *testing.T) {
+	setupJobRunsDB(t)
+	svc := newTestService(t, testIngressBase)
+	item := ingjobs.Item{
+		ID:       "json-job",
+		Name:     "JSON job",
+		Kind:     ingjobs.KindScript,
+		Schedule: "0 * * * *",
+		Enabled:  true,
+		Params: ingjobs.JobParams{
+			Engine: ingjobs.ScriptEngineShell,
+			Shell:  "sh",
+			Script: "echo jobs-json",
+		},
+	}
+	if err := svc.CreateItem(item); err != nil {
+		t.Fatal(err)
+	}
+	list, err := svc.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(list.Items[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	if !strings.Contains(body, `"script"`) || !strings.Contains(body, "echo jobs-json") {
+		t.Fatalf("json missing script field: %s", body)
 	}
 }
 

@@ -84,6 +84,17 @@ func (s *Service) Start(c zcron.Cron) error {
 	return s.Reload()
 }
 
+func clearCronJobs(c zcron.Cron) error {
+	if err := c.ClearJobs(); err != nil {
+		// Zoox cron is lazy-started on first AddJob; initial Reload has nothing to clear.
+		if strings.Contains(err.Error(), "not started yet") {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
 func (s *Service) Reload() error {
 	s.mu.Lock()
 	c := s.cron
@@ -91,7 +102,9 @@ func (s *Service) Reload() error {
 	if c == nil {
 		return nil
 	}
-	_ = c.ClearJobs()
+	if err := clearCronJobs(c); err != nil {
+		return fmt.Errorf("jobs: clear cron: %w", err)
+	}
 	icfg, err := s.ing.LoadConfig()
 	if err != nil {
 		return err

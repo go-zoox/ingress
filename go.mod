@@ -3,6 +3,7 @@ module github.com/go-zoox/ingress
 go 1.25.0
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/dop251/goja v0.0.0-20260311135729-065cd970411c
 	github.com/go-zoox/cache v1.0.7
 	github.com/go-zoox/chalk v1.0.2
@@ -10,6 +11,7 @@ require (
 	github.com/go-zoox/config v1.4.1
 	github.com/go-zoox/core-utils v1.4.13
 	github.com/go-zoox/counter v1.2.1
+	github.com/go-zoox/cron v1.2.3
 	github.com/go-zoox/fs v1.4.1
 	github.com/go-zoox/gormx v1.8.0
 	github.com/go-zoox/jwt v1.5.0
@@ -18,8 +20,12 @@ require (
 	github.com/go-zoox/oauth2 v1.9.0
 	github.com/go-zoox/proxy v1.6.2
 	github.com/go-zoox/ratelimit v1.2.1
-	github.com/go-zoox/zoox v1.18.8
+	github.com/go-zoox/websocket v1.3.5
+	github.com/go-zoox/zoox v1.18.10
+	github.com/google/uuid v1.6.0
+	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/traefik/yaegi v0.16.1
+	golang.org/x/crypto v0.51.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.31.1
 )
@@ -33,7 +39,6 @@ require (
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
-	github.com/creack/pty v1.1.24 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/distribution/reference v0.6.0 // indirect
@@ -76,7 +81,6 @@ require (
 	github.com/go-zoox/compress v1.0.1 // indirect
 	github.com/go-zoox/concurrency v1.2.0 // indirect
 	github.com/go-zoox/cookie v1.2.0 // indirect
-	github.com/go-zoox/cron v1.2.3 // indirect
 	github.com/go-zoox/crypto v1.1.8 // indirect
 	github.com/go-zoox/datetime v1.3.2 // indirect
 	github.com/go-zoox/debug v1.0.5 // indirect
@@ -99,11 +103,9 @@ require (
 	github.com/go-zoox/session v1.2.0 // indirect
 	github.com/go-zoox/tag v1.3.5 // indirect
 	github.com/go-zoox/uuid v0.0.1 // indirect
-	github.com/go-zoox/websocket v1.3.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -128,7 +130,6 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/oschwald/geoip2-golang v1.13.0 // indirect
 	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -162,7 +163,6 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.51.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect

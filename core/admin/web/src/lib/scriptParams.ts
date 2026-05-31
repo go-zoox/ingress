@@ -73,7 +73,8 @@ export function scriptEngineLabel(engine: ScriptEngine): string {
 /** Map stored params to editor fields (legacy command/args supported). */
 export function scriptParamsFromJob(params: JobParams): ScriptParamsInput {
   const engine = normalizeScriptEngine(params.engine)
-  let script = params.script?.trim() || ''
+  const legacyScript = (params as JobParams & { Script?: string }).Script
+  let script = params.script?.trim() || legacyScript?.trim() || ''
   if (!script) {
     script = [params.command, ...(params.args ?? [])].filter(Boolean).join(' ').trim()
   }
