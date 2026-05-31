@@ -1,15 +1,8 @@
-import {
-  LIVE_METRICS_WINDOW,
-  LIVE_OVERVIEW_VIEW,
-  isLiveOverviewView,
-  normalizeMetricsWindow,
-  normalizeOverviewView,
-} from './metricsWindow'
+import { normalizeMetricsWindow, normalizeOverviewView } from './metricsWindow'
 
 export type OverviewRangePreset = '5m' | '15m' | '1h' | '6h' | '24h'
 
 export type OverviewRange =
-  | { kind: 'live' }
   | { kind: 'preset'; preset: OverviewRangePreset }
   | { kind: 'absolute'; from: string; to: string }
 
@@ -23,21 +16,25 @@ export const OVERVIEW_RANGE_PRESETS: { value: OverviewRangePreset; label: string
 
 const PRESET_SET = new Set<string>(OVERVIEW_RANGE_PRESETS.map((p) => p.value))
 
+/** Slack for treating an absolute range end as "now" (live-eligible). */
+export const LIVE_RANGE_END_SLACK_MS = 120_000
+
 export function isOverviewRangePreset(value: string): value is OverviewRangePreset {
   return PRESET_SET.has(value)
 }
 
 export function defaultOverviewRange(): OverviewRange {
-  return { kind: 'live' }
+  return { kind: 'preset', preset: '5m' }
 }
 
 /** Parse persisted JSON or legacy metricsWindow string. */
 export function parseOverviewRange(raw: string | undefined, legacyWindow?: string): OverviewRange {
   if (raw) {
     try {
-      const parsed = JSON.parse(raw) as OverviewRange
-      if (parsed?.kind === 'live') return { kind: 'live' }
-      if (parsed?.kind === 'preset' && isOverviewRangePreset(parsed.preset)) {
+      const parsed = JSON.parse(raw) as { kind?: string; preset?: string; from?: string; to?: string }
+      // Migrate removed live kind → default rolling 5m preset.
+      if (parsed?.kind === 'live') return { kind: 'preset', preset: '5m' }
+      if (parsed?.kind === 'preset' && parsed.preset && isOverviewRangePreset(parsed.preset)) {
         return { kind: 'preset', preset: parsed.preset }
       }
       if (parsed?.kind === 'absolute' && parsed.from && parsed.to) {
@@ -47,10 +44,17 @@ export function parseOverviewRange(raw: string | undefined, legacyWindow?: strin
       // fall through
     }
   }
-  const legacy = normalizeOverviewView(legacyWindow || LIVE_OVERVIEW_VIEW)
-  if (legacy === LIVE_OVERVIEW_VIEW) return { kind: 'live' }
+  const legacy = normalizeOverviewView(legacyWindow || '5m')
+  if (legacy === 'live') return { kind: 'preset', preset: '5m' }
   if (isOverviewRangePreset(legacy)) return { kind: 'preset', preset: legacy }
   return defaultOverviewRange()
+}
+
+export function parseOverviewLiveEnabled(raw: boolean | undefined, legacyWindow?: string): boolean {
+  if (raw !== undefined) return raw
+  // Legacy "live" view implied streaming updates.
+  if (legacyWindow?.trim() === 'live') return true
+  return true
 }
 
 export function serializeOverviewRange(range: OverviewRange): string {
@@ -58,13 +62,11 @@ export function serializeOverviewRange(range: OverviewRange): string {
 }
 
 export function rangeQueryKey(range: OverviewRange): string {
-  if (range.kind === 'live') return LIVE_OVERVIEW_VIEW
   if (range.kind === 'preset') return range.preset
   return `abs:${range.from}|${range.to}`
 }
 
 export function resolveApiWindow(range: OverviewRange): string {
-  if (range.kind === 'live') return LIVE_METRICS_WINDOW
   if (range.kind === 'preset') return range.preset
   return 'custom'
 }
@@ -86,11 +88,7 @@ export function resolveOverviewRangeToQuery(
     return { from: range.from, to: range.to }
   }
   const to = now
-  const ms =
-    range.kind === 'live'
-      ? PRESET_DURATION_MS['5m']
-      : PRESET_DURATION_MS[range.preset]
-  const from = new Date(to.getTime() - ms)
+  const from = new Date(to.getTime() - PRESET_DURATION_MS[range.preset])
   return { from: from.toISOString(), to: to.toISOString() }
 }
 
@@ -98,12 +96,35 @@ export function rangeToQueryParams(range: OverviewRange): { from: string; to: st
   return resolveOverviewRangeToQuery(range)
 }
 
-export function isLiveOverviewRange(range: OverviewRange) {
-  return range.kind === 'live'
+/** True when incremental SSE updates make sense for this range. */
+export function isRangeLiveEligible(range: OverviewRange, now = new Date()): boolean {
+  if (range.kind === 'preset') return true
+  const toMs = new Date(range.to).getTime()
+  const nowMs = now.getTime()
+  if (Number.isNaN(toMs)) return false
+  return nowMs - toMs <= LIVE_RANGE_END_SLACK_MS
+}
+
+/** SSE subscription params for the selected range. */
+export function sseParamsForRange(range: OverviewRange): {
+  window?: string
+  from?: string
+  to?: string
+} {
+  if (range.kind === 'preset') {
+    return { window: range.preset }
+  }
+  const q = resolveOverviewRangeToQuery(range)
+  return { from: q.from, to: q.to }
+}
+
+/** Rolling window hint for merging SSE patches onto REST range snapshots. */
+export function mergeRollingWindowForRange(range: OverviewRange): string | undefined {
+  if (range.kind === 'preset') return range.preset
+  return undefined
 }
 
 export function formatOverviewRangeLabel(range: OverviewRange): string {
-  if (range.kind === 'live') return '实时 · 最近 5 分钟'
   if (range.kind === 'preset') {
     return OVERVIEW_RANGE_PRESETS.find((p) => p.value === range.preset)?.label ?? '时间范围'
   }
@@ -177,13 +198,11 @@ export function snapshotMatchesRange(
 
 /** Legacy bridge for components still using metricsWindow string. */
 export function overviewRangeToLegacyView(range: OverviewRange): string {
-  if (range.kind === 'live') return LIVE_OVERVIEW_VIEW
   if (range.kind === 'preset') return range.preset
   return `custom:${range.from}|${range.to}`
 }
 
 export function legacyViewToRangeKey(view: string): string {
-  if (isLiveOverviewView(view)) return LIVE_OVERVIEW_VIEW
   if (view.startsWith('custom:')) return view
   return normalizeMetricsWindow(view)
 }

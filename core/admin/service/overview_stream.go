@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -62,17 +63,17 @@ func (s *OverviewStreamer) Stop() {
 	}
 }
 
-// Snapshot builds a snapshot for the given metrics window string.
+// Snapshot builds a snapshot for the given metrics window string (legacy).
 func (s *OverviewStreamer) Snapshot(window string) OverviewSnapshot {
 	if s == nil || s.builder == nil {
 		return OverviewSnapshot{}
 	}
-	return s.builder.Snapshot(window)
+	return s.builder.SnapshotWithRange(MetricsRangeFromWindow(window))
 }
 
 // SnapshotEvent builds the initial full SSE snapshot for a subscriber.
 func (s *OverviewStreamer) SnapshotEvent(sub *Subscriber) SSEEvent {
-	snap := s.Snapshot(subParamWindow(sub))
+	snap := s.builder.SnapshotWithRange(metricsRangeForSubscriber(sub))
 	s.remember(sub, snap)
 	return snapshotSSEEvent(snap)
 }
@@ -126,14 +127,24 @@ func (s *OverviewStreamer) pushAll() {
 	var mu sync.Mutex
 
 	s.broker.ForEachSubscriber("overview", func(sub *Subscriber) {
-		window := normalizeMetricsWindow(subParamWindow(sub))
-		mu.Lock()
-		snap, ok := cache[window]
-		if !ok {
-			snap = s.builder.Snapshot(window)
-			cache[window] = snap
+		key := subscriberRangeCacheKey(sub)
+		var snap OverviewSnapshot
+		if strings.HasPrefix(key, "window:") {
+			mu.Lock()
+			cached, ok := cache[key]
+			if ok {
+				snap = cached
+			}
+			mu.Unlock()
+			if !ok {
+				snap = s.builder.SnapshotWithRange(metricsRangeForSubscriber(sub))
+				mu.Lock()
+				cache[key] = snap
+				mu.Unlock()
+			}
+		} else {
+			snap = s.builder.SnapshotWithRange(metricsRangeForSubscriber(sub))
 		}
-		mu.Unlock()
 		s.pushSubscriber(sub, snap, false)
 	})
 }

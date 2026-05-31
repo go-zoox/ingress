@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatOverviewRangeLabel,
+  isRangeLiveEligible,
+  parseOverviewLiveEnabled,
   parseOverviewRange,
   rangeQueryKey,
   rangeToQueryParams,
@@ -8,12 +10,25 @@ import {
 } from './overviewRange'
 
 describe('overviewRange', () => {
-  it('parses live from legacy metricsWindow', () => {
-    expect(parseOverviewRange(undefined, 'live')).toEqual({ kind: 'live' })
+  it('migrates legacy live to preset 5m', () => {
+    expect(parseOverviewRange(undefined, 'live')).toEqual({ kind: 'preset', preset: '5m' })
+    expect(parseOverviewRange(JSON.stringify({ kind: 'live' }))).toEqual({
+      kind: 'preset',
+      preset: '5m',
+    })
   })
 
-  it('builds preset query params', () => {
-    expect(rangeToQueryParams({ kind: 'preset', preset: '6h' })).toEqual({ window: '6h' })
+  it('defaults live enabled and migrates legacy live view', () => {
+    expect(parseOverviewLiveEnabled(undefined)).toBe(true)
+    expect(parseOverviewLiveEnabled(undefined, 'live')).toBe(true)
+    expect(parseOverviewLiveEnabled(false)).toBe(false)
+  })
+
+  it('builds preset query params with from/to', () => {
+    const q = rangeToQueryParams({ kind: 'preset', preset: '6h' })
+    expect(q.from).toBeTruthy()
+    expect(q.to).toBeTruthy()
+    expect(new Date(q.to).getTime()).toBeGreaterThan(new Date(q.from).getTime())
   })
 
   it('builds absolute query params', () => {
@@ -46,6 +61,22 @@ describe('overviewRange', () => {
 
   it('uses stable cache keys', () => {
     expect(rangeQueryKey({ kind: 'preset', preset: '15m' })).toBe('15m')
-    expect(rangeQueryKey({ kind: 'live' })).toBe('live')
+  })
+
+  it('detects live-eligible ranges', () => {
+    const now = new Date('2026-05-31T12:00:00.000Z')
+    expect(isRangeLiveEligible({ kind: 'preset', preset: '5m' }, now)).toBe(true)
+    expect(
+      isRangeLiveEligible(
+        { kind: 'absolute', from: '2026-05-31T09:00:00.000Z', to: '2026-05-31T11:59:00.000Z' },
+        now,
+      ),
+    ).toBe(true)
+    expect(
+      isRangeLiveEligible(
+        { kind: 'absolute', from: '2026-05-30T00:00:00.000Z', to: '2026-05-30T23:59:59.000Z' },
+        now,
+      ),
+    ).toBe(false)
   })
 })

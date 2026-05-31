@@ -10,7 +10,7 @@ import {
   Zap,
 } from 'lucide-react'
 import type { OverviewMetrics, HealthCheckResult, HealthSummary, TLSCert } from '../api/client'
-import { type OverviewRange, formatOverviewRangeLabel, isLiveOverviewRange, rangeQueryKey, snapshotMatchesRange } from '../lib/overviewRange'
+import { type OverviewRange, formatOverviewRangeLabel, rangeQueryKey, snapshotMatchesRange } from '../lib/overviewRange'
 import { TrafficTimelineChart } from './charts/TrafficTimelineChart'
 import { QualityTimelineChart } from './charts/QualityTimelineChart'
 import { CacheTimelineChart } from './charts/CacheTimelineChart'
@@ -27,6 +27,8 @@ import { RankedBarList } from './RankedBarList'
 type Props = {
   metrics: OverviewMetrics | null
   overviewRange: OverviewRange
+  /** When true, metrics are receiving SSE incremental updates. */
+  liveUpdating?: boolean
   /** Throttled snapshot for charts/lists; KPI strip prefers live metrics for this window. */
   chartMetrics?: OverviewMetrics | null
   /** Initial load — no metrics yet. */
@@ -43,6 +45,7 @@ type Props = {
 export const OverviewCharts = memo(function OverviewCharts({
   metrics,
   overviewRange,
+  liveUpdating = false,
   chartMetrics: chartMetricsProp,
   loading,
   refreshing,
@@ -65,7 +68,7 @@ export const OverviewCharts = memo(function OverviewCharts({
   if (!displayMetrics || displayMetrics.total === 0) {
     return (
       <div className="panel metrics-empty">
-        <MetricsEmptyMessage metrics={displayMetrics ?? null} windowLabel={windowLabel} overviewRange={overviewRange} />
+        <MetricsEmptyMessage metrics={displayMetrics ?? null} windowLabel={windowLabel} liveUpdating={liveUpdating} />
       </div>
     )
   }
@@ -343,15 +346,15 @@ const KpiCard = memo(function KpiCard({
 function MetricsEmptyMessage({
   metrics,
   windowLabel,
-  overviewRange,
+  liveUpdating = false,
 }: {
   metrics: OverviewMetrics | null
   windowLabel?: string
-  overviewRange?: OverviewRange
+  liveUpdating?: boolean
 }) {
   const skipped = metrics?.parse_skipped ?? 0
   const range = windowLabel ? `${windowLabel} ` : ''
-  const historical = overviewRange != null && !isLiveOverviewRange(overviewRange)
+  const historical = !liveUpdating
 
   if (skipped > 0 && (metrics?.parseable_in_tail ?? 0) === 0) {
     return (

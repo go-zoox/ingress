@@ -16,8 +16,12 @@ const FALLBACK_AFTER_ATTEMPTS = 4
 const POLL_INTERVAL_MS = 5000
 
 export type SSEOptions = {
-  /** Metrics window for the overview SSE channel. */
+  /** Legacy rolling window for overview SSE (preset ranges). */
   window?: string
+  /** Absolute range start (RFC3339) for overview SSE. */
+  from?: string
+  /** Absolute range end (RFC3339) for overview SSE. */
+  to?: string
   /** When false, no connection is opened. */
   enabled?: boolean
 }
@@ -58,9 +62,15 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
   const buildURL = useCallback(() => {
     const ch = channelsRef.current.join(',')
     const params = new URLSearchParams({ channels: ch })
-    const window = optionsRef.current?.window
-    if (window) {
-      params.set('window', window)
+    const opts = optionsRef.current
+    if (opts?.window) {
+      params.set('window', opts.window)
+    }
+    if (opts?.from) {
+      params.set('from', opts.from)
+    }
+    if (opts?.to) {
+      params.set('to', opts.to)
     }
     return `/api/v1/events/stream?${params.toString()}`
   }, [])
@@ -223,12 +233,12 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
     return () => {
       close()
     }
-  }, [connect, close, options?.window, options?.enabled, channels.join(',')])
+  }, [connect, close, options?.window, options?.from, options?.to, options?.enabled, channels.join(',')])
 
   useEffect(() => {
     setOverviewPatch(null)
     setOverviewSnapshot(null)
-  }, [options?.window, options?.enabled])
+  }, [options?.window, options?.from, options?.to, options?.enabled])
 
   useEffect(() => {
     const onUnload = () => close()

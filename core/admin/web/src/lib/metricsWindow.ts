@@ -14,13 +14,13 @@ export function resolveMetricsWindow(view: string) {
   return normalizeMetricsWindow(view)
 }
 
-/** Normalize overview page view selection (includes live). */
+/** Normalize overview page view selection (includes legacy live). */
 export function normalizeOverviewView(view: string) {
   const w = view.trim()
   if (w === LIVE_OVERVIEW_VIEW) return LIVE_OVERVIEW_VIEW
   if (w === '60m') return '1h'
   if (w === '24h' || w === '6h' || w === '1h' || w === '5m' || w === '15m') return w
-  return LIVE_OVERVIEW_VIEW
+  return '5m'
 }
 
 /** Align client window values with backend normalizeMetricsWindow. */

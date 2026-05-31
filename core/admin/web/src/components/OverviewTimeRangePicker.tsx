@@ -48,16 +48,13 @@ export function OverviewTimeRangePicker({ value, onChange, disabled }: Props) {
     setOpen(false)
   }
 
-  const triggerLabel =
-    value.kind === 'live'
-      ? '时间范围'
-      : formatOverviewRangeLabel(value)
+  const triggerLabel = formatOverviewRangeLabel(value)
 
   return (
     <div className="overview-range-picker" ref={panelRef}>
       <button
         type="button"
-        className={`btn btn-sm btn-ghost overview-range-trigger${value.kind !== 'live' ? ' active' : ''}`}
+        className="btn btn-sm btn-ghost overview-range-trigger"
         disabled={disabled}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -70,9 +67,6 @@ export function OverviewTimeRangePicker({ value, onChange, disabled }: Props) {
 
       {open ? (
         <div className="overview-range-panel" role="dialog" aria-label="选择时间范围">
-          <p className="overview-range-panel-note">
-            历史快照：数据截至选择时刻，不会自动刷新；切换范围或刷新页面后重新拉取。
-          </p>
           <p className="overview-range-panel-title">相对范围</p>
           <div className="overview-range-presets">
             {OVERVIEW_RANGE_PRESETS.map((opt) => (

@@ -3,11 +3,14 @@ export type UIPreferences = {
   /** @deprecated use overviewRange */
   metricsWindow: string
   overviewRange?: string
+  /** When true, overview metrics receive SSE incremental updates after REST bootstrap. */
+  overviewLiveEnabled?: boolean
 }
 
 export const DEFAULT_PREFERENCES: UIPreferences = {
   logLiveIntervalMs: 2000,
-  metricsWindow: 'live',
+  metricsWindow: '5m',
+  overviewLiveEnabled: true,
 }
 
 /** Session-only UI preferences (not persisted across page reloads). */

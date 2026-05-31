@@ -65,6 +65,12 @@ func (h *SSEHandler) Stream(ctx *zoox.Context) {
 	if window := strings.TrimSpace(ctx.Query().Get("window").String()); window != "" {
 		params["window"] = window
 	}
+	if from := strings.TrimSpace(ctx.Query().Get("from").String()); from != "" {
+		params["from"] = from
+	}
+	if to := strings.TrimSpace(ctx.Query().Get("to").String()); to != "" {
+		params["to"] = to
+	}
 
 	sub, err := h.broker.Subscribe(cleanChannels, clientIP, params)
 	if err != nil {

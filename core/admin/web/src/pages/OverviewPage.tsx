@@ -23,14 +23,17 @@ import { useOverviewMetricsCache, useSystemMetricsCache } from '../hooks/useMetr
 import { mergeOverviewPatch, overviewPatchWindowMismatch } from '../lib/overviewMerge'
 import { useOverviewStream } from '../context/OverviewStreamContext'
 import { loadPreferences, savePreferences } from '../lib/preferences'
-import { LIVE_METRICS_WINDOW } from '../lib/metricsWindow'
 import {
   type OverviewRange,
-  isLiveOverviewRange,
+  isRangeLiveEligible,
+  mergeRollingWindowForRange,
+  parseOverviewLiveEnabled,
   parseOverviewRange,
   rangeToQueryParams,
+  resolveApiWindow,
   serializeOverviewRange,
   snapshotMatchesRange,
+  sseParamsForRange,
 } from '../lib/overviewRange'
 import { computeHealthScore, healthScoreClass } from '../lib/overviewHealthScore'
 import { PageLoading } from '../components/PageLoading'
@@ -56,8 +59,14 @@ export function OverviewPage() {
   const [overviewRange, setOverviewRange] = useState<OverviewRange>(() =>
     parseOverviewRange(prefs.overviewRange, prefs.metricsWindow),
   )
-  const liveView = isLiveOverviewRange(overviewRange)
+  const [liveEnabled, setLiveEnabled] = useState(() =>
+    parseOverviewLiveEnabled(prefs.overviewLiveEnabled, prefs.metricsWindow),
+  )
+  const rangeLiveEligible = isRangeLiveEligible(overviewRange)
+  const streaming = liveEnabled && rangeLiveEligible
+  const sseRange = useMemo(() => sseParamsForRange(overviewRange), [overviewRange])
   const rangeFetchRef = useRef(0)
+  const restLoadedRef = useRef(false)
   const snapshotRef = useRef<OverviewSnapshot | null>(null)
 
   const {
@@ -66,11 +75,11 @@ export function OverviewPage() {
     connected: sseConnected,
     reconnecting: sseReconnecting,
     fallbackPolling,
-  } = useSSE(['overview'], { window: LIVE_METRICS_WINDOW, enabled: liveView })
+  } = useSSE(['overview'], { ...sseRange, enabled: streaming })
   const { setStream } = useOverviewStream()
 
   useEffect(() => {
-    if (!liveView) {
+    if (!streaming) {
       setStream(null)
       return () => setStream(null)
     }
@@ -84,7 +93,7 @@ export function OverviewPage() {
     return () => setStream(null)
   }, [
     setStream,
-    liveView,
+    streaming,
     sseConnected,
     sseReconnecting,
     fallbackPolling,
@@ -103,12 +112,7 @@ export function OverviewPage() {
   const applySnapshot = useCallback(
     (snap: OverviewSnapshot, forRange?: OverviewRange) => {
       const expected = forRange ?? overviewRange
-      const liveRange = isLiveOverviewRange(expected)
-      if (
-        snap.metrics &&
-        !liveRange &&
-        !metricsMatchesRange(snap.metrics, expected)
-      ) {
+      if (snap.metrics && !metricsMatchesRange(snap.metrics, expected)) {
         return
       }
       if (snap.status) {
@@ -142,29 +146,28 @@ export function OverviewPage() {
   const refreshSnapshot = useCallback(() => {
     api
       .overviewSnapshot(rangeToQueryParams(overviewRange))
-      .then(applySnapshot)
+      .then((snap) => {
+        restLoadedRef.current = true
+        applySnapshot(snap, overviewRange)
+      })
       .catch(() => {
         setMetricsLoading(false)
       })
   }, [overviewRange, applySnapshot])
 
-  // Historical ranges: one REST snapshot per selection.
+  // Always bootstrap with REST on range change.
   useEffect(() => {
-    if (liveView) {
-      snapshotRef.current = null
-      setMetricsLoading(true)
-      setErr('')
-      return
-    }
     const fetchId = ++rangeFetchRef.current
     const range = overviewRange
     snapshotRef.current = null
+    restLoadedRef.current = false
     setMetricsLoading(true)
     setErr('')
     api
       .overviewSnapshot(rangeToQueryParams(range))
       .then((snap) => {
         if (fetchId !== rangeFetchRef.current) return
+        restLoadedRef.current = true
         applySnapshot(snap, range)
       })
       .catch((e: Error) => {
@@ -172,47 +175,39 @@ export function OverviewPage() {
         setMetricsLoading(false)
         setErr(e.message)
       })
-  }, [liveView, overviewRange, applySnapshot])
+  }, [overviewRange, applySnapshot])
 
-  // Live: initial full state from SSE overview:snapshot on connect / reconnect.
+  // SSE full snapshot on reconnect (skip initial connect before REST bootstrap).
   useEffect(() => {
-    if (!liveView || !sseOverviewSnapshot) return
+    if (!streaming || !sseOverviewSnapshot) return
+    if (!restLoadedRef.current && sseOverviewSnapshot.seq <= 1) return
     applySnapshot(sseOverviewSnapshot.snap, overviewRange)
-  }, [liveView, sseOverviewSnapshot?.seq, applySnapshot, overviewRange, sseOverviewSnapshot])
+  }, [streaming, sseOverviewSnapshot?.seq, applySnapshot, overviewRange, sseOverviewSnapshot])
 
   useEffect(() => {
-    if (!liveView) return
+    if (!streaming) return
     if (!overviewPatch) return
-    if (!snapshotRef.current) return
-    if (overviewPatchWindowMismatch(overviewPatch, LIVE_METRICS_WINDOW, LIVE_METRICS_WINDOW)) {
+    if (!snapshotRef.current || !restLoadedRef.current) return
+    const apiWindow = resolveApiWindow(overviewRange)
+    const rollingWindow = mergeRollingWindowForRange(overviewRange)
+    const sseWindow = sseRange.window ?? apiWindow
+    if (overviewPatchWindowMismatch(overviewPatch, apiWindow, sseWindow)) {
       return
     }
     const merged = mergeOverviewPatch(snapshotRef.current, overviewPatch, {
-      rollingWindow: LIVE_METRICS_WINDOW,
+      rollingWindow,
     })
     if (!merged) return
     applySnapshot(merged, overviewRange)
-  }, [liveView, overviewPatch, applySnapshot, overviewRange])
+  }, [streaming, overviewPatch, applySnapshot, overviewRange, sseRange.window])
 
-  // Live SSE unavailable: REST polling fallback only.
+  // SSE unavailable: REST polling fallback.
   useEffect(() => {
-    if (!liveView || !fallbackPolling) return
+    if (!streaming || !fallbackPolling) return
     refreshSnapshot()
     const timer = window.setInterval(refreshSnapshot, 5000)
     return () => window.clearInterval(timer)
-  }, [liveView, fallbackPolling, refreshSnapshot])
-
-  const onLiveSelect = () => {
-    const next: OverviewRange = { kind: 'live' }
-    setOverviewRange(next)
-    setMetricsLoading(true)
-    const p = loadPreferences()
-    savePreferences({
-      ...p,
-      metricsWindow: 'live',
-      overviewRange: serializeOverviewRange(next),
-    })
-  }
+  }, [streaming, fallbackPolling, refreshSnapshot])
 
   const onRangeChange = (next: OverviewRange) => {
     setOverviewRange(next)
@@ -220,9 +215,15 @@ export function OverviewPage() {
     const p = loadPreferences()
     savePreferences({
       ...p,
-      metricsWindow: next.kind === 'preset' ? next.preset : next.kind === 'live' ? 'live' : 'custom',
+      metricsWindow: next.kind === 'preset' ? next.preset : 'custom',
       overviewRange: serializeOverviewRange(next),
     })
+  }
+
+  const onLiveToggle = (next: boolean) => {
+    setLiveEnabled(next)
+    const p = loadPreferences()
+    savePreferences({ ...p, overviewLiveEnabled: next })
   }
 
   const handleParseIssueStatus = useCallback(
@@ -303,24 +304,33 @@ export function OverviewPage() {
 
       <div className="overview-toolbar overview-toolbar-range">
         <div className="overview-toolbar-controls">
-          <button
-            type="button"
-            className={liveView ? 'btn btn-sm active overview-live-btn' : 'btn btn-sm btn-ghost overview-live-btn'}
-            onClick={onLiveSelect}
-            aria-pressed={liveView}
-          >
-            实时
-          </button>
           <OverviewTimeRangePicker value={overviewRange} onChange={onRangeChange} />
+          <label
+            className="live-toggle overview-live-toggle"
+            title={
+              rangeLiveEligible
+                ? '开启后增量推送最新指标'
+                : '所选历史区间已结束，无法实时更新'
+            }
+          >
+            <input
+              type="checkbox"
+              checked={liveEnabled && rangeLiveEligible}
+              disabled={!rangeLiveEligible}
+              onChange={(e) => onLiveToggle(e.target.checked)}
+            />
+            <span>实时</span>
+          </label>
         </div>
       </div>
 
       <OverviewCharts
         metrics={metrics}
         overviewRange={overviewRange}
+        liveUpdating={streaming}
         chartMetrics={chartMetrics}
         loading={metricsLoading && metrics === null}
-        refreshing={liveView && metricsLoading && metrics !== null}
+        refreshing={streaming && metricsLoading && metrics !== null}
         healthScore={healthScore}
         healthClass={healthClass}
         healthChecks={healthChecks}
@@ -340,7 +350,7 @@ export function OverviewPage() {
             chartMetrics={chartMetrics}
             overviewRange={overviewRange}
             loading={metricsLoading && systemMetrics === null}
-            refreshing={liveView && metricsLoading && systemMetrics !== null}
+            refreshing={streaming && metricsLoading && systemMetrics !== null}
           />
           <div className="overview-system-divider" />
           <div className="overview-system-grid">
