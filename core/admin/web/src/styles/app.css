@@ -2643,6 +2643,28 @@ table.data.tls-certs .tls-domain {
   min-height: 200px;
 }
 
+.echarts-wrap {
+  width: 100%;
+  min-height: 180px;
+}
+
+.status-donut-ring-echarts {
+  position: relative;
+  background: transparent !important;
+}
+
+.status-donut-echarts {
+  width: 120px;
+  min-height: 120px;
+}
+
+.status-donut-ring-echarts .status-donut-hole {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  pointer-events: none;
+}
+
 .uplot-wrap .uplot {
   font-family: inherit;
 }

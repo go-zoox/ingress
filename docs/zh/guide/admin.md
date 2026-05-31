@@ -115,7 +115,7 @@ Vite 开发服务器将 `/api` 代理到 admin 端口。生产 UI 在 `cd core/a
 | `GET` | `/routes` | 扁平化路由表 |
 | `POST` | `/routes/match` |  dry-run 匹配（JSON：`host`、`path`） |
 | `GET` | `/logs` | 检索 / 尾部读取 access 或 error 日志 |
-| `GET` | `/metrics/overview` | 基于 access 日志窗口的聚合指标 |
+| `GET` | `/metrics/overview` | 基于内存 rollup 聚合（不足时回退 access 日志 tail） |
 | `GET` | `/waf/events` | 最近 WAF 审计记录（SQLite） |
 | `GET` | `/tls/certs` | 配置中证书文件的元数据 |
 | `POST` | `/tls/certs/check` | 检查单个域名 |
@@ -154,6 +154,23 @@ GET /api/v1/events/stream?channels=metrics,waf,logs,health
 ```
 
 支持的频道：`metrics`、`waf`、`logs`、`health`。UI 根据当前页面自动订阅。单 IP 最多 **5 个并发 SSE 连接**；超出或不可用时客户端自动降级为轮询。
+
+## 总览指标数据路径
+
+`GET /api/v1/metrics/overview?window=15m` 返回 JSON，其中 **`source`** 表示窗口数据来源：
+
+| `source` | 含义 |
+|----------|------|
+| `rollup_live` | 仅进程内环形缓冲（ingress 与 Admin 同进程且有流量时常见） |
+| `rollup_hybrid` | 较旧分钟来自 SQLite 分钟桶 + 最近数据来自 live 缓冲 |
+| `rollup_persisted` | 仅 SQLite 分钟桶（如重启后 live 缓冲为空的长窗口） |
+| `access_log` | 解析 access 日志 tail（rollup 未覆盖窗口时的回退） |
+| `access_log_partial` | tail 行数上限导致未读到窗口起点 |
+| `error` | 读日志/解析失败 |
+
+**实时路径：** 每个请求在 ingress core 的 `logAccess()` 中发出 `AccessMetricsEvent`，Admin `MetricsRollup.Record` 写入内存。**冷启动：** Admin 加载持久化桶（26h），缓冲为空时从 access 日志种子最多 1h；仅当 Admin 无 `CoreInstance` 时才 tail 新行（避免双计）。**持久化：** 每分钟 flush 已关闭分钟到 SQLite；内置任务 **`purge_metrics_buckets`** 按 `params.retain_days`（默认 30）清理过期桶。
+
+**日志页**仍走 SSE tail + offset；仅总览聚合走 rollup。
 
 事件格式：
 

@@ -14,9 +14,16 @@ import (
 	"github.com/go-zoox/ingress/core/admin/service"
 	"github.com/go-zoox/ingress/core/admin/service/rbac"
 	"github.com/go-zoox/ingress/core/admin/static"
+	ingcore "github.com/go-zoox/ingress/core"
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/zoox"
 	"github.com/go-zoox/zoox/defaults"
+)
+
+const (
+	overviewPushMinGap   = 5 * time.Second
+	logStreamerInterval  = 2 * time.Second
+	overviewTickInterval = 5 * time.Second
 )
 
 // New builds the admin zoox application.
@@ -43,20 +50,49 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 	authHandler.Mount(g)
 	api.Mount(g)
 
+	metricsSvc := api.MetricsService()
+	overviewStreamer := api.OverviewStreamer()
+
 	// Wire WAF event callback so blocks/audits are persisted and pushed over SSE.
 	if cfg.CoreInstance != nil {
 		audit := service.NewAudit()
 		cfg.CoreInstance.SetWAFCallback(&wafEventAdapter{audit: audit, broker: api.Broker()})
+		if metricsSvc != nil {
+			recorder := service.NewAsyncRollupRecorder(metricsSvc.Rollup(), 0)
+			cfg.CoreInstance.SetAccessMetricsCallback(&accessMetricsAdapter{
+				recorder: recorder,
+			})
+		}
 	}
 
 	// Start the health check service, log tail SSE, and SSE broker
 	if api.Broker() != nil {
 		logStreamer := service.NewLogStreamer(api.LogsService(), api.Broker())
-		logStreamer.SetOnAccessLine(func() {
-			api.OverviewStreamer().PushAll()
-		})
-		logStreamer.Start(2 * time.Second)
-		api.OverviewStreamer().Start(5 * time.Second)
+		if metricsSvc != nil {
+			if cfg.CoreInstance != nil {
+				metricsSvc.SetLiveHook(true)
+			}
+			if err := metricsSvc.LoadRollupFromDB(); err != nil {
+				logger.Warnf("metrics rollup load persisted: %v", err)
+			}
+			metricsSvc.BootstrapRollupFromTail()
+			go runMetricsRollupFlush(metricsSvc)
+		}
+		// When core hooks feed rollup, log tail is for the logs page only — do not rebuild overview.
+		if cfg.CoreInstance == nil {
+			logStreamer.SetOnAccessLine(func() {
+				overviewStreamer.ThrottledPushAll(overviewPushMinGap)
+			})
+			if metricsSvc != nil {
+				logStreamer.SetAccessLineHandler(func(line string) {
+					if e, ok := service.ParseAccessEntry(line); ok {
+						metricsSvc.Rollup().Record(e)
+					}
+				})
+			}
+		}
+		logStreamer.Start(logStreamerInterval)
+		overviewStreamer.Start(overviewTickInterval)
 		api.Health().Start()
 		api.SystemMetricsService().Start()
 		if err := api.Jobs().Start(app.Cron()); err != nil {
@@ -145,4 +181,32 @@ func (a *wafEventAdapter) OnWAFEvent(action, rule, host, path, clientIP, userAge
 			a.broker.PublishJSON("waf", "event", row)
 		}
 	}()
+}
+
+type accessMetricsAdapter struct {
+	recorder *service.AsyncRollupRecorder
+}
+
+func (a *accessMetricsAdapter) OnAccessMetrics(ev ingcore.AccessMetricsEvent) {
+	if a == nil || a.recorder == nil {
+		return
+	}
+	a.recorder.Enqueue(ev)
+}
+
+func runMetricsRollupFlush(metrics *service.Metrics) {
+	if metrics == nil {
+		return
+	}
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		if err := metrics.FlushRollup(); err != nil {
+			logger.Warnf("metrics rollup flush: %v", err)
+			continue
+		}
+		if err := metrics.LoadRollupFromDB(); err != nil {
+			logger.Warnf("metrics rollup reload persisted: %v", err)
+		}
+	}
 }

@@ -15,6 +15,10 @@ type OverviewStreamer struct {
 	stop     chan struct{}
 	seq      atomic.Int64
 	subState sync.Map // *Subscriber -> OverviewSnapshot
+
+	throttleMu        sync.Mutex
+	throttleScheduled bool
+	lastPushAt        time.Time
 }
 
 // NewOverviewStreamer creates an overview SSE publisher.
@@ -84,6 +88,37 @@ func (s *OverviewStreamer) ForgetSubscriber(sub *Subscriber) {
 // PushAll sends incremental updates to all overview subscribers.
 func (s *OverviewStreamer) PushAll() {
 	s.pushAll()
+}
+
+// ThrottledPushAll coalesces push requests to at most one push per minGap.
+func (s *OverviewStreamer) ThrottledPushAll(minGap time.Duration) {
+	if s == nil {
+		return
+	}
+	if minGap <= 0 {
+		s.pushAll()
+		return
+	}
+	s.throttleMu.Lock()
+	defer s.throttleMu.Unlock()
+	now := time.Now()
+	if now.Sub(s.lastPushAt) >= minGap {
+		s.lastPushAt = now
+		go s.pushAll()
+		return
+	}
+	if s.throttleScheduled {
+		return
+	}
+	s.throttleScheduled = true
+	wait := minGap - now.Sub(s.lastPushAt)
+	time.AfterFunc(wait, func() {
+		s.throttleMu.Lock()
+		s.throttleScheduled = false
+		s.lastPushAt = time.Now()
+		s.throttleMu.Unlock()
+		s.pushAll()
+	})
 }
 
 func (s *OverviewStreamer) pushAll() {

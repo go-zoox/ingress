@@ -41,7 +41,9 @@ func newTestService(t *testing.T, yamlContent string) *Service {
 	t.Helper()
 	cfg := writeTestIngressConfig(t, yamlContent)
 	ing := service.NewIngress(cfg)
-	return New(cfg, ing, service.NewAudit(), nil)
+	logs := service.NewLogs(cfg)
+	metrics := service.NewMetrics(logs, nil)
+	return New(cfg, ing, service.NewAudit(), nil, metrics)
 }
 
 const testIngressBase = `port: 8080

@@ -7,12 +7,13 @@ import (
 
 // LogStreamer tails access/error logs and publishes new lines on the SSE "logs" channel.
 type LogStreamer struct {
-	logs         *Logs
-	broker       *SSEBroker
-	onAccessLine func()
-	mu           sync.Mutex
-	offsets      map[LogKind]int64
-	stop         chan struct{}
+	logs              *Logs
+	broker            *SSEBroker
+	onAccessLine      func()
+	accessLineHandler func(line string)
+	mu                sync.Mutex
+	offsets           map[LogKind]int64
+	stop              chan struct{}
 }
 
 // NewLogStreamer creates a log tail publisher.
@@ -34,6 +35,14 @@ func (s *LogStreamer) SetOnAccessLine(fn func()) {
 		return
 	}
 	s.onAccessLine = fn
+}
+
+// SetAccessLineHandler parses each new access line (admin-only rollup when core hook is absent).
+func (s *LogStreamer) SetAccessLineHandler(fn func(line string)) {
+	if s == nil {
+		return
+	}
+	s.accessLineHandler = fn
 }
 
 // Start begins polling log files at the given interval.
@@ -109,6 +118,9 @@ func (s *LogStreamer) pollKind(kind LogKind) {
 			"kind": string(kind),
 		})
 		if kind == LogAccess {
+			if s.accessLineHandler != nil {
+				s.accessLineHandler(line)
+			}
 			publishedAccess = true
 		}
 	}

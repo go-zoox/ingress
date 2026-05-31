@@ -108,16 +108,110 @@ type OverviewDelta struct {
 type Metrics struct {
 	logs        *Logs
 	parseIssues *ParseIssues
+	rollup      *MetricsRollup
+	liveHook    bool // ingress core feeds rollup; never tail-parse access.log for overview
 }
 
 func NewMetrics(logs *Logs, parseIssues *ParseIssues) *Metrics {
-	return &Metrics{logs: logs, parseIssues: parseIssues}
+	return &Metrics{
+		logs:        logs,
+		parseIssues: parseIssues,
+		rollup:      NewMetricsRollup(),
+	}
+}
+
+// SetLiveHook marks metrics as fed by ingress core callbacks (embedded admin).
+func (m *Metrics) SetLiveHook(enabled bool) {
+	if m == nil {
+		return
+	}
+	m.liveHook = enabled
+}
+
+// Rollup returns the in-process live metrics buffer.
+func (m *Metrics) Rollup() *MetricsRollup {
+	if m == nil {
+		return nil
+	}
+	return m.rollup
+}
+
+const bootstrapTailMaxLines = 2_000
+
+// BootstrapRollupFromTail seeds the in-memory rollup from a small access log tail (once).
+// Skipped when liveHook is set — core callbacks populate rollup without reading the file.
+func (m *Metrics) BootstrapRollupFromTail() {
+	if m == nil || m.rollup == nil || m.rollup.Len() > 0 || m.liveHook {
+		return
+	}
+	if m.logs == nil {
+		return
+	}
+	lines, err := m.logs.TailIngressAccess(bootstrapTailMaxLines)
+	if err != nil || len(lines) == 0 {
+		return
+	}
+	parseResult := ParseAccessLogLines(lines)
+	if len(parseResult.Entries) == 0 {
+		return
+	}
+	m.rollup.IngestBatch(parseResult.Entries)
+}
+
+// LoadRollupFromDB loads persisted minute buckets for long-window overview queries.
+func (m *Metrics) LoadRollupFromDB() error {
+	if m == nil || m.rollup == nil {
+		return nil
+	}
+	return m.rollup.LoadPersisted(0)
+}
+
+// FlushRollup writes pending minute aggregates to SQLite.
+func (m *Metrics) FlushRollup() error {
+	if m == nil || m.rollup == nil {
+		return nil
+	}
+	return m.rollup.FlushPending()
+}
+
+// PurgePersistedBuckets deletes minute buckets older than retainDays.
+func (m *Metrics) PurgePersistedBuckets(retainDays int) (int64, error) {
+	if m == nil || m.rollup == nil {
+		return 0, nil
+	}
+	n, err := m.rollup.PurgePersistedOlderThan(retainDays)
+	if err != nil {
+		return n, err
+	}
+	_ = m.rollup.LoadPersisted(0)
+	return n, nil
 }
 
 func (m *Metrics) Overview(window string) OverviewMetrics {
 	window = strings.TrimSpace(window)
 	if window == "" {
 		window = "15m"
+	}
+	if m.rollup != nil {
+		rw := m.rollup.WindowEntries(window, m.liveHook)
+		if rw.HasData || m.liveHook {
+			source := rw.Source
+			if source == "" {
+				source = "rollup_live"
+			}
+			out := aggregateOverview(rw.Entries, window, source)
+			out.WindowStale = rw.HasData && !rw.FullCoverage
+			if m.parseIssues != nil {
+				if n, err := m.parseIssues.OpenCount(); err == nil {
+					out.ParseIssueOpen = int(n)
+				}
+			}
+			out.ParseableInTail = len(rw.Entries)
+			return out
+		}
+	}
+	if m.liveHook {
+		return aggregateOverview(nil, window, "rollup_live")
 	}
 	lines, err := m.tailIngressAccessForWindow(window)
 	if err != nil {
@@ -148,26 +242,102 @@ func (m *Metrics) tailIngressAccessForWindow(window string) ([]string, error) {
 		return nil, nil
 	}
 	windowDur := parseWindowDuration(window)
+	slot := timelineSlotForWindow(windowDur, window)
+	anchor := time.Now()
+	windowStart := timelineWindowStart(anchor, windowDur, slot)
+
 	limit := tailLinesForWindow(window)
-	maxLimit := maxTailLinesForWindow(window)
+	maxLimit := overviewTailMaxLines(window)
 	for {
 		lines, err := m.logs.TailIngressAccess(limit)
 		if err != nil {
 			return nil, err
 		}
-		parseResult := ParseAccessLogLines(lines)
-		if tailCoversWindow(parseResult.Entries, windowDur, time.Now()) || limit >= maxLimit {
-			return lines, nil
+		trimmed := trimParsableLinesFromWindowStart(lines, windowStart, anchor)
+		if tailIncludesWindowStart(lines, windowStart) || limit >= maxLimit {
+			return trimmed, nil
 		}
 		next := limit * 2
 		if next > maxLimit {
 			next = maxLimit
 		}
 		if next <= limit {
-			return lines, nil
+			return trimmed, nil
 		}
 		limit = next
 	}
+}
+
+func timelineSlotForWindow(windowDur time.Duration, window string) time.Duration {
+	buckets := timelineBucketsForWindow(window)
+	if buckets <= 0 {
+		buckets = 8
+	}
+	slot := windowDur / time.Duration(buckets)
+	if slot <= 0 {
+		return time.Minute
+	}
+	return slot
+}
+
+func earliestParsableTime(lines []string) time.Time {
+	var earliest time.Time
+	for _, line := range lines {
+		e, ok := parseAccessLine(line)
+		if !ok || e.At.IsZero() {
+			continue
+		}
+		if earliest.IsZero() || e.At.Before(earliest) {
+			earliest = e.At
+		}
+	}
+	return earliest
+}
+
+func tailIncludesWindowStart(lines []string, windowStart time.Time) bool {
+	if windowStart.IsZero() {
+		return true
+	}
+	earliest := earliestParsableTime(lines)
+	if earliest.IsZero() {
+		return true
+	}
+	return !earliest.After(windowStart)
+}
+
+// trimParsableLinesFromWindowStart keeps every line in [windowStart, anchor] instead of
+// a fixed tail line count, so closed minute buckets do not lose rows as the log grows.
+func trimParsableLinesFromWindowStart(lines []string, windowStart, anchor time.Time) []string {
+	if len(lines) == 0 || windowStart.IsZero() {
+		return lines
+	}
+	startIdx := len(lines)
+	for i, line := range lines {
+		e, ok := parseAccessLine(line)
+		if !ok || e.At.IsZero() {
+			continue
+		}
+		if !e.At.Before(windowStart) {
+			startIdx = i
+			break
+		}
+	}
+	out := lines[startIdx:]
+	if anchor.IsZero() {
+		return out
+	}
+	filtered := make([]string, 0, len(out))
+	for _, line := range out {
+		e, ok := parseAccessLine(line)
+		if !ok || e.At.IsZero() {
+			filtered = append(filtered, line)
+			continue
+		}
+		if !e.At.After(anchor) {
+			filtered = append(filtered, line)
+		}
+	}
+	return filtered
 }
 
 func (m *Metrics) overviewSource(lines []string, entries []AccessEntry, parseSkipped int) string {
@@ -208,6 +378,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	out.Total = len(filtered)
 	out.WindowStale = windowStale
 	var durations []float64
+	var histogramDurations []float64
 	cacheHits := 0
 	hostCounts := map[string]int{}
 	pathCounts := map[string]int{}
@@ -218,6 +389,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 		if e.Status >= 400 {
 			out.ErrorRate += 1
 		}
+		histogramDurations = append(histogramDurations, e.DurationMs)
 		if e.DurationMs > 0 {
 			durations = append(durations, e.DurationMs)
 		}
@@ -249,7 +421,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	out.TopBackends = topBackends(filtered, windowDur, 8)
 	out.Slowest = slowest(filtered, 5)
 	out.ErrorSamples = errorSamples(filtered, 5)
-	out.LatencyHistogram = buildLatencyHistogram(durations)
+	out.LatencyHistogram = buildLatencyHistogram(histogramDurations)
 	out.Timeline = buildTimeline(filtered, hasTime, windowDur, bucketCount, anchor)
 
 	prevFiltered := filterEntriesInPreviousWindow(entries, anchor, windowDur, hasTime)
@@ -365,6 +537,10 @@ func parseWindowDuration(window string) time.Duration {
 		return time.Hour
 	case "5m":
 		return 5 * time.Minute
+	case "1m":
+		return time.Minute
+	case "10m":
+		return 10 * time.Minute
 	default:
 		return 15 * time.Minute
 	}
@@ -397,8 +573,16 @@ func maxTailLinesForWindow(window string) int {
 	case "5m":
 		return 40000
 	default:
-		return 80000
+		return 8000
 	}
+}
+
+func overviewTailMaxLines(window string) int {
+	limit := maxTailLinesForWindow(window)
+	if limit > 8000 {
+		return 8000
+	}
+	return limit
 }
 
 func tailCoversWindow(entries []AccessEntry, windowDur time.Duration, anchor time.Time) bool {
@@ -420,6 +604,8 @@ func timelineBucketsForWindow(window string) int {
 		return 12
 	case "5m":
 		return 5
+	case "10m":
+		return 10
 	case "15m":
 		return 15
 	default:
@@ -539,7 +725,7 @@ func buildLatencyHistogram(durations []float64) []LatencyBucket {
 		out[i].Label = b.label
 	}
 	for _, ms := range durations {
-		if ms <= 0 {
+		if ms < 0 {
 			continue
 		}
 		for i, b := range latencyHistBounds {
@@ -589,6 +775,10 @@ func filterEntriesInWindow(entries []AccessEntry, anchor time.Time, window time.
 		return append([]AccessEntry(nil), entries...)
 	}
 	start := anchor.Add(-window)
+	return filterEntriesSince(entries, start, anchor)
+}
+
+func filterEntriesSince(entries []AccessEntry, start, anchor time.Time) []AccessEntry {
 	out := make([]AccessEntry, 0, len(entries))
 	for _, e := range entries {
 		if e.At.IsZero() {

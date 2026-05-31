@@ -52,7 +52,7 @@ func NewAPI(cfg *config.Config, auth *adminauth.Service) *API {
 	configSvc := service.NewConfig(ingress, audit)
 	scenariosSvc := service.NewScenarios(ingress, audit, configSvc)
 	overviewBuilder := service.NewOverviewBuilder(ingress, metrics, systemSvc, tlsSvc, healthSvc, audit, parseIssues, configSvc)
-	jobsSvc := jobs.New(cfg, ingress, audit, tlsSvc)
+	jobsSvc := jobs.New(cfg, ingress, audit, tlsSvc, metrics)
 	return &API{
 		cfg:              cfg,
 		ingress:          ingress,
@@ -938,6 +938,11 @@ func (a *API) Jobs() *jobs.Service {
 // LogsService returns the logs service instance.
 func (a *API) LogsService() *service.Logs {
 	return a.logs
+}
+
+// MetricsService returns the metrics aggregator.
+func (a *API) MetricsService() *service.Metrics {
+	return a.metrics
 }
 
 // Health returns the health check service instance.

@@ -104,11 +104,11 @@ func (c *core) build() error {
 				if serviceIns != nil {
 					target = serviceIns.Target()
 				}
-				ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, target, method, path, ctx.Request.Proto, http.StatusTooManyRequests, time.Since(reqStart), accessLogMeta{
+				c.logAccess(ctx, hostname, target, method, path, ctx.Request.Proto, http.StatusTooManyRequests, time.Since(reqStart), accessLogMeta{
 					RateLimitBlock:         true,
 					UpstreamStatus:         http.StatusTooManyRequests,
 					UpstreamResponseLength: -1,
-				}))
+				})
 				return false, true, nil
 			}
 		}
@@ -137,11 +137,11 @@ func (c *core) build() error {
 			if serviceIns != nil {
 				target = serviceIns.Target()
 			}
-			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, target, method, path, ctx.Request.Proto, wafProf.BlockStatus, time.Since(reqStart), accessLogMeta{
+			c.logAccess(ctx, hostname, target, method, path, ctx.Request.Proto, wafProf.BlockStatus, time.Since(reqStart), accessLogMeta{
 				WAFBlock:               true,
 				UpstreamStatus:         wafProf.BlockStatus,
 				UpstreamResponseLength: -1,
-			}))
+			})
 			return false, true, nil
 		}
 
@@ -151,11 +151,11 @@ func (c *core) build() error {
 			if serviceIns != nil {
 				target = serviceIns.Target()
 			}
-			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, target, method, path, ctx.Request.Proto, http.StatusServiceUnavailable, time.Since(reqStart), accessLogMeta{
+			c.logAccess(ctx, hostname, target, method, path, ctx.Request.Proto, http.StatusServiceUnavailable, time.Since(reqStart), accessLogMeta{
 				MaintenanceBlock:       true,
 				UpstreamStatus:         http.StatusServiceUnavailable,
 				UpstreamResponseLength: -1,
-			}))
+			})
 			return false, true, nil
 		}
 
@@ -198,12 +198,12 @@ func (c *core) build() error {
 				applySecurityHeaders(ctx, secProf)
 				if hit, code, ulen := tryServeHTTPCache(ctx, policyRedirect, redirectCacheKey); hit {
 					rdDur := time.Since(redirectCacheStart)
-					ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, "redirect", method, path, ctx.Request.Proto, code, rdDur, accessLogMeta{
+					c.logAccess(ctx, hostname, "redirect", method, path, ctx.Request.Proto, code, rdDur, accessLogMeta{
 						CacheHit:               true,
 						UpstreamStatus:         code,
 						UpstreamResponseLength: ulen,
 						UpstreamResponseTime:   rdDur,
-					}))
+					})
 					return false, true, nil
 				}
 				mayStoreRedirect = method == http.MethodGet
@@ -244,12 +244,12 @@ func (c *core) build() error {
 			applySecurityHeaders(ctx, secProf)
 			applyRedirect(ctx, redirectURL, permanent, withOriginMethodAndBody)
 			rdCode := redirectStatusFromFlags(permanent, withOriginMethodAndBody)
-			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, "redirect", method, path, ctx.Request.Proto, rdCode, time.Since(redirectCacheStart), accessLogMeta{
+			c.logAccess(ctx, hostname, "redirect", method, path, ctx.Request.Proto, rdCode, time.Since(redirectCacheStart), accessLogMeta{
 				UpstreamStatus:         rdCode,
 				UpstreamResponseLength: -1,
-			}))
+				})
 
-			return false, true, nil
+				return false, true, nil
 		}
 
 		// handler: check path-level backend first, then host-level backend
@@ -285,12 +285,12 @@ func (c *core) build() error {
 				applySecurityHeaders(ctx, secProf)
 				if hit, code, ulen := tryServeHTTPCache(ctx, policyHandler, handlerCacheKey); hit {
 					hDur := time.Since(handlerCacheStart)
-					ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, handlerAccessTarget(handlerType), method, path, ctx.Request.Proto, code, hDur, accessLogMeta{
+					c.logAccess(ctx, hostname, handlerAccessTarget(handlerType), method, path, ctx.Request.Proto, code, hDur, accessLogMeta{
 						CacheHit:               true,
 						UpstreamStatus:         code,
 						UpstreamResponseLength: ulen,
 						UpstreamResponseTime:   hDur,
-					}))
+					})
 					return false, true, nil
 				}
 				if httpCacheShouldCaptureHandlerResponse(method, policyHandler) {
@@ -397,13 +397,13 @@ func (c *core) build() error {
 			if captureBuf != nil {
 				respLen = int64(captureBuf.Len())
 			}
-			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, handlerAccessTarget(handlerType), method, path, ctx.Request.Proto, handlerStatusCode, handlerDuration, accessLogMeta{
+			c.logAccess(ctx, hostname, handlerAccessTarget(handlerType), method, path, ctx.Request.Proto, handlerStatusCode, handlerDuration, accessLogMeta{
 				UpstreamStatus:         handlerStatusCode,
 				UpstreamResponseLength: respLen,
 				UpstreamResponseTime:   handlerDuration,
-			}))
+				})
 
-			return false, true, nil
+				return false, true, nil
 		}
 
 		// If there's only redirect config but no service, skip validation
@@ -522,12 +522,12 @@ func (c *core) build() error {
 				applySecurityHeaders(ctx, secProf)
 				if hit, code, ulen := tryServeHTTPCache(ctx, pc, httpCacheStoreKey); hit {
 					hitDur := time.Since(proxyStart)
-					ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, serviceIns.Target(), method, path, ctx.Request.Proto, code, hitDur, accessLogMeta{
+					c.logAccess(ctx, hostname, serviceIns.Target(), method, path, ctx.Request.Proto, code, hitDur, accessLogMeta{
 						CacheHit:               true,
 						UpstreamStatus:         code,
 						UpstreamResponseLength: ulen,
 						UpstreamResponseTime:   hitDur,
-					}))
+					})
 					return false, true, nil
 				}
 				httpCacheMayStore = true
@@ -618,11 +618,11 @@ func (c *core) build() error {
 			}
 
 			upstreamDuration := time.Since(proxyStart)
-			ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, serviceIns.Target(), method, path, ctx.Request.Proto, res.StatusCode, upstreamDuration, accessLogMeta{
+			c.logAccess(ctx, hostname, serviceIns.Target(), method, path, ctx.Request.Proto, res.StatusCode, upstreamDuration, accessLogMeta{
 				UpstreamStatus:         res.StatusCode,
 				UpstreamResponseLength: res.ContentLength,
 				UpstreamResponseTime:   upstreamDuration,
-			}))
+			})
 
 			return nil
 		}
