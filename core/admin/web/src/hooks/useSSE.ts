@@ -214,6 +214,10 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
   }, [connect, close, options?.window, options?.enabled, channels.join(',')])
 
   useEffect(() => {
+    setOverviewPatch(null)
+  }, [options?.window])
+
+  useEffect(() => {
     const onUnload = () => close()
     window.addEventListener('beforeunload', onUnload)
     return () => window.removeEventListener('beforeunload', onUnload)

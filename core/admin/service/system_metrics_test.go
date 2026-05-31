@@ -17,8 +17,8 @@ func TestSystemMetricsSnapshot_windowFilter(t *testing.T) {
 	svc.mu.Unlock()
 
 	out := svc.Snapshot("15m")
-	if len(out.Timeline) != 8 {
-		t.Fatalf("timeline len=%d want 8 buckets for 15m", len(out.Timeline))
+	if len(out.Timeline) != 15 {
+		t.Fatalf("timeline len=%d want 15 buckets for 15m", len(out.Timeline))
 	}
 	if out.CPUPct != 3 || out.MemoryMB != 30 {
 		t.Fatalf("latest snapshot=%+v", out)
@@ -39,8 +39,8 @@ func TestBuildSystemTimeline_bucketed(t *testing.T) {
 		}
 	}
 	out := buildSystemTimeline(samples, 15*time.Minute)
-	if len(out) != 8 {
-		t.Fatalf("len=%d want 8", len(out))
+	if len(out) != 15 {
+		t.Fatalf("len=%d want 15", len(out))
 	}
 	if out[len(out)-1].CPUPct <= 0 {
 		t.Fatalf("last bucket should include recent samples: %+v", out[len(out)-1])

@@ -1,25 +1,44 @@
 import { type ReactNode } from 'react'
 import { Cpu, HardDrive, Zap } from 'lucide-react'
 import type { OverviewMetrics, SystemMetrics } from '../api/client'
+import { formatMetricsWindowLabel, snapshotMatchesWindow } from '../lib/metricsWindow'
 import { KpiSparkline } from './KpiSparkline'
 
 type Props = {
   system: SystemMetrics | null
+  chartSystem?: SystemMetrics | null
   metrics: OverviewMetrics | null
+  chartMetrics?: OverviewMetrics | null
+  metricsWindow: string
   loading?: boolean
+  refreshing?: boolean
 }
 
-export function SystemResourceStrip({ system, metrics, loading }: Props) {
-  const cpuSpark = system?.timeline?.map((p) => p.cpu_pct) ?? []
-  const memSpark = system?.timeline?.map((p) => p.memory_mb) ?? []
-  const throughputSpark = metrics?.timeline?.map((b) => b.count) ?? []
+export function SystemResourceStrip({
+  system,
+  chartSystem,
+  metrics,
+  chartMetrics,
+  metricsWindow,
+  loading,
+  refreshing,
+}: Props) {
+  const liveSystem = snapshotMatchesWindow(system, metricsWindow) ? system : null
+  const liveMetrics = snapshotMatchesWindow(metrics, metricsWindow) ? metrics : null
+  const sparkSystem = liveSystem ?? chartSystem
+  const sparkMetrics = liveMetrics ?? chartMetrics
+  const displayMetrics = liveMetrics ?? chartMetrics
+  const cpuSpark = sparkSystem?.timeline?.map((p) => p.cpu_pct) ?? []
+  const memSpark = sparkSystem?.timeline?.map((p) => p.memory_mb) ?? []
+  const throughputSpark = sparkMetrics?.timeline?.map((b) => b.count) ?? []
 
   const cpuTone =
     (system?.cpu_pct ?? 0) > 80 ? 'var(--danger)' : (system?.cpu_pct ?? 0) > 50 ? 'var(--warn)' : 'var(--accent)'
-  const rpm = metrics?.rpm ?? 0
+  const rpm = displayMetrics?.rpm ?? 0
+  const windowLabel = formatMetricsWindowLabel(metricsWindow)
 
   return (
-    <div className="overview-resource-strip">
+    <div className={refreshing ? 'overview-resource-strip is-refreshing' : 'overview-resource-strip'}>
       <div className="overview-resource-head">
         <h3>进程资源</h3>
         <span className="overview-resource-hint">本进程 · 每 10s 采样</span>
@@ -44,8 +63,8 @@ export function SystemResourceStrip({ system, metrics, loading }: Props) {
         <ResourceCard
           icon={<Zap size={16} aria-hidden />}
           label="L7 吞吐"
-          value={metrics ? `${rpm.toFixed(1)} 次/分` : '—'}
-          sub={metrics ? `${metrics.total} 请求 · ${metrics.window}` : '等待 access.log'}
+          value={displayMetrics ? `${rpm.toFixed(1)} 次/分` : '—'}
+          sub={displayMetrics ? `${displayMetrics.total} 请求 · ${windowLabel}` : '等待 access.log'}
           spark={throughputSpark}
           sparkTone="var(--accent)"
         />

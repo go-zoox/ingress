@@ -1,9 +1,4 @@
-import { memo, useCallback, useRef, useState, type ReactNode } from 'react'
-import {
-  AttentionAnimatedList,
-  type AttentionAnimatedListHandle,
-  type AttentionAnimPhase,
-} from './AttentionAnimatedList'
+import { memo, useCallback, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -54,19 +49,16 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
   const [parseIssueId, setParseIssueId] = useState<number | null>(null)
   const [wafEventId, setWafEventId] = useState<number | null>(null)
   const [wafTrialEvent, setWafTrialEvent] = useState<WAFEvent | WAFEventDetail | null>(null)
-  const wafListRef = useRef<AttentionAnimatedListHandle>(null)
-  const parseListRef = useRef<AttentionAnimatedListHandle>(null)
-
   const handleWafEventStatus = useCallback(
     (id: number, status: 'ignored' | 'resolved') => {
-      wafListRef.current?.exitThen(id, () => onWafEventStatus?.(id, status))
+      onWafEventStatus?.(id, status)
     },
     [onWafEventStatus],
   )
 
   const handleParseIssueStatus = useCallback(
     (id: number, status: 'ignored' | 'resolved') => {
-      parseListRef.current?.exitThen(id, () => onParseIssueStatus?.(id, status))
+      onParseIssueStatus?.(id, status)
     },
     [onParseIssueStatus],
   )
@@ -101,29 +93,24 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
           emptyOk
         >
           {downs.length === 0 ? null : (
-            <AttentionAnimatedList
-              className="attention-list"
-              items={downs}
-              itemKey={(h) => h.key}
-            >
-              {(row, layoutRef) => (
+            <ul className="attention-list">
+              {downs.map((h) => (
                 <AttentionRow
-                  layoutRef={layoutRef}
-                  animPhase={row.phase}
+                  key={h.key}
                   level="danger"
-                  title={`DOWN · ${row.item.host}`}
-                  detail={row.item.error || row.item.url || row.item.backend}
-                  href={healthLink({ status: 'down', host: row.item.host })}
+                  title={`DOWN · ${h.host}`}
+                  detail={h.error || h.url || h.backend}
+                  href={healthLink({ status: 'down', host: h.host })}
                   actions={[
                     {
                       label: '调查',
-                      href: investigateLink({ host: row.item.host, path: row.item.path || '/' }),
+                      href: investigateLink({ host: h.host, path: h.path || '/' }),
                     },
-                    { label: '查日志', href: logsLink({ host: row.item.host, log: 'access' }) },
+                    { label: '查日志', href: logsLink({ host: h.host, log: 'access' }) },
                   ]}
                 />
-              )}
-            </AttentionAnimatedList>
+              ))}
+            </ul>
           )}
         </AttentionSection>
 
@@ -135,23 +122,17 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
           emptyOk
         >
           {wafBlocks.length === 0 ? null : (
-            <AttentionAnimatedList
-              ref={wafListRef}
-              className="attention-list"
-              items={wafBlocks}
-              itemKey={(e) => e.id}
-            >
-              {(row, layoutRef) => (
+            <ul className="attention-list">
+              {wafBlocks.map((e) => (
                 <AttentionRow
-                  layoutRef={layoutRef}
-                  animPhase={row.phase}
+                  key={e.id}
                   level="warn"
-                  title={`block · ${row.item.rule}`}
-                  detail={`${row.item.host}${row.item.path}`}
-                  onView={() => setWafEventId(row.item.id)}
+                  title={`block · ${e.rule}`}
+                  detail={`${e.host}${e.path}`}
+                  onView={() => setWafEventId(e.id)}
                 />
-              )}
-            </AttentionAnimatedList>
+              ))}
+            </ul>
           )}
         </AttentionSection>
 
@@ -162,33 +143,27 @@ export const OverviewAttentionPanel = memo(function OverviewAttentionPanel({
           emptyOk
         >
           {parseIssues.length === 0 ? null : (
-            <AttentionAnimatedList
-              ref={parseListRef}
-              className="attention-list"
-              items={parseIssues}
-              itemKey={(issue) => issue.id}
-            >
-              {(row, layoutRef) => (
+            <ul className="attention-list">
+              {parseIssues.map((issue) => (
                 <AttentionRow
-                  layoutRef={layoutRef}
-                  animPhase={row.phase}
+                  key={issue.id}
                   level="warn"
-                  title={`无法解析 · ${parseIssueReasonLabel(row.item.reason)}`}
-                  detail={`${row.item.hit_count} 次 · ${truncateIssueLine(row.item.sample_line)}`}
-                  onView={() => setParseIssueId(row.item.id)}
+                  title={`无法解析 · ${parseIssueReasonLabel(issue.reason)}`}
+                  detail={`${issue.hit_count} 次 · ${truncateIssueLine(issue.sample_line)}`}
+                  onView={() => setParseIssueId(issue.id)}
                   buttons={[
                     {
                       label: '已处理',
-                      onClick: () => handleParseIssueStatus(row.item.id, 'resolved'),
+                      onClick: () => handleParseIssueStatus(issue.id, 'resolved'),
                     },
                     {
                       label: '忽略',
-                      onClick: () => handleParseIssueStatus(row.item.id, 'ignored'),
+                      onClick: () => handleParseIssueStatus(issue.id, 'ignored'),
                     },
                   ]}
                 />
-              )}
-            </AttentionAnimatedList>
+              ))}
+            </ul>
           )}
         </AttentionSection>
 
@@ -291,8 +266,6 @@ function AttentionRow({
   actions,
   buttons,
   icon,
-  animPhase = 'stable',
-  layoutRef,
 }: {
   level: 'danger' | 'warn' | 'info'
   title: string
@@ -302,17 +275,9 @@ function AttentionRow({
   actions?: AttentionAction[]
   buttons?: AttentionButton[]
   icon?: ReactNode
-  animPhase?: AttentionAnimPhase
-  layoutRef?: (el: HTMLElement | null) => void
 }) {
-  const animClass =
-    animPhase === 'enter'
-      ? ' list-anim-enter'
-      : animPhase === 'exit'
-        ? ' list-anim-exit'
-        : ''
   return (
-    <li ref={layoutRef} className={`attention-item attention-${level}${animClass}`}>
+    <li className={`attention-item attention-${level}`}>
       <div className="attention-main">
         <span className={`attention-dot attention-dot-${level}`} />
         {icon ? <span className="attention-icon">{icon}</span> : null}

@@ -164,7 +164,7 @@ func buildSystemTimeline(samples []systemSample, dur time.Duration) []SystemMetr
 	if last := samples[len(samples)-1].at; !last.IsZero() {
 		anchor = last
 	}
-	windowStart := alignedTimelineEnd(anchor, slot).Add(-dur)
+	windowStart := timelineWindowStart(anchor, dur, slot)
 
 	type bucketScratch struct {
 		cpuSum float64

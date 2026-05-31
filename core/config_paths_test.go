@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/go-zoox/ingress/core/rule"
 	zcfg "github.com/go-zoox/zoox/config"
 )
 
@@ -51,5 +52,35 @@ func TestResolveConfigPaths_keepsAbsolutePaths(t *testing.T) {
 	}
 	if cfg.Logging.Transports[0].Path != "/var/log/ingress/access.log" {
 		t.Fatalf("got %q", cfg.Logging.Transports[0].Path)
+	}
+}
+
+func TestResolveConfigPaths_handlerRootDir(t *testing.T) {
+	cfg := &Config{
+		Rules: []rule.Rule{
+			{
+				Host: "cdn.example.com",
+				Backend: rule.Backend{
+					Type: "handler",
+					Handler: rule.Handler{
+						Type:    "file_server",
+						RootDir: "./static",
+					},
+				},
+			},
+		},
+	}
+	configFile := filepath.Join("examples", "admin-console", "ingress.yaml")
+	if err := ResolveConfigPaths(cfg, configFile); err != nil {
+		t.Fatal(err)
+	}
+	wantBase, err := ingressConfigDir(configFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := cfg.Rules[0].Backend.Handler.RootDir
+	want := filepath.Join(wantBase, "static")
+	if got != want {
+		t.Fatalf("root_dir: got %q want %q", got, want)
 	}
 }

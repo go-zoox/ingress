@@ -1,18 +1,12 @@
 import { memo } from 'react'
 import type { BackendStat } from '../api/client'
-import { useAnimatedListRows } from '../hooks/useAnimatedListRows'
-import { useListFlip } from '../hooks/useListFlip'
-import { listAnimPhaseClass } from '../lib/listAnim'
 
 type Props = {
   backends: BackendStat[]
 }
 
 export const BackendPerformancePanel = memo(function BackendPerformancePanel({ backends }: Props) {
-  const { rows: animRows, flipKeys } = useAnimatedListRows(backends, (b) => b.name)
-  const registerFlip = useListFlip(flipKeys)
-
-  if (animRows.length === 0) {
+  if (backends.length === 0) {
     return <p className="empty-hint">暂无后端流量（handler 或未解析 target）</p>
   }
 
@@ -26,28 +20,21 @@ export const BackendPerformancePanel = memo(function BackendPerformancePanel({ b
           <span>上游 P95</span>
           <span>上游 5xx</span>
         </div>
-        {animRows.map((row) => {
-          const b = row.item
-          return (
-            <div
-              key={row.key}
-              ref={registerFlip(row.key)}
-              className={`backend-perf-row${listAnimPhaseClass(row.phase)}`}
-            >
-              <span>
-                <code className="backend-target" title={b.name}>
-                  {b.name}
-                </code>
-              </span>
-              <span>{b.count}</span>
-              <span>{b.rpm.toFixed(1)}</span>
-              <span className={latencyTone(b.upstream_p95_ms)}>{formatMs(b.upstream_p95_ms)}</span>
-              <span className={b.upstream_error_pct > 1 ? 'text-danger' : undefined}>
-                {b.upstream_error_pct.toFixed(1)}%
-              </span>
-            </div>
-          )
-        })}
+        {backends.map((b) => (
+          <div key={b.name} className="backend-perf-row">
+            <span>
+              <code className="backend-target" title={b.name}>
+                {b.name}
+              </code>
+            </span>
+            <span>{b.count}</span>
+            <span>{b.rpm.toFixed(1)}</span>
+            <span className={latencyTone(b.upstream_p95_ms)}>{formatMs(b.upstream_p95_ms)}</span>
+            <span className={b.upstream_error_pct > 1 ? 'text-danger' : undefined}>
+              {b.upstream_error_pct.toFixed(1)}%
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )

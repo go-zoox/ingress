@@ -119,7 +119,7 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 	if window == "" {
 		window = "15m"
 	}
-	lines, err := m.logs.TailIngressAccess(tailLinesForWindow(window))
+	lines, err := m.tailIngressAccessForWindow(window)
 	if err != nil {
 		return aggregateOverview(nil, window, "error")
 	}
@@ -141,6 +141,33 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 		}
 	}
 	return out
+}
+
+func (m *Metrics) tailIngressAccessForWindow(window string) ([]string, error) {
+	if m.logs == nil {
+		return nil, nil
+	}
+	windowDur := parseWindowDuration(window)
+	limit := tailLinesForWindow(window)
+	maxLimit := maxTailLinesForWindow(window)
+	for {
+		lines, err := m.logs.TailIngressAccess(limit)
+		if err != nil {
+			return nil, err
+		}
+		parseResult := ParseAccessLogLines(lines)
+		if tailCoversWindow(parseResult.Entries, windowDur, time.Now()) || limit >= maxLimit {
+			return lines, nil
+		}
+		next := limit * 2
+		if next > maxLimit {
+			next = maxLimit
+		}
+		if next <= limit {
+			return lines, nil
+		}
+		limit = next
+	}
 }
 
 func (m *Metrics) overviewSource(lines []string, entries []AccessEntry, parseSkipped int) string {
@@ -343,7 +370,7 @@ func parseWindowDuration(window string) time.Duration {
 	}
 }
 
-// TailLinesForWindow returns how many access log lines to read for a metrics window.
+// TailLinesForWindow returns the initial tail budget for a metrics window (may expand adaptively).
 func TailLinesForWindow(window string) int {
 	return tailLinesForWindow(window)
 }
@@ -353,12 +380,36 @@ func tailLinesForWindow(window string) int {
 	case "24h":
 		return 50000
 	case "1h", "60m":
-		return 20000
+		return 25000
 	case "5m":
-		return 5000
+		return 10000
 	default:
-		return 8000
+		return 20000
 	}
+}
+
+func maxTailLinesForWindow(window string) int {
+	switch window {
+	case "24h":
+		return maxLogScanLines
+	case "1h", "60m":
+		return 150000
+	case "5m":
+		return 40000
+	default:
+		return 80000
+	}
+}
+
+func tailCoversWindow(entries []AccessEntry, windowDur time.Duration, anchor time.Time) bool {
+	if !entriesHaveTimestamps(entries) || len(entries) == 0 {
+		return true
+	}
+	earliest := earliestEntryTime(entries)
+	if earliest.IsZero() {
+		return true
+	}
+	return !earliest.After(anchor.Add(-windowDur))
 }
 
 func timelineBucketsForWindow(window string) int {
@@ -367,8 +418,12 @@ func timelineBucketsForWindow(window string) int {
 		return 24
 	case "1h", "60m":
 		return 12
+	case "5m":
+		return 5
+	case "15m":
+		return 15
 	default:
-		return 8
+		return 15
 	}
 }
 
@@ -566,7 +621,7 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 	if slot <= 0 {
 		slot = time.Minute
 	}
-	windowStart := alignedTimelineEnd(anchor, slot).Add(-window)
+	windowStart := timelineWindowStart(anchor, window, slot)
 
 	result := make([]TimelineBucket, buckets)
 	for i := range result {

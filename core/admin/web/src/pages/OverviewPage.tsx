@@ -18,18 +18,19 @@ import {
   type OverviewSnapshot,
 } from '../api/client'
 import { useSSE } from '../hooks/useSSE'
+import { useOverviewMetricsCache, useSystemMetricsCache } from '../hooks/useMetricsWindowCache'
 import { mergeOverviewPatch, overviewPatchWindowMismatch } from '../lib/overviewMerge'
 import { useOverviewStream } from '../context/OverviewStreamContext'
 import { loadPreferences, savePreferences } from '../lib/preferences'
-import { normalizeMetricsWindow } from '../lib/metricsWindow'
+import { normalizeMetricsWindow, snapshotMatchesWindow } from '../lib/metricsWindow'
 import { computeHealthScore, healthScoreClass } from '../lib/overviewHealthScore'
 import { PageLoading } from '../components/PageLoading'
 
 const WINDOW_OPTIONS = [
-  { value: '5m', label: '5 分钟' },
-  { value: '15m', label: '15 分钟' },
-  { value: '1h', label: '1 小时' },
-  { value: '24h', label: '24 小时' },
+  { value: '5m', label: '最近 5 分钟' },
+  { value: '15m', label: '最近 15 分钟' },
+  { value: '1h', label: '最近 1 小时' },
+  { value: '24h', label: '最近 24 小时' },
 ] as const
 
 export function OverviewPage() {
@@ -85,6 +86,9 @@ export function OverviewPage() {
     if (snap.window && normalizeMetricsWindow(snap.window) !== expected) {
       return
     }
+    if (snap.metrics?.window && normalizeMetricsWindow(snap.metrics.window) !== expected) {
+      return
+    }
     if (snap.status) {
       setStatus(snap.status)
     }
@@ -123,6 +127,7 @@ export function OverviewPage() {
   useEffect(() => {
     const fetchId = ++windowFetchRef.current
     const window = metricsWindow
+    snapshotRef.current = null
     setMetricsLoading(true)
     api
       .overviewSnapshot(window)
@@ -139,11 +144,14 @@ export function OverviewPage() {
 
   useEffect(() => {
     if (!overviewPatch) return
+    if (!snapshotRef.current) return
+    if (!snapshotMatchesWindow(snapshotRef.current, metricsWindow)) return
     if (overviewPatchWindowMismatch(overviewPatch, metricsWindow, metricsWindow)) {
       return
     }
-    const merged = mergeOverviewPatch(snapshotRef.current ?? undefined, overviewPatch)
-    applySnapshot(merged, merged.window)
+    const merged = mergeOverviewPatch(snapshotRef.current, overviewPatch)
+    if (!merged) return
+    applySnapshot(merged, metricsWindow)
   }, [overviewPatch, applySnapshot, metricsWindow])
 
   useEffect(() => {
@@ -163,7 +171,7 @@ export function OverviewPage() {
   const onWindowChange = (value: string) => {
     const normalized = normalizeMetricsWindow(value)
     setMetricsWindow(normalized)
-    snapshotRef.current = null
+    setMetricsLoading(true)
     savePreferences({ ...loadPreferences(), metricsWindow: normalized })
   }
 
@@ -194,17 +202,22 @@ export function OverviewPage() {
   const certWarn = certs.filter((c) => c.days_remaining < 30).length
   const certCritical = certs.filter((c) => c.days_remaining < 7).length
 
+  const chartMetrics = useOverviewMetricsCache(metrics, metricsWindow)
+  const chartSystem = useSystemMetricsCache(systemMetrics, metricsWindow)
+
   const healthScore = useMemo(() => {
-    if (!metrics || metrics.total === 0) return null
+    const m =
+      metrics && snapshotMatchesWindow(metrics, metricsWindow) ? metrics : chartMetrics
+    if (!m || m.total === 0) return null
     return computeHealthScore({
-      errorRate: metrics.error_rate,
-      p95Ms: metrics.p95_ms,
+      errorRate: m.error_rate,
+      p95Ms: m.p95_ms,
       healthDown: healthSummary.down,
       certCritical,
       certWarn,
-      wafBlocks: metrics.waf_blocks,
+      wafBlocks: m.waf_blocks,
     })
-  }, [metrics, healthSummary.down, certCritical, certWarn])
+  }, [metrics, metricsWindow, chartMetrics, healthSummary.down, certCritical, certWarn])
 
   const healthClass = healthScore != null ? healthScoreClass(healthScore) : 'ok'
 
@@ -240,7 +253,7 @@ export function OverviewPage() {
       ) : null}
 
       <div className="overview-toolbar">
-        <div className="overview-window-tabs" role="tablist" aria-label="指标时间窗口">
+        <div className="overview-window-tabs" role="tablist" aria-label="指标数据范围">
           {WINDOW_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -258,7 +271,10 @@ export function OverviewPage() {
 
       <OverviewCharts
         metrics={metrics}
+        metricsWindow={metricsWindow}
+        chartMetrics={chartMetrics}
         loading={metricsLoading && metrics === null}
+        refreshing={metricsLoading && metrics !== null}
         healthScore={healthScore}
         healthClass={healthClass}
         healthChecks={healthChecks}
@@ -273,8 +289,12 @@ export function OverviewPage() {
         <div className="panel-body">
           <SystemResourceStrip
             system={systemMetrics}
+            chartSystem={chartSystem}
             metrics={metrics}
+            chartMetrics={chartMetrics}
+            metricsWindow={metricsWindow}
             loading={metricsLoading && systemMetrics === null}
+            refreshing={metricsLoading && systemMetrics !== null}
           />
           <div className="overview-system-divider" />
           <div className="overview-system-grid">

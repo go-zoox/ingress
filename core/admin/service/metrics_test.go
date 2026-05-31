@@ -155,3 +155,27 @@ func TestComputeOverviewDelta(t *testing.T) {
 		t.Fatalf("total_pct=%v want increase", d.TotalPct)
 	}
 }
+
+func TestTailCoversWindow(t *testing.T) {
+	anchor := time.Date(2026, 5, 31, 9, 37, 0, 0, time.Local)
+	window := 15 * time.Minute
+	entries := []AccessEntry{
+		{At: anchor.Add(-10 * time.Minute), Status: 200},
+	}
+	if tailCoversWindow(entries, window, anchor) {
+		t.Fatal("10m span should not cover 15m window")
+	}
+	entries = append(entries, AccessEntry{At: anchor.Add(-16 * time.Minute), Status: 200})
+	if !tailCoversWindow(entries, window, anchor) {
+		t.Fatal("16m span should cover 15m window")
+	}
+}
+
+func TestTailLinesForWindow_defaults(t *testing.T) {
+	if tailLinesForWindow("15m") >= maxTailLinesForWindow("15m") {
+		t.Fatal("initial 15m tail budget should be below max")
+	}
+	if maxTailLinesForWindow("15m") < 30000 {
+		t.Fatalf("15m max tail too small for high-traffic logs: %d", maxTailLinesForWindow("15m"))
+	}
+}

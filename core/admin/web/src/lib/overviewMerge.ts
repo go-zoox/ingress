@@ -35,13 +35,27 @@ function mergePartial<T extends object>(base: T, patch: Partial<T> | undefined):
 function mergeMetrics(
   base: OverviewMetrics,
   patch: Partial<OverviewMetrics> | undefined,
-  window: string,
+  snapshotWindow: string,
 ): OverviewMetrics {
   if (!patch) return base
+  const scalarKeys: (keyof OverviewMetrics)[] = [
+    'total',
+    'rpm',
+    'error_rate',
+    'p50_ms',
+    'p95_ms',
+    'cache_hit_rate',
+    'waf_blocks',
+  ]
+  const scalarPatch = scalarKeys.some((key) => patch[key] !== undefined)
+  if (scalarPatch && patch.timeline === undefined) {
+    return base
+  }
   const merged = mergePartial(base, patch)
+  const window = normalizeMetricsWindow(snapshotWindow)
   if (patch.timeline) {
-    const expected = timelineBucketsForWindow(window)
-    if (patch.timeline.length !== expected) {
+    const patchWindow = patch.window ? normalizeMetricsWindow(patch.window) : window
+    if (patchWindow !== window || patch.timeline.length !== timelineBucketsForWindow(window)) {
       merged.timeline = base.timeline
     }
   }
@@ -51,44 +65,33 @@ function mergeMetrics(
 function mergeSystem(
   base: SystemMetrics,
   patch: Partial<SystemMetrics> | undefined,
-  window: string,
+  snapshotWindow: string,
 ): SystemMetrics {
   if (!patch) return base
   const merged = mergePartial(base, patch)
+  const window = normalizeMetricsWindow(snapshotWindow)
   if (patch.timeline) {
-    const expected = timelineBucketsForWindow(window)
-    if (patch.timeline.length !== expected) {
+    const patchWindow = patch.window ? normalizeMetricsWindow(patch.window) : window
+    if (patchWindow !== window || patch.timeline.length !== timelineBucketsForWindow(window)) {
       merged.timeline = base.timeline
     }
   }
   return merged
 }
 
-/** Merge a field-level overview patch onto a base snapshot. */
+/** Merge a field-level overview patch onto a base snapshot. Requires a REST snapshot base. */
 export function mergeOverviewPatch(
   base: OverviewSnapshot | undefined,
   patch: OverviewSSEPatch,
-): OverviewSnapshot {
-  const window = normalizeMetricsWindow(patch.window || base?.window || '15m')
+): OverviewSnapshot | null {
   if (!base) {
-    return {
-      window,
-      status: (patch.status || {}) as IngressStatus,
-      metrics: (patch.metrics || {}) as OverviewMetrics,
-      system: (patch.system || {}) as SystemMetrics,
-      certs: patch.certs || [],
-      health_checks: patch.health_checks || [],
-      health_summary: (patch.health_summary || {
-        total: 0,
-        up: 0,
-        down: 0,
-        unknown: 0,
-      }) as HealthSummary,
-      waf_blocks: patch.waf_blocks || [],
-      parse_issues: patch.parse_issues || [],
-      revisions: patch.revisions || [],
-    }
+    return null
   }
+  const baseWindow = normalizeMetricsWindow(base.window || '15m')
+  if (patch.window && normalizeMetricsWindow(patch.window) !== baseWindow) {
+    return null
+  }
+  const window = baseWindow
   return {
     window,
     status: mergePartial(base.status, patch.status),

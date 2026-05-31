@@ -8,26 +8,18 @@ admin:
     dsn: file:./admin.db?cache=shared&_fk=1
   web:
     dev_proxy: true
-  auth:
-    type: basic
-    basic:
-      username: admin
-      password: admin
-  # WAF 攻击地图 GeoIP（默认 database: /etc/geoip/GeoLite2-City.mmdb，Docker 镜像已内置）
   geoip:
     ingress_label: 上海
     ingress_lat: 31.2304
     ingress_lng: 121.4737
-# Shared cache engine (matcher + http response cache keys)
 cache:
   ttl: 300
-  # host: 127.0.0.1
-  # port: 6379
   prefix: "ingress:"
 waf:
   enabled: true
   log_only: false
   builtin: true
+  trust_proxy: true
 healthcheck:
   outer:
     enable: true
@@ -75,14 +67,17 @@ https:
         certificate: ./certs/portal.example.com.pem
         certificate_key: ./certs/portal.example.com.key.pem
 fallback:
-  type: service
-  service:
-    name: home
-    port: 8080
+  type: handler
+  handler:
+    type: static_response
+    headers:
+      Content-Type: text/plain; charset=utf-8
+    body: |
+      fallback ok
 services:
   - name: api.internal
     port: 8080
-    note: API 主集群
+    note: API 主集群（演示用 handler 替代）
   - name: api-v2.internal
     port: 8080
     note: API v2 路径专用
@@ -91,40 +86,115 @@ services:
 rules:
   - host: api.example.com
     backend:
-      service:
-        name: api-v2.internal
-        port: 8080
-      type: service
+      type: handler
+      handler:
+        type: static_response
+        headers:
+          Content-Type: application/json
+        body: |
+          {"ok":true,"service":"api"}
+      cache:
+        enabled: true
+        ttl: 300
     paths:
       - path: /v2
         backend:
-          service:
-            name: api-v2.internal
-            port: 8080
+          type: handler
+          handler:
+            type: static_response
+            headers:
+              Content-Type: application/json
+            body: |
+              {"v2":true,"users":[]}
           cache:
             enabled: true
             ttl: 600
             max_body_bytes: 2097152
-          type: service
       - path: /public
         backend:
-          service:
-            name: api.internal
-            port: 8080
+          type: handler
+          handler:
+            type: static_response
+            headers:
+              Content-Type: application/json
+            body: |
+              {"public":true}
           cache:
             enabled: true
             ttl: 300
             max_body_bytes: 2097152
-          type: service
-  - host: "*.cdn.example.com"
-    host_type: wildcard
+      - path: /search
+        backend:
+          type: handler
+          handler:
+            type: static_response
+            headers:
+              Content-Type: application/json
+            body: |
+              {"results":[]}
+      - path: /error/400
+        backend:
+          type: handler
+          handler:
+            type: static_response
+            status_code: 400
+            headers:
+              Content-Type: application/json
+            body: |
+              {"error":"bad request"}
+      - path: /error/403
+        backend:
+          type: handler
+          handler:
+            type: static_response
+            status_code: 403
+            headers:
+              Content-Type: application/json
+            body: |
+              {"error":"forbidden"}
+      - path: /error/500
+        backend:
+          type: handler
+          handler:
+            type: static_response
+            status_code: 500
+            headers:
+              Content-Type: application/json
+            body: |
+              {"error":"internal"}
+  - host: cdn.example.com
     backend:
-      service:
-        name: minio.internal
-        port: 9000
+      type: handler
+      handler:
+        type: file_server
+        root_dir: ./static
+        index_file: assets/app.js
       cache:
         enabled: true
         ttl: 3600
+  - host: assets.cdn.example.com
+    host_type: exact
+    backend:
+      type: handler
+      handler:
+        type: file_server
+        root_dir: ./static
+        index_file: static/main.js
+      cache:
+        enabled: true
+        ttl: 3600
+  - host: portal.example.com
+    backend:
+      type: handler
+      handler:
+        type: static_response
+        headers:
+          Content-Type: text/html; charset=utf-8
+        body: |
+          <!doctype html><html><body><h1>portal</h1></body></html>
+      cache:
+        enabled: true
+        ttl: 120
   - host: ^([a-z0-9-]+)\.inlets\.example\.com$
     host_type: regex
     backend:
@@ -168,10 +238,6 @@ rules:
         protocol: https
         name: httpbin.zcorky.com
         port: 443
-maintenance:
-  hosts:
-    - host: api.example.com
-
 scenarios:
   active: default
   items:
