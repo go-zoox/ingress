@@ -2602,10 +2602,17 @@ table.data.tls-certs .tls-domain {
   gap: 6px;
 }
 
-.overview-window-tabs .btn.active {
+.overview-window-tabs .btn.active,
+.overview-toolbar-controls .btn.active,
+.overview-range-presets .btn.active {
   background: var(--accent-dim);
   color: var(--text);
   border-color: var(--accent);
+  opacity: 1;
+}
+
+.overview-toolbar-controls .overview-live-btn.active {
+  font-weight: 600;
 }
 
 .overview-toolbar-meta {

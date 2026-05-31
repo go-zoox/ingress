@@ -59,12 +59,14 @@ export function OverviewPage() {
   const liveView = isLiveOverviewRange(overviewRange)
   const rangeFetchRef = useRef(0)
   const snapshotRef = useRef<OverviewSnapshot | null>(null)
-  const prevSseConnectedRef = useRef(false)
 
-  const { overviewPatch, connected: sseConnected, reconnecting: sseReconnecting, fallbackPolling } = useSSE(
-    ['overview'],
-    { window: LIVE_METRICS_WINDOW, enabled: liveView },
-  )
+  const {
+    overviewPatch,
+    overviewSnapshot: sseOverviewSnapshot,
+    connected: sseConnected,
+    reconnecting: sseReconnecting,
+    fallbackPolling,
+  } = useSSE(['overview'], { window: LIVE_METRICS_WINDOW, enabled: liveView })
   const { setStream } = useOverviewStream()
 
   useEffect(() => {
@@ -101,7 +103,12 @@ export function OverviewPage() {
   const applySnapshot = useCallback(
     (snap: OverviewSnapshot, forRange?: OverviewRange) => {
       const expected = forRange ?? overviewRange
-      if (snap.metrics && !metricsMatchesRange(snap.metrics, expected)) {
+      const liveRange = isLiveOverviewRange(expected)
+      if (
+        snap.metrics &&
+        !liveRange &&
+        !metricsMatchesRange(snap.metrics, expected)
+      ) {
         return
       }
       if (snap.status) {
@@ -141,11 +148,19 @@ export function OverviewPage() {
       })
   }, [overviewRange, applySnapshot])
 
+  // Historical ranges: one REST snapshot per selection.
   useEffect(() => {
+    if (liveView) {
+      snapshotRef.current = null
+      setMetricsLoading(true)
+      setErr('')
+      return
+    }
     const fetchId = ++rangeFetchRef.current
     const range = overviewRange
     snapshotRef.current = null
     setMetricsLoading(true)
+    setErr('')
     api
       .overviewSnapshot(rangeToQueryParams(range))
       .then((snap) => {
@@ -157,36 +172,35 @@ export function OverviewPage() {
         setMetricsLoading(false)
         setErr(e.message)
       })
-  }, [overviewRange, applySnapshot])
+  }, [liveView, overviewRange, applySnapshot])
+
+  // Live: initial full state from SSE overview:snapshot on connect / reconnect.
+  useEffect(() => {
+    if (!liveView || !sseOverviewSnapshot) return
+    applySnapshot(sseOverviewSnapshot.snap, overviewRange)
+  }, [liveView, sseOverviewSnapshot?.seq, applySnapshot, overviewRange, sseOverviewSnapshot])
 
   useEffect(() => {
     if (!liveView) return
     if (!overviewPatch) return
     if (!snapshotRef.current) return
-    if (!metricsMatchesRange(snapshotRef.current.metrics, overviewRange)) return
     if (overviewPatchWindowMismatch(overviewPatch, LIVE_METRICS_WINDOW, LIVE_METRICS_WINDOW)) {
       return
     }
-    const merged = mergeOverviewPatch(snapshotRef.current, overviewPatch)
+    const merged = mergeOverviewPatch(snapshotRef.current, overviewPatch, {
+      rollingWindow: LIVE_METRICS_WINDOW,
+    })
     if (!merged) return
     applySnapshot(merged, overviewRange)
-  }, [liveView, overviewPatch, applySnapshot, overviewRange, metricsMatchesRange])
+  }, [liveView, overviewPatch, applySnapshot, overviewRange])
 
+  // Live SSE unavailable: REST polling fallback only.
   useEffect(() => {
-    if (!liveView) return
-    if (!fallbackPolling) return
+    if (!liveView || !fallbackPolling) return
     refreshSnapshot()
     const timer = window.setInterval(refreshSnapshot, 5000)
     return () => window.clearInterval(timer)
   }, [liveView, fallbackPolling, refreshSnapshot])
-
-  useEffect(() => {
-    if (!liveView) return
-    if (sseConnected && !prevSseConnectedRef.current && snapshotRef.current) {
-      refreshSnapshot()
-    }
-    prevSseConnectedRef.current = sseConnected
-  }, [liveView, sseConnected, refreshSnapshot])
 
   const onLiveSelect = () => {
     const next: OverviewRange = { kind: 'live' }
@@ -291,8 +305,9 @@ export function OverviewPage() {
         <div className="overview-toolbar-controls">
           <button
             type="button"
-            className={liveView ? 'btn btn-sm active' : 'btn btn-sm btn-ghost'}
+            className={liveView ? 'btn btn-sm active overview-live-btn' : 'btn btn-sm btn-ghost overview-live-btn'}
             onClick={onLiveSelect}
+            aria-pressed={liveView}
           >
             实时
           </button>

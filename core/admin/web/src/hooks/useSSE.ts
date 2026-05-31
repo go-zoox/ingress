@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { OverviewSnapshot } from '../api/client'
 import { isOverviewSSEPatch, type OverviewSSEPatch } from '../lib/overviewMerge'
+
+export type OverviewSSESnapshot = {
+  snap: OverviewSnapshot
+  seq: number
+}
 
 const INITIAL_RECONNECT_MS = 1000
 const MAX_RECONNECT_MS = 30_000
@@ -32,6 +38,8 @@ const CHANNEL_ACTIONS: Record<string, string[]> = {
 export function useSSE(channels: string[] = [], options?: SSEOptions) {
   const [data, setData] = useState<Record<string, unknown>>({})
   const [overviewPatch, setOverviewPatch] = useState<OverviewSSEPatch | null>(null)
+  const [overviewSnapshot, setOverviewSnapshot] = useState<OverviewSSESnapshot | null>(null)
+  const overviewSnapshotSeqRef = useRef(0)
   const [connected, setConnected] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
   const [fallbackPolling, setFallbackPolling] = useState(false)
@@ -115,7 +123,11 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
     try {
       const parsed = JSON.parse(raw)
       if (eventType === 'overview:snapshot') {
-        // Initial full state comes from REST; SSE only streams field-level patches.
+        overviewSnapshotSeqRef.current += 1
+        setOverviewSnapshot({
+          snap: parsed as OverviewSnapshot,
+          seq: overviewSnapshotSeqRef.current,
+        })
         return
       }
       if (eventType === 'overview:patch' || isOverviewSSEPatch(parsed)) {
@@ -215,7 +227,8 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
 
   useEffect(() => {
     setOverviewPatch(null)
-  }, [options?.window])
+    setOverviewSnapshot(null)
+  }, [options?.window, options?.enabled])
 
   useEffect(() => {
     const onUnload = () => close()
@@ -223,5 +236,5 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
     return () => window.removeEventListener('beforeunload', onUnload)
   }, [close])
 
-  return { data, overviewPatch, connected, reconnecting, fallbackPolling, close }
+  return { data, overviewPatch, overviewSnapshot, connected, reconnecting, fallbackPolling, close }
 }

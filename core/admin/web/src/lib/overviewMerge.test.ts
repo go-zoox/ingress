@@ -81,6 +81,62 @@ describe('mergeOverviewPatch', () => {
     ).toBeNull()
   })
 
+  it('merges live range snapshots with SSE rolling window', () => {
+    const timeline5 = Array.from({ length: 5 }, (_, i) => ({
+      label: String(i),
+      count: i + 1,
+      '2xx': i + 1,
+      '3xx': 0,
+      '4xx': 0,
+      '5xx': 0,
+      error_rate: 0,
+      cache_hit_rate: 0,
+      waf_blocks: 0,
+    }))
+    const rangeBase: OverviewSnapshot = {
+      ...baseSnapshot,
+      window: 'range',
+      metrics: {
+        ...baseSnapshot.metrics,
+        window: 'range',
+        timeline: timeline5,
+      },
+      system: {
+        ...baseSnapshot.system,
+        window: 'range',
+        timeline: [],
+      },
+    }
+    const merged = mergeOverviewPatch(
+      rangeBase,
+      {
+        seq: 5,
+        window: 'range',
+        metrics: { total: 150, timeline: timeline5 },
+      },
+      { rollingWindow: '5m' },
+    )
+    expect(merged?.metrics.total).toBe(150)
+  })
+
+  it('merges scalar-only metrics patch in live rolling mode', () => {
+    const rangeBase: OverviewSnapshot = {
+      ...baseSnapshot,
+      window: 'range',
+      metrics: { ...baseSnapshot.metrics, window: 'range', timeline: [] },
+    }
+    const merged = mergeOverviewPatch(
+      rangeBase,
+      {
+        seq: 6,
+        window: 'range',
+        metrics: { total: 200 },
+      },
+      { rollingWindow: '5m' },
+    )
+    expect(merged?.metrics.total).toBe(200)
+  })
+
   it('rejects timeline patch from a different window', () => {
     const timeline24 = Array.from({ length: 24 }, (_, i) => ({
       label: String(i),
@@ -128,5 +184,11 @@ describe('overviewPatchWindowMismatch', () => {
     expect(
       overviewPatchWindowMismatch({ seq: 1, window: '5m' }, '15m', '15m'),
     ).toBe(true)
+  })
+
+  it('accepts range window patches for live SSE', () => {
+    expect(
+      overviewPatchWindowMismatch({ seq: 1, window: 'range' }, '5m', '5m'),
+    ).toBe(false)
   })
 })
