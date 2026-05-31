@@ -1,11 +1,19 @@
 export type UIPreferences = {
   logLiveIntervalMs: number
+  /** @deprecated use overviewRange */
   metricsWindow: string
+  overviewRange?: string
+  /** When true, overview metrics receive SSE incremental updates after REST bootstrap. */
+  overviewLiveEnabled?: boolean
+  /** When true, route/service detail pages poll metrics after REST bootstrap. */
+  detailLiveEnabled?: boolean
 }
 
 export const DEFAULT_PREFERENCES: UIPreferences = {
   logLiveIntervalMs: 2000,
-  metricsWindow: '15m',
+  metricsWindow: '5m',
+  overviewLiveEnabled: true,
+  detailLiveEnabled: false,
 }
 
 /** Session-only UI preferences (not persisted across page reloads). */

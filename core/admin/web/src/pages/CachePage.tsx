@@ -27,25 +27,27 @@ function HitRankPanel<T extends { hits: number; total: number; hit_rate: number 
         {rows.length === 0 ? (
           <p className="empty-hint">{empty}</p>
         ) : (
-          rows.map((row) => {
-            const text = label(row)
-            return (
-              <div key={text} className={`bar-row ${rowClassName}`}>
-                <span className={labelClassName} title={text}>
-                  {text}
-                </span>
-                <div className="bar-track">
-                  <div
-                    className="bar-fill seg-2xx"
-                    style={{ width: `${Math.min(100, row.hit_rate)}%` }}
-                  />
+          <div className="ranked-bar-list">
+            {rows.map((row) => {
+              const text = label(row)
+              return (
+                <div key={text} className={`bar-row ${rowClassName}`}>
+                  <span className={labelClassName} title={text}>
+                    {text}
+                  </span>
+                  <div className="bar-track">
+                    <div
+                      className="bar-fill seg-2xx"
+                      style={{ width: `${Math.min(100, row.hit_rate)}%` }}
+                    />
+                  </div>
+                  <span className="bar-val">
+                    {row.hit_rate.toFixed(0)}% ({row.hits}/{row.total})
+                  </span>
                 </div>
-                <span className="bar-val">
-                  {row.hit_rate.toFixed(0)}% ({row.hits}/{row.total})
-                </span>
-              </div>
-            )
-          })
+              )
+            })}
+          </div>
         )}
       </div>
     </div>

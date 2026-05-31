@@ -28,6 +28,7 @@ type Core interface {
 	IsWAFEnabled() bool
 	//
 	SetWAFCallback(cb WAFCallback)
+	SetAccessMetricsCallback(cb AccessMetricsCallback)
 	// ConfigFingerprint is the hash of config active in the running ingress process (updated on Reload).
 	ConfigFingerprint() string
 }
@@ -63,6 +64,7 @@ type core struct {
 	wafRuntimeOverride *bool
 	wafOverrideMu      sync.RWMutex
 	wafCallback        WAFCallback
+	accessMetricsCb    AccessMetricsCallback
 
 	runtimeConfigHash string
 }
@@ -125,4 +127,9 @@ func (c *core) IsWAFEnabled() bool {
 // SetWAFCallback registers a callback invoked when WAF blocks or audits.
 func (c *core) SetWAFCallback(cb WAFCallback) {
 	c.wafCallback = cb
+}
+
+// SetAccessMetricsCallback registers a callback for structured access log metrics.
+func (c *core) SetAccessMetricsCallback(cb AccessMetricsCallback) {
+	c.accessMetricsCb = cb
 }

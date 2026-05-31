@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -34,6 +35,9 @@ type API struct {
 	parseIssues      *service.ParseIssues
 	overviewBuilder  *service.OverviewBuilder
 	overviewStreamer *service.OverviewStreamer
+	detailMetrics    *service.DetailMetricsStreamer
+	routeMetrics     *service.RouteMetricsBuilder
+	serviceMetrics   *service.ServiceMetricsBuilder
 	jobs             *jobs.Service
 	rbac             *rbac.Service
 	auth             *adminauth.Service
@@ -52,7 +56,10 @@ func NewAPI(cfg *config.Config, auth *adminauth.Service) *API {
 	configSvc := service.NewConfig(ingress, audit)
 	scenariosSvc := service.NewScenarios(ingress, audit, configSvc)
 	overviewBuilder := service.NewOverviewBuilder(ingress, metrics, systemSvc, tlsSvc, healthSvc, audit, parseIssues, configSvc)
-	jobsSvc := jobs.New(cfg, ingress, audit, tlsSvc)
+	routeMetricsBuilder := service.NewRouteMetricsBuilder(ingress, healthSvc, audit)
+	serviceMetricsBuilder := service.NewServiceMetricsBuilder(ingress, healthSvc)
+	detailMetricsStreamer := service.NewDetailMetricsStreamer(broker, ingress, routeMetricsBuilder, serviceMetricsBuilder)
+	jobsSvc := jobs.New(cfg, ingress, audit, tlsSvc, metrics)
 	return &API{
 		cfg:              cfg,
 		ingress:          ingress,
@@ -70,6 +77,9 @@ func NewAPI(cfg *config.Config, auth *adminauth.Service) *API {
 		parseIssues:      parseIssues,
 		overviewBuilder:  overviewBuilder,
 		overviewStreamer: service.NewOverviewStreamer(overviewBuilder, broker),
+		detailMetrics:    detailMetricsStreamer,
+		routeMetrics:     routeMetricsBuilder,
+		serviceMetrics:   serviceMetricsBuilder,
 		jobs:             jobsSvc,
 		rbac:             rbac.New(),
 		auth:             auth,
@@ -84,6 +94,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/waf/toggle", a.WAFToggle)
 	g.Get("/waf/events", a.WAFEvents)
 	g.Post("/waf/events/batch-status", a.BatchUpdateWAFEventStatus)
+	g.Get("/events/summary", a.EventsSummary)
 	g.Delete("/waf/events/demo-seed", a.ClearDemoWAFEvents)
 	g.Get("/waf/events/:id", a.WAFEventDetail)
 	g.Post("/waf/events/:id/status", a.UpdateWAFEventStatus)
@@ -119,12 +130,12 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/logs/parse-issues/:id/status", a.UpdateParseIssueStatus)
 	g.Get("/settings", a.Settings)
 	// New routes for SSE, route detail, and health check
-	sseHandler := NewSSEHandler(a.broker, a.overviewStreamer)
+	sseHandler := NewSSEHandler(a.broker, a.overviewStreamer, a.detailMetrics)
 	g.Get("/events/stream", sseHandler.Stream)
-	routeDetailHandler := NewRouteDetailHandler(a.ingress, a.metrics, a.health, a.audit)
+	routeDetailHandler := NewRouteDetailHandler(a.ingress, a.routeMetrics, a.health, a.audit)
 	g.Get("/routes/:ri/:pi", routeDetailHandler.GetDetail)
 	g.Get("/routes/:ri/:pi/metrics", routeDetailHandler.GetMetrics)
-	serviceDetailHandler := NewServiceDetailHandler(a.ingress, a.health)
+	serviceDetailHandler := NewServiceDetailHandler(a.ingress, a.serviceMetrics)
 	g.Get("/services/:name", serviceDetailHandler.GetDetail)
 	g.Get("/services/:name/metrics", serviceDetailHandler.GetMetrics)
 	healthHandler := NewHealthHandler(a.health)
@@ -456,21 +467,38 @@ func (a *API) UpdateWAFEventStatus(ctx *zoox.Context) {
 	ok(ctx, row)
 }
 
+func batchStatusAllOpen(ctx *zoox.Context, bodyAllOpen bool) bool {
+	if bodyAllOpen {
+		return true
+	}
+	v := strings.TrimSpace(ctx.Query().Get("all_open").String())
+	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
+}
+
 func (a *API) BatchUpdateWAFEventStatus(ctx *zoox.Context) {
 	var body struct {
-		IDs    []uint `json:"ids"`
-		Status string `json:"status"`
-		Note   string `json:"note"`
+		IDs     []uint `json:"ids"`
+		AllOpen bool   `json:"all_open"`
+		Status  string `json:"status"`
+		Note    string `json:"note"`
 	}
 	if err := ctx.BindJSON(&body); err != nil {
 		fail(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
-	if len(body.IDs) == 0 {
-		fail(ctx, http.StatusBadRequest, "ids required")
-		return
+	var (
+		n   int64
+		err error
+	)
+	if batchStatusAllOpen(ctx, body.AllOpen) {
+		n, err = a.audit.SetAllOpenBlockWAFEventStatus(body.Status, body.Note)
+	} else {
+		if len(body.IDs) == 0 {
+			fail(ctx, http.StatusBadRequest, "ids required")
+			return
+		}
+		n, err = a.audit.BatchSetWAFEventStatus(body.IDs, body.Status, body.Note)
 	}
-	n, err := a.audit.BatchSetWAFEventStatus(body.IDs, body.Status, body.Note)
 	if err != nil {
 		fail(ctx, http.StatusInternalServerError, err.Error())
 		return
@@ -828,18 +856,46 @@ func (a *API) LogHosts(ctx *zoox.Context) {
 }
 
 func (a *API) OverviewMetrics(ctx *zoox.Context) {
-	window := strings.TrimSpace(ctx.Query().Get("window").String())
-	ok(ctx, a.metrics.Overview(window))
+	q, err := parseMetricsRangeQuery(ctx)
+	if err != nil {
+		return
+	}
+	ok(ctx, a.metrics.OverviewWithRange(q))
 }
 
 func (a *API) OverviewSnapshot(ctx *zoox.Context) {
-	window := strings.TrimSpace(ctx.Query().Get("window").String())
-	ok(ctx, a.overviewBuilder.Snapshot(window))
+	q, err := parseMetricsRangeQuery(ctx)
+	if err != nil {
+		return
+	}
+	ok(ctx, a.overviewBuilder.SnapshotWithRange(q))
 }
 
 func (a *API) SystemMetrics(ctx *zoox.Context) {
-	window := strings.TrimSpace(ctx.Query().Get("window").String())
-	ok(ctx, a.system.Snapshot(window))
+	q, err := parseMetricsRangeQuery(ctx)
+	if err != nil {
+		return
+	}
+	ok(ctx, a.system.SnapshotWithRange(q))
+}
+
+func parseMetricsRangeQuery(ctx *zoox.Context) (service.MetricsRangeQuery, error) {
+	fromStr := strings.TrimSpace(ctx.Query().Get("from").String())
+	toStr := strings.TrimSpace(ctx.Query().Get("to").String())
+	if fromStr != "" && toStr != "" {
+		q, err := service.ParseMetricsRangeQuery(fromStr, toStr)
+		if err != nil {
+			fail(ctx, http.StatusBadRequest, err.Error())
+			return q, err
+		}
+		return q, nil
+	}
+	// Legacy: ?window=5m until clients migrate.
+	if window := strings.TrimSpace(ctx.Query().Get("window").String()); window != "" {
+		return service.MetricsRangeFromWindow(window), nil
+	}
+	fail(ctx, http.StatusBadRequest, "from and to are required (RFC3339)")
+	return service.MetricsRangeQuery{}, fmt.Errorf("from and to required")
 }
 
 func (a *API) ListParseIssues(ctx *zoox.Context) {
@@ -900,21 +956,75 @@ func (a *API) UpdateParseIssueStatus(ctx *zoox.Context) {
 	ok(ctx, row)
 }
 
+func (a *API) EventsSummary(ctx *zoox.Context) {
+	status := strings.TrimSpace(ctx.Query().Get("status").String())
+	if status == "" {
+		status = "open"
+	}
+	switch status {
+	case "open", "resolved", "ignored":
+	default:
+		fail(ctx, http.StatusBadRequest, "status must be open, resolved, or ignored")
+		return
+	}
+	wafStatus := status
+	if status == "open" {
+		wafStatus = "open"
+	}
+	wafCount, err := a.audit.CountBlockWAFEvents(wafStatus)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	parseCount, err := a.parseIssues.CountByStatus(status)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var healthDown int64
+	var tlsWarn int64
+	if status == "open" {
+		if a.health != nil {
+			_, summary := a.health.ListResults()
+			healthDown = int64(summary.Down)
+		}
+		if a.tls != nil {
+			if rows, err := a.tls.List(); err == nil {
+				for _, c := range rows {
+					if c.DaysRemaining < 30 {
+						tlsWarn++
+					}
+				}
+			}
+		}
+	}
+	ok(ctx, service.BuildEventsTabSummary(status, wafCount, parseCount, healthDown, tlsWarn))
+}
+
 func (a *API) BatchUpdateParseIssueStatus(ctx *zoox.Context) {
 	var body struct {
-		IDs    []uint `json:"ids"`
-		Status string `json:"status"`
-		Note   string `json:"note"`
+		IDs     []uint `json:"ids"`
+		AllOpen bool   `json:"all_open"`
+		Status  string `json:"status"`
+		Note    string `json:"note"`
 	}
 	if err := ctx.BindJSON(&body); err != nil {
 		fail(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
-	if len(body.IDs) == 0 {
-		fail(ctx, http.StatusBadRequest, "ids required")
-		return
+	var (
+		n   int64
+		err error
+	)
+	if batchStatusAllOpen(ctx, body.AllOpen) {
+		n, err = a.parseIssues.SetAllOpenStatus(body.Status, body.Note)
+	} else {
+		if len(body.IDs) == 0 {
+			fail(ctx, http.StatusBadRequest, "ids required")
+			return
+		}
+		n, err = a.parseIssues.BatchSetStatus(body.IDs, body.Status, body.Note)
 	}
-	n, err := a.parseIssues.BatchSetStatus(body.IDs, body.Status, body.Note)
 	if err != nil {
 		fail(ctx, http.StatusInternalServerError, err.Error())
 		return
@@ -940,6 +1050,11 @@ func (a *API) LogsService() *service.Logs {
 	return a.logs
 }
 
+// MetricsService returns the metrics aggregator.
+func (a *API) MetricsService() *service.Metrics {
+	return a.metrics
+}
+
 // Health returns the health check service instance.
 func (a *API) Health() *service.HealthCheckService {
 	return a.health
@@ -953,4 +1068,9 @@ func (a *API) SystemMetricsService() *service.SystemMetrics {
 // OverviewStreamer returns the overview SSE publisher.
 func (a *API) OverviewStreamer() *service.OverviewStreamer {
 	return a.overviewStreamer
+}
+
+// DetailMetricsStreamer returns the route/service metrics SSE publisher.
+func (a *API) DetailMetricsStreamer() *service.DetailMetricsStreamer {
+	return a.detailMetrics
 }

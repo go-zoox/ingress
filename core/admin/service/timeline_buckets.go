@@ -10,16 +10,9 @@ func truncateTime(t time.Time, slot time.Duration) time.Time {
 	return t.Truncate(slot)
 }
 
-// alignedTimelineEnd returns the end of the current bucket for a wall-clock aligned timeline.
-func alignedTimelineEnd(anchor time.Time, slot time.Duration) time.Time {
-	if slot <= 0 {
-		return anchor
-	}
-	end := truncateTime(anchor, slot)
-	if end.Before(anchor) {
-		end = end.Add(slot)
-	}
-	return end
+// timelineWindowStart aligns bucket boundaries with filterEntriesInWindow (anchor - window).
+func timelineWindowStart(anchor time.Time, window, slot time.Duration) time.Time {
+	return truncateTime(anchor.Add(-window), slot)
 }
 
 func formatTimelineLabel(bucketStart time.Time, slot time.Duration) string {

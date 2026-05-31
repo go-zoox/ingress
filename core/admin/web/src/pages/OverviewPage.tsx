@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef, type ReactNode } fro
 import { Link } from 'react-router-dom'
 import { OverviewCharts } from '../components/OverviewCharts'
 import { OverviewAttentionPanel } from '../components/OverviewAttentionPanel'
+import { OverviewTimeRangePicker } from '../components/OverviewTimeRangePicker'
 import { ConfigGovernanceBadges } from '../components/ConfigGovernanceBadges'
 import { SystemResourceStrip } from '../components/SystemResourceStrip'
 import {
@@ -18,19 +19,24 @@ import {
   type OverviewSnapshot,
 } from '../api/client'
 import { useSSE } from '../hooks/useSSE'
+import { useOverviewMetricsCache, useSystemMetricsCache } from '../hooks/useMetricsWindowCache'
 import { mergeOverviewPatch, overviewPatchWindowMismatch } from '../lib/overviewMerge'
 import { useOverviewStream } from '../context/OverviewStreamContext'
 import { loadPreferences, savePreferences } from '../lib/preferences'
-import { normalizeMetricsWindow } from '../lib/metricsWindow'
+import {
+  type OverviewRange,
+  isRangeLiveEligible,
+  mergeRollingWindowForRange,
+  parseOverviewLiveEnabled,
+  parseOverviewRange,
+  rangeToQueryParams,
+  resolveApiWindow,
+  serializeOverviewRange,
+  snapshotMatchesRange,
+  sseParamsForRange,
+} from '../lib/overviewRange'
 import { computeHealthScore, healthScoreClass } from '../lib/overviewHealthScore'
 import { PageLoading } from '../components/PageLoading'
-
-const WINDOW_OPTIONS = [
-  { value: '5m', label: '5 分钟' },
-  { value: '15m', label: '15 分钟' },
-  { value: '1h', label: '1 小时' },
-  { value: '24h', label: '24 小时' },
-] as const
 
 export function OverviewPage() {
   const [status, setStatus] = useState<IngressStatus | null>(null)
@@ -49,20 +55,34 @@ export function OverviewPage() {
   })
   const [wafBlocks, setWafBlocks] = useState<WAFEvent[]>([])
   const [revisions, setRevisions] = useState<ConfigRevisionSummary[]>([])
-  const [metricsWindow, setMetricsWindow] = useState(() =>
-    normalizeMetricsWindow(loadPreferences().metricsWindow),
+  const prefs = loadPreferences()
+  const [overviewRange, setOverviewRange] = useState<OverviewRange>(() =>
+    parseOverviewRange(prefs.overviewRange, prefs.metricsWindow),
   )
-  const windowFetchRef = useRef(0)
+  const [liveEnabled, setLiveEnabled] = useState(() =>
+    parseOverviewLiveEnabled(prefs.overviewLiveEnabled, prefs.metricsWindow),
+  )
+  const rangeLiveEligible = isRangeLiveEligible(overviewRange)
+  const streaming = liveEnabled && rangeLiveEligible
+  const sseRange = useMemo(() => sseParamsForRange(overviewRange), [overviewRange])
+  const rangeFetchRef = useRef(0)
+  const restLoadedRef = useRef(false)
   const snapshotRef = useRef<OverviewSnapshot | null>(null)
-  const prevSseConnectedRef = useRef(false)
 
-  const { overviewPatch, connected: sseConnected, reconnecting: sseReconnecting, fallbackPolling } = useSSE(
-    ['overview'],
-    { window: metricsWindow },
-  )
+  const {
+    overviewPatch,
+    overviewSnapshot: sseOverviewSnapshot,
+    connected: sseConnected,
+    reconnecting: sseReconnecting,
+    fallbackPolling,
+  } = useSSE(['overview'], { ...sseRange, enabled: streaming })
   const { setStream } = useOverviewStream()
 
   useEffect(() => {
+    if (!streaming) {
+      setStream(null)
+      return () => setStream(null)
+    }
     setStream({
       connected: sseConnected,
       reconnecting: sseReconnecting,
@@ -73,6 +93,7 @@ export function OverviewPage() {
     return () => setStream(null)
   }, [
     setStream,
+    streaming,
     sseConnected,
     sseReconnecting,
     fallbackPolling,
@@ -80,91 +101,129 @@ export function OverviewPage() {
     metrics?.window_stale,
   ])
 
-  const applySnapshot = useCallback((snap: OverviewSnapshot, forWindow?: string) => {
-    const expected = normalizeMetricsWindow(forWindow ?? metricsWindow)
-    if (snap.window && normalizeMetricsWindow(snap.window) !== expected) {
-      return
-    }
-    if (snap.status) {
-      setStatus(snap.status)
-    }
-    setMetrics(snap.metrics)
-    setSystemMetrics(snap.system)
-    setCerts(Array.isArray(snap.certs) ? snap.certs : [])
-    setHealthChecks(snap.health_checks || [])
-    setHealthSummary(snap.health_summary || { total: 0, up: 0, down: 0, unknown: 0 })
-    setWafBlocks(Array.isArray(snap.waf_blocks) ? snap.waf_blocks : [])
-    setParseIssues(Array.isArray(snap.parse_issues) ? snap.parse_issues : [])
-    setRevisions(Array.isArray(snap.revisions) ? snap.revisions : [])
-    setMetricsLoading(false)
-    snapshotRef.current = {
-      window: snap.window || expected,
-      status: snap.status,
-      metrics: snap.metrics,
-      system: snap.system,
-      certs: Array.isArray(snap.certs) ? snap.certs : [],
-      health_checks: snap.health_checks || [],
-      health_summary: snap.health_summary || { total: 0, up: 0, down: 0, unknown: 0 },
-      waf_blocks: Array.isArray(snap.waf_blocks) ? snap.waf_blocks : [],
-      parse_issues: Array.isArray(snap.parse_issues) ? snap.parse_issues : [],
-      revisions: Array.isArray(snap.revisions) ? snap.revisions : [],
-    }
-  }, [metricsWindow])
+  const metricsMatchesRange = useCallback(
+    (m: OverviewMetrics | null | undefined, range: OverviewRange) => {
+      if (!m) return false
+      return snapshotMatchesRange(m, range)
+    },
+    [],
+  )
+
+  const applySnapshot = useCallback(
+    (snap: OverviewSnapshot, forRange?: OverviewRange) => {
+      const expected = forRange ?? overviewRange
+      if (snap.metrics && !metricsMatchesRange(snap.metrics, expected)) {
+        return
+      }
+      if (snap.status) {
+        setStatus(snap.status)
+      }
+      setMetrics(snap.metrics)
+      setSystemMetrics(snap.system)
+      setCerts(Array.isArray(snap.certs) ? snap.certs : [])
+      setHealthChecks(snap.health_checks || [])
+      setHealthSummary(snap.health_summary || { total: 0, up: 0, down: 0, unknown: 0 })
+      setWafBlocks(Array.isArray(snap.waf_blocks) ? snap.waf_blocks : [])
+      setParseIssues(Array.isArray(snap.parse_issues) ? snap.parse_issues : [])
+      setRevisions(Array.isArray(snap.revisions) ? snap.revisions : [])
+      setMetricsLoading(false)
+      snapshotRef.current = {
+        window: snap.window || 'range',
+        status: snap.status,
+        metrics: snap.metrics,
+        system: snap.system,
+        certs: Array.isArray(snap.certs) ? snap.certs : [],
+        health_checks: snap.health_checks || [],
+        health_summary: snap.health_summary || { total: 0, up: 0, down: 0, unknown: 0 },
+        waf_blocks: Array.isArray(snap.waf_blocks) ? snap.waf_blocks : [],
+        parse_issues: Array.isArray(snap.parse_issues) ? snap.parse_issues : [],
+        revisions: Array.isArray(snap.revisions) ? snap.revisions : [],
+      }
+    },
+    [overviewRange, metricsMatchesRange],
+  )
 
   const refreshSnapshot = useCallback(() => {
     api
-      .overviewSnapshot(metricsWindow)
-      .then(applySnapshot)
+      .overviewSnapshot(rangeToQueryParams(overviewRange))
+      .then((snap) => {
+        restLoadedRef.current = true
+        applySnapshot(snap, overviewRange)
+      })
       .catch(() => {
         setMetricsLoading(false)
       })
-  }, [metricsWindow, applySnapshot])
+  }, [overviewRange, applySnapshot])
 
+  // Always bootstrap with REST on range change.
   useEffect(() => {
-    const fetchId = ++windowFetchRef.current
-    const window = metricsWindow
+    const fetchId = ++rangeFetchRef.current
+    const range = overviewRange
+    snapshotRef.current = null
+    restLoadedRef.current = false
     setMetricsLoading(true)
+    setErr('')
     api
-      .overviewSnapshot(window)
+      .overviewSnapshot(rangeToQueryParams(range))
       .then((snap) => {
-        if (fetchId !== windowFetchRef.current) return
-        applySnapshot(snap, window)
+        if (fetchId !== rangeFetchRef.current) return
+        restLoadedRef.current = true
+        applySnapshot(snap, range)
       })
       .catch((e: Error) => {
-        if (fetchId !== windowFetchRef.current) return
+        if (fetchId !== rangeFetchRef.current) return
         setMetricsLoading(false)
         setErr(e.message)
       })
-  }, [metricsWindow, applySnapshot])
+  }, [overviewRange, applySnapshot])
+
+  // SSE full snapshot on reconnect (skip initial connect before REST bootstrap).
+  useEffect(() => {
+    if (!streaming || !sseOverviewSnapshot) return
+    if (!restLoadedRef.current && sseOverviewSnapshot.seq <= 1) return
+    applySnapshot(sseOverviewSnapshot.snap, overviewRange)
+  }, [streaming, sseOverviewSnapshot?.seq, applySnapshot, overviewRange, sseOverviewSnapshot])
 
   useEffect(() => {
+    if (!streaming) return
     if (!overviewPatch) return
-    if (overviewPatchWindowMismatch(overviewPatch, metricsWindow, metricsWindow)) {
+    if (!snapshotRef.current || !restLoadedRef.current) return
+    const apiWindow = resolveApiWindow(overviewRange)
+    const rollingWindow = mergeRollingWindowForRange(overviewRange)
+    const sseWindow = sseRange.window ?? apiWindow
+    if (overviewPatchWindowMismatch(overviewPatch, apiWindow, sseWindow)) {
       return
     }
-    const merged = mergeOverviewPatch(snapshotRef.current ?? undefined, overviewPatch)
-    applySnapshot(merged, merged.window)
-  }, [overviewPatch, applySnapshot, metricsWindow])
+    const merged = mergeOverviewPatch(snapshotRef.current, overviewPatch, {
+      rollingWindow,
+    })
+    if (!merged) return
+    applySnapshot(merged, overviewRange)
+  }, [streaming, overviewPatch, applySnapshot, overviewRange, sseRange.window])
 
+  // SSE unavailable: REST polling fallback.
   useEffect(() => {
-    if (!fallbackPolling) return
+    if (!streaming || !fallbackPolling) return
     refreshSnapshot()
     const timer = window.setInterval(refreshSnapshot, 5000)
     return () => window.clearInterval(timer)
-  }, [fallbackPolling, refreshSnapshot])
+  }, [streaming, fallbackPolling, refreshSnapshot])
 
-  useEffect(() => {
-    if (sseConnected && !prevSseConnectedRef.current && snapshotRef.current) {
-      refreshSnapshot()
-    }
-    prevSseConnectedRef.current = sseConnected
-  }, [sseConnected, refreshSnapshot])
+  const onRangeChange = (next: OverviewRange) => {
+    setOverviewRange(next)
+    setMetricsLoading(true)
+    const p = loadPreferences()
+    savePreferences({
+      ...p,
+      metricsWindow: next.kind === 'preset' ? next.preset : 'custom',
+      overviewRange: serializeOverviewRange(next),
+    })
+  }
 
-  const onWindowChange = (value: string) => {
-    const normalized = normalizeMetricsWindow(value)
-    setMetricsWindow(normalized)
-    snapshotRef.current = null
-    savePreferences({ ...loadPreferences(), metricsWindow: normalized })
+  const onLiveToggle = (next: boolean) => {
+    setLiveEnabled(next)
+    const p = loadPreferences()
+    savePreferences({ ...p, overviewLiveEnabled: next })
   }
 
   const handleParseIssueStatus = useCallback(
@@ -194,17 +253,21 @@ export function OverviewPage() {
   const certWarn = certs.filter((c) => c.days_remaining < 30).length
   const certCritical = certs.filter((c) => c.days_remaining < 7).length
 
+  const chartMetrics = useOverviewMetricsCache(metrics, overviewRange)
+  const chartSystem = useSystemMetricsCache(systemMetrics, overviewRange)
+
   const healthScore = useMemo(() => {
-    if (!metrics || metrics.total === 0) return null
+    const m = metrics && metricsMatchesRange(metrics, overviewRange) ? metrics : chartMetrics
+    if (!m || m.total === 0) return null
     return computeHealthScore({
-      errorRate: metrics.error_rate,
-      p95Ms: metrics.p95_ms,
+      errorRate: m.error_rate,
+      p95Ms: m.p95_ms,
       healthDown: healthSummary.down,
       certCritical,
       certWarn,
-      wafBlocks: metrics.waf_blocks,
+      wafBlocks: m.waf_blocks,
     })
-  }, [metrics, healthSummary.down, certCritical, certWarn])
+  }, [metrics, overviewRange, chartMetrics, healthSummary.down, certCritical, certWarn, metricsMatchesRange])
 
   const healthClass = healthScore != null ? healthScoreClass(healthScore) : 'ok'
 
@@ -239,26 +302,35 @@ export function OverviewPage() {
         </p>
       ) : null}
 
-      <div className="overview-toolbar">
-        <div className="overview-window-tabs" role="tablist" aria-label="指标时间窗口">
-          {WINDOW_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              role="tab"
-              aria-selected={metricsWindow === opt.value}
-              className={metricsWindow === opt.value ? 'btn btn-sm active' : 'btn btn-sm btn-ghost'}
-              onClick={() => onWindowChange(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
+      <div className="overview-toolbar overview-toolbar-range">
+        <div className="overview-toolbar-controls">
+          <OverviewTimeRangePicker value={overviewRange} onChange={onRangeChange} />
+          <label
+            className="live-toggle overview-live-toggle"
+            title={
+              rangeLiveEligible
+                ? '开启后增量推送最新指标'
+                : '所选历史区间已结束，无法实时更新'
+            }
+          >
+            <input
+              type="checkbox"
+              checked={liveEnabled && rangeLiveEligible}
+              disabled={!rangeLiveEligible}
+              onChange={(e) => onLiveToggle(e.target.checked)}
+            />
+            <span>实时</span>
+          </label>
         </div>
       </div>
 
       <OverviewCharts
         metrics={metrics}
+        overviewRange={overviewRange}
+        liveUpdating={streaming}
+        chartMetrics={chartMetrics}
         loading={metricsLoading && metrics === null}
+        refreshing={streaming && metricsLoading && metrics !== null}
         healthScore={healthScore}
         healthClass={healthClass}
         healthChecks={healthChecks}
@@ -273,8 +345,12 @@ export function OverviewPage() {
         <div className="panel-body">
           <SystemResourceStrip
             system={systemMetrics}
+            chartSystem={chartSystem}
             metrics={metrics}
+            chartMetrics={chartMetrics}
+            overviewRange={overviewRange}
             loading={metricsLoading && systemMetrics === null}
+            refreshing={streaming && metricsLoading && systemMetrics !== null}
           />
           <div className="overview-system-divider" />
           <div className="overview-system-grid">

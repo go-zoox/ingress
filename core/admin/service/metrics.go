@@ -28,11 +28,14 @@ type OverviewMetrics struct {
 	Slowest          []SlowRequest    `json:"slowest"`
 	ErrorSamples     []SlowRequest    `json:"error_samples,omitempty"`
 	LatencyHistogram []LatencyBucket  `json:"latency_histogram"`
+	LatencySLO       []LatencySLOSeg  `json:"latency_slo"`
 	Delta            OverviewDelta    `json:"delta"`
 	ParseSkipped     int              `json:"parse_skipped"`
 	ParseIssueOpen   int              `json:"parse_issue_open"`
 	ParseableInTail  int              `json:"parseable_in_tail"`
 	WindowStale      bool             `json:"window_stale"`
+	RangeFrom        string           `json:"range_from,omitempty"`
+	RangeTo          string           `json:"range_to,omitempty"`
 }
 
 type TimelineBucket struct {
@@ -93,6 +96,13 @@ type LatencyBucket struct {
 	Count int    `json:"count"`
 }
 
+// LatencySLOSeg is one SLO band for overview latency breakdown (percent of window).
+type LatencySLOSeg struct {
+	Label string  `json:"label"`
+	Count int     `json:"count"`
+	Pct   float64 `json:"pct"`
+}
+
 // OverviewDelta compares the current window to the immediately previous window of equal length.
 type OverviewDelta struct {
 	TotalPct       float64 `json:"total_pct"`
@@ -108,10 +118,61 @@ type OverviewDelta struct {
 type Metrics struct {
 	logs        *Logs
 	parseIssues *ParseIssues
+	rollup      *MetricsRollup
+	liveHook    bool // ingress core feeds rollup; never tail-parse access.log for overview
 }
 
 func NewMetrics(logs *Logs, parseIssues *ParseIssues) *Metrics {
-	return &Metrics{logs: logs, parseIssues: parseIssues}
+	return &Metrics{
+		logs:        logs,
+		parseIssues: parseIssues,
+		rollup:      NewMetricsRollup(),
+	}
+}
+
+// SetLiveHook marks metrics as fed by ingress core callbacks (embedded admin).
+func (m *Metrics) SetLiveHook(enabled bool) {
+	if m == nil {
+		return
+	}
+	m.liveHook = enabled
+}
+
+// Rollup returns the in-process live metrics buffer.
+func (m *Metrics) Rollup() *MetricsRollup {
+	if m == nil {
+		return nil
+	}
+	return m.rollup
+}
+
+// LoadRollupFromDB loads persisted minute buckets for long-window overview queries.
+func (m *Metrics) LoadRollupFromDB() error {
+	if m == nil || m.rollup == nil {
+		return nil
+	}
+	return m.rollup.LoadPersisted(0)
+}
+
+// FlushRollup writes pending minute aggregates to SQLite.
+func (m *Metrics) FlushRollup() error {
+	if m == nil || m.rollup == nil {
+		return nil
+	}
+	return m.rollup.FlushPending()
+}
+
+// PurgePersistedBuckets deletes minute buckets older than retainDays.
+func (m *Metrics) PurgePersistedBuckets(retainDays int) (int64, error) {
+	if m == nil || m.rollup == nil {
+		return 0, nil
+	}
+	n, err := m.rollup.PurgePersistedOlderThan(retainDays)
+	if err != nil {
+		return n, err
+	}
+	_ = m.rollup.LoadPersisted(0)
+	return n, nil
 }
 
 func (m *Metrics) Overview(window string) OverviewMetrics {
@@ -119,7 +180,44 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 	if window == "" {
 		window = "15m"
 	}
-	lines, err := m.logs.TailIngressAccess(tailLinesForWindow(window))
+	if m.rollup != nil {
+		rw := m.rollup.WindowEntries(window, m.liveHook)
+		if rw.HasData || m.liveHook {
+			source := rw.Source
+			if source == "" {
+				source = "rollup_live"
+			}
+			anchor := time.Now()
+			var out OverviewMetrics
+			if source == "rollup_persisted" || source == "rollup_hybrid" {
+				liveOnly := m.rollup.LiveEntriesForOverview(window, anchor)
+				if stored, ok := m.rollup.AggregateOverviewFromStores(window, source, anchor, liveOnly); ok {
+					out = stored
+				} else {
+					out = aggregateOverview(rw.Entries, window, source)
+				}
+			} else {
+				out = aggregateOverview(rw.Entries, window, source)
+			}
+			out.WindowStale = rw.HasData && !rw.FullCoverage
+			if !out.Delta.HasPrevious {
+				if d, ok := m.rollup.DeltaFromStores(window, anchor); ok {
+					out.Delta = d
+				}
+			}
+			if m.parseIssues != nil {
+				if n, err := m.parseIssues.OpenCount(); err == nil {
+					out.ParseIssueOpen = int(n)
+				}
+			}
+			out.ParseableInTail = len(rw.Entries)
+			return out
+		}
+	}
+	if m.liveHook {
+		return aggregateOverview(nil, window, "rollup_live")
+	}
+	lines, err := m.tailIngressAccessForWindow(window)
 	if err != nil {
 		return aggregateOverview(nil, window, "error")
 	}
@@ -141,6 +239,155 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 		}
 	}
 	return out
+}
+
+// OverviewWithRange returns metrics for [from, to].
+func (m *Metrics) OverviewWithRange(q MetricsRangeQuery) OverviewMetrics {
+	return m.overviewAbsolute(q)
+}
+
+func (m *Metrics) overviewAbsolute(q MetricsRangeQuery) OverviewMetrics {
+	now := time.Now()
+	anchor := q.To
+	if anchor.After(now) {
+		anchor = now
+	}
+	from := q.From
+	out := OverviewMetrics{
+		Window:       "range",
+		Source:       "rollup_hybrid",
+		RangeFrom:    from.Format(time.RFC3339),
+		RangeTo:      anchor.Format(time.RFC3339),
+		StatusCounts: map[string]int{"2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0},
+	}
+	if m.rollup == nil {
+		return out
+	}
+	var live []AccessEntry
+	if m.rollup != nil && anchor.After(now.Add(-10*time.Minute)) {
+		live = m.rollup.LiveEntriesForOverview("5m", now)
+	}
+	if stored, ok := m.rollup.AggregateOverviewAbsolute(from, anchor, "rollup_hybrid", live); ok {
+		stored.RangeFrom = out.RangeFrom
+		stored.RangeTo = out.RangeTo
+		stored.Window = "range"
+		if m.parseIssues != nil {
+			if n, err := m.parseIssues.OpenCount(); err == nil {
+				stored.ParseIssueOpen = int(n)
+			}
+		}
+		return stored
+	}
+	if m.parseIssues != nil {
+		if n, err := m.parseIssues.OpenCount(); err == nil {
+			out.ParseIssueOpen = int(n)
+		}
+	}
+	return out
+}
+
+func (m *Metrics) tailIngressAccessForWindow(window string) ([]string, error) {
+	if m.logs == nil {
+		return nil, nil
+	}
+	windowDur := parseWindowDuration(window)
+	slot := timelineSlotForWindow(windowDur, window)
+	anchor := time.Now()
+	windowStart := timelineWindowStart(anchor, windowDur, slot)
+	queryStart := windowStart.Add(-windowDur)
+
+	limit := tailLinesForWindow(window)
+	maxLimit := overviewTailMaxLines(window)
+	for {
+		lines, err := m.logs.TailIngressAccess(limit)
+		if err != nil {
+			return nil, err
+		}
+		trimmed := trimParsableLinesFromWindowStart(lines, queryStart, anchor)
+		if tailIncludesWindowStart(lines, queryStart) || limit >= maxLimit {
+			return trimmed, nil
+		}
+		next := limit * 2
+		if next > maxLimit {
+			next = maxLimit
+		}
+		if next <= limit {
+			return trimmed, nil
+		}
+		limit = next
+	}
+}
+
+func timelineSlotForWindow(windowDur time.Duration, window string) time.Duration {
+	buckets := timelineBucketsForWindow(window)
+	if buckets <= 0 {
+		buckets = 8
+	}
+	slot := windowDur / time.Duration(buckets)
+	if slot <= 0 {
+		return time.Minute
+	}
+	return slot
+}
+
+func earliestParsableTime(lines []string) time.Time {
+	var earliest time.Time
+	for _, line := range lines {
+		e, ok := parseAccessLine(line)
+		if !ok || e.At.IsZero() {
+			continue
+		}
+		if earliest.IsZero() || e.At.Before(earliest) {
+			earliest = e.At
+		}
+	}
+	return earliest
+}
+
+func tailIncludesWindowStart(lines []string, windowStart time.Time) bool {
+	if windowStart.IsZero() {
+		return true
+	}
+	earliest := earliestParsableTime(lines)
+	if earliest.IsZero() {
+		return true
+	}
+	return !earliest.After(windowStart)
+}
+
+// trimParsableLinesFromWindowStart keeps every line in [windowStart, anchor] instead of
+// a fixed tail line count, so closed minute buckets do not lose rows as the log grows.
+func trimParsableLinesFromWindowStart(lines []string, windowStart, anchor time.Time) []string {
+	if len(lines) == 0 || windowStart.IsZero() {
+		return lines
+	}
+	startIdx := len(lines)
+	for i, line := range lines {
+		e, ok := parseAccessLine(line)
+		if !ok || e.At.IsZero() {
+			continue
+		}
+		if !e.At.Before(windowStart) {
+			startIdx = i
+			break
+		}
+	}
+	out := lines[startIdx:]
+	if anchor.IsZero() {
+		return out
+	}
+	filtered := make([]string, 0, len(out))
+	for _, line := range out {
+		e, ok := parseAccessLine(line)
+		if !ok || e.At.IsZero() {
+			filtered = append(filtered, line)
+			continue
+		}
+		if !e.At.After(anchor) {
+			filtered = append(filtered, line)
+		}
+	}
+	return filtered
 }
 
 func (m *Metrics) overviewSource(lines []string, entries []AccessEntry, parseSkipped int) string {
@@ -181,6 +428,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	out.Total = len(filtered)
 	out.WindowStale = windowStale
 	var durations []float64
+	var histogramDurations []float64
 	cacheHits := 0
 	hostCounts := map[string]int{}
 	pathCounts := map[string]int{}
@@ -191,6 +439,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 		if e.Status >= 400 {
 			out.ErrorRate += 1
 		}
+		histogramDurations = append(histogramDurations, e.DurationMs)
 		if e.DurationMs > 0 {
 			durations = append(durations, e.DurationMs)
 		}
@@ -222,7 +471,8 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	out.TopBackends = topBackends(filtered, windowDur, 8)
 	out.Slowest = slowest(filtered, 5)
 	out.ErrorSamples = errorSamples(filtered, 5)
-	out.LatencyHistogram = buildLatencyHistogram(durations)
+	out.LatencyHistogram = buildLatencyHistogram(histogramDurations)
+	out.LatencySLO = buildLatencySLO(filtered)
 	out.Timeline = buildTimeline(filtered, hasTime, windowDur, bucketCount, anchor)
 
 	prevFiltered := filterEntriesInPreviousWindow(entries, anchor, windowDur, hasTime)
@@ -334,16 +584,22 @@ func parseWindowDuration(window string) time.Duration {
 	switch window {
 	case "24h":
 		return 24 * time.Hour
+	case "6h":
+		return 6 * time.Hour
 	case "1h", "60m":
 		return time.Hour
 	case "5m":
 		return 5 * time.Minute
+	case "1m":
+		return time.Minute
+	case "10m":
+		return 10 * time.Minute
 	default:
 		return 15 * time.Minute
 	}
 }
 
-// TailLinesForWindow returns how many access log lines to read for a metrics window.
+// TailLinesForWindow returns the initial tail budget for a metrics window (may expand adaptively).
 func TailLinesForWindow(window string) int {
 	return tailLinesForWindow(window)
 }
@@ -352,23 +608,67 @@ func tailLinesForWindow(window string) int {
 	switch window {
 	case "24h":
 		return 50000
+	case "6h":
+		return 35000
 	case "1h", "60m":
-		return 20000
+		return 25000
 	case "5m":
-		return 5000
+		return 10000
+	default:
+		return 20000
+	}
+}
+
+func maxTailLinesForWindow(window string) int {
+	switch window {
+	case "24h":
+		return maxLogScanLines
+	case "6h":
+		return 200000
+	case "1h", "60m":
+		return 150000
+	case "5m":
+		return 40000
 	default:
 		return 8000
 	}
+}
+
+func overviewTailMaxLines(window string) int {
+	limit := maxTailLinesForWindow(window)
+	if limit > 8000 {
+		return 8000
+	}
+	return limit
+}
+
+func tailCoversWindow(entries []AccessEntry, windowDur time.Duration, anchor time.Time) bool {
+	if !entriesHaveTimestamps(entries) || len(entries) == 0 {
+		return true
+	}
+	earliest := earliestEntryTime(entries)
+	if earliest.IsZero() {
+		return true
+	}
+	return !earliest.After(anchor.Add(-windowDur))
 }
 
 func timelineBucketsForWindow(window string) int {
 	switch window {
 	case "24h":
 		return 24
+	case "6h":
+		return 12
 	case "1h", "60m":
 		return 12
+	case "5m":
+		return 5
+	case "10m":
+		return 10
+	case "15m":
+		return 15
 	default:
-		return 8
+		return 15
 	}
 }
 
@@ -484,7 +784,7 @@ func buildLatencyHistogram(durations []float64) []LatencyBucket {
 		out[i].Label = b.label
 	}
 	for _, ms := range durations {
-		if ms <= 0 {
+		if ms < 0 {
 			continue
 		}
 		for i, b := range latencyHistBounds {
@@ -492,6 +792,43 @@ func buildLatencyHistogram(durations []float64) []LatencyBucket {
 				out[i].Count++
 				break
 			}
+		}
+	}
+	return out
+}
+
+var latencySLOLabels = []string{
+	"缓存命中",
+	"快 (<100ms)",
+	"正常 (100–500ms)",
+	"慢 (500ms–3s)",
+	"超时 (>3s)",
+}
+
+func buildLatencySLO(entries []AccessEntry) []LatencySLOSeg {
+	counts := make([]int, len(latencySLOLabels))
+	for _, e := range entries {
+		if e.CacheHit || e.DurationMs == 0 {
+			counts[0]++
+			continue
+		}
+		switch {
+		case e.DurationMs < 100:
+			counts[1]++
+		case e.DurationMs < 500:
+			counts[2]++
+		case e.DurationMs < 3000:
+			counts[3]++
+		default:
+			counts[4]++
+		}
+	}
+	total := len(entries)
+	out := make([]LatencySLOSeg, len(latencySLOLabels))
+	for i, label := range latencySLOLabels {
+		out[i] = LatencySLOSeg{Label: label, Count: counts[i]}
+		if total > 0 {
+			out[i].Pct = float64(counts[i]) / float64(total) * 100
 		}
 	}
 	return out
@@ -534,6 +871,10 @@ func filterEntriesInWindow(entries []AccessEntry, anchor time.Time, window time.
 		return append([]AccessEntry(nil), entries...)
 	}
 	start := anchor.Add(-window)
+	return filterEntriesSince(entries, start, anchor)
+}
+
+func filterEntriesSince(entries []AccessEntry, start, anchor time.Time) []AccessEntry {
 	out := make([]AccessEntry, 0, len(entries))
 	for _, e := range entries {
 		if e.At.IsZero() {
@@ -566,7 +907,7 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 	if slot <= 0 {
 		slot = time.Minute
 	}
-	windowStart := alignedTimelineEnd(anchor, slot).Add(-window)
+	windowStart := timelineWindowStart(anchor, window, slot)
 
 	result := make([]TimelineBucket, buckets)
 	for i := range result {

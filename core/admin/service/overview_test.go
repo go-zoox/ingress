@@ -9,8 +9,8 @@ import (
 func TestOverviewBuilder_SnapshotDefaults(t *testing.T) {
 	b := NewOverviewBuilder(nil, nil, nil, nil, nil, nil, nil, nil)
 	snap := b.Snapshot("")
-	if snap.Window != "15m" {
-		t.Fatalf("window = %q, want 15m", snap.Window)
+	if snap.Window != "range" {
+		t.Fatalf("window = %q, want range", snap.Window)
 	}
 	if snap.Certs == nil {
 		t.Fatal("expected non-nil certs slice")

@@ -3,6 +3,7 @@ package service
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-zoox/ingress/core/admin/model"
 	ingcore "github.com/go-zoox/ingress/core"
@@ -77,11 +78,20 @@ type HealthProbePoint struct {
 	ResponseMs float64 `json:"response_ms"`
 }
 
+// applyAccessEntryRange filters parsed entries to the metrics interval.
+func applyAccessEntryRange(entries []AccessEntry, window string, rangeQ MetricsRangeQuery) []AccessEntry {
+	if !rangeQ.From.IsZero() && !rangeQ.To.IsZero() {
+		return filterEntriesSince(entries, rangeQ.From, rangeQ.To)
+	}
+	return entriesInMetricsWindow(entries, window)
+}
+
 // BuildRouteAnalytics aggregates access logs and auxiliary data for one route.
 func BuildRouteAnalytics(
 	cfg *ingcore.Config,
 	ruleIndex, pathIndex int,
 	window string,
+	rangeQ MetricsRangeQuery,
 	lines []string,
 	health *HealthCheckService,
 	wafEvents []model.WAFEvent,
@@ -93,6 +103,9 @@ func BuildRouteAnalytics(
 	window = strings.TrimSpace(window)
 	if window == "" {
 		window = "15m"
+	}
+	if !rangeQ.From.IsZero() && !rangeQ.To.IsZero() {
+		window = WindowLabelForDuration(rangeQ.Duration())
 	}
 	source := "access_log"
 
@@ -106,10 +119,17 @@ func BuildRouteAnalytics(
 	}
 
 	routeEntries := FilterAccessEntriesForRoute(cfg, ruleIndex, pathIndex, lines)
+	all = applyAccessEntryRange(all, window, rangeQ)
+	routeEntries = applyAccessEntryRange(routeEntries, window, rangeQ)
 	scopeHosts, scopePaths := ScopeHostPathCounts(routeEntries, window)
-	scopeHostTraffic := hostTrafficStats(entriesInMetricsWindow(routeEntries, window), -1)
+	scopeHostTraffic := hostTrafficStats(routeEntries, -1)
 	filtered := filterAccessEntriesByScope(routeEntries, scopeHost, scopePath, pathMatch)
 	overview := AggregateAccessEntries(filtered, window, source)
+	if !rangeQ.From.IsZero() && !rangeQ.To.IsZero() {
+		overview.Window = "range"
+		overview.RangeFrom = rangeQ.From.Format(time.RFC3339)
+		overview.RangeTo = rangeQ.To.Format(time.RFC3339)
+	}
 	site := AggregateAccessEntries(all, window, source)
 
 	windowDur := parseWindowDuration(window)

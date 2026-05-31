@@ -109,11 +109,11 @@ func ServiceTarget(name string, port int64, protocol string) string {
 // ListServiceRouteRefs lists rule/path backends whose service.name matches.
 func ListServiceRouteRefs(cfg *ingcore.Config, serviceName string) []ServiceRouteRef {
 	if cfg == nil {
-		return nil
+		return []ServiceRouteRef{}
 	}
 	serviceName = strings.TrimSpace(serviceName)
 	if serviceName == "" {
-		return nil
+		return []ServiceRouteRef{}
 	}
 	var out []ServiceRouteRef
 	for ri := range cfg.Rules {
@@ -131,6 +131,9 @@ func ListServiceRouteRefs(cfg *ingcore.Config, serviceName string) []ServiceRout
 				out = append(out, ref)
 			}
 		}
+	}
+	if out == nil {
+		return []ServiceRouteRef{}
 	}
 	return out
 }

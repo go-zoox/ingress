@@ -53,9 +53,9 @@ func (c *core) handleSecurityPreflight(ctx *zoox.Context, prof *security.Profile
 	if !security.HandlePreflight(ctx.Writer, ctx.Request, prof) {
 		return false
 	}
-	ctx.Logger.Infof("%s", formatAccessLog(ctx.Request, hostname, target, method, path, proto, http.StatusNoContent, time.Since(reqStart), accessLogMeta{
+	c.logAccess(ctx, hostname, target, method, path, proto, http.StatusNoContent, time.Since(reqStart), accessLogMeta{
 		UpstreamStatus:         http.StatusNoContent,
 		UpstreamResponseLength: 0,
-	}))
+	})
 	return true
 }

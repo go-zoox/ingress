@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { OverviewSnapshot } from '../api/client'
+import { isDetailMetricsSSEPatch, type DetailMetricsSSEPatch } from '../lib/detailMetricsMerge'
 import { isOverviewSSEPatch, type OverviewSSEPatch } from '../lib/overviewMerge'
+
+export type OverviewSSESnapshot = {
+  snap: OverviewSnapshot
+  seq: number
+}
+
+export type DetailMetricsSSESnapshot = {
+  metrics: Record<string, unknown>
+  seq: number
+}
 
 const INITIAL_RECONNECT_MS = 1000
 const MAX_RECONNECT_MS = 30_000
@@ -10,8 +22,24 @@ const FALLBACK_AFTER_ATTEMPTS = 4
 const POLL_INTERVAL_MS = 5000
 
 export type SSEOptions = {
-  /** Metrics window for the overview SSE channel. */
+  /** Legacy rolling window for overview SSE (preset ranges). */
   window?: string
+  /** Absolute range start (RFC3339) for overview SSE. */
+  from?: string
+  /** Absolute range end (RFC3339) for overview SSE. */
+  to?: string
+  /** Route detail: rule index. */
+  ri?: string
+  /** Route detail: path index. */
+  pi?: string
+  /** Service detail: catalog service name. */
+  name?: string
+  /** Route scope: host filter. */
+  host?: string
+  /** Route scope: path filter. */
+  path?: string
+  /** Route scope: path match mode. */
+  path_match?: string
   /** When false, no connection is opened. */
   enabled?: boolean
 }
@@ -23,6 +51,8 @@ const CHANNEL_ACTIONS: Record<string, string[]> = {
   metrics: ['update'],
   health: ['update'],
   overview: ['snapshot', 'patch'],
+  route_metrics: ['snapshot', 'patch'],
+  service_metrics: ['snapshot', 'patch'],
 }
 
 /**
@@ -32,6 +62,11 @@ const CHANNEL_ACTIONS: Record<string, string[]> = {
 export function useSSE(channels: string[] = [], options?: SSEOptions) {
   const [data, setData] = useState<Record<string, unknown>>({})
   const [overviewPatch, setOverviewPatch] = useState<OverviewSSEPatch | null>(null)
+  const [overviewSnapshot, setOverviewSnapshot] = useState<OverviewSSESnapshot | null>(null)
+  const overviewSnapshotSeqRef = useRef(0)
+  const [detailMetricsPatch, setDetailMetricsPatch] = useState<DetailMetricsSSEPatch | null>(null)
+  const [detailMetricsSnapshot, setDetailMetricsSnapshot] = useState<DetailMetricsSSESnapshot | null>(null)
+  const detailMetricsSnapshotSeqRef = useRef(0)
   const [connected, setConnected] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
   const [fallbackPolling, setFallbackPolling] = useState(false)
@@ -50,9 +85,33 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
   const buildURL = useCallback(() => {
     const ch = channelsRef.current.join(',')
     const params = new URLSearchParams({ channels: ch })
-    const window = optionsRef.current?.window
-    if (window) {
-      params.set('window', window)
+    const opts = optionsRef.current
+    if (opts?.window) {
+      params.set('window', opts.window)
+    }
+    if (opts?.from) {
+      params.set('from', opts.from)
+    }
+    if (opts?.to) {
+      params.set('to', opts.to)
+    }
+    if (opts?.ri) {
+      params.set('ri', opts.ri)
+    }
+    if (opts?.pi) {
+      params.set('pi', opts.pi)
+    }
+    if (opts?.name) {
+      params.set('name', opts.name)
+    }
+    if (opts?.host) {
+      params.set('host', opts.host)
+    }
+    if (opts?.path) {
+      params.set('path', opts.path)
+    }
+    if (opts?.path_match) {
+      params.set('path_match', opts.path_match)
     }
     return `/api/v1/events/stream?${params.toString()}`
   }, [])
@@ -91,9 +150,15 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
     const channels = channelsRef.current
 
     setFallbackPolling(true)
-    if (channels.includes('overview') && !channels.includes('metrics')) {
-      // Overview page polls REST snapshot; keep reconnect attempts running.
-      return
+    if (
+      channels.includes('overview') ||
+      channels.includes('route_metrics') ||
+      channels.includes('service_metrics')
+    ) {
+      if (!channels.includes('metrics')) {
+        // Detail/overview pages poll REST snapshot; keep reconnect attempts running.
+        return
+      }
     }
     pollTimerRef.current = window.setInterval(async () => {
       try {
@@ -115,11 +180,39 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
     try {
       const parsed = JSON.parse(raw)
       if (eventType === 'overview:snapshot') {
-        // Initial full state comes from REST; SSE only streams field-level patches.
+        overviewSnapshotSeqRef.current += 1
+        setOverviewSnapshot({
+          snap: parsed as OverviewSnapshot,
+          seq: overviewSnapshotSeqRef.current,
+        })
         return
       }
       if (eventType === 'overview:patch' || isOverviewSSEPatch(parsed)) {
         setOverviewPatch(parsed as OverviewSSEPatch)
+        return
+      }
+      if (eventType === 'route_metrics:snapshot' || eventType === 'service_metrics:snapshot') {
+        detailMetricsSnapshotSeqRef.current += 1
+        setDetailMetricsSnapshot({
+          metrics: parsed as Record<string, unknown>,
+          seq: detailMetricsSnapshotSeqRef.current,
+        })
+        return
+      }
+      if (
+        eventType === 'route_metrics:patch' ||
+        eventType === 'service_metrics:patch' ||
+        isDetailMetricsSSEPatch(parsed)
+      ) {
+        const patch = parsed as DetailMetricsSSEPatch
+        if (typeof patch.data === 'string') {
+          try {
+            patch.data = JSON.parse(patch.data) as Record<string, unknown>
+          } catch {
+            // keep raw
+          }
+        }
+        setDetailMetricsPatch(patch)
         return
       }
       const channel = eventType.split(':')[0] || 'unknown'
@@ -211,7 +304,14 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
     return () => {
       close()
     }
-  }, [connect, close, options?.window, options?.enabled, channels.join(',')])
+  }, [connect, close, options?.window, options?.from, options?.to, options?.enabled, options?.ri, options?.pi, options?.name, options?.host, options?.path, options?.path_match, channels.join(',')])
+
+  useEffect(() => {
+    setOverviewPatch(null)
+    setOverviewSnapshot(null)
+    setDetailMetricsPatch(null)
+    setDetailMetricsSnapshot(null)
+  }, [options?.window, options?.from, options?.to, options?.enabled, options?.ri, options?.pi, options?.name, options?.host, options?.path, options?.path_match])
 
   useEffect(() => {
     const onUnload = () => close()
@@ -219,5 +319,15 @@ export function useSSE(channels: string[] = [], options?: SSEOptions) {
     return () => window.removeEventListener('beforeunload', onUnload)
   }, [close])
 
-  return { data, overviewPatch, connected, reconnecting, fallbackPolling, close }
+  return {
+    data,
+    overviewPatch,
+    overviewSnapshot,
+    detailMetricsPatch,
+    detailMetricsSnapshot,
+    connected,
+    reconnecting,
+    fallbackPolling,
+    close,
+  }
 }

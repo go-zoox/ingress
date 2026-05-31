@@ -43,6 +43,15 @@ var builtinRegistry = []BuiltinDef{
 		DefaultParams:   ingjobs.JobParams{RetainDays: 90},
 	},
 	{
+		ID:              "purge_metrics_buckets",
+		Name:            "清理指标分钟桶",
+		Description:     "按保留天数删除过期 Admin 总览指标分钟聚合",
+		Kind:            "purge_metrics_buckets",
+		DefaultSchedule: "0 5 * * *",
+		DefaultEnabled:  true,
+		DefaultParams:   ingjobs.JobParams{RetainDays: 30},
+	},
+	{
 		ID:              "check_tls_expiry",
 		Name:            "TLS 证书检查",
 		Description:     "扫描 HTTPS 证书有效期并写入审计日志",

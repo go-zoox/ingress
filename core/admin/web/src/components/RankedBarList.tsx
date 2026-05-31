@@ -1,7 +1,4 @@
 import { memo } from 'react'
-import { useAnimatedListRows } from '../hooks/useAnimatedListRows'
-import { useListFlip } from '../hooks/useListFlip'
-import { listAnimPhaseClass } from '../lib/listAnim'
 
 export type RankedBarRow = {
   name: string
@@ -22,37 +19,29 @@ export const RankedBarList = memo(function RankedBarList({
   maxValue,
   emptyText = '无数据',
 }: Props) {
-  const { rows: animRows, flipKeys } = useAnimatedListRows(rows, (row) => row.name)
-  const registerFlip = useListFlip(flipKeys)
-
-  if (animRows.length === 0) {
+  if (rows.length === 0) {
     return <p className="empty-hint">{emptyText}</p>
   }
 
-  const liveRows = animRows.filter((row) => row.phase !== 'exit')
-  const max = maxValue ?? Math.max(1, ...liveRows.map((row) => row.item.value))
+  const max = maxValue ?? Math.max(1, ...rows.map((row) => row.value))
   const fillClass = tone === 'ok' ? 'seg-2xx' : 'seg-4xx'
 
   return (
-    <>
-      {animRows.map((row) => (
-        <div
-          key={row.key}
-          ref={registerFlip(row.key)}
-          className={`bar-row host-rank${listAnimPhaseClass(row.phase)}`}
-        >
-          <span className="bar-label host-label" title={row.item.name}>
-            {row.item.name}
+    <div className="ranked-bar-list">
+      {rows.map((row) => (
+        <div key={row.name} className="bar-row host-rank">
+          <span className="bar-label host-label" title={row.name}>
+            {row.name}
           </span>
           <div className="bar-track">
             <div
               className={`bar-fill ${fillClass}`}
-              style={{ width: `${(row.item.value / max) * 100}%` }}
+              style={{ width: `${(row.value / max) * 100}%` }}
             />
           </div>
-          <span className="bar-val">{row.item.sub}</span>
+          <span className="bar-val">{row.sub}</span>
         </div>
       ))}
-    </>
+    </div>
   )
 })

@@ -2,6 +2,7 @@ package service
 
 import (
 	"strings"
+	"time"
 )
 
 // ServiceCompareStats compares service-scoped traffic to the whole site.
@@ -42,6 +43,7 @@ func FilterAccessEntriesForService(entries []AccessEntry, targets []string) []Ac
 // BuildServiceAnalytics aggregates access-log metrics for upstream target aliases.
 func BuildServiceAnalytics(
 	window string,
+	rangeQ MetricsRangeQuery,
 	lines []string,
 	targets []string,
 	health *HealthCheckService,
@@ -49,6 +51,9 @@ func BuildServiceAnalytics(
 	window = strings.TrimSpace(window)
 	if window == "" {
 		window = "15m"
+	}
+	if !rangeQ.From.IsZero() && !rangeQ.To.IsZero() {
+		window = WindowLabelForDuration(rangeQ.Duration())
 	}
 	source := "access_log"
 
@@ -61,8 +66,14 @@ func BuildServiceAnalytics(
 		source = "access_log_empty"
 	}
 
-	filtered := FilterAccessEntriesForService(all, targets)
+	all = applyAccessEntryRange(all, window, rangeQ)
+	filtered := applyAccessEntryRange(FilterAccessEntriesForService(all, targets), window, rangeQ)
 	overview := AggregateAccessEntries(filtered, window, source)
+	if !rangeQ.From.IsZero() && !rangeQ.To.IsZero() {
+		overview.Window = "range"
+		overview.RangeFrom = rangeQ.From.Format(time.RFC3339)
+		overview.RangeTo = rangeQ.To.Format(time.RFC3339)
+	}
 	site := AggregateAccessEntries(all, window, source)
 
 	windowDur := parseWindowDuration(window)

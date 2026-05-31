@@ -231,16 +231,50 @@ export function SettingsPage() {
                 <option value={30000}>30 秒</option>
               </select>
             </SettingsRow>
-            <SettingsRow label="总览指标窗口">
+            <SettingsRow label="总览默认时间范围">
               <select
-                value={prefs.metricsWindow}
-                onChange={(e) => setPrefs((p) => ({ ...p, metricsWindow: e.target.value }))}
+                value={
+                  prefs.overviewRange
+                    ? (() => {
+                        try {
+                          const parsed = JSON.parse(prefs.overviewRange) as { kind?: string; preset?: string }
+                          if (parsed.kind === 'preset' && parsed.preset) return parsed.preset
+                        } catch {
+                          // fall through
+                        }
+                        return prefs.metricsWindow === 'live' ? '5m' : prefs.metricsWindow
+                      })()
+                    : prefs.metricsWindow === 'live'
+                      ? '5m'
+                      : prefs.metricsWindow
+                }
+                onChange={(e) => {
+                  const v = e.target.value
+                  setPrefs((p) => ({
+                    ...p,
+                    metricsWindow: v,
+                    overviewRange: JSON.stringify({ kind: 'preset', preset: v }),
+                  }))
+                }}
               >
-                <option value="5m">5 分钟</option>
-                <option value="15m">15 分钟</option>
-                <option value="1h">1 小时</option>
-                <option value="24h">24 小时</option>
+                <option value="5m">最近 5 分钟</option>
+                <option value="15m">最近 15 分钟</option>
+                <option value="1h">最近 1 小时</option>
+                <option value="6h">最近 6 小时</option>
+                <option value="24h">最近 24 小时</option>
               </select>
+            </SettingsRow>
+            <SettingsRow label="总览默认实时">
+              <label className="live-toggle">
+                <input
+                  type="checkbox"
+                  checked={prefs.overviewLiveEnabled !== false}
+                  onChange={(e) =>
+                    setPrefs((p) => ({ ...p, overviewLiveEnabled: e.target.checked }))
+                  }
+                />
+                <span>开启增量推送</span>
+              </label>
             </SettingsRow>
             <div className="toolbar" style={{ marginTop: 12 }}>
               <button type="button" className="btn btn-primary" onClick={applyPrefs}>

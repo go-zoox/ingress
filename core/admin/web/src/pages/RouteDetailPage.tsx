@@ -1,26 +1,25 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { Network, Radio, ScrollText, Search, Settings2, Shield } from 'lucide-react'
+import { Network, ScrollText, Search, Settings2, Shield } from 'lucide-react'
 import { investigateLink, logsLink, routesTabLink, wafLink } from '../lib/deepLinks'
 import { PageHeader } from '../components/PageHeader'
+import { DetailMetricsToolbar } from '../components/DetailMetricsToolbar'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { useWafRuleLookup } from '../hooks/useWafRuleLookup'
+import { useDetailMetricsRange } from '../hooks/useDetailMetricsRange'
+import { useSSE } from '../hooks/useSSE'
 import { api, type MetricsDelta, type RouteDetail, type RouteMetrics } from '../api/client'
 import { RouteDetailCharts } from '../components/routes/RouteDetailCharts'
 import { RouteScopeBar } from '../components/routes/RouteScopeBar'
 import { OverviewDelta } from '../components/OverviewDelta'
 import { parseRouteScopeFromSearchParams } from '../lib/routeScope'
-import { metricsSourceLabel } from '../lib/metricsSource'
-import { loadPreferences, savePreferences } from '../lib/preferences'
+import {
+  detailPatchWindowMismatch,
+  mergeDetailMetricsPatch,
+} from '../lib/detailMetricsMerge'
+import { snapshotMatchesRange, sseParamsForRange } from '../lib/overviewRange'
 
-const METRICS_AUTO_REFRESH_MS = 5000
-
-const WINDOW_OPTIONS = [
-  { value: '5m', label: '5 分钟' },
-  { value: '15m', label: '15 分钟' },
-  { value: '1h', label: '1 小时' },
-  { value: '24h', label: '24 小时' },
-] as const
+const TAB_REFRESH_MS = 5000
 
 type TabKey = 'logs' | 'waf' | 'cache'
 
@@ -32,21 +31,44 @@ export function RouteDetailPage() {
   const [metrics, setMetrics] = useState<RouteMetrics | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabKey>('logs')
-  const [metricWindow, setMetricWindow] = useState(() => loadPreferences().metricsWindow)
+  const {
+    metricsRange,
+    setMetricsRange,
+    liveEnabled,
+    setLiveEnabled,
+    streaming,
+    rangeQuery,
+  } = useDetailMetricsRange()
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
   const [scopeOptions, setScopeOptions] = useState<{
     hosts: Array<{ name: string; count: number }>
     paths: Array<{ name: string; count: number }>
   }>({ hosts: [], paths: [] })
-  const metricsMountedRef = useRef(false)
-  const metricsTimerRef = useRef<number | null>(null)
+  const metricsFetchRef = useRef(0)
+  const restLoadedRef = useRef(false)
+  const metricsRef = useRef<RouteMetrics | null>(null)
 
   const ri = Number(ruleIndex)
   const pi = Number(pathIndex)
 
   const scope = parseRouteScopeFromSearchParams(searchParams)
   const { host: scopeHost, path: scopePath, pathMatch: pathMatchParam } = scope
+
+  const sseRange = useMemo(() => sseParamsForRange(metricsRange), [metricsRange])
+  const sseOptions = useMemo(
+    () => ({
+      ...sseRange,
+      enabled: streaming && !isNaN(ri) && !isNaN(pi),
+      ri: String(ri),
+      pi: String(pi),
+      host: scopeHost || undefined,
+      path: scopePath || undefined,
+      path_match: pathMatchParam === 'exact' ? 'exact' : 'prefix',
+    }),
+    [sseRange, streaming, ri, pi, scopeHost, scopePath, pathMatchParam],
+  )
+  const { detailMetricsPatch, detailMetricsSnapshot } = useSSE(['route_metrics'], sseOptions)
 
   useEffect(() => {
     if (isNaN(ri) || isNaN(pi)) {
@@ -69,55 +91,63 @@ export function RouteDetailPage() {
 
   const fetchRouteMetrics = useCallback(() => {
     if (isNaN(ri) || isNaN(pi)) return
-    if (!metricsMountedRef.current) {
-      setMetricsLoading(true)
-    }
+    const fetchId = ++metricsFetchRef.current
+    setMetricsLoading(true)
     const scopeParams = {
       host: scopeHost || undefined,
       path: scopePath || undefined,
       path_match: pathMatchParam === 'exact' ? ('exact' as const) : ('prefix' as const),
     }
     Promise.all([
-      api.routeMetrics(ri, pi, metricWindow, scopeParams),
-      api.routeMetrics(ri, pi, metricWindow),
+      api.routeMetrics(ri, pi, rangeQuery, scopeParams),
+      api.routeMetrics(ri, pi, rangeQuery),
     ])
       .then(([scoped, unscoped]) => {
+        if (fetchId !== metricsFetchRef.current) return
+        restLoadedRef.current = true
+        metricsRef.current = scoped
         setMetrics(scoped)
         setScopeOptions({
           hosts: unscoped.scope_hosts ?? unscoped.top_hosts ?? [],
           paths: unscoped.scope_paths ?? unscoped.top_paths ?? [],
         })
         setMetricsLoading(false)
-        metricsMountedRef.current = true
       })
       .catch(() => {
-        if (!metricsMountedRef.current) {
-          setMetrics(null)
-          setMetricsLoading(false)
-          metricsMountedRef.current = true
-        }
+        if (fetchId !== metricsFetchRef.current) return
+        restLoadedRef.current = false
+        metricsRef.current = null
+        setMetrics(null)
+        setMetricsLoading(false)
       })
-  }, [ri, pi, metricWindow, scopeHost, scopePath, pathMatchParam])
+  }, [ri, pi, rangeQuery, scopeHost, scopePath, pathMatchParam])
 
   useEffect(() => {
     if (isNaN(ri) || isNaN(pi)) return
+    restLoadedRef.current = false
+    metricsRef.current = null
     fetchRouteMetrics()
-    if (METRICS_AUTO_REFRESH_MS > 0) {
-      metricsTimerRef.current = window.setInterval(fetchRouteMetrics, METRICS_AUTO_REFRESH_MS)
-    }
-    return () => {
-      if (metricsTimerRef.current != null) {
-        window.clearInterval(metricsTimerRef.current)
-      }
-    }
   }, [fetchRouteMetrics, ri, pi])
 
-  const onWindowChange = (value: string) => {
-    setMetricWindow(value)
-    savePreferences({ ...loadPreferences(), metricsWindow: value })
-    metricsMountedRef.current = false
-    setMetricsLoading(true)
-  }
+  useEffect(() => {
+    if (!streaming || !detailMetricsSnapshot) return
+    if (!restLoadedRef.current && detailMetricsSnapshot.seq <= 1) return
+    const incoming = detailMetricsSnapshot.metrics as RouteMetrics
+    if (!snapshotMatchesRange(incoming, metricsRange)) return
+    metricsRef.current = incoming
+    setMetrics(incoming)
+    setMetricsLoading(false)
+  }, [streaming, detailMetricsSnapshot?.seq, metricsRange, detailMetricsSnapshot])
+
+  useEffect(() => {
+    if (!streaming || !detailMetricsPatch) return
+    if (!restLoadedRef.current || !metricsRef.current) return
+    if (detailPatchWindowMismatch(detailMetricsPatch, metricsRange, sseRange.window)) return
+    const merged = mergeDetailMetricsPatch(metricsRef.current, detailMetricsPatch, metricsRange)
+    if (!merged) return
+    metricsRef.current = merged
+    setMetrics(merged)
+  }, [streaming, detailMetricsPatch, metricsRange, sseRange.window])
 
   if (loading) {
     return (
@@ -200,31 +230,12 @@ export function RouteDetailPage() {
         }
       />
 
-      <div className="overview-toolbar">
-        <div className="overview-window-tabs" role="tablist" aria-label="指标时间窗口">
-          {WINDOW_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              role="tab"
-              aria-selected={metricWindow === opt.value}
-              className={metricWindow === opt.value ? 'btn btn-sm active' : 'btn btn-sm btn-ghost'}
-              onClick={() => onWindowChange(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <div className="overview-toolbar-meta">
-          <span className="overview-badge">
-            <Radio size={12} aria-hidden />
-            轮询刷新
-          </span>
-          <span className="overview-badge">
-            数据源 {metricsSourceLabel(metrics?.source)}
-          </span>
-        </div>
-      </div>
+      <DetailMetricsToolbar
+        metricsRange={metricsRange}
+        onRangeChange={setMetricsRange}
+        liveEnabled={liveEnabled}
+        onLiveToggle={setLiveEnabled}
+      />
 
       <RouteScopeBar
         ruleIndex={detail.rule_index}
@@ -384,7 +395,7 @@ export function RouteDetailPage() {
               scopeHost={scopeHost || undefined}
               scopePath={scopePath || undefined}
               pathMatch={pathMatchParam}
-              refreshMs={METRICS_AUTO_REFRESH_MS}
+              refreshMs={streaming ? TAB_REFRESH_MS : 0}
             />
           )}
           {activeTab === 'waf' && (
@@ -394,7 +405,7 @@ export function RouteDetailPage() {
               scopeHost={scopeHost || undefined}
               scopePath={scopePath || undefined}
               pathMatch={pathMatchParam}
-              refreshMs={METRICS_AUTO_REFRESH_MS}
+              refreshMs={streaming ? TAB_REFRESH_MS : 0}
             />
           )}
           {activeTab === 'cache' && (

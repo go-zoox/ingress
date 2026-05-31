@@ -10,43 +10,43 @@ type Config struct {
 
 // BuiltinOverride adjusts a built-in job (schedule, enabled, params).
 type BuiltinOverride struct {
-	Enabled  *bool     `config:"enabled" yaml:"enabled,omitempty"`
-	Schedule string    `config:"schedule" yaml:"schedule,omitempty"`
-	Params   JobParams `config:"params" yaml:"params,omitempty"`
+	Enabled  *bool     `config:"enabled" yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	Schedule string    `config:"schedule" yaml:"schedule,omitempty" json:"schedule,omitempty"`
+	Params   JobParams `config:"params" yaml:"params,omitempty" json:"params,omitempty"`
 }
 
 // Item is a user-defined scheduled job.
 type Item struct {
-	ID         string    `config:"id" yaml:"id"`
-	Name       string    `config:"name" yaml:"name"`
-	Kind       string    `config:"kind" yaml:"kind"` // http_call | script (command is legacy alias)
-	Schedule   string    `config:"schedule" yaml:"schedule"`
-	Enabled    bool      `config:"enabled" yaml:"enabled"`
-	TimeoutSec int64     `config:"timeout_sec" yaml:"timeout_sec,omitempty"`
-	OnFailure  string    `config:"on_failure" yaml:"on_failure,omitempty"` // log | retry | disable
-	Params     JobParams `config:"params" yaml:"params"`
+	ID         string    `config:"id" yaml:"id" json:"id"`
+	Name       string    `config:"name" yaml:"name" json:"name"`
+	Kind       string    `config:"kind" yaml:"kind" json:"kind"` // http_call | script (command is legacy alias)
+	Schedule   string    `config:"schedule" yaml:"schedule" json:"schedule"`
+	Enabled    bool      `config:"enabled" yaml:"enabled" json:"enabled"`
+	TimeoutSec int64     `config:"timeout_sec" yaml:"timeout_sec,omitempty" json:"timeout_sec,omitempty"`
+	OnFailure  string    `config:"on_failure" yaml:"on_failure,omitempty" json:"on_failure,omitempty"` // log | retry | disable
+	Params     JobParams `config:"params" yaml:"params" json:"params"`
 }
 
 // JobParams holds type-specific fields for custom and built-in jobs.
 type JobParams struct {
 	// http_call
-	Method        string            `config:"method" yaml:"method,omitempty"`
-	URL           string            `config:"url" yaml:"url,omitempty"`
-	Headers       map[string]string `config:"headers" yaml:"headers,omitempty"`
-	Body          string            `config:"body" yaml:"body,omitempty"`
-	ExpectStatus  []int64           `config:"expect_status" yaml:"expect_status,omitempty"`
-	InsecureTLS   bool              `config:"insecure_tls" yaml:"insecure_tls,omitempty"`
+	Method        string            `config:"method" yaml:"method,omitempty" json:"method,omitempty"`
+	URL           string            `config:"url" yaml:"url,omitempty" json:"url,omitempty"`
+	Headers       map[string]string `config:"headers" yaml:"headers,omitempty" json:"headers,omitempty"`
+	Body          string            `config:"body" yaml:"body,omitempty" json:"body,omitempty"`
+	ExpectStatus  []int64           `config:"expect_status" yaml:"expect_status,omitempty" json:"expect_status,omitempty"`
+	InsecureTLS   bool              `config:"insecure_tls" yaml:"insecure_tls,omitempty" json:"insecure_tls,omitempty"`
 	// script
-	Engine  string            `config:"engine" yaml:"engine,omitempty"` // shell | javascript | go
-	Script  string            `config:"script" yaml:"script,omitempty"`
-	Shell   string            `config:"shell" yaml:"shell,omitempty"` // only when engine=shell (interpreter: sh, bash, …)
-	Workdir string            `config:"workdir" yaml:"workdir,omitempty"`
-	Env     map[string]string `config:"env" yaml:"env,omitempty"`
+	Engine  string            `config:"engine" yaml:"engine,omitempty" json:"engine,omitempty"` // shell | javascript | go
+	Script  string            `config:"script" yaml:"script,omitempty" json:"script,omitempty"`
+	Shell   string            `config:"shell" yaml:"shell,omitempty" json:"shell,omitempty"` // only when engine=shell (interpreter: sh, bash, …)
+	Workdir string            `config:"workdir" yaml:"workdir,omitempty" json:"workdir,omitempty"`
+	Env     map[string]string `config:"env" yaml:"env,omitempty" json:"env,omitempty"`
 	// legacy script/command fields (read-only compat; cleared on save via PrepareScriptParams)
-	Command string   `config:"command" yaml:"command,omitempty"`
-	Args    []string `config:"args" yaml:"args,omitempty"`
+	Command string   `config:"command" yaml:"command,omitempty" json:"command,omitempty"`
+	Args    []string `config:"args" yaml:"args,omitempty" json:"args,omitempty"`
 	// built-in: purge_waf_events / purge_audit_logs
-	RetainDays int `config:"retain_days" yaml:"retain_days,omitempty"`
+	RetainDays int `config:"retain_days" yaml:"retain_days,omitempty" json:"retain_days,omitempty"`
 }
 
 // AdminJobs configures platform job execution policy under admin.jobs.

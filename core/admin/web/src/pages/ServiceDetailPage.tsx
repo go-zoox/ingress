@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Activity, Radio, ScrollText, Settings2, Route } from 'lucide-react'
+import { Activity, ScrollText, Settings2, Route } from 'lucide-react'
 import { healthLink, logsLink, routeDetailLink } from '../lib/deepLinks'
 import { PageHeader } from '../components/PageHeader'
+import { DetailMetricsToolbar } from '../components/DetailMetricsToolbar'
 import { api, type MetricsDelta, type ServiceDetail, type ServiceMetrics } from '../api/client'
 import { ServiceDetailCharts } from '../components/services/ServiceDetailCharts'
 import { OverviewDelta } from '../components/OverviewDelta'
-import { metricsSourceLabel } from '../lib/metricsSource'
-import { loadPreferences, savePreferences } from '../lib/preferences'
+import { useDetailMetricsRange } from '../hooks/useDetailMetricsRange'
+import { useSSE } from '../hooks/useSSE'
+import {
+  detailPatchWindowMismatch,
+  mergeDetailMetricsPatch,
+} from '../lib/detailMetricsMerge'
+import { snapshotMatchesRange, sseParamsForRange } from '../lib/overviewRange'
 
-const METRICS_AUTO_REFRESH_MS = 5000
-
-const WINDOW_OPTIONS = [
-  { value: '5m', label: '5 分钟' },
-  { value: '15m', label: '15 分钟' },
-  { value: '1h', label: '1 小时' },
-  { value: '24h', label: '24 小时' },
-] as const
+const TAB_REFRESH_MS = 5000
 
 type TabKey = 'logs' | 'health'
 
@@ -29,11 +28,30 @@ export function ServiceDetailPage() {
   const [metrics, setMetrics] = useState<ServiceMetrics | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabKey>('logs')
-  const [metricWindow, setMetricWindow] = useState(() => loadPreferences().metricsWindow)
+  const {
+    metricsRange,
+    setMetricsRange,
+    liveEnabled,
+    setLiveEnabled,
+    streaming,
+    rangeQuery,
+  } = useDetailMetricsRange()
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
-  const metricsMountedRef = useRef(false)
-  const metricsTimerRef = useRef<number | null>(null)
+  const metricsFetchRef = useRef(0)
+  const restLoadedRef = useRef(false)
+  const metricsRef = useRef<ServiceMetrics | null>(null)
+
+  const sseRange = useMemo(() => sseParamsForRange(metricsRange), [metricsRange])
+  const sseOptions = useMemo(
+    () => ({
+      ...sseRange,
+      enabled: streaming && Boolean(serviceName),
+      name: serviceName,
+    }),
+    [sseRange, streaming, serviceName],
+  )
+  const { detailMetricsPatch, detailMetricsSnapshot } = useSSE(['service_metrics'], sseOptions)
 
   useEffect(() => {
     if (!serviceName) {
@@ -57,44 +75,52 @@ export function ServiceDetailPage() {
 
   const fetchMetrics = useCallback(() => {
     if (!serviceName) return
-    if (!metricsMountedRef.current) {
-      setMetricsLoading(true)
-    }
+    const fetchId = ++metricsFetchRef.current
+    setMetricsLoading(true)
     api
-      .serviceMetrics(serviceName, metricWindow)
+      .serviceMetrics(serviceName, rangeQuery)
       .then((m) => {
+        if (fetchId !== metricsFetchRef.current) return
+        restLoadedRef.current = true
+        metricsRef.current = m
         setMetrics(m)
         setMetricsLoading(false)
-        metricsMountedRef.current = true
       })
       .catch(() => {
-        if (!metricsMountedRef.current) {
-          setMetrics(null)
-          setMetricsLoading(false)
-          metricsMountedRef.current = true
-        }
+        if (fetchId !== metricsFetchRef.current) return
+        restLoadedRef.current = false
+        metricsRef.current = null
+        setMetrics(null)
+        setMetricsLoading(false)
       })
-  }, [serviceName, metricWindow])
+  }, [serviceName, rangeQuery])
 
   useEffect(() => {
     if (!serviceName) return
+    restLoadedRef.current = false
+    metricsRef.current = null
     fetchMetrics()
-    if (METRICS_AUTO_REFRESH_MS > 0) {
-      metricsTimerRef.current = window.setInterval(fetchMetrics, METRICS_AUTO_REFRESH_MS)
-    }
-    return () => {
-      if (metricsTimerRef.current != null) {
-        window.clearInterval(metricsTimerRef.current)
-      }
-    }
   }, [fetchMetrics, serviceName])
 
-  const onWindowChange = (value: string) => {
-    setMetricWindow(value)
-    savePreferences({ ...loadPreferences(), metricsWindow: value })
-    metricsMountedRef.current = false
-    setMetricsLoading(true)
-  }
+  useEffect(() => {
+    if (!streaming || !detailMetricsSnapshot) return
+    if (!restLoadedRef.current && detailMetricsSnapshot.seq <= 1) return
+    const incoming = detailMetricsSnapshot.metrics as ServiceMetrics
+    if (!snapshotMatchesRange(incoming, metricsRange)) return
+    metricsRef.current = incoming
+    setMetrics(incoming)
+    setMetricsLoading(false)
+  }, [streaming, detailMetricsSnapshot?.seq, metricsRange, detailMetricsSnapshot])
+
+  useEffect(() => {
+    if (!streaming || !detailMetricsPatch) return
+    if (!restLoadedRef.current || !metricsRef.current) return
+    if (detailPatchWindowMismatch(detailMetricsPatch, metricsRange, sseRange.window)) return
+    const merged = mergeDetailMetricsPatch(metricsRef.current, detailMetricsPatch, metricsRange)
+    if (!merged) return
+    metricsRef.current = merged
+    setMetrics(merged)
+  }, [streaming, detailMetricsPatch, metricsRange, sseRange.window])
 
   if (loading) {
     return (
@@ -118,6 +144,8 @@ export function ServiceDetailPage() {
   }
 
   const healthStatus = deriveHealthStatus(metrics)
+  const routeRefs = detail.route_refs ?? []
+  const targetAliases = detail.target_aliases ?? []
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'logs', label: '访问日志' },
     { key: 'health', label: '健康检查' },
@@ -151,31 +179,12 @@ export function ServiceDetailPage() {
         }
       />
 
-      <div className="overview-toolbar">
-        <div className="overview-window-tabs" role="tablist" aria-label="指标时间窗口">
-          {WINDOW_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              role="tab"
-              aria-selected={metricWindow === opt.value}
-              className={metricWindow === opt.value ? 'btn btn-sm active' : 'btn btn-sm btn-ghost'}
-              onClick={() => onWindowChange(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <div className="overview-toolbar-meta">
-          <span className="overview-badge">
-            <Radio size={12} aria-hidden />
-            轮询刷新
-          </span>
-          <span className="overview-badge">
-            数据源 {metricsSourceLabel(metrics?.source)}
-          </span>
-        </div>
-      </div>
+      <DetailMetricsToolbar
+        metricsRange={metricsRange}
+        onRangeChange={setMetricsRange}
+        liveEnabled={liveEnabled}
+        onLiveToggle={setLiveEnabled}
+      />
 
       <div className="route-detail-grid">
         <div className="route-detail-left">
@@ -211,11 +220,11 @@ export function ServiceDetailPage() {
                   </>
                 ) : null}
 
-                {detail.target_aliases.length > 1 ? (
+                {targetAliases.length > 1 ? (
                   <>
                     <dt>日志目标别名</dt>
                     <dd>
-                      {detail.target_aliases.map((t) => (
+                      {targetAliases.map((t) => (
                         <code key={t} style={{ display: 'block', marginBottom: 4 }}>
                           {t}
                         </code>
@@ -248,7 +257,7 @@ export function ServiceDetailPage() {
             </div>
           </div>
 
-          {detail.route_refs.length > 0 ? (
+          {routeRefs.length > 0 ? (
             <div className="panel" style={{ marginTop: 16 }}>
               <div className="panel-head">
                 <h2>引用路由</h2>
@@ -263,7 +272,7 @@ export function ServiceDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.route_refs.map((ref) => (
+                    {routeRefs.map((ref) => (
                       <tr key={`${ref.rule_index}-${ref.path_index}`}>
                         <td><code>{ref.host}</code></td>
                         <td><code>{ref.path}</code></td>
@@ -352,7 +361,7 @@ export function ServiceDetailPage() {
             <ServiceLogsTab
               target={detail.target}
               aliases={detail.target_aliases}
-              refreshMs={METRICS_AUTO_REFRESH_MS}
+              refreshMs={streaming ? TAB_REFRESH_MS : 0}
             />
           )}
           {activeTab === 'health' && (

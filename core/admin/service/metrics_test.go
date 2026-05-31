@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -138,6 +139,15 @@ func TestParseWindowDuration_24h(t *testing.T) {
 	}
 }
 
+func TestParseWindowDuration_6h(t *testing.T) {
+	if parseWindowDuration("6h") != 6*time.Hour {
+		t.Fatal("6h window")
+	}
+	if timelineBucketsForWindow("6h") != 12 {
+		t.Fatal("6h buckets")
+	}
+}
+
 func TestComputeOverviewDelta(t *testing.T) {
 	anchor := time.Date(2026, 5, 20, 12, 0, 0, 0, time.Local)
 	cur := []AccessEntry{
@@ -153,5 +163,124 @@ func TestComputeOverviewDelta(t *testing.T) {
 	}
 	if d.TotalPct <= 0 {
 		t.Fatalf("total_pct=%v want increase", d.TotalPct)
+	}
+}
+
+func TestBuildLatencySLO_segments(t *testing.T) {
+	entries := []AccessEntry{
+		{DurationMs: 0, CacheHit: true},
+		{DurationMs: 50},
+		{DurationMs: 200},
+		{DurationMs: 800},
+		{DurationMs: 5000},
+	}
+	slo := buildLatencySLO(entries)
+	if len(slo) != 5 {
+		t.Fatalf("len=%d want 5", len(slo))
+	}
+	if slo[0].Count != 1 || slo[1].Count != 1 || slo[2].Count != 1 || slo[3].Count != 1 || slo[4].Count != 1 {
+		t.Fatalf("slo counts=%v", slo)
+	}
+	if slo[0].Pct != 20 {
+		t.Fatalf("cache pct=%v want 20", slo[0].Pct)
+	}
+}
+
+func TestBuildLatencyHistogram_includesZeroMs(t *testing.T) {
+	hist := buildLatencyHistogram([]float64{0, 0, 37, 100})
+	var total int
+	for _, b := range hist {
+		total += b.Count
+	}
+	if total != 4 {
+		t.Fatalf("total bucket count=%d want 4", total)
+	}
+	if hist[0].Count != 3 {
+		t.Fatalf("<50ms=%d want 3 (0ms and 37ms)", hist[0].Count)
+	}
+	if hist[1].Count != 1 {
+		t.Fatalf("50-100=%d want 1", hist[1].Count)
+	}
+}
+
+func TestTailCoversWindow(t *testing.T) {
+	anchor := time.Date(2026, 5, 31, 9, 37, 0, 0, time.Local)
+	window := 15 * time.Minute
+	entries := []AccessEntry{
+		{At: anchor.Add(-10 * time.Minute), Status: 200},
+	}
+	if tailCoversWindow(entries, window, anchor) {
+		t.Fatal("10m span should not cover 15m window")
+	}
+	entries = append(entries, AccessEntry{At: anchor.Add(-16 * time.Minute), Status: 200})
+	if !tailCoversWindow(entries, window, anchor) {
+		t.Fatal("16m span should cover 15m window")
+	}
+}
+
+func TestTailLinesForWindow_defaults(t *testing.T) {
+	if overviewTailMaxLines("15m") != 8000 {
+		t.Fatalf("15m overview tail cap=%d want 8000", overviewTailMaxLines("15m"))
+	}
+	if overviewTailMaxLines("5m") > overviewTailMaxLines("15m") {
+		t.Fatal("5m tail cap should not exceed 15m cap")
+	}
+}
+
+func TestTrimParsableLinesFromWindowStart_keepsClosedBucketRows(t *testing.T) {
+	windowStart := time.Date(2026, 5, 31, 11, 34, 0, 0, time.Local)
+	anchor := windowStart.Add(5 * time.Minute)
+	lines := []string{
+		`2026/05/31 11:32:10 203.0.113.44 api.example.com -> api.internal:8080 "GET /old HTTP/1.1" 200 5ms cache_hit=0`,
+		`2026/05/31 11:34:10 203.0.113.44 api.example.com -> api.internal:8080 "GET /a HTTP/1.1" 200 5ms cache_hit=0`,
+		`2026/05/31 11:34:20 203.0.113.44 api.example.com -> api.internal:8080 "GET /b HTTP/1.1" 200 5ms cache_hit=0`,
+		`2026/05/31 11:38:50 203.0.113.44 api.example.com -> api.internal:8080 "GET /new HTTP/1.1" 200 5ms cache_hit=0`,
+	}
+	trimmed := trimParsableLinesFromWindowStart(lines, windowStart, anchor)
+	if len(trimmed) != 3 {
+		t.Fatalf("trimmed=%d want 3 (drop pre-window only)", len(trimmed))
+	}
+	if !strings.Contains(trimmed[0], `GET /a`) {
+		t.Fatalf("first kept line=%q", trimmed[0])
+	}
+}
+
+func TestBuildTimeline_closedBucketStableWhenLaterTrafficAppends(t *testing.T) {
+	windowStart := time.Date(2026, 5, 31, 11, 34, 0, 0, time.Local)
+	anchor := windowStart.Add(5 * time.Minute)
+	base := []AccessEntry{
+		{At: windowStart.Add(10 * time.Second), Status: 200},
+		{At: windowStart.Add(20 * time.Second), Status: 200},
+		{At: windowStart.Add(30 * time.Second), Status: 404},
+	}
+	withLater := append(append([]AccessEntry(nil), base...),
+		AccessEntry{At: windowStart.Add(4*time.Minute + 30*time.Second), Status: 200},
+		AccessEntry{At: windowStart.Add(4*time.Minute + 40*time.Second), Status: 200},
+	)
+
+	b1 := buildTimeline(base, true, 5*time.Minute, 5, anchor)
+	b2 := buildTimeline(withLater, true, 5*time.Minute, 5, anchor)
+	if b1[0].Count != 3 || b2[0].Count != 3 {
+		t.Fatalf("closed bucket counts changed: before=%d after=%d", b1[0].Count, b2[0].Count)
+	}
+	if b2[4].Count <= b1[4].Count {
+		t.Fatalf("latest bucket should grow: before=%d after=%d", b1[4].Count, b2[4].Count)
+	}
+}
+
+func TestTailIncludesWindowStart(t *testing.T) {
+	windowStart := time.Date(2026, 5, 31, 11, 34, 0, 0, time.Local)
+	inside := []string{
+		`2026/05/31 11:33:59 203.0.113.44 api.example.com -> api.internal:8080 "GET /a HTTP/1.1" 200 5ms cache_hit=0`,
+		`2026/05/31 11:34:10 203.0.113.44 api.example.com -> api.internal:8080 "GET /b HTTP/1.1" 200 5ms cache_hit=0`,
+	}
+	outside := []string{
+		`2026/05/31 11:35:01 203.0.113.44 api.example.com -> api.internal:8080 "GET /a HTTP/1.1" 200 5ms cache_hit=0`,
+	}
+	if !tailIncludesWindowStart(inside, windowStart) {
+		t.Fatal("expected window start covered when earliest is before window start")
+	}
+	if tailIncludesWindowStart(outside, windowStart) {
+		t.Fatal("expected window start missing when earliest is after start")
 	}
 }

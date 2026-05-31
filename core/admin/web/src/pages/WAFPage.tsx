@@ -52,6 +52,7 @@ export function WAFPage() {
 
   const [realtime, setRealtime] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const vizRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { data: sseData, connected: sseConnected } = useSSE(['waf'])
   const { lookup: ruleLookup } = useWafRuleLookup()
 
@@ -71,7 +72,7 @@ export function WAFPage() {
       .catch((e: Error) => setErr(e.message))
   }, [filterAction, filterHost, filterPath, filterClientIP, filterRule, filterTimeStart, filterTimeEnd])
 
-  const loadViz = useCallback(() => {
+  const loadViz = useCallback((opts?: { silent?: boolean }) => {
     const params: Parameters<typeof api.wafVisualization>[0] = {}
     if (filterAction !== 'all') params.action = filterAction
     if (filterHost) params.host = filterHost
@@ -81,17 +82,27 @@ export function WAFPage() {
     if (filterTimeStart) params.time_start = filterTimeStart
     if (filterTimeEnd) params.time_end = filterTimeEnd + 'T23:59:59Z'
 
-    setVizLoading(true)
+    if (!opts?.silent) setVizLoading(true)
     api
       .wafVisualization(Object.keys(params).length ? params : undefined)
       .then(setViz)
       .catch(() => setViz(null))
-      .finally(() => setVizLoading(false))
+      .finally(() => {
+        if (!opts?.silent) setVizLoading(false)
+      })
   }, [filterAction, filterHost, filterPath, filterClientIP, filterRule, filterTimeStart, filterTimeEnd])
 
   const loadStatus = useCallback(() => {
     api.status().then(setStatus).catch(() => setStatus(null))
   }, [])
+
+  const scheduleVizRefresh = useCallback(() => {
+    if (vizRefreshRef.current) clearTimeout(vizRefreshRef.current)
+    vizRefreshRef.current = setTimeout(() => {
+      loadViz({ silent: true })
+      vizRefreshRef.current = null
+    }, 300)
+  }, [loadViz])
 
   const openDetail = (id: number) => {
     setSelectedId(id)
@@ -162,24 +173,29 @@ export function WAFPage() {
     }
     timerRef.current = setInterval(() => {
       load()
+      loadViz({ silent: true })
       loadStatus()
     }, 3000)
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
+      if (vizRefreshRef.current) clearTimeout(vizRefreshRef.current)
     }
-  }, [realtime, load, loadStatus, sseConnected])
+  }, [realtime, load, loadViz, loadStatus, sseConnected])
 
   useEffect(() => {
     if (!realtime || !sseData.waf) return
     const incoming = sseData.waf as WAFEvent | WAFEvent[]
     const batch = Array.isArray(incoming) ? incoming : [incoming]
+    let added = false
     setEvents((prev) => {
       const existingIds = new Set(prev.map((e) => e.id))
       const fresh = batch.filter((e) => e?.id && !existingIds.has(e.id))
       if (fresh.length === 0) return prev
+      added = true
       return [...fresh, ...prev].slice(0, 200)
     })
-  }, [sseData.waf, realtime])
+    if (added) scheduleVizRefresh()
+  }, [sseData.waf, realtime, scheduleVizRefresh])
 
   const handleRefresh = () => {
     load()

@@ -8,6 +8,7 @@ import type {
   WAFEvent,
 } from '../api/client'
 import { loadPreferences } from '../lib/preferences'
+import { parseOverviewRange, rangeToQueryParams } from '../lib/overviewRange'
 
 type Options = {
   metricsWindow?: string
@@ -19,7 +20,12 @@ type Options = {
 const DEFAULT_AUTO_REFRESH_MS = 5000
 
 export function useAttentionData(options: Options = {}) {
-  const metricsWindow = options.metricsWindow ?? loadPreferences().metricsWindow
+  const prefs = loadPreferences()
+  const overviewRange = parseOverviewRange(
+    prefs.overviewRange,
+    options.metricsWindow ?? prefs.metricsWindow,
+  )
+  const metricsQuery = rangeToQueryParams(overviewRange)
   const parseIssueLimit = options.parseIssueLimit ?? 10
   const wafLimit = options.wafLimit ?? 8
   const autoRefreshMs = options.autoRefreshMs ?? DEFAULT_AUTO_REFRESH_MS
@@ -41,7 +47,7 @@ export function useAttentionData(options: Options = {}) {
   const refresh = useCallback(() => {
     setLoading(true)
     return Promise.all([
-      api.overviewMetrics(metricsWindow),
+      api.overviewMetrics(metricsQuery),
       api.tlsCerts(),
       api.healthCheck(),
       api.wafEvents({ action: 'block', status: 'open', limit: Math.max(wafLimit, 30) }),
@@ -59,16 +65,16 @@ export function useAttentionData(options: Options = {}) {
       .catch(() => {
         setLoading(false)
       })
-  }, [metricsWindow, parseIssueLimit, wafLimit])
+  }, [metricsQuery, parseIssueLimit, wafLimit])
 
   const handleParseIssueStatus = useCallback(
     async (id: number, status: 'ignored' | 'resolved') => {
       await api.updateParseIssueStatus(id, status)
       await loadParseIssues()
-      const overview = await api.overviewMetrics(metricsWindow).catch(() => null)
+      const overview = await api.overviewMetrics(metricsQuery).catch(() => null)
       if (overview) setMetrics(overview)
     },
-    [loadParseIssues, metricsWindow],
+    [loadParseIssues, metricsQuery],
   )
 
   const handleWafEventStatus = useCallback(
@@ -100,6 +106,6 @@ export function useAttentionData(options: Options = {}) {
     refresh,
     handleParseIssueStatus,
     handleWafEventStatus,
-    metricsWindow,
+    metricsQuery,
   }
 }

@@ -19,6 +19,7 @@ func main() {
 	app.Register("run", Run())
 	app.Register("reload", Reload())
 	app.Register("validate", Validate())
+	app.Register("metrics-migrate", MetricsMigrate())
 
 	if err := app.RunWithError(); err != nil {
 		logger.Fatal("%s", err.Error())

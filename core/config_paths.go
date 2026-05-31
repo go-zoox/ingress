@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-zoox/ingress/core/rule"
 	zcfg "github.com/go-zoox/zoox/config"
 )
 
@@ -22,6 +23,7 @@ func ResolveConfigPaths(cfg *Config, configFilePath string) error {
 	resolveAdminPaths(&cfg.Admin, base)
 	resolveHTTPSPaths(&cfg.HTTPS, base)
 	resolveErrorPagePaths(cfg, base)
+	resolveHandlerPaths(cfg, base)
 	return nil
 }
 
@@ -93,5 +95,27 @@ func resolveHTTPSPaths(https *HTTPS, base string) {
 	for i := range https.SSL {
 		https.SSL[i].Cert.Certificate = resolveConfigFilePath(base, https.SSL[i].Cert.Certificate)
 		https.SSL[i].Cert.CertificateKey = resolveConfigFilePath(base, https.SSL[i].Cert.CertificateKey)
+	}
+}
+
+func resolveHandlerPaths(cfg *Config, base string) {
+	if cfg == nil {
+		return
+	}
+	resolveBackendHandlerPaths(&cfg.Fallback, base)
+	for i := range cfg.Rules {
+		resolveBackendHandlerPaths(&cfg.Rules[i].Backend, base)
+		for j := range cfg.Rules[i].Paths {
+			resolveBackendHandlerPaths(&cfg.Rules[i].Paths[j].Backend, base)
+		}
+	}
+}
+
+func resolveBackendHandlerPaths(b *rule.Backend, base string) {
+	if b == nil {
+		return
+	}
+	if strings.TrimSpace(b.Handler.RootDir) != "" {
+		b.Handler.RootDir = resolveConfigFilePath(base, b.Handler.RootDir)
 	}
 }

@@ -309,6 +309,7 @@ export function FormCodeEditorField({
   language,
   minHeight,
   readOnly,
+  editorKey,
 }: {
   label: string
   hint?: string
@@ -318,10 +319,13 @@ export function FormCodeEditorField({
   language?: import('../lib/scriptParams').ScriptEngine
   minHeight?: string
   readOnly?: boolean
+  editorKey?: string | number
 }) {
   return (
     <FormItem label={label} hint={hint} full={full}>
-      <CodeEditor value={value} onChange={onChange} language={language} minHeight={minHeight} readOnly={readOnly} />
+      <CodeEditor
+        sessionKey={editorKey}
+        value={value} onChange={onChange} language={language} minHeight={minHeight} readOnly={readOnly} />
     </FormItem>
   )
 }

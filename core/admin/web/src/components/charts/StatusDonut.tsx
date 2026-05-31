@@ -1,4 +1,7 @@
 import { memo, useMemo } from 'react'
+import { buildStatusDonutOption } from '../../lib/overviewEChartsOptions'
+import { readChartColors } from './chartTheme'
+import { EChartView } from './EChartView'
 
 type Props = {
   counts: Record<string, number>
@@ -13,35 +16,18 @@ const COLORS: Record<string, string> = {
 }
 
 export const StatusDonut = memo(function StatusDonut({ counts }: Props) {
-  const segments = useMemo(() => {
-    const total = ORDER.reduce((s, k) => s + (counts[k] ?? 0), 0) || 1
-    let offset = 0
-    return ORDER.map((k) => {
-      const n = counts[k] ?? 0
-      const pct = (n / total) * 100
-      const seg = { key: k, n, pct, offset }
-      offset += pct
-      return seg
-    }).filter((s) => s.n > 0)
-  }, [counts])
-
+  const colors = useMemo(() => readChartColors(), [])
+  const option = useMemo(() => buildStatusDonutOption(counts, colors), [counts, colors])
   const total = ORDER.reduce((s, k) => s + (counts[k] ?? 0), 0)
 
-  if (total === 0) {
+  if (total === 0 || !option) {
     return <p className="empty-hint">无状态码数据</p>
   }
 
-  const gradient = segments
-    .map((s) => `${COLORS[s.key]} ${s.offset}% ${s.offset + s.pct}%`)
-    .join(', ')
-
   return (
     <div className="status-donut">
-      <div
-        className="status-donut-ring"
-        style={{ background: `conic-gradient(${gradient})` }}
-        aria-hidden
-      >
+      <div className="status-donut-ring status-donut-ring-echarts">
+        <EChartView option={option} className="status-donut-echarts" height={120} notMerge />
         <div className="status-donut-hole">
           <span className="status-donut-total">{total}</span>
           <span className="status-donut-sub">请求</span>

@@ -115,7 +115,7 @@ Base path: **`/api/v1`**. Responses use JSON envelopes from the admin handler la
 | `GET` | `/routes` | Flattened route table |
 | `POST` | `/routes/match` | Dry-run match (`host`, `path` JSON body) |
 | `GET` | `/logs` | Tail/search access or error logs |
-| `GET` | `/metrics/overview` | Aggregates from access log window |
+| `GET` | `/metrics/overview` | Aggregates from in-process rollup (falls back to access log tail) |
 | `GET` | `/waf/events` | Recent WAF audit rows (SQLite) |
 | `GET` | `/tls/certs` | Certificate metadata from config paths |
 | `POST` | `/tls/certs/check` | Inspect one domain |
@@ -158,6 +158,23 @@ GET /api/v1/events/stream?channels=metrics,waf,logs,health
 ```
 
 Supported channels: `metrics`, `waf`, `logs`, `health`. The UI auto-subscribes based on the current page. Up to **5 concurrent SSE connections per IP** are allowed; the client automatically falls back to polling if the limit is reached or SSE is unavailable.
+
+## Overview metrics data path
+
+`GET /api/v1/metrics/overview?window=15m` returns JSON with a **`source`** field describing how the window was built:
+
+| `source` | Meaning |
+|----------|---------|
+| `rollup_live` | In-process ring buffer only (typical when ingress runs with Admin and live traffic) |
+| `rollup_hybrid` | SQLite minute buckets for older minutes + live buffer for recent data |
+| `rollup_persisted` | SQLite minute buckets only (e.g. long window with empty live buffer after restart) |
+| `access_log` | Parsed access log tail (fallback when rollup does not cover the window) |
+| `access_log_partial` | Tail read hit line cap before window start |
+| `error` | Log read/parse failure |
+
+**Live path:** each proxied request calls `logAccess()` in ingress core, which emits `AccessMetricsEvent` into Admin `MetricsRollup.Record`. **Cold start:** Admin loads persisted buckets (26h), seeds up to 1h from the access log when the buffer is empty, then tails new log lines only when Admin runs without `CoreInstance` (avoids double-counting). **Persistence:** closed minute aggregates flush to SQLite every minute; built-in job **`purge_metrics_buckets`** prunes buckets older than `params.retain_days` (default 30).
+
+Logs for the **Logs** page still use SSE tail + offset; only overview aggregates use rollup.
 
 Event format:
 

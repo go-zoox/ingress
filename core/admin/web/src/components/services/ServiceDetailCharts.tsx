@@ -14,6 +14,8 @@ type Props = {
 }
 
 export const ServiceDetailCharts = memo(function ServiceDetailCharts({ detail, metrics }: Props) {
+  const routeRefs = detail.route_refs ?? []
+
   if (metrics.total === 0) {
     return (
       <div className="panel metrics-empty" style={{ marginTop: 16 }}>
@@ -107,7 +109,7 @@ export const ServiceDetailCharts = memo(function ServiceDetailCharts({ detail, m
         </div>
       ) : null}
 
-      {detail.route_refs.length > 0 ? (
+      {routeRefs.length > 0 ? (
         <div className="panel chart-panel" style={{ marginTop: 16 }}>
           <div className="panel-head">
             <h2>引用路由</h2>
@@ -124,7 +126,7 @@ export const ServiceDetailCharts = memo(function ServiceDetailCharts({ detail, m
                 </tr>
               </thead>
               <tbody>
-                {detail.route_refs.map((ref) => (
+                {routeRefs.map((ref) => (
                   <tr key={`${ref.rule_index}-${ref.path_index}`}>
                     <td><code>{ref.host}</code></td>
                     <td><code>{ref.path}</code></td>

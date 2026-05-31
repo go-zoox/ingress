@@ -17,6 +17,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data.result
 }
 
+export type MetricsRangeQueryParams = {
+  window?: string
+  from?: string
+  to?: string
+}
+
+export function metricsRangeQuery(params: MetricsRangeQueryParams): string {
+  const q = new URLSearchParams()
+  if (params.from && params.to) {
+    q.set('from', params.from)
+    q.set('to', params.to)
+  } else if (params.window) {
+    q.set('window', params.window)
+  }
+  return q.toString()
+}
+
 export const api = {
   authConfig: () => request<AuthConfigView>('/auth/config'),
   authLogin: (username: string, password: string) =>
@@ -38,11 +55,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ status, note }),
     }),
-  batchUpdateWafEventStatus: (ids: number[], status: 'ignored' | 'resolved' | 'open', note = '') =>
-    request<{ ok: boolean; updated: number }>('/waf/events/batch-status', {
-      method: 'POST',
-      body: JSON.stringify({ ids, status, note }),
-    }),
+  batchUpdateWafEventStatus: (
+    ids: number[],
+    status: 'ignored' | 'resolved' | 'open',
+    note = '',
+    opts?: { allOpen?: boolean },
+  ) =>
+    request<{ ok: boolean; updated: number }>(
+      `/waf/events/batch-status${opts?.allOpen ? '?all_open=1' : ''}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ids: opts?.allOpen ? [] : ids,
+          all_open: Boolean(opts?.allOpen),
+          status,
+          note,
+        }),
+      },
+    ),
   wafMatch: (body: WAFTrialInput) =>
     request<WAFTrialResult>('/waf/match', {
       method: 'POST',
@@ -158,12 +188,12 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ id }),
     }),
-  overviewMetrics: (window = '15m') =>
-    request<OverviewMetrics>(`/metrics/overview?window=${encodeURIComponent(window)}`),
-  overviewSnapshot: (window = '15m') =>
-    request<OverviewSnapshot>(`/overview/snapshot?window=${encodeURIComponent(window)}`),
-  systemMetrics: (window = '15m') =>
-    request<SystemMetrics>(`/metrics/system?window=${encodeURIComponent(window)}`),
+  overviewMetrics: (params: MetricsRangeQueryParams) =>
+    request<OverviewMetrics>(`/metrics/overview?${metricsRangeQuery(params)}`),
+  overviewSnapshot: (params: MetricsRangeQueryParams) =>
+    request<OverviewSnapshot>(`/overview/snapshot?${metricsRangeQuery(params)}`),
+  systemMetrics: (params: MetricsRangeQueryParams) =>
+    request<SystemMetrics>(`/metrics/system?${metricsRangeQuery(params)}`),
   parseIssues: (status = 'open', limit = 20) =>
     request<AccessLogParseIssue[]>(
       `/logs/parse-issues?status=${encodeURIComponent(status)}&limit=${limit}`,
@@ -173,11 +203,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ status, note }),
     }),
-  batchUpdateParseIssueStatus: (ids: number[], status: 'ignored' | 'resolved' | 'open', note = '') =>
-    request<{ ok: boolean; updated: number }>('/logs/parse-issues/batch-status', {
-      method: 'POST',
-      body: JSON.stringify({ ids, status, note }),
-    }),
+  batchUpdateParseIssueStatus: (
+    ids: number[],
+    status: 'ignored' | 'resolved' | 'open',
+    note = '',
+    opts?: { allOpen?: boolean },
+  ) =>
+    request<{ ok: boolean; updated: number }>(
+      `/logs/parse-issues/batch-status${opts?.allOpen ? '?all_open=1' : ''}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ids: opts?.allOpen ? [] : ids,
+          all_open: Boolean(opts?.allOpen),
+          status,
+          note,
+        }),
+      },
+    ),
+  eventsSummary: (status: 'open' | 'resolved' | 'ignored' = 'open') =>
+    request<EventsTabSummary>(`/events/summary?status=${encodeURIComponent(status)}`),
   parseIssueDetail: (id: number) => request<AccessLogParseIssueDetail>(`/logs/parse-issues/${id}`),
   logs: (params: {
     log?: 'access' | 'error'
@@ -215,11 +260,10 @@ export const api = {
   routeMetrics: (
     ri: number,
     pi: number,
-    window?: string,
+    rangeParams?: MetricsRangeQueryParams,
     scope?: { host?: string; path?: string; path_match?: 'prefix' | 'exact' },
   ) => {
-    const q = new URLSearchParams()
-    if (window) q.set('window', window)
+    const q = new URLSearchParams(metricsRangeQuery(rangeParams ?? { window: '15m' }))
     if (scope?.host) q.set('host', scope.host)
     if (scope?.path) q.set('path', scope.path)
     if (scope?.path_match) q.set('path_match', scope.path_match)
@@ -228,10 +272,8 @@ export const api = {
   },
   serviceDetail: (name: string) =>
     request<ServiceDetail>(`/services/${encodeURIComponent(name)}`),
-  serviceMetrics: (name: string, window?: string) => {
-    const q = new URLSearchParams()
-    if (window) q.set('window', window)
-    const qs = q.toString()
+  serviceMetrics: (name: string, rangeParams?: MetricsRangeQueryParams) => {
+    const qs = metricsRangeQuery(rangeParams ?? { window: '15m' })
     return request<ServiceMetrics>(
       `/services/${encodeURIComponent(name)}/metrics${qs ? `?${qs}` : ''}`,
     )
@@ -657,6 +699,8 @@ export type BackendStat = {
 export type OverviewMetrics = {
   window: string
   source: string
+  range_from?: string
+  range_to?: string
   total: number
   rpm: number
   error_rate: number
@@ -690,6 +734,7 @@ export type OverviewMetrics = {
   top_paths: Array<{ name: string; count: number }>
   top_backends?: BackendStat[]
   latency_histogram: Array<{ label: string; count: number }>
+  latency_slo?: Array<{ label: string; count: number; pct: number }>
   delta: {
     total_pct: number
     rpm_pct: number
@@ -748,6 +793,14 @@ export type AccessLogParseIssue = {
   first_seen_at: string
   last_seen_at: string
   note?: string
+}
+
+export type EventsTabSummary = {
+  waf_block: number
+  parse_issues: number
+  health_down: number
+  tls_warn: number
+  total: number
 }
 
 export type AccessLogParseIssueDetail = AccessLogParseIssue & {

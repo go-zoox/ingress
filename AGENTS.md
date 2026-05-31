@@ -122,7 +122,69 @@ Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cac
 - **Stack**: `core/admin/web` — React + TypeScript + Vite + pnpm; `core/admin` — go-zoox HTTP API, gormx + SQLite (`audit_log`, `waf_event`, `config_revision`).
 - **Ingress integration**: starts with `ingress run` when `admin.enabled: true`; reads/writes the same ingress config file; `POST /api/v1/reload` validates then in-process reload. Route list / dry-run match use `core.ListRouteRows` and `core.PreviewMatch` (`core/admininspect.go`).
 - **Dev**: `ingress run -c examples/admin-console/ingress.yaml` + `cd core/admin/web && pnpm dev` (proxy `/api`). **Build**: `cd core/admin && make build`. Demo config: `examples/admin-console/`.
+
+### Local run (agents — start + verify)
+
+After code changes that touch admin API, metrics rollup, or web UI, **start services and smoke-check** unless the user asked read-only questions only.
+
+**1. Free ports** (prior `go run` / Vite often still bound):
+
+```bash
+lsof -ti :8080 -ti :9080 -ti :5173 | xargs kill 2>/dev/null
+```
+
+**2. Start backend** (repo root; needs **`adminui`** tag for embedded UI, or use Vite dev):
+
+```bash
+go run -tags adminui ./cmd/ingress run -c examples/admin-console/ingress.yaml
+```
+
+- Gateway **8080**, Admin **9080** (`examples/admin-console/ingress.yaml`).
+- Wait for log line `Admin started at http://…:9080`.
+- Exit **143** on Vite/ingress usually means the process was **killed** (restart, port clear), not a compile failure.
+
+**3. Start frontend dev** (optional; hot reload, proxies `/api` → 9080):
+
+```bash
+cd core/admin/web && pnpm dev
+```
+
+- UI: **http://127.0.0.1:5173/** — prefer this over 9080 when iterating on charts.
+- If only API checks are needed, step 3 can be skipped when using `-tags adminui`.
+
+**4. Smoke verify**
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9080/api/v1/status   # expect 200
+curl -s 'http://127.0.0.1:9080/api/v1/metrics/overview?window=15m' | head -c 200
+```
+
+- Overview `source` should be `rollup_live` / `rollup_hybrid` when embedded core is running.
+- **`metrics-migrate` or rollup code changes require ingress restart** so `LoadRollupFromDB()` picks up SQLite (`examples/admin-console/admin.db`).
+
+**5. Demo traffic** (optional):
+
+```bash
+python3 examples/admin-console/scripts/live_traffic.py --users 25 --rps 15
+```
+
+**6. Historical metrics backfill** (does **not** run on startup):
+
+```bash
+go run ./cmd/ingress metrics-migrate -c examples/admin-console/ingress.yaml --since 1d
+```
+
+- Overwrites **per minute** from access.log (idempotent). Default `--since` without flag = 26h.
+- **`--since`/`--until`**: durations like `24h`, **`7d`** (day suffix supported); or RFC3339.
+- Do **not** commit `examples/admin-console/access.log` / `error.log` (runtime, huge).
+
+**Pitfalls**
+
+- **15m window** only shows the last 15 minutes; migrated morning data appears under **1h / 24h**.
+- access.log may have **gaps** (no lines ⇒ empty timeline slots); not always a migrate bug.
+- Plain `go run` without **`adminui`** serves API-only stub on 9080; run `make -C core/admin web` before release builds.
 - **Logs API**: `GET /api/v1/logs` supports `offset` (byte tail), `cache_hit`, `waf_block` filters for live monitoring.
+- **Overview metrics**: `GET /api/v1/metrics/overview` prefers in-process `MetricsRollup` (`rollup_live` / `rollup_hybrid` / `rollup_persisted` in JSON `source`); falls back to access log tail (`access_log`) only when Admin runs **without** embedded core. With `CoreInstance`, **`liveHook`** skips all access.log tail parsing for overview (cap **8k** entries / **30m**); async `AsyncRollupRecorder` on the request path. **Startup does not import access.log** — use `ingress metrics-migrate -c …` to backfill SQLite minute buckets from historical logs (**overwrite per minute from log**, idempotent re-run; use `--replace` to delete a range first). Runtime flush still **merges** into the current minute. Persisted minute buckets synthesized with a hard cap (**8**/bucket, **2k** total). Builtin job `purge_metrics_buckets`.
 - **Cache / TLS API**: `GET /api/v1/cache/overview`, `GET /api/v1/tls/certs` (x509 metadata from cert files).
 - **Scheduled jobs**: top-level `jobs:` (built-in ops + `items[]` custom `http_call`/`script`; `command` is a legacy alias); policy `admin.jobs` (`allow_command`, `command_allowlist`, …). UI `/jobs`; cron reload on config publish/reload and jobs API writes; run history in SQLite `job_run`. Docs: `docs/guide/jobs.md`, `examples/jobs/`.
 - **Static prototype** (no backend): `prototypes/admin-console/`.

@@ -10,6 +10,7 @@ func MigrateModels() []any {
 		&ConfigRevision{},
 		&AccessLogParseIssue{},
 		&JobRun{},
+		&MetricsMinuteBucket{},
 		&RBACPermission{},
 		&RBACRole{},
 		&RBACUser{},

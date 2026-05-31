@@ -7,7 +7,7 @@ import (
 	zcron "github.com/go-zoox/zoox/components/application/cron"
 )
 
-// fakeCron records scheduled jobs for unit tests (zoox HasJob is unreliable before isStarted is set).
+// fakeCron records scheduled jobs for unit tests.
 type fakeCron struct {
 	mu   sync.Mutex
 	jobs map[string]string

@@ -10,10 +10,11 @@ import {
   Zap,
 } from 'lucide-react'
 import type { OverviewMetrics, HealthCheckResult, HealthSummary, TLSCert } from '../api/client'
+import { type OverviewRange, formatOverviewRangeLabel, rangeQueryKey, snapshotMatchesRange } from '../lib/overviewRange'
 import { TrafficTimelineChart } from './charts/TrafficTimelineChart'
 import { QualityTimelineChart } from './charts/QualityTimelineChart'
 import { CacheTimelineChart } from './charts/CacheTimelineChart'
-import { LatencyHistogramChart } from './charts/LatencyHistogramChart'
+import { LatencySLOChart } from './charts/LatencySLOChart'
 import { UpstreamLatencyTrendChart } from './charts/UpstreamLatencyTrendChart'
 import { BackendPerformancePanel } from './BackendPerformancePanel'
 import { StatusDonut } from './charts/StatusDonut'
@@ -25,7 +26,15 @@ import { RankedBarList } from './RankedBarList'
 
 type Props = {
   metrics: OverviewMetrics | null
+  overviewRange: OverviewRange
+  /** When true, metrics are receiving SSE incremental updates. */
+  liveUpdating?: boolean
+  /** Throttled snapshot for charts/lists; KPI strip prefers live metrics for this window. */
+  chartMetrics?: OverviewMetrics | null
+  /** Initial load — no metrics yet. */
   loading?: boolean
+  /** Window switch — dim chart body only (KPI stays live). */
+  refreshing?: boolean
   healthScore?: number | null
   healthClass?: 'ok' | 'warn' | 'danger'
   healthChecks?: HealthCheckResult[]
@@ -35,28 +44,47 @@ type Props = {
 
 export const OverviewCharts = memo(function OverviewCharts({
   metrics,
+  overviewRange,
+  liveUpdating = false,
+  chartMetrics: chartMetricsProp,
   loading,
+  refreshing,
   healthScore,
   healthClass = 'ok',
   healthChecks = [],
   healthSummary = { total: 0, up: 0, down: 0, unknown: 0 },
   certs = [],
 }: Props) {
-  if (loading && metrics === null) {
+  if (loading && metrics === null && !chartMetricsProp) {
     return <p style={{ color: 'var(--text-muted)', margin: '0 0 16px' }}>加载请求指标…</p>
   }
-  if (!metrics || metrics.total === 0) {
+
+  const liveMetrics = snapshotMatchesRange(metrics, overviewRange) ? metrics : null
+  const displayMetrics = liveMetrics ?? chartMetricsProp
+  const charts = liveMetrics ?? chartMetricsProp
+  const windowLabel = formatOverviewRangeLabel(overviewRange)
+  const rangeHint = displayMetrics?.window_stale ? `${windowLabel} · 历史时段` : windowLabel
+
+  if (!displayMetrics || displayMetrics.total === 0) {
     return (
       <div className="panel metrics-empty">
-        <MetricsEmptyMessage metrics={metrics} />
+        <MetricsEmptyMessage metrics={displayMetrics ?? null} windowLabel={windowLabel} liveUpdating={liveUpdating} />
       </div>
     )
   }
 
-  const delta = metrics.delta ?? { has_previous: false }
+  const delta = displayMetrics.delta ?? { has_previous: false }
+  const rpm = displayMetrics.rpm ?? 0
+  const errorRate = displayMetrics.error_rate ?? 0
+  const cacheHitRate = displayMetrics.cache_hit_rate ?? 0
+  const p50Ms = displayMetrics.p50_ms ?? 0
+  const p95Ms = displayMetrics.p95_ms ?? 0
+  const wafBlocks = displayMetrics.waf_blocks ?? 0
+  const chartsReady = charts != null && snapshotMatchesRange(charts, overviewRange)
+  const chartBodyKey = `${rangeQueryKey(overviewRange)}:${charts?.timeline?.length ?? 0}`
 
   return (
-    <>
+    <div className="overview-charts-wrap">
       <div className="cards overview-kpi-strip">
         <KpiCard
           icon={<Heart size={18} />}
@@ -68,16 +96,16 @@ export const OverviewCharts = memo(function OverviewCharts({
         <KpiCard
           icon={<Activity size={18} />}
           label="请求量"
-          value={String(metrics.total)}
-          sub={`≈ ${metrics.rpm.toFixed(1)} 次/分 · ${metrics.window}`}
+          value={String(displayMetrics.total)}
+          sub={`≈ ${rpm.toFixed(1)} 次/分 · ${rangeHint}`}
           delta={<OverviewDelta delta={delta} kind="pct" value={delta.total_pct} />}
         />
         <KpiCard
           icon={<Gauge size={18} />}
           label="错误率"
-          value={`${metrics.error_rate.toFixed(1)}%`}
+          value={`${errorRate.toFixed(1)}%`}
           sub="4xx + 5xx"
-          tone={metrics.error_rate > 10 ? 'danger' : metrics.error_rate > 5 ? 'warn' : undefined}
+          tone={errorRate > 10 ? 'danger' : errorRate > 5 ? 'warn' : undefined}
           delta={
             <OverviewDelta delta={delta} kind="pp" value={delta.error_rate_delta} badIfUp />
           }
@@ -85,15 +113,15 @@ export const OverviewCharts = memo(function OverviewCharts({
         <KpiCard
           icon={<Timer size={18} />}
           label="P95 延迟"
-          value={formatMs(metrics.p95_ms)}
-          sub={`P50 ${formatMs(metrics.p50_ms)}`}
-          tone={metrics.p95_ms > 2000 ? 'warn' : undefined}
+          value={formatMs(p95Ms)}
+          sub={`P50 ${formatMs(p50Ms)}`}
+          tone={p95Ms > 2000 ? 'warn' : undefined}
           delta={<OverviewDelta delta={delta} kind="ms" value={delta.p95_delta_ms} badIfUp />}
         />
         <KpiCard
           icon={<HardDrive size={18} />}
           label="缓存命中"
-          value={`${metrics.cache_hit_rate.toFixed(0)}%`}
+          value={`${cacheHitRate.toFixed(0)}%`}
           sub="cache_hit=1"
           delta={
             <OverviewDelta delta={delta} kind="pp" value={delta.cache_hit_delta} badIfUp={false} />
@@ -102,156 +130,167 @@ export const OverviewCharts = memo(function OverviewCharts({
         <KpiCard
           icon={<Shield size={18} />}
           label="WAF 拦截"
-          value={String(metrics.waf_blocks)}
+          value={String(wafBlocks)}
           sub="waf_block=1"
-          tone={metrics.waf_blocks > 0 ? 'warn' : undefined}
+          tone={wafBlocks > 0 ? 'warn' : undefined}
           delta={
             <OverviewDelta delta={delta} kind="count" value={delta.waf_blocks_delta} badIfUp />
           }
         />
       </div>
 
-      <div className="charts-grid charts-grid-2">
-        <ChartPanel title="流量趋势" hint="堆叠状态码">
-          <TrafficTimelineChart timeline={metrics.timeline} />
-        </ChartPanel>
-        <ChartPanel title="质量趋势" hint="错误率 · WAF">
-          <QualityTimelineChart timeline={metrics.timeline} />
-        </ChartPanel>
-      </div>
-
-      <div className="charts-grid charts-grid-2">
-        <ChartPanel title="缓存命中趋势" hint="按时间桶 %">
-          <CacheTimelineChart timeline={metrics.timeline} />
-        </ChartPanel>
-        <ChartPanel title="延迟分布" hint="直方图">
-          <LatencyHistogramChart histogram={metrics.latency_histogram ?? []} />
-        </ChartPanel>
-      </div>
-
-      <div className="charts-grid charts-grid-2">
-        <ChartPanel title="上游延迟趋势" hint="upstream_response_time P95 · 不含缓存命中">
-          <UpstreamLatencyTrendChart timeline={metrics.timeline} />
-        </ChartPanel>
-        <ChartPanel title="后端性能" hint="按 target 聚合 · 不含 handler">
-          <BackendPerformancePanel backends={metrics.top_backends ?? []} />
-        </ChartPanel>
-      </div>
-
-      <div className="charts-grid charts-grid-3">
-        <ChartPanel title="状态码分布">
-          <StatusDonut counts={metrics.status_counts} />
-        </ChartPanel>
-        <ChartPanel title="Top Host（请求量）">
-          <RankedBarList
-            rows={metrics.top_hosts.map((h) => ({
-              name: h.name,
-              value: h.count,
-              sub: `${h.count} 次`,
-            }))}
-            tone="ok"
-          />
-        </ChartPanel>
-        <ChartPanel title="Top Host（错误率）">
-          <RankedBarList
-            rows={(metrics.top_hosts_error ?? []).map((h) => ({
-              name: h.name,
-              value: h.error_rate,
-              sub: `${h.errors}/${h.count} · ${h.error_rate.toFixed(1)}%`,
-            }))}
-            tone="warn"
-            maxValue={100}
-          />
-        </ChartPanel>
-      </div>
-
-      {(metrics.host_traffic?.length ?? 0) > 0 ? (
-        <div className="panel chart-panel">
-          <div className="panel-head">
-            <h2>域名 PV / UV</h2>
-            <span className="chart-hint">
-              PV = 请求数 · UV = 独立 IP（优先 real_ip）· {metrics.window}
-            </span>
-          </div>
-          <div className="panel-body panel-table-wrap">
-            <HostTrafficTable rows={metrics.host_traffic!} />
-          </div>
+      <div
+        key={chartBodyKey}
+        className={refreshing ? 'overview-charts-body is-refreshing' : 'overview-charts-body'}
+      >
+        {!chartsReady ? (
+          <p className="empty-hint overview-charts-loading">{refreshing ? `加载${windowLabel}数据…` : '暂无图表数据'}</p>
+        ) : (
+          <>
+        <div className="charts-grid charts-grid-2">
+          <ChartPanel title="流量趋势" hint={`${windowLabel} · 堆叠状态码`}>
+            <TrafficTimelineChart timeline={charts!.timeline ?? []} />
+          </ChartPanel>
+          <ChartPanel title="质量趋势" hint="错误率 · WAF">
+            <QualityTimelineChart timeline={charts.timeline ?? []} />
+          </ChartPanel>
         </div>
-      ) : null}
 
-      <div className="charts-grid charts-grid-2">
-        <ChartPanel title="健康检查矩阵" hint={`${healthSummary.up}/${healthSummary.total} UP`}>
-          <OverviewHealthMatrix checks={healthChecks} summary={healthSummary} />
-        </ChartPanel>
-        <ChartPanel title="TLS 证书有效期">
-          <OverviewTLSPanel certs={certs} />
-        </ChartPanel>
-      </div>
+        <div className="charts-grid charts-grid-2">
+          <ChartPanel title="缓存命中趋势" hint="按时间桶 %">
+            <CacheTimelineChart timeline={charts.timeline ?? []} />
+          </ChartPanel>
+          <ChartPanel title="延迟分布" hint="SLO 分段 · 占比">
+            <LatencySLOChart segments={charts.latency_slo ?? []} />
+          </ChartPanel>
+        </div>
 
-      {(metrics.top_paths?.length ?? 0) > 0 ? (
-        <div className="panel chart-panel">
-          <div className="panel-head">
-            <h2>
-              <Zap size={16} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />
-              Top Path（请求量）
-            </h2>
-          </div>
-          <div className="panel-body">
+        <div className="charts-grid charts-grid-2">
+          <ChartPanel title="上游延迟趋势" hint="upstream_response_time P95 · 不含缓存命中">
+            <UpstreamLatencyTrendChart timeline={charts.timeline ?? []} />
+          </ChartPanel>
+          <ChartPanel title="后端性能" hint="按 target 聚合 · 不含 handler">
+            <BackendPerformancePanel backends={charts.top_backends ?? []} />
+          </ChartPanel>
+        </div>
+
+        <div className="charts-grid charts-grid-3">
+          <ChartPanel title="状态码分布">
+            <StatusDonut counts={charts.status_counts} />
+          </ChartPanel>
+          <ChartPanel title="Top Host（请求量）">
             <RankedBarList
-              rows={(metrics.top_paths ?? []).map((p) => ({
-                name: p.name,
-                value: p.count,
-                sub: String(p.count),
+              rows={(charts.top_hosts ?? []).map((h) => ({
+                name: h.name,
+                value: h.count,
+                sub: `${h.count} 次`,
               }))}
               tone="ok"
             />
+          </ChartPanel>
+          <ChartPanel title="Top Host（错误率）">
+            <RankedBarList
+              rows={(charts.top_hosts_error ?? []).map((h) => ({
+                name: h.name,
+                value: h.error_rate,
+                sub: `${h.errors}/${h.count} · ${h.error_rate.toFixed(1)}%`,
+              }))}
+              tone="warn"
+              maxValue={100}
+            />
+          </ChartPanel>
+        </div>
+
+        {(charts.host_traffic?.length ?? 0) > 0 ? (
+          <div className="panel chart-panel">
+            <div className="panel-head">
+              <h2>域名 PV / UV</h2>
+              <span className="chart-hint">
+                PV = 请求数 · UV = 独立 IP（优先 real_ip）· {windowLabel}
+              </span>
+            </div>
+            <div className="panel-body panel-table-wrap">
+              <HostTrafficTable rows={charts.host_traffic!} />
+            </div>
+          </div>
+        ) : null}
+
+        <div className="charts-grid charts-grid-2">
+          <ChartPanel title="健康检查矩阵" hint={`${healthSummary.up}/${healthSummary.total} UP`}>
+            <OverviewHealthMatrix checks={healthChecks} summary={healthSummary} />
+          </ChartPanel>
+          <ChartPanel title="TLS 证书有效期">
+            <OverviewTLSPanel certs={certs} />
+          </ChartPanel>
+        </div>
+
+        {(charts.top_paths?.length ?? 0) > 0 ? (
+          <div className="panel chart-panel">
+            <div className="panel-head">
+              <h2>
+                <Zap size={16} style={{ verticalAlign: 'text-bottom', marginRight: 6 }} />
+                Top Path（请求量）
+              </h2>
+            </div>
+            <div className="panel-body">
+              <RankedBarList
+                rows={(charts.top_paths ?? []).map((p) => ({
+                  name: p.name,
+                  value: p.count,
+                  sub: String(p.count),
+                }))}
+                tone="ok"
+              />
+            </div>
+          </div>
+        ) : null}
+
+        <div className="panel chart-panel">
+          <div className="panel-head">
+            <h2>最慢请求</h2>
+            <Link to="/logs" className="btn btn-ghost btn-sm">
+              访问日志
+            </Link>
+          </div>
+          <div className="panel-body panel-table-wrap">
+            <table className="data compact">
+              <thead>
+                <tr>
+                  <th>Host</th>
+                  <th>请求</th>
+                  <th>状态</th>
+                  <th>耗时</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(charts.slowest ?? []).length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="empty-hint">
+                      无延迟数据
+                    </td>
+                  </tr>
+                ) : (
+                  (charts.slowest ?? []).map((s, i) => (
+                    <tr key={`${s.host}-${s.path}-${i}`}>
+                      <td>{s.host}</td>
+                      <td>
+                        <code>
+                          {s.method} {s.path}
+                        </code>
+                      </td>
+                      <td>{s.status}</td>
+                      <td>{formatMs(s.duration_ms)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      ) : null}
-
-      <div className="panel chart-panel">
-        <div className="panel-head">
-          <h2>最慢请求</h2>
-          <Link to="/logs" className="btn btn-ghost btn-sm">
-            访问日志
-          </Link>
-        </div>
-        <div className="panel-body panel-table-wrap">
-          <table className="data compact">
-            <thead>
-              <tr>
-                <th>Host</th>
-                <th>请求</th>
-                <th>状态</th>
-                <th>耗时</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(metrics.slowest ?? []).length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="empty-hint">
-                    无延迟数据
-                  </td>
-                </tr>
-              ) : (
-                (metrics.slowest ?? []).map((s, i) => (
-                  <tr key={`${s.host}-${s.path}-${i}`}>
-                    <td>{s.host}</td>
-                    <td>
-                      <code>
-                        {s.method} {s.path}
-                      </code>
-                    </td>
-                    <td>{s.status}</td>
-                    <td>{formatMs(s.duration_ms)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+          </>
+        )}
       </div>
-    </>
+    </div>
   )
 })
 
@@ -304,8 +343,18 @@ const KpiCard = memo(function KpiCard({
   )
 })
 
-function MetricsEmptyMessage({ metrics }: { metrics: OverviewMetrics | null }) {
+function MetricsEmptyMessage({
+  metrics,
+  windowLabel,
+  liveUpdating = false,
+}: {
+  metrics: OverviewMetrics | null
+  windowLabel?: string
+  liveUpdating?: boolean
+}) {
   const skipped = metrics?.parse_skipped ?? 0
+  const range = windowLabel ? `${windowLabel} ` : ''
+  const historical = !liveUpdating
 
   if (skipped > 0 && (metrics?.parseable_in_tail ?? 0) === 0) {
     return (
@@ -333,7 +382,15 @@ function MetricsEmptyMessage({ metrics }: { metrics: OverviewMetrics | null }) {
   if (metrics?.source === 'error') {
     return <p className="empty-hint">读取日志文件失败。请检查日志路径是否正确。</p>
   }
-  return <p className="empty-hint">暂无访问日志数据。等待请求产生后数据会自动刷新。</p>
+  if (historical) {
+    return (
+      <p className="empty-hint">
+        {range}该时间范围内暂无聚合数据。数据来自 SQLite 分钟桶（运行时写入或{' '}
+        <code>ingress metrics-migrate</code> 导入）；若选「昨天」等更早日期，需先 migrate 对应 access.log。
+      </p>
+    )
+  }
+  return <p className="empty-hint">{range}暂无访问日志数据。等待请求产生后会自动刷新。</p>
 }
 
 function formatMs(ms: number) {

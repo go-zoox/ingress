@@ -6,15 +6,15 @@ import (
 )
 
 func TestBuildTimeline_alignedLabelsStableWithinSlot(t *testing.T) {
-	slot := 5 * time.Minute / 8
+	slot := time.Minute
 	anchor1 := time.Date(2026, 5, 31, 23, 27, 10, 0, time.Local)
-	anchor2 := anchor1.Add(20 * time.Second)
+	anchor2 := anchor1.Add(1 * time.Second)
 	entries := []AccessEntry{
 		{At: anchor1.Add(-4 * time.Minute), Status: 200},
 	}
 
-	b1 := buildTimeline(entries, true, 5*time.Minute, 8, anchor1)
-	b2 := buildTimeline(entries, true, 5*time.Minute, 8, anchor2)
+	b1 := buildTimeline(entries, true, 5*time.Minute, 5, anchor1)
+	b2 := buildTimeline(entries, true, 5*time.Minute, 5, anchor2)
 	if len(b1) != len(b2) {
 		t.Fatalf("bucket count mismatch")
 	}
@@ -28,7 +28,7 @@ func TestBuildTimeline_alignedLabelsStableWithinSlot(t *testing.T) {
 
 func TestBuildTimeline_uniqueShortWindowLabels(t *testing.T) {
 	anchor := time.Date(2026, 5, 31, 23, 30, 0, 0, time.Local)
-	buckets := buildTimeline(nil, true, 5*time.Minute, 8, anchor)
+	buckets := buildTimeline(nil, true, 5*time.Minute, 5, anchor)
 	seen := map[string]int{}
 	for _, b := range buckets {
 		seen[b.Label]++
@@ -37,6 +37,46 @@ func TestBuildTimeline_uniqueShortWindowLabels(t *testing.T) {
 		if n > 1 {
 			t.Fatalf("duplicate label %q appears %d times", label, n)
 		}
+	}
+}
+
+func TestBuildTimeline_matchesFilterWindowStart(t *testing.T) {
+	anchor := time.Date(2026, 5, 31, 14, 37, 0, 0, time.Local)
+	filterStart := anchor.Add(-24 * time.Hour)
+	entries := []AccessEntry{
+		{At: filterStart.Add(15 * time.Minute), Status: 200},
+		{At: anchor.Add(-2 * time.Hour), Status: 200},
+	}
+	buckets := buildTimeline(entries, true, 24*time.Hour, 24, anchor)
+	var total int
+	for _, b := range buckets {
+		total += b.Count
+	}
+	if total != len(entries) {
+		t.Fatalf("timeline count=%d want %d (buckets=%+v)", total, len(entries), buckets)
+	}
+}
+
+func TestBuildTimeline_24hRecentHourTraffic(t *testing.T) {
+	anchor := time.Date(2026, 5, 31, 15, 30, 0, 0, time.Local)
+	entries := make([]AccessEntry, 0, 500)
+	for i := 0; i < 500; i++ {
+		entries = append(entries, AccessEntry{
+			At:     anchor.Add(-time.Duration(i) * time.Minute),
+			Status: 200,
+		})
+	}
+	filtered := filterEntriesInWindow(entries, anchor, 24*time.Hour, true)
+	buckets := buildTimeline(filtered, true, 24*time.Hour, 24, anchor)
+	var total int
+	for _, b := range buckets {
+		total += b.Count
+	}
+	if total != len(filtered) {
+		t.Fatalf("timeline count=%d filtered=%d", total, len(filtered))
+	}
+	if total == 0 {
+		t.Fatal("expected non-empty 24h timeline for recent traffic")
 	}
 }
 

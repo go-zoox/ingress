@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +16,10 @@ type OverviewStreamer struct {
 	stop     chan struct{}
 	seq      atomic.Int64
 	subState sync.Map // *Subscriber -> OverviewSnapshot
+
+	throttleMu        sync.Mutex
+	throttleScheduled bool
+	lastPushAt        time.Time
 }
 
 // NewOverviewStreamer creates an overview SSE publisher.
@@ -58,17 +63,17 @@ func (s *OverviewStreamer) Stop() {
 	}
 }
 
-// Snapshot builds a snapshot for the given metrics window string.
+// Snapshot builds a snapshot for the given metrics window string (legacy).
 func (s *OverviewStreamer) Snapshot(window string) OverviewSnapshot {
 	if s == nil || s.builder == nil {
 		return OverviewSnapshot{}
 	}
-	return s.builder.Snapshot(window)
+	return s.builder.SnapshotWithRange(MetricsRangeFromWindow(window))
 }
 
 // SnapshotEvent builds the initial full SSE snapshot for a subscriber.
 func (s *OverviewStreamer) SnapshotEvent(sub *Subscriber) SSEEvent {
-	snap := s.Snapshot(subParamWindow(sub))
+	snap := s.builder.SnapshotWithRange(metricsRangeForSubscriber(sub))
 	s.remember(sub, snap)
 	return snapshotSSEEvent(snap)
 }
@@ -86,19 +91,60 @@ func (s *OverviewStreamer) PushAll() {
 	s.pushAll()
 }
 
+// ThrottledPushAll coalesces push requests to at most one push per minGap.
+func (s *OverviewStreamer) ThrottledPushAll(minGap time.Duration) {
+	if s == nil {
+		return
+	}
+	if minGap <= 0 {
+		s.pushAll()
+		return
+	}
+	s.throttleMu.Lock()
+	defer s.throttleMu.Unlock()
+	now := time.Now()
+	if now.Sub(s.lastPushAt) >= minGap {
+		s.lastPushAt = now
+		go s.pushAll()
+		return
+	}
+	if s.throttleScheduled {
+		return
+	}
+	s.throttleScheduled = true
+	wait := minGap - now.Sub(s.lastPushAt)
+	time.AfterFunc(wait, func() {
+		s.throttleMu.Lock()
+		s.throttleScheduled = false
+		s.lastPushAt = time.Now()
+		s.throttleMu.Unlock()
+		s.pushAll()
+	})
+}
+
 func (s *OverviewStreamer) pushAll() {
 	cache := make(map[string]OverviewSnapshot)
 	var mu sync.Mutex
 
 	s.broker.ForEachSubscriber("overview", func(sub *Subscriber) {
-		window := normalizeMetricsWindow(subParamWindow(sub))
-		mu.Lock()
-		snap, ok := cache[window]
-		if !ok {
-			snap = s.builder.Snapshot(window)
-			cache[window] = snap
+		key := subscriberRangeCacheKey(sub)
+		var snap OverviewSnapshot
+		if strings.HasPrefix(key, "window:") {
+			mu.Lock()
+			cached, ok := cache[key]
+			if ok {
+				snap = cached
+			}
+			mu.Unlock()
+			if !ok {
+				snap = s.builder.SnapshotWithRange(metricsRangeForSubscriber(sub))
+				mu.Lock()
+				cache[key] = snap
+				mu.Unlock()
+			}
+		} else {
+			snap = s.builder.SnapshotWithRange(metricsRangeForSubscriber(sub))
 		}
-		mu.Unlock()
 		s.pushSubscriber(sub, snap, false)
 	})
 }

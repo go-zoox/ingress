@@ -53,6 +53,45 @@ function kindLabel(kind: string, engine?: ScriptEngine) {
   return kind
 }
 
+function shellStateFromParams(params: JobView['params']) {
+  const scriptFields = scriptParamsFromJob(params)
+  if (scriptFields.engine === 'shell' && scriptFields.shell) {
+    const shell = scriptFields.shell
+    if (isPresetShell(shell)) {
+      return { shellPreset: shell, customShell: '' }
+    }
+    return { shellPreset: 'custom', customShell: shell }
+  }
+  return { shellPreset: defaultScriptShell(), customShell: '' }
+}
+
+function customFormFromJob(job: JobView): JobItemInput {
+  const kind = (job.kind === 'command' ? 'script' : job.kind) as 'http_call' | 'script'
+  if (kind === 'script') {
+    const scriptFields = scriptParamsFromJob(job.params)
+    return {
+      id: job.id,
+      name: job.name,
+      kind: 'script',
+      schedule: job.schedule,
+      enabled: job.enabled,
+      timeout_sec: job.timeout_sec || 60,
+      on_failure: job.on_failure || 'log',
+      params: scriptParamsToJob(scriptFields),
+    }
+  }
+  return {
+    id: job.id,
+    name: job.name,
+    kind: 'http_call',
+    schedule: job.schedule,
+    enabled: job.enabled,
+    timeout_sec: job.timeout_sec || 60,
+    on_failure: job.on_failure || 'log',
+    params: { ...job.params },
+  }
+}
+
 type Props = {
   open: boolean
   editJob: JobView | null
@@ -73,9 +112,14 @@ export function JobFormDrawer({ open, editJob, capabilities, onClose, onSaved, o
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [err, setErr] = useState('')
+  /** Bumps after form state is hydrated so CodeMirror mounts with the loaded script. */
+  const [editorSession, setEditorSession] = useState(0)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setEditorSession(0)
+      return
+    }
     setErr('')
     setDeleteConfirm(false)
     setSaving(false)
@@ -85,44 +129,14 @@ export function JobFormDrawer({ open, editJob, capabilities, onClose, onSaved, o
       setCreateStep('form')
       setCreateKind(kind)
       if (kind === 'script') {
-        const scriptFields = scriptParamsFromJob(editJob.params)
-        if (scriptFields.engine === 'shell' && scriptFields.shell) {
-          const shell = scriptFields.shell
-          if (isPresetShell(shell)) {
-            setShellPreset(shell)
-            setCustomShell('')
-          } else {
-            setShellPreset('custom')
-            setCustomShell(shell)
-          }
-        } else {
-          setShellPreset(defaultScriptShell())
-          setCustomShell('')
-        }
-        setCustomForm({
-          id: editJob.id,
-          name: editJob.name,
-          kind: 'script',
-          schedule: editJob.schedule,
-          enabled: editJob.enabled,
-          timeout_sec: editJob.timeout_sec || 60,
-          on_failure: editJob.on_failure || 'log',
-          params: scriptParamsToJob(scriptFields),
-        })
+        const shellState = shellStateFromParams(editJob.params)
+        setShellPreset(shellState.shellPreset)
+        setCustomShell(shellState.customShell)
       } else {
         setShellPreset(defaultScriptShell())
         setCustomShell('')
-        setCustomForm({
-          id: editJob.id,
-          name: editJob.name,
-          kind: 'http_call',
-          schedule: editJob.schedule,
-          enabled: editJob.enabled,
-          timeout_sec: editJob.timeout_sec || 60,
-          on_failure: editJob.on_failure || 'log',
-          params: { ...editJob.params },
-        })
       }
+      setCustomForm(customFormFromJob(editJob))
     } else {
       setCreateStep('kind')
       setCreateKind('')
@@ -130,6 +144,7 @@ export function JobFormDrawer({ open, editJob, capabilities, onClose, onSaved, o
       setCustomShell('')
       setCustomForm(emptyCustomForm())
     }
+    setEditorSession((s) => s + 1)
   }, [open, editJob])
 
   const pickKind = (kind: CustomKind) => {
@@ -148,6 +163,7 @@ export function JobFormDrawer({ open, editJob, capabilities, onClose, onSaved, o
       })
     }
     setCustomForm(base)
+    setEditorSession((s) => s + 1)
   }
 
   const effectiveShell = () => (shellPreset === 'custom' ? customShell.trim() : shellPreset)
@@ -448,24 +464,27 @@ export function JobFormDrawer({ open, editJob, capabilities, onClose, onSaved, o
               {scriptEngine !== 'shell' ? (
                 <p className="form-hint">{scriptEditorHint(scriptEngine)}</p>
               ) : null}
-              <FormCodeEditorField
-                label="脚本内容"
-                hint={
-                  scriptEngine === 'shell'
-                    ? '保存为 params.script，由 Shell 以 -c 方式执行'
-                    : '可用 API 见上方说明'
-                }
-                full
-                minHeight="220px"
-                language={scriptEngine}
-                value={customForm.params.script || ''}
-                onChange={(script) =>
-                  setCustomForm({
-                    ...customForm,
-                    params: { ...customForm.params, script },
-                  })
-                }
-              />
+              {editorSession > 0 ? (
+                <FormCodeEditorField
+                  editorKey={editorSession}
+                  label="脚本内容"
+                  hint={
+                    scriptEngine === 'shell'
+                      ? '保存为 params.script，由 Shell 以 -c 方式执行'
+                      : '可用 API 见上方说明'
+                  }
+                  full
+                  minHeight="220px"
+                  language={scriptEngine}
+                  value={customForm.params.script || ''}
+                  onChange={(script) =>
+                    setCustomForm({
+                      ...customForm,
+                      params: { ...customForm.params, script },
+                    })
+                  }
+                />
+              ) : null}
               <FormField
                 label="工作目录（可选）"
                 full

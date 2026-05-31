@@ -166,6 +166,42 @@ func (p *ParseIssues) BatchSetStatus(ids []uint, status, note string) (int64, er
 	return res.RowsAffected, res.Error
 }
 
+// CountByStatus counts parse issues for a triage status (open, resolved, ignored).
+func (p *ParseIssues) CountByStatus(status string) (int64, error) {
+	var count int64
+	q := gormx.GetDB().Model(&model.AccessLogParseIssue{})
+	if strings.TrimSpace(status) != "" {
+		q = q.Where("status = ?", status)
+	}
+	err := q.Count(&count).Error
+	return count, err
+}
+
+// SetAllOpenStatus updates every open parse issue (not only the current UI page).
+func (p *ParseIssues) SetAllOpenStatus(status, note string) (int64, error) {
+	status = strings.TrimSpace(status)
+	switch status {
+	case parseIssueStatusIgnored, parseIssueStatusResolved, parseIssueStatusOpen:
+	default:
+		status = parseIssueStatusIgnored
+	}
+	now := time.Now()
+	updates := map[string]any{
+		"status":       status,
+		"note":         strings.TrimSpace(note),
+		"last_seen_at": now,
+	}
+	if status == parseIssueStatusResolved {
+		updates["resolved_at"] = now
+	} else {
+		updates["resolved_at"] = nil
+	}
+	res := gormx.GetDB().Model(&model.AccessLogParseIssue{}).
+		Where("status = ?", parseIssueStatusOpen).
+		Updates(updates)
+	return res.RowsAffected, res.Error
+}
+
 func toParseIssueRow(row model.AccessLogParseIssue) AccessLogParseIssueRow {
 	return AccessLogParseIssueRow{
 		ID:          row.ID,

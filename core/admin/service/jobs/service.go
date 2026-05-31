@@ -52,22 +52,24 @@ type ListResult struct {
 
 // Service manages scheduled jobs and zoox cron registration.
 type Service struct {
-	cfg   *admincfg.Config
-	ing   *service.Ingress
-	audit *service.Audit
-	tls   *service.TLS
+	cfg     *admincfg.Config
+	ing     *service.Ingress
+	audit   *service.Audit
+	tls     *service.TLS
+	metrics *service.Metrics
 
 	mu     sync.Mutex
 	cron   zcron.Cron
 	running map[string]bool
 }
 
-func New(cfg *admincfg.Config, ing *service.Ingress, audit *service.Audit, tls *service.TLS) *Service {
+func New(cfg *admincfg.Config, ing *service.Ingress, audit *service.Audit, tls *service.TLS, metrics *service.Metrics) *Service {
 	return &Service{
 		cfg:     cfg,
 		ing:     ing,
 		audit:   audit,
 		tls:     tls,
+		metrics: metrics,
 		running: make(map[string]bool),
 	}
 }
@@ -82,6 +84,17 @@ func (s *Service) Start(c zcron.Cron) error {
 	return s.Reload()
 }
 
+func clearCronJobs(c zcron.Cron) error {
+	if err := c.ClearJobs(); err != nil {
+		// Zoox cron is lazy-started on first AddJob; initial Reload has nothing to clear.
+		if strings.Contains(err.Error(), "not started yet") {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
 func (s *Service) Reload() error {
 	s.mu.Lock()
 	c := s.cron
@@ -89,7 +102,9 @@ func (s *Service) Reload() error {
 	if c == nil {
 		return nil
 	}
-	_ = c.ClearJobs()
+	if err := clearCronJobs(c); err != nil {
+		return fmt.Errorf("jobs: clear cron: %w", err)
+	}
 	icfg, err := s.ing.LoadConfig()
 	if err != nil {
 		return err
@@ -325,6 +340,9 @@ func (s *Service) runKind(ctx context.Context, kind string, params ingjobs.JobPa
 	case "purge_audit_logs":
 		msg, err := s.runPurgeAuditLogs(params)
 		return messageOutcome(msg, err)
+	case "purge_metrics_buckets":
+		msg, err := s.runPurgeMetricsBuckets(params)
+		return messageOutcome(msg, err)
 	case "check_tls_expiry":
 		msg, err := s.runCheckTLSExpiry()
 		return messageOutcome(msg, err)
@@ -358,6 +376,21 @@ func (s *Service) runPurgeAuditLogs(params ingjobs.JobParams) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("deleted %d audit logs older than %d days", n, days), nil
+}
+
+func (s *Service) runPurgeMetricsBuckets(params ingjobs.JobParams) (string, error) {
+	if s.metrics == nil {
+		return "", fmt.Errorf("metrics service unavailable")
+	}
+	days := params.RetainDays
+	if days <= 0 {
+		days = 30
+	}
+	n, err := s.metrics.PurgePersistedBuckets(days)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("deleted %d metrics minute buckets older than %d days", n, days), nil
 }
 
 func (s *Service) runCheckTLSExpiry() (string, error) {

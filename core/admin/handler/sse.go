@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-zoox/ingress/core/admin/service"
@@ -11,13 +12,14 @@ import (
 
 // SSEHandler handles Server-Sent Events streaming.
 type SSEHandler struct {
-	broker   *service.SSEBroker
-	overview *service.OverviewStreamer
+	broker        *service.SSEBroker
+	overview      *service.OverviewStreamer
+	detailMetrics *service.DetailMetricsStreamer
 }
 
 // NewSSEHandler creates a new SSE handler.
-func NewSSEHandler(broker *service.SSEBroker, overview *service.OverviewStreamer) *SSEHandler {
-	return &SSEHandler{broker: broker, overview: overview}
+func NewSSEHandler(broker *service.SSEBroker, overview *service.OverviewStreamer, detail *service.DetailMetricsStreamer) *SSEHandler {
+	return &SSEHandler{broker: broker, overview: overview, detailMetrics: detail}
 }
 
 func writeSSEEvent(w http.ResponseWriter, flusher http.Flusher, event service.SSEEvent) {
@@ -65,6 +67,33 @@ func (h *SSEHandler) Stream(ctx *zoox.Context) {
 	if window := strings.TrimSpace(ctx.Query().Get("window").String()); window != "" {
 		params["window"] = window
 	}
+	if from := strings.TrimSpace(ctx.Query().Get("from").String()); from != "" {
+		params["from"] = from
+	}
+	if to := strings.TrimSpace(ctx.Query().Get("to").String()); to != "" {
+		params["to"] = to
+	}
+	if ri := strings.TrimSpace(ctx.Query().Get("ri").String()); ri != "" {
+		params["ri"] = ri
+	}
+	if pi := strings.TrimSpace(ctx.Query().Get("pi").String()); pi != "" {
+		params["pi"] = pi
+	}
+	if name := strings.TrimSpace(ctx.Query().Get("name").String()); name != "" {
+		if decoded, err := url.PathUnescape(name); err == nil {
+			name = decoded
+		}
+		params["name"] = name
+	}
+	if host := strings.TrimSpace(ctx.Query().Get("host").String()); host != "" {
+		params["host"] = host
+	}
+	if path := strings.TrimSpace(ctx.Query().Get("path").String()); path != "" {
+		params["path"] = path
+	}
+	if pathMatch := strings.TrimSpace(ctx.Query().Get("path_match").String()); pathMatch != "" {
+		params["path_match"] = pathMatch
+	}
 
 	sub, err := h.broker.Subscribe(cleanChannels, clientIP, params)
 	if err != nil {
@@ -72,15 +101,24 @@ func (h *SSEHandler) Stream(ctx *zoox.Context) {
 		return
 	}
 	wantsOverview := false
+	wantsRouteMetrics := false
+	wantsServiceMetrics := false
 	for _, c := range cleanChannels {
-		if c == "overview" {
+		switch c {
+		case "overview":
 			wantsOverview = true
-			break
+		case "route_metrics":
+			wantsRouteMetrics = true
+		case "service_metrics":
+			wantsServiceMetrics = true
 		}
 	}
 	defer func() {
-		if wantsOverview && h.overview != nil {
+		if h.overview != nil && wantsOverview {
 			h.overview.ForgetSubscriber(sub)
+		}
+		if h.detailMetrics != nil && (wantsRouteMetrics || wantsServiceMetrics) {
+			h.detailMetrics.ForgetSubscriber(sub)
 		}
 		h.broker.Unsubscribe(sub, clientIP)
 	}()
@@ -101,6 +139,12 @@ func (h *SSEHandler) Stream(ctx *zoox.Context) {
 
 	if wantsOverview && h.overview != nil {
 		writeSSEEvent(w, flusher, h.overview.SnapshotEvent(sub))
+	}
+	if wantsRouteMetrics && h.detailMetrics != nil {
+		writeSSEEvent(w, flusher, h.detailMetrics.RouteSnapshotEvent(sub))
+	}
+	if wantsServiceMetrics && h.detailMetrics != nil {
+		writeSSEEvent(w, flusher, h.detailMetrics.ServiceSnapshotEvent(sub))
 	}
 
 	req := ctx.Request
