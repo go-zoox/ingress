@@ -17,6 +17,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data.result
 }
 
+export type MetricsRangeQueryParams = {
+  window?: string
+  from?: string
+  to?: string
+}
+
+export function metricsRangeQuery(params: MetricsRangeQueryParams): string {
+  const q = new URLSearchParams()
+  if (params.from && params.to) {
+    q.set('from', params.from)
+    q.set('to', params.to)
+  } else if (params.window) {
+    q.set('window', params.window)
+  }
+  return q.toString()
+}
+
 export const api = {
   authConfig: () => request<AuthConfigView>('/auth/config'),
   authLogin: (username: string, password: string) =>
@@ -158,12 +175,12 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ id }),
     }),
-  overviewMetrics: (window = '15m') =>
-    request<OverviewMetrics>(`/metrics/overview?window=${encodeURIComponent(window)}`),
-  overviewSnapshot: (window = '15m') =>
-    request<OverviewSnapshot>(`/overview/snapshot?window=${encodeURIComponent(window)}`),
-  systemMetrics: (window = '15m') =>
-    request<SystemMetrics>(`/metrics/system?window=${encodeURIComponent(window)}`),
+  overviewMetrics: (params: MetricsRangeQueryParams) =>
+    request<OverviewMetrics>(`/metrics/overview?${metricsRangeQuery(params)}`),
+  overviewSnapshot: (params: MetricsRangeQueryParams) =>
+    request<OverviewSnapshot>(`/overview/snapshot?${metricsRangeQuery(params)}`),
+  systemMetrics: (params: MetricsRangeQueryParams) =>
+    request<SystemMetrics>(`/metrics/system?${metricsRangeQuery(params)}`),
   parseIssues: (status = 'open', limit = 20) =>
     request<AccessLogParseIssue[]>(
       `/logs/parse-issues?status=${encodeURIComponent(status)}&limit=${limit}`,
@@ -657,6 +674,8 @@ export type BackendStat = {
 export type OverviewMetrics = {
   window: string
   source: string
+  range_from?: string
+  range_to?: string
   total: number
   rpm: number
   error_rate: number
@@ -690,6 +709,7 @@ export type OverviewMetrics = {
   top_paths: Array<{ name: string; count: number }>
   top_backends?: BackendStat[]
   latency_histogram: Array<{ label: string; count: number }>
+  latency_slo?: Array<{ label: string; count: number; pct: number }>
   delta: {
     total_pct: number
     rpm_pct: number

@@ -21,6 +21,7 @@ const baseSnapshot: OverviewSnapshot = {
     top_hosts_error: [],
     top_paths: [],
     latency_histogram: [],
+    latency_slo: [],
     delta: { has_previous: false, total_pct: 0, rpm_pct: 0, error_rate_delta: 0, cache_hit_delta: 0, waf_blocks_delta: 0, p95_delta_ms: 0 },
   },
   system: {

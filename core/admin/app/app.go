@@ -75,7 +75,6 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 			if err := metricsSvc.LoadRollupFromDB(); err != nil {
 				logger.Warnf("metrics rollup load persisted: %v", err)
 			}
-			metricsSvc.BootstrapRollupFromTail()
 			go runMetricsRollupFlush(metricsSvc)
 		}
 		// When core hooks feed rollup, log tail is for the logs page only — do not rebuild overview.

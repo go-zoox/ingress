@@ -12,6 +12,7 @@ import { OverviewDelta } from '../components/OverviewDelta'
 import { parseRouteScopeFromSearchParams } from '../lib/routeScope'
 import { metricsSourceLabel } from '../lib/metricsSource'
 import { loadPreferences, savePreferences } from '../lib/preferences'
+import { normalizeMetricsWindow } from '../lib/metricsWindow'
 
 const METRICS_AUTO_REFRESH_MS = 5000
 
@@ -19,6 +20,7 @@ const WINDOW_OPTIONS = [
   { value: '5m', label: '5 分钟' },
   { value: '15m', label: '15 分钟' },
   { value: '1h', label: '1 小时' },
+  { value: '6h', label: '6 小时' },
   { value: '24h', label: '24 小时' },
 ] as const
 
@@ -32,7 +34,9 @@ export function RouteDetailPage() {
   const [metrics, setMetrics] = useState<RouteMetrics | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabKey>('logs')
-  const [metricWindow, setMetricWindow] = useState(() => loadPreferences().metricsWindow)
+  const [metricWindow, setMetricWindow] = useState(() =>
+    normalizeMetricsWindow(loadPreferences().metricsWindow),
+  )
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
   const [scopeOptions, setScopeOptions] = useState<{

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { buildAppNotifications, type AppNotification } from '../lib/appNotifications'
 import { loadPreferences } from '../lib/preferences'
+import { parseOverviewRange, rangeToQueryParams } from '../lib/overviewRange'
 import { markNotificationRead } from '../lib/notificationReadState'
 
 export type { AppNotification } from '../lib/appNotifications'
@@ -16,9 +17,10 @@ export function useAppNotifications(options: Options = {}) {
   const [tick, setTick] = useState(0)
 
   const refresh = useCallback(() => {
-    const window = loadPreferences().metricsWindow
+    const prefs = loadPreferences()
+    const query = rangeToQueryParams(parseOverviewRange(prefs.overviewRange, prefs.metricsWindow))
     api
-      .overviewMetrics(window)
+      .overviewMetrics(query)
       .then((metrics) => {
         setItems(buildAppNotifications(metrics, options))
       })

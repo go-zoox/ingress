@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { OverviewMetrics, SystemMetrics } from '../api/client'
-import { normalizeMetricsWindow, snapshotMatchesWindow } from '../lib/metricsWindow'
+import { type OverviewRange, rangeQueryKey, snapshotMatchesRange } from '../lib/overviewRange'
 
 /** Keep the latest in-window snapshot per range for stale-while-revalidate on tab switches. */
 export function useOverviewMetricsCache(
   metrics: OverviewMetrics | null,
-  metricsWindow: string,
+  overviewRange: OverviewRange,
 ): OverviewMetrics | null {
-  const windowKey = normalizeMetricsWindow(metricsWindow)
+  const windowKey = rangeQueryKey(overviewRange)
   const cacheRef = useRef<Partial<Record<string, OverviewMetrics>>>({})
   const [cached, setCached] = useState<OverviewMetrics | null>(() => cacheRef.current[windowKey] ?? null)
 
@@ -16,21 +16,21 @@ export function useOverviewMetricsCache(
   }, [windowKey])
 
   useEffect(() => {
-    if (!snapshotMatchesWindow(metrics, windowKey) || !metrics) {
+    if (!snapshotMatchesRange(metrics, overviewRange) || !metrics) {
       return
     }
     cacheRef.current[windowKey] = metrics
     setCached(metrics)
-  }, [metrics, windowKey])
+  }, [metrics, windowKey, overviewRange])
 
   return cached
 }
 
 export function useSystemMetricsCache(
   system: SystemMetrics | null,
-  metricsWindow: string,
+  overviewRange: OverviewRange,
 ): SystemMetrics | null {
-  const windowKey = normalizeMetricsWindow(metricsWindow)
+  const windowKey = rangeQueryKey(overviewRange)
   const cacheRef = useRef<Partial<Record<string, SystemMetrics>>>({})
   const [cached, setCached] = useState<SystemMetrics | null>(() => cacheRef.current[windowKey] ?? null)
 
@@ -39,12 +39,12 @@ export function useSystemMetricsCache(
   }, [windowKey])
 
   useEffect(() => {
-    if (!snapshotMatchesWindow(system, windowKey) || !system) {
+    if (!snapshotMatchesRange(system, overviewRange) || !system) {
       return
     }
     cacheRef.current[windowKey] = system
     setCached(system)
-  }, [system, windowKey])
+  }, [system, windowKey, overviewRange])
 
   return cached
 }

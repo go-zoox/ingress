@@ -1,11 +1,13 @@
 export type UIPreferences = {
   logLiveIntervalMs: number
+  /** @deprecated use overviewRange */
   metricsWindow: string
+  overviewRange?: string
 }
 
 export const DEFAULT_PREFERENCES: UIPreferences = {
   logLiveIntervalMs: 2000,
-  metricsWindow: '15m',
+  metricsWindow: 'live',
 }
 
 /** Session-only UI preferences (not persisted across page reloads). */

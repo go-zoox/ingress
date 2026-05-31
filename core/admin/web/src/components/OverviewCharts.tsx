@@ -10,11 +10,11 @@ import {
   Zap,
 } from 'lucide-react'
 import type { OverviewMetrics, HealthCheckResult, HealthSummary, TLSCert } from '../api/client'
-import { formatMetricsWindowLabel, snapshotMatchesWindow } from '../lib/metricsWindow'
+import { type OverviewRange, formatOverviewRangeLabel, isLiveOverviewRange, rangeQueryKey, snapshotMatchesRange } from '../lib/overviewRange'
 import { TrafficTimelineChart } from './charts/TrafficTimelineChart'
 import { QualityTimelineChart } from './charts/QualityTimelineChart'
 import { CacheTimelineChart } from './charts/CacheTimelineChart'
-import { LatencyHistogramChart } from './charts/LatencyHistogramChart'
+import { LatencySLOChart } from './charts/LatencySLOChart'
 import { UpstreamLatencyTrendChart } from './charts/UpstreamLatencyTrendChart'
 import { BackendPerformancePanel } from './BackendPerformancePanel'
 import { StatusDonut } from './charts/StatusDonut'
@@ -26,7 +26,7 @@ import { RankedBarList } from './RankedBarList'
 
 type Props = {
   metrics: OverviewMetrics | null
-  metricsWindow: string
+  overviewRange: OverviewRange
   /** Throttled snapshot for charts/lists; KPI strip prefers live metrics for this window. */
   chartMetrics?: OverviewMetrics | null
   /** Initial load — no metrics yet. */
@@ -42,7 +42,7 @@ type Props = {
 
 export const OverviewCharts = memo(function OverviewCharts({
   metrics,
-  metricsWindow,
+  overviewRange,
   chartMetrics: chartMetricsProp,
   loading,
   refreshing,
@@ -56,16 +56,16 @@ export const OverviewCharts = memo(function OverviewCharts({
     return <p style={{ color: 'var(--text-muted)', margin: '0 0 16px' }}>加载请求指标…</p>
   }
 
-  const liveMetrics = snapshotMatchesWindow(metrics, metricsWindow) ? metrics : null
+  const liveMetrics = snapshotMatchesRange(metrics, overviewRange) ? metrics : null
   const displayMetrics = liveMetrics ?? chartMetricsProp
   const charts = liveMetrics ?? chartMetricsProp
-  const windowLabel = formatMetricsWindowLabel(metricsWindow)
+  const windowLabel = formatOverviewRangeLabel(overviewRange)
   const rangeHint = displayMetrics?.window_stale ? `${windowLabel} · 历史时段` : windowLabel
 
   if (!displayMetrics || displayMetrics.total === 0) {
     return (
       <div className="panel metrics-empty">
-        <MetricsEmptyMessage metrics={displayMetrics ?? null} windowLabel={windowLabel} />
+        <MetricsEmptyMessage metrics={displayMetrics ?? null} windowLabel={windowLabel} overviewRange={overviewRange} />
       </div>
     )
   }
@@ -77,8 +77,8 @@ export const OverviewCharts = memo(function OverviewCharts({
   const p50Ms = displayMetrics.p50_ms ?? 0
   const p95Ms = displayMetrics.p95_ms ?? 0
   const wafBlocks = displayMetrics.waf_blocks ?? 0
-  const chartsReady = charts != null && snapshotMatchesWindow(charts, metricsWindow)
-  const chartBodyKey = `${metricsWindow}:${charts?.timeline?.length ?? 0}`
+  const chartsReady = charts != null && snapshotMatchesRange(charts, overviewRange)
+  const chartBodyKey = `${rangeQueryKey(overviewRange)}:${charts?.timeline?.length ?? 0}`
 
   return (
     <div className="overview-charts-wrap">
@@ -157,8 +157,8 @@ export const OverviewCharts = memo(function OverviewCharts({
           <ChartPanel title="缓存命中趋势" hint="按时间桶 %">
             <CacheTimelineChart timeline={charts.timeline ?? []} />
           </ChartPanel>
-          <ChartPanel title="延迟分布" hint="直方图">
-            <LatencyHistogramChart histogram={charts.latency_histogram ?? []} />
+          <ChartPanel title="延迟分布" hint="SLO 分段 · 占比">
+            <LatencySLOChart segments={charts.latency_slo ?? []} />
           </ChartPanel>
         </div>
 
@@ -343,12 +343,15 @@ const KpiCard = memo(function KpiCard({
 function MetricsEmptyMessage({
   metrics,
   windowLabel,
+  overviewRange,
 }: {
   metrics: OverviewMetrics | null
   windowLabel?: string
+  overviewRange?: OverviewRange
 }) {
   const skipped = metrics?.parse_skipped ?? 0
   const range = windowLabel ? `${windowLabel} ` : ''
+  const historical = overviewRange != null && !isLiveOverviewRange(overviewRange)
 
   if (skipped > 0 && (metrics?.parseable_in_tail ?? 0) === 0) {
     return (
@@ -376,7 +379,15 @@ function MetricsEmptyMessage({
   if (metrics?.source === 'error') {
     return <p className="empty-hint">读取日志文件失败。请检查日志路径是否正确。</p>
   }
-  return <p className="empty-hint">{range}暂无访问日志数据。等待请求产生后数据会自动刷新。</p>
+  if (historical) {
+    return (
+      <p className="empty-hint">
+        {range}该时间范围内暂无聚合数据。数据来自 SQLite 分钟桶（运行时写入或{' '}
+        <code>ingress metrics-migrate</code> 导入）；若选「昨天」等更早日期，需先 migrate 对应 access.log。
+      </p>
+    )
+  }
+  return <p className="empty-hint">{range}暂无访问日志数据。等待请求产生后会自动刷新。</p>
 }
 
 function formatMs(ms: number) {

@@ -115,25 +115,88 @@ func (s *SystemMetrics) recordSample() {
 	}
 }
 
-// Snapshot returns aggregated process metrics for the requested window.
+// Snapshot returns aggregated process metrics for the requested window (legacy).
 func (s *SystemMetrics) Snapshot(window string) SystemMetricsSnapshot {
-	dur := parseWindowDuration(window)
-	cutoff := time.Now().Add(-dur)
+	return s.SnapshotWithRange(MetricsRangeFromWindow(window))
+}
 
+// SnapshotWithRange returns process metrics for [from, to].
+func (s *SystemMetrics) SnapshotWithRange(q MetricsRangeQuery) SystemMetricsSnapshot {
+	return s.snapshotAbsolute(q.From, q.To)
+}
+
+func (s *SystemMetrics) snapshotAbsolute(from, to time.Time) SystemMetricsSnapshot {
+	now := time.Now()
+	if to.After(now) {
+		to = now
+	}
 	s.mu.RLock()
-	filtered := filterSystemSamples(s.samples, cutoff)
+	filtered := make([]systemSample, 0, len(s.samples))
+	for _, sample := range s.samples {
+		if sample.at.Before(from) || sample.at.After(to) {
+			continue
+		}
+		filtered = append(filtered, sample)
+	}
 	s.mu.RUnlock()
 
+	dur := to.Sub(from)
+	if dur <= 0 {
+		dur = time.Minute
+	}
 	out := SystemMetricsSnapshot{
-		Window:     normalizeMetricsWindow(window),
+		Window:     "range",
 		Goroutines: runtime.NumGoroutine(),
 		NumCPU:     runtime.NumCPU(),
-		Timeline:   buildSystemTimeline(filtered, dur),
+		Timeline:   buildSystemTimelineAbsolute(filtered, from, to),
 	}
 	if len(filtered) > 0 {
 		last := filtered[len(filtered)-1]
 		out.CPUPct = last.cpuPct
 		out.MemoryMB = last.memoryMB
+	}
+	return out
+}
+
+func buildSystemTimelineAbsolute(samples []systemSample, from, to time.Time) []SystemMetricPoint {
+	if len(samples) == 0 {
+		return nil
+	}
+	dur := to.Sub(from)
+	if dur <= 0 {
+		return nil
+	}
+	buckets := timelineBucketsForDuration(dur)
+	slot := timelineSlotForDuration(dur)
+	alignedStart := truncateTime(from, slot)
+
+	type bucketScratch struct {
+		cpuSum float64
+		cpuN   int
+		mem    float64
+		memSet bool
+	}
+	scratches := make([]bucketScratch, buckets)
+	out := make([]SystemMetricPoint, buckets)
+	for i := range out {
+		bucketStart := alignedStart.Add(time.Duration(i) * slot)
+		out[i].Label = formatTimelineLabel(bucketStart, slot)
+	}
+	for _, sample := range samples {
+		idx := timelineIndex(sample.at, alignedStart, slot, buckets)
+		scratches[idx].cpuSum += sample.cpuPct
+		scratches[idx].cpuN++
+		scratches[idx].mem = sample.memoryMB
+		scratches[idx].memSet = true
+	}
+	for i := range out {
+		sc := scratches[i]
+		if sc.cpuN > 0 {
+			out[i].CPUPct = round1(sc.cpuSum / float64(sc.cpuN))
+		}
+		if sc.memSet {
+			out[i].MemoryMB = sc.mem
+		}
 	}
 	return out
 }
@@ -212,6 +275,8 @@ func durationToMetricsWindow(d time.Duration) string {
 	switch {
 	case d >= 24*time.Hour:
 		return "24h"
+	case d >= 6*time.Hour:
+		return "6h"
 	case d >= time.Hour:
 		return "1h"
 	case d <= 5*time.Minute:
@@ -223,7 +288,7 @@ func durationToMetricsWindow(d time.Duration) string {
 
 func normalizeMetricsWindow(window string) string {
 	switch window {
-	case "24h", "1h", "60m", "5m", "15m":
+	case "24h", "6h", "1h", "60m", "5m", "15m":
 		if window == "60m" {
 			return "1h"
 		}

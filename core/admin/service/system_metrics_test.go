@@ -23,7 +23,7 @@ func TestSystemMetricsSnapshot_windowFilter(t *testing.T) {
 	if out.CPUPct != 3 || out.MemoryMB != 30 {
 		t.Fatalf("latest snapshot=%+v", out)
 	}
-	if out.Window != "15m" {
+	if out.Window != "range" {
 		t.Fatalf("window=%q", out.Window)
 	}
 }
@@ -51,7 +51,13 @@ func TestNormalizeMetricsWindow(t *testing.T) {
 	if normalizeMetricsWindow("60m") != "1h" {
 		t.Fatal("expected 1h")
 	}
+	if normalizeMetricsWindow("6h") != "6h" {
+		t.Fatal("expected 6h")
+	}
 	if normalizeMetricsWindow("") != "15m" {
 		t.Fatal("expected default 15m")
+	}
+	if durationToMetricsWindow(6*time.Hour) != "6h" {
+		t.Fatal("expected 6h duration mapping")
 	}
 }

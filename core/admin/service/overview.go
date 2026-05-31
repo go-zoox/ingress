@@ -53,11 +53,17 @@ func NewOverviewBuilder(
 	}
 }
 
-// Snapshot builds the aggregated overview payload for the given metrics window.
+// Snapshot builds the aggregated overview payload for the given metrics window (legacy).
 func (b *OverviewBuilder) Snapshot(window string) OverviewSnapshot {
+	return b.SnapshotWithRange(MetricsRangeFromWindow(window))
+}
+
+// SnapshotWithRange builds overview data for [from, to].
+func (b *OverviewBuilder) SnapshotWithRange(q MetricsRangeQuery) OverviewSnapshot {
+	windowKey := "range"
 	if b == nil {
 		return OverviewSnapshot{
-			Window:       normalizeMetricsWindow(window),
+			Window:       windowKey,
 			Certs:        []TLSCertRow{},
 			WAFBlocks:    []model.WAFEvent{},
 			ParseIssues:  []AccessLogParseIssueRow{},
@@ -65,10 +71,9 @@ func (b *OverviewBuilder) Snapshot(window string) OverviewSnapshot {
 			HealthChecks: []HealthCheckResult{},
 		}
 	}
-	window = normalizeMetricsWindow(window)
 
 	snap := OverviewSnapshot{
-		Window:       window,
+		Window:       windowKey,
 		Certs:        []TLSCertRow{},
 		WAFBlocks:    []model.WAFEvent{},
 		ParseIssues:  []AccessLogParseIssueRow{},
@@ -77,10 +82,10 @@ func (b *OverviewBuilder) Snapshot(window string) OverviewSnapshot {
 	}
 
 	if b.metrics != nil {
-		snap.Metrics = b.metrics.Overview(window)
+		snap.Metrics = b.metrics.OverviewWithRange(q)
 	}
 	if b.system != nil {
-		snap.System = b.system.Snapshot(window)
+		snap.System = b.system.SnapshotWithRange(q)
 	}
 	if b.tls != nil {
 		if rows, err := b.tls.List(); err == nil {

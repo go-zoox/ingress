@@ -1,6 +1,7 @@
 package service
 
 import (
+	"sort"
 	"sync"
 	"time"
 
@@ -133,6 +134,76 @@ func (r *MetricsRollup) FlushPending() error {
 	return nil
 }
 
+// bucketsForRange loads minute aggregates from SQLite for [from, anchor] and merges live pending.
+func (r *MetricsRollup) bucketsForRange(from, anchor time.Time) []model.MetricsMinuteBucket {
+	if r == nil {
+		return nil
+	}
+	from = from.Truncate(time.Minute)
+	anchor = anchor.Truncate(time.Minute)
+	byKey := map[int64]model.MetricsMinuteBucket{}
+
+	if r.store != nil {
+		if rows, err := r.store.LoadBetween(from, anchor); err == nil {
+			for _, b := range rows {
+				byKey[b.Minute.Truncate(time.Minute).Unix()] = b
+			}
+		}
+	}
+
+	r.mu.RLock()
+	for _, b := range r.dbBuckets {
+		if bucketInWindow(b.Minute, from, anchor) {
+			key := b.Minute.Truncate(time.Minute).Unix()
+			byKey[key] = b
+		}
+	}
+	pending := r.pending
+	r.mu.RUnlock()
+
+	for key, d := range pending {
+		if d == nil || d.count <= 0 {
+			continue
+		}
+		minute := time.Unix(key, 0).Truncate(time.Minute)
+		if !bucketInWindow(minute, from, anchor) {
+			continue
+		}
+		if _, ok := byKey[key]; ok {
+			continue
+		}
+		byKey[key] = model.MetricsMinuteBucket{
+			Minute:        minute,
+			Count:         d.count,
+			S2:            d.s2,
+			S3:            d.s3,
+			S4:            d.s4,
+			S5:            d.s5,
+			WAFBlocks:     d.wafBlocks,
+			CacheHits:     d.cacheHits,
+			DurationSumMs: d.durationSumMs,
+			DurationCount: d.durationCount,
+			DurationMaxMs: d.durationMaxMs,
+			UpstreamSumMs: d.upstreamSumMs,
+			UpstreamCount: d.upstreamCount,
+		}
+	}
+
+	if len(byKey) == 0 {
+		return nil
+	}
+	keys := make([]int64, 0, len(byKey))
+	for k := range byKey {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	out := make([]model.MetricsMinuteBucket, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, byKey[k])
+	}
+	return out
+}
+
 // PurgePersistedOlderThan deletes minute buckets older than retainDays.
 func (r *MetricsRollup) PurgePersistedOlderThan(retainDays int) (int64, error) {
 	if r == nil || r.store == nil {
@@ -151,12 +222,26 @@ func (r *MetricsRollup) EntriesForWindow(window string) ([]AccessEntry, string, 
 }
 
 // WindowEntries selects rollup data for an overview window.
-// When liveOnly is true, only in-process live entries are used (no DB synthesis).
-func (r *MetricsRollup) WindowEntries(window string, liveOnly bool) RollupWindow {
-	return r.windowEntriesAt(window, time.Now(), liveOnly)
+// requireLive skips DB-only fallback when there are no in-process entries (embedded core cold start).
+// Query range spans 2× the window so overview delta (环比) can compare to the previous period.
+func (r *MetricsRollup) WindowEntries(window string, requireLive bool) RollupWindow {
+	return r.windowEntriesAt(window, time.Now(), requireLive)
 }
 
-func (r *MetricsRollup) windowEntriesAt(window string, anchor time.Time, liveOnly bool) RollupWindow {
+// LiveEntriesForOverview returns in-process rollup entries for the overview window (no DB synthesis).
+func (r *MetricsRollup) LiveEntriesForOverview(window string, anchor time.Time) []AccessEntry {
+	if r == nil {
+		return nil
+	}
+	windowDur := parseWindowDuration(window)
+	slot := timelineSlotForWindow(windowDur, window)
+	alignedStart := timelineWindowStart(anchor, windowDur, slot)
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return append([]AccessEntry(nil), filterEntriesSince(r.entries, alignedStart, anchor)...)
+}
+
+func (r *MetricsRollup) windowEntriesAt(window string, anchor time.Time, requireLive bool) RollupWindow {
 	empty := RollupWindow{}
 	if r == nil {
 		return empty
@@ -164,53 +249,58 @@ func (r *MetricsRollup) windowEntriesAt(window string, anchor time.Time, liveOnl
 	windowDur := parseWindowDuration(window)
 	slot := timelineSlotForWindow(windowDur, window)
 	alignedStart := timelineWindowStart(anchor, windowDur, slot)
+	queryStart := alignedStart.Add(-windowDur)
 
 	r.mu.RLock()
-	mem := filterEntriesSince(r.entries, alignedStart, anchor)
+	mem := filterEntriesSince(r.entries, queryStart, anchor)
 	memCopy := append([]AccessEntry(nil), mem...)
-	r.mu.RUnlock()
-
-	if len(memCopy) > 0 {
-		full := rollupCoversWindow(memCopy, windowDur, anchor, window)
-		return RollupWindow{
-			Entries:      memCopy,
-			Source:       "rollup_live",
-			HasData:      true,
-			FullCoverage: full,
-		}
+	memEarliest := earliestEntryTime(memCopy)
+	var combined []AccessEntry
+	hasLive := len(r.entries) > 0
+	if hasLive && (memEarliest.IsZero() || memEarliest.After(queryStart)) {
+		combined = append(combined, r.synthesizedFromDBRangeLocked(queryStart, memEarliest, anchor)...)
 	}
-	if liveOnly {
+	combined = append(combined, memCopy...)
+	if len(combined) == 0 && !requireLive {
+		combined = r.synthesizedFromDBRangeLocked(queryStart, time.Time{}, anchor)
+	}
+
+	if len(combined) == 0 {
+		r.mu.RUnlock()
 		return empty
 	}
 
-	r.mu.RLock()
-	dbPart := r.synthesizedFromDBLocked(anchor, windowDur, time.Time{})
-	r.mu.RUnlock()
-
-	if len(dbPart) == 0 {
-		return empty
+	current := filterEntriesSince(combined, alignedStart, anchor)
+	full := rollupCoversWindow(current, windowDur, anchor, window)
+	source := "rollup_live"
+	if len(memCopy) == 0 {
+		source = "rollup_persisted"
+	} else if len(combined) > len(memCopy) {
+		source = "rollup_hybrid"
 	}
-	full := rollupCoversWindow(dbPart, windowDur, anchor, window)
-	return RollupWindow{
-		Entries:      dbPart,
-		Source:       "rollup_persisted",
-		HasData:      true,
+	rw := RollupWindow{
+		Entries:      combined,
+		Source:       source,
+		HasData:      len(current) > 0,
 		FullCoverage: full,
 	}
+	r.mu.RUnlock()
+	return rw
 }
 
-func (r *MetricsRollup) synthesizedFromDBLocked(anchor time.Time, windowDur time.Duration, memEarliest time.Time) []AccessEntry {
-	if len(r.dbBuckets) == 0 {
+func (r *MetricsRollup) synthesizedFromDBRangeLocked(rangeStart, exclusiveEnd, anchor time.Time) []AccessEntry {
+	if len(r.dbBuckets) == 0 || anchor.IsZero() {
 		return nil
 	}
-	startMinute := anchor.Add(-windowDur).Truncate(time.Minute)
-	anchorMinute := anchor.Truncate(time.Minute)
+	startMinute := rangeStart.Truncate(time.Minute)
+	endMinute := anchor.Truncate(time.Minute)
+	exclusive := exclusiveEnd.Truncate(time.Minute)
 	var out []AccessEntry
 	for _, b := range r.dbBuckets {
-		if b.Minute.Before(startMinute) || b.Minute.After(anchorMinute) {
+		if b.Minute.Before(startMinute) || b.Minute.After(endMinute) {
 			continue
 		}
-		if !memEarliest.IsZero() && !b.Minute.Before(memEarliest.Truncate(time.Minute)) {
+		if !exclusive.IsZero() && !b.Minute.Before(exclusive) {
 			continue
 		}
 		part := entriesFromMinuteBucket(b)
@@ -220,6 +310,98 @@ func (r *MetricsRollup) synthesizedFromDBLocked(anchor time.Time, windowDur time
 		out = append(out, part...)
 	}
 	return out
+}
+
+// DeltaFromStores computes overview delta from persisted minute buckets (+ pending) when entry-level data is incomplete.
+func (r *MetricsRollup) DeltaFromStores(window string, anchor time.Time) (OverviewDelta, bool) {
+	if r == nil {
+		return OverviewDelta{}, false
+	}
+	windowDur := parseWindowDuration(window)
+	slot := timelineSlotForWindow(windowDur, window)
+	alignedStart := timelineWindowStart(anchor, windowDur, slot)
+	prevStart := alignedStart.Add(-windowDur)
+
+	r.mu.RLock()
+	prevAgg := r.aggregateRangeLocked(prevStart, alignedStart)
+	curEnd := anchor.Truncate(time.Minute).Add(time.Minute)
+	curAgg := r.aggregateRangeLocked(alignedStart, curEnd)
+	r.mu.RUnlock()
+
+	if prevAgg.count <= 0 {
+		return OverviewDelta{}, false
+	}
+	prev := snapshotFromMinuteAgg(prevAgg, windowDur)
+	cur := snapshotFromMinuteAgg(curAgg, windowDur)
+	return computeOverviewDeltaFromSnapshots(cur, prev, windowDur), true
+}
+
+func (r *MetricsRollup) aggregateRangeLocked(start, endExclusive time.Time) minuteDelta {
+	var total minuteDelta
+	if endExclusive.IsZero() {
+		return total
+	}
+	start = start.Truncate(time.Minute)
+	endExclusive = endExclusive.Truncate(time.Minute)
+	for _, b := range r.dbBuckets {
+		if b.Minute.Before(start) || !b.Minute.Before(endExclusive) {
+			continue
+		}
+		mergeMinuteDelta(&total, minuteDelta{
+			count: b.Count, s2: b.S2, s3: b.S3, s4: b.S4, s5: b.S5,
+			wafBlocks: b.WAFBlocks, cacheHits: b.CacheHits,
+			durationSumMs: b.DurationSumMs, durationCount: b.DurationCount, durationMaxMs: b.DurationMaxMs,
+			upstreamSumMs: b.UpstreamSumMs, upstreamCount: b.UpstreamCount,
+		})
+	}
+	for key, d := range r.pending {
+		if d == nil {
+			continue
+		}
+		minute := time.Unix(key, 0).Truncate(time.Minute)
+		if minute.Before(start) || !minute.Before(endExclusive) {
+			continue
+		}
+		mergeMinuteDelta(&total, *d)
+	}
+	return total
+}
+
+func snapshotFromMinuteAgg(d minuteDelta, windowDur time.Duration) entrySnapshot {
+	var snap entrySnapshot
+	if d.count <= 0 {
+		return snap
+	}
+	snap.total = d.count
+	snap.wafBlocks = d.wafBlocks
+	errors := d.s4 + d.s5
+	snap.errorRate = float64(errors) / float64(d.count) * 100
+	snap.cacheHitRate = float64(d.cacheHits) / float64(d.count) * 100
+	minutes := windowDur.Minutes()
+	if minutes < 1 {
+		minutes = 1
+	}
+	snap.rpm = float64(d.count) / minutes
+	if d.durationCount > 0 {
+		snap.p95 = d.durationMaxMs
+		if snap.p95 <= 0 {
+			snap.p95 = d.durationSumMs / float64(d.durationCount)
+		}
+	}
+	return snap
+}
+
+func computeOverviewDeltaFromSnapshots(cur, prev entrySnapshot, windowDur time.Duration) OverviewDelta {
+	d := OverviewDelta{HasPrevious: true}
+	if prev.total > 0 {
+		d.TotalPct = pctChange(float64(cur.total), float64(prev.total))
+		d.RpmPct = pctChange(cur.rpm, prev.rpm)
+	}
+	d.ErrorRateDelta = cur.errorRate - prev.errorRate
+	d.CacheHitDelta = cur.cacheHitRate - prev.cacheHitRate
+	d.WafBlocksDelta = cur.wafBlocks - prev.wafBlocks
+	d.P95DeltaMs = cur.p95 - prev.p95
+	return d
 }
 
 // rollupCoversWindow matches tailCoversWindow using timeline-aligned window start.

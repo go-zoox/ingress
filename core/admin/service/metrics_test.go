@@ -139,6 +139,15 @@ func TestParseWindowDuration_24h(t *testing.T) {
 	}
 }
 
+func TestParseWindowDuration_6h(t *testing.T) {
+	if parseWindowDuration("6h") != 6*time.Hour {
+		t.Fatal("6h window")
+	}
+	if timelineBucketsForWindow("6h") != 12 {
+		t.Fatal("6h buckets")
+	}
+}
+
 func TestComputeOverviewDelta(t *testing.T) {
 	anchor := time.Date(2026, 5, 20, 12, 0, 0, 0, time.Local)
 	cur := []AccessEntry{
@@ -154,6 +163,26 @@ func TestComputeOverviewDelta(t *testing.T) {
 	}
 	if d.TotalPct <= 0 {
 		t.Fatalf("total_pct=%v want increase", d.TotalPct)
+	}
+}
+
+func TestBuildLatencySLO_segments(t *testing.T) {
+	entries := []AccessEntry{
+		{DurationMs: 0, CacheHit: true},
+		{DurationMs: 50},
+		{DurationMs: 200},
+		{DurationMs: 800},
+		{DurationMs: 5000},
+	}
+	slo := buildLatencySLO(entries)
+	if len(slo) != 5 {
+		t.Fatalf("len=%d want 5", len(slo))
+	}
+	if slo[0].Count != 1 || slo[1].Count != 1 || slo[2].Count != 1 || slo[3].Count != 1 || slo[4].Count != 1 {
+		t.Fatalf("slo counts=%v", slo)
+	}
+	if slo[0].Pct != 20 {
+		t.Fatalf("cache pct=%v want 20", slo[0].Pct)
 	}
 }
 
@@ -190,11 +219,11 @@ func TestTailCoversWindow(t *testing.T) {
 }
 
 func TestTailLinesForWindow_defaults(t *testing.T) {
-	if tailLinesForWindow("15m") >= maxTailLinesForWindow("15m") {
-		t.Fatal("initial 15m tail budget should be below max")
+	if overviewTailMaxLines("15m") != 8000 {
+		t.Fatalf("15m overview tail cap=%d want 8000", overviewTailMaxLines("15m"))
 	}
-	if maxTailLinesForWindow("15m") < 30000 {
-		t.Fatalf("15m max tail too small for high-traffic logs: %d", maxTailLinesForWindow("15m"))
+	if overviewTailMaxLines("5m") > overviewTailMaxLines("15m") {
+		t.Fatal("5m tail cap should not exceed 15m cap")
 	}
 }
 

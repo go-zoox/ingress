@@ -231,15 +231,32 @@ export function SettingsPage() {
                 <option value={30000}>30 秒</option>
               </select>
             </SettingsRow>
-            <SettingsRow label="总览指标窗口">
+            <SettingsRow label="总览默认视图">
               <select
-                value={prefs.metricsWindow}
-                onChange={(e) => setPrefs((p) => ({ ...p, metricsWindow: e.target.value }))}
+                value={prefs.overviewRange ? JSON.parse(prefs.overviewRange).kind === 'live' ? 'live' : prefs.metricsWindow : prefs.metricsWindow}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v === 'live') {
+                    setPrefs((p) => ({
+                      ...p,
+                      metricsWindow: 'live',
+                      overviewRange: JSON.stringify({ kind: 'live' }),
+                    }))
+                  } else {
+                    setPrefs((p) => ({
+                      ...p,
+                      metricsWindow: v,
+                      overviewRange: JSON.stringify({ kind: 'preset', preset: v }),
+                    }))
+                  }
+                }}
               >
-                <option value="5m">5 分钟</option>
-                <option value="15m">15 分钟</option>
-                <option value="1h">1 小时</option>
-                <option value="24h">24 小时</option>
+                <option value="live">实时</option>
+                <option value="5m">最近 5 分钟</option>
+                <option value="15m">最近 15 分钟</option>
+                <option value="1h">最近 1 小时</option>
+                <option value="6h">最近 6 小时</option>
+                <option value="24h">最近 24 小时</option>
               </select>
             </SettingsRow>
             <div className="toolbar" style={{ marginTop: 12 }}>

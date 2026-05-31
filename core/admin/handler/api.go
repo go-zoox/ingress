@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -828,18 +829,46 @@ func (a *API) LogHosts(ctx *zoox.Context) {
 }
 
 func (a *API) OverviewMetrics(ctx *zoox.Context) {
-	window := strings.TrimSpace(ctx.Query().Get("window").String())
-	ok(ctx, a.metrics.Overview(window))
+	q, err := parseMetricsRangeQuery(ctx)
+	if err != nil {
+		return
+	}
+	ok(ctx, a.metrics.OverviewWithRange(q))
 }
 
 func (a *API) OverviewSnapshot(ctx *zoox.Context) {
-	window := strings.TrimSpace(ctx.Query().Get("window").String())
-	ok(ctx, a.overviewBuilder.Snapshot(window))
+	q, err := parseMetricsRangeQuery(ctx)
+	if err != nil {
+		return
+	}
+	ok(ctx, a.overviewBuilder.SnapshotWithRange(q))
 }
 
 func (a *API) SystemMetrics(ctx *zoox.Context) {
-	window := strings.TrimSpace(ctx.Query().Get("window").String())
-	ok(ctx, a.system.Snapshot(window))
+	q, err := parseMetricsRangeQuery(ctx)
+	if err != nil {
+		return
+	}
+	ok(ctx, a.system.SnapshotWithRange(q))
+}
+
+func parseMetricsRangeQuery(ctx *zoox.Context) (service.MetricsRangeQuery, error) {
+	fromStr := strings.TrimSpace(ctx.Query().Get("from").String())
+	toStr := strings.TrimSpace(ctx.Query().Get("to").String())
+	if fromStr != "" && toStr != "" {
+		q, err := service.ParseMetricsRangeQuery(fromStr, toStr)
+		if err != nil {
+			fail(ctx, http.StatusBadRequest, err.Error())
+			return q, err
+		}
+		return q, nil
+	}
+	// Legacy: ?window=5m until clients migrate.
+	if window := strings.TrimSpace(ctx.Query().Get("window").String()); window != "" {
+		return service.MetricsRangeFromWindow(window), nil
+	}
+	fail(ctx, http.StatusBadRequest, "from and to are required (RFC3339)")
+	return service.MetricsRangeQuery{}, fmt.Errorf("from and to required")
 }
 
 func (a *API) ListParseIssues(ctx *zoox.Context) {

@@ -28,11 +28,14 @@ type OverviewMetrics struct {
 	Slowest          []SlowRequest    `json:"slowest"`
 	ErrorSamples     []SlowRequest    `json:"error_samples,omitempty"`
 	LatencyHistogram []LatencyBucket  `json:"latency_histogram"`
+	LatencySLO       []LatencySLOSeg  `json:"latency_slo"`
 	Delta            OverviewDelta    `json:"delta"`
 	ParseSkipped     int              `json:"parse_skipped"`
 	ParseIssueOpen   int              `json:"parse_issue_open"`
 	ParseableInTail  int              `json:"parseable_in_tail"`
 	WindowStale      bool             `json:"window_stale"`
+	RangeFrom        string           `json:"range_from,omitempty"`
+	RangeTo          string           `json:"range_to,omitempty"`
 }
 
 type TimelineBucket struct {
@@ -93,6 +96,13 @@ type LatencyBucket struct {
 	Count int    `json:"count"`
 }
 
+// LatencySLOSeg is one SLO band for overview latency breakdown (percent of window).
+type LatencySLOSeg struct {
+	Label string  `json:"label"`
+	Count int     `json:"count"`
+	Pct   float64 `json:"pct"`
+}
+
 // OverviewDelta compares the current window to the immediately previous window of equal length.
 type OverviewDelta struct {
 	TotalPct       float64 `json:"total_pct"`
@@ -136,28 +146,6 @@ func (m *Metrics) Rollup() *MetricsRollup {
 	return m.rollup
 }
 
-const bootstrapTailMaxLines = 2_000
-
-// BootstrapRollupFromTail seeds the in-memory rollup from a small access log tail (once).
-// Skipped when liveHook is set — core callbacks populate rollup without reading the file.
-func (m *Metrics) BootstrapRollupFromTail() {
-	if m == nil || m.rollup == nil || m.rollup.Len() > 0 || m.liveHook {
-		return
-	}
-	if m.logs == nil {
-		return
-	}
-	lines, err := m.logs.TailIngressAccess(bootstrapTailMaxLines)
-	if err != nil || len(lines) == 0 {
-		return
-	}
-	parseResult := ParseAccessLogLines(lines)
-	if len(parseResult.Entries) == 0 {
-		return
-	}
-	m.rollup.IngestBatch(parseResult.Entries)
-}
-
 // LoadRollupFromDB loads persisted minute buckets for long-window overview queries.
 func (m *Metrics) LoadRollupFromDB() error {
 	if m == nil || m.rollup == nil {
@@ -199,8 +187,24 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 			if source == "" {
 				source = "rollup_live"
 			}
-			out := aggregateOverview(rw.Entries, window, source)
+			anchor := time.Now()
+			var out OverviewMetrics
+			if source == "rollup_persisted" || source == "rollup_hybrid" {
+				liveOnly := m.rollup.LiveEntriesForOverview(window, anchor)
+				if stored, ok := m.rollup.AggregateOverviewFromStores(window, source, anchor, liveOnly); ok {
+					out = stored
+				} else {
+					out = aggregateOverview(rw.Entries, window, source)
+				}
+			} else {
+				out = aggregateOverview(rw.Entries, window, source)
+			}
 			out.WindowStale = rw.HasData && !rw.FullCoverage
+			if !out.Delta.HasPrevious {
+				if d, ok := m.rollup.DeltaFromStores(window, anchor); ok {
+					out.Delta = d
+				}
+			}
 			if m.parseIssues != nil {
 				if n, err := m.parseIssues.OpenCount(); err == nil {
 					out.ParseIssueOpen = int(n)
@@ -237,6 +241,51 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 	return out
 }
 
+// OverviewWithRange returns metrics for [from, to].
+func (m *Metrics) OverviewWithRange(q MetricsRangeQuery) OverviewMetrics {
+	return m.overviewAbsolute(q)
+}
+
+func (m *Metrics) overviewAbsolute(q MetricsRangeQuery) OverviewMetrics {
+	now := time.Now()
+	anchor := q.To
+	if anchor.After(now) {
+		anchor = now
+	}
+	from := q.From
+	out := OverviewMetrics{
+		Window:       "range",
+		Source:       "rollup_hybrid",
+		RangeFrom:    from.Format(time.RFC3339),
+		RangeTo:      anchor.Format(time.RFC3339),
+		StatusCounts: map[string]int{"2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0},
+	}
+	if m.rollup == nil {
+		return out
+	}
+	var live []AccessEntry
+	if m.rollup != nil && anchor.After(now.Add(-10*time.Minute)) {
+		live = m.rollup.LiveEntriesForOverview("5m", now)
+	}
+	if stored, ok := m.rollup.AggregateOverviewAbsolute(from, anchor, "rollup_hybrid", live); ok {
+		stored.RangeFrom = out.RangeFrom
+		stored.RangeTo = out.RangeTo
+		stored.Window = "range"
+		if m.parseIssues != nil {
+			if n, err := m.parseIssues.OpenCount(); err == nil {
+				stored.ParseIssueOpen = int(n)
+			}
+		}
+		return stored
+	}
+	if m.parseIssues != nil {
+		if n, err := m.parseIssues.OpenCount(); err == nil {
+			out.ParseIssueOpen = int(n)
+		}
+	}
+	return out
+}
+
 func (m *Metrics) tailIngressAccessForWindow(window string) ([]string, error) {
 	if m.logs == nil {
 		return nil, nil
@@ -245,6 +294,7 @@ func (m *Metrics) tailIngressAccessForWindow(window string) ([]string, error) {
 	slot := timelineSlotForWindow(windowDur, window)
 	anchor := time.Now()
 	windowStart := timelineWindowStart(anchor, windowDur, slot)
+	queryStart := windowStart.Add(-windowDur)
 
 	limit := tailLinesForWindow(window)
 	maxLimit := overviewTailMaxLines(window)
@@ -253,8 +303,8 @@ func (m *Metrics) tailIngressAccessForWindow(window string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		trimmed := trimParsableLinesFromWindowStart(lines, windowStart, anchor)
-		if tailIncludesWindowStart(lines, windowStart) || limit >= maxLimit {
+		trimmed := trimParsableLinesFromWindowStart(lines, queryStart, anchor)
+		if tailIncludesWindowStart(lines, queryStart) || limit >= maxLimit {
 			return trimmed, nil
 		}
 		next := limit * 2
@@ -422,6 +472,7 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 	out.Slowest = slowest(filtered, 5)
 	out.ErrorSamples = errorSamples(filtered, 5)
 	out.LatencyHistogram = buildLatencyHistogram(histogramDurations)
+	out.LatencySLO = buildLatencySLO(filtered)
 	out.Timeline = buildTimeline(filtered, hasTime, windowDur, bucketCount, anchor)
 
 	prevFiltered := filterEntriesInPreviousWindow(entries, anchor, windowDur, hasTime)
@@ -533,6 +584,8 @@ func parseWindowDuration(window string) time.Duration {
 	switch window {
 	case "24h":
 		return 24 * time.Hour
+	case "6h":
+		return 6 * time.Hour
 	case "1h", "60m":
 		return time.Hour
 	case "5m":
@@ -555,6 +608,8 @@ func tailLinesForWindow(window string) int {
 	switch window {
 	case "24h":
 		return 50000
+	case "6h":
+		return 35000
 	case "1h", "60m":
 		return 25000
 	case "5m":
@@ -568,6 +623,8 @@ func maxTailLinesForWindow(window string) int {
 	switch window {
 	case "24h":
 		return maxLogScanLines
+	case "6h":
+		return 200000
 	case "1h", "60m":
 		return 150000
 	case "5m":
@@ -600,6 +657,8 @@ func timelineBucketsForWindow(window string) int {
 	switch window {
 	case "24h":
 		return 24
+	case "6h":
+		return 12
 	case "1h", "60m":
 		return 12
 	case "5m":
@@ -733,6 +792,43 @@ func buildLatencyHistogram(durations []float64) []LatencyBucket {
 				out[i].Count++
 				break
 			}
+		}
+	}
+	return out
+}
+
+var latencySLOLabels = []string{
+	"缓存命中",
+	"快 (<100ms)",
+	"正常 (100–500ms)",
+	"慢 (500ms–3s)",
+	"超时 (>3s)",
+}
+
+func buildLatencySLO(entries []AccessEntry) []LatencySLOSeg {
+	counts := make([]int, len(latencySLOLabels))
+	for _, e := range entries {
+		if e.CacheHit || e.DurationMs == 0 {
+			counts[0]++
+			continue
+		}
+		switch {
+		case e.DurationMs < 100:
+			counts[1]++
+		case e.DurationMs < 500:
+			counts[2]++
+		case e.DurationMs < 3000:
+			counts[3]++
+		default:
+			counts[4]++
+		}
+	}
+	total := len(entries)
+	out := make([]LatencySLOSeg, len(latencySLOLabels))
+	for i, label := range latencySLOLabels {
+		out[i] = LatencySLOSeg{Label: label, Count: counts[i]}
+		if total > 0 {
+			out[i].Pct = float64(counts[i]) / float64(total) * 100
 		}
 	}
 	return out

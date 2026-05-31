@@ -45,7 +45,7 @@ func TestMetricsRollupStore_ApplyDeltaAndLoad(t *testing.T) {
 	}
 }
 
-func TestMetricsRollup_liveOnlySkipsDB(t *testing.T) {
+func TestMetricsRollup_requireLiveSkipsDBOnly(t *testing.T) {
 	setupMetricsRollupDB(t)
 	r := NewMetricsRollup()
 	anchor := time.Now()
@@ -57,7 +57,30 @@ func TestMetricsRollup_liveOnlySkipsDB(t *testing.T) {
 	}
 	rw := r.WindowEntries("15m", true)
 	if rw.HasData {
-		t.Fatal("live-only mode should ignore DB buckets without live entries")
+		t.Fatal("requireLive should ignore DB-only buckets without in-process entries")
+	}
+}
+
+func TestMetricsRollup_deltaRangeIncludesPreviousWindow(t *testing.T) {
+	r := NewMetricsRollup()
+	anchor := time.Now()
+	windowDur := 15 * time.Minute
+	slot := timelineSlotForWindow(windowDur, "15m")
+	curStart := timelineWindowStart(anchor, windowDur, slot)
+	prevStart := curStart.Add(-windowDur)
+
+	r.Record(AccessEntry{At: prevStart.Add(2 * time.Minute), Status: 200, DurationMs: 30})
+	r.Record(AccessEntry{At: prevStart.Add(10 * time.Minute), Status: 200, DurationMs: 40})
+	r.Record(AccessEntry{At: curStart.Add(3 * time.Minute), Status: 500, DurationMs: 200})
+	r.Record(AccessEntry{At: curStart.Add(8 * time.Minute), Status: 200, DurationMs: 50, CacheHit: true})
+
+	rw := r.windowEntriesAt("15m", anchor, true)
+	if len(rw.Entries) < 4 {
+		t.Fatalf("expected 2x window entries for delta, got %d", len(rw.Entries))
+	}
+	out := aggregateOverview(rw.Entries, "15m", rw.Source)
+	if !out.Delta.HasPrevious {
+		t.Fatal("expected has_previous delta from 2x rollup window")
 	}
 }
 

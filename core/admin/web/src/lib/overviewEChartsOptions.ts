@@ -306,6 +306,75 @@ export function buildCacheTimelineOption(
   }
 }
 
+export function buildLatencySLOOption(
+  segments: Array<{ label: string; count: number; pct: number }>,
+  c: ChartColors,
+): EChartsOption {
+  const colors = [c.ok, c.accent, '#5b9bd5', c.warn, c.danger]
+  const active = segments.filter((s) => s.count > 0)
+  if (active.length === 0) {
+    return {
+      ...overviewChartMotion(),
+      graphic: {
+        type: 'text',
+        left: 'center',
+        top: 'middle',
+        style: { text: '暂无延迟数据', fill: c.muted, fontSize: 12 },
+      },
+    }
+  }
+  return {
+    ...overviewChartMotion(),
+    color: colors,
+    grid: { left: 8, right: 16, top: 8, bottom: 48, containLabel: true },
+    legend: {
+      bottom: 0,
+      type: 'scroll',
+      itemWidth: 10,
+      itemHeight: 8,
+      textStyle: { color: c.text, fontSize: 11 },
+    },
+    tooltip: {
+      trigger: 'item',
+      formatter: (p) => {
+        const v = p as { seriesName?: string; value?: number; data?: { count?: number } }
+        const count = v.data?.count ?? 0
+        return `${v.seriesName ?? ''}<br/>${formatChartPercent(v.value ?? 0)} · ${formatChartInteger(count)} 次`
+      },
+    },
+    xAxis: {
+      type: 'value',
+      max: 100,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: c.muted, fontSize: 11, formatter: (v: number) => `${v}%` },
+      splitLine: { lineStyle: { color: c.grid } },
+    },
+    yAxis: {
+      type: 'category',
+      data: ['延迟'],
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+    },
+    series: segments.map((seg) => ({
+      name: seg.label,
+      type: 'bar',
+      stack: 'slo',
+      barWidth: 28,
+      emphasis: { focus: 'series' },
+      data: [{ value: seg.pct, count: seg.count }],
+      label: {
+        show: seg.pct >= 8,
+        position: 'inside',
+        formatter: () => formatChartPercent(seg.pct),
+        color: c.text,
+        fontSize: 10,
+      },
+    })),
+  }
+}
+
 export function buildLatencyHistogramOption(
   histogram: OverviewMetrics['latency_histogram'],
   c: ChartColors,

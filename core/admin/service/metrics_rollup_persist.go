@@ -84,6 +84,42 @@ func (s *MetricsRollupStore) ApplyDelta(minute time.Time, d minuteDelta) error {
 	return db.Save(&row).Error
 }
 
+// ReplaceMinuteFromMigrate sets a minute bucket from access.log import (overwrite, not merge).
+// Re-running migrate on the same log is idempotent. Returns true when an existing row was replaced.
+func (s *MetricsRollupStore) ReplaceMinuteFromMigrate(minute time.Time, d minuteDelta) (bool, error) {
+	db := s.db()
+	if db == nil || d.count <= 0 {
+		return false, nil
+	}
+	key := minute.Truncate(time.Minute)
+	row := model.MetricsMinuteBucket{
+		Minute:        key,
+		Count:         d.count,
+		S2:            d.s2,
+		S3:            d.s3,
+		S4:            d.s4,
+		S5:            d.s5,
+		WAFBlocks:     d.wafBlocks,
+		CacheHits:     d.cacheHits,
+		DurationSumMs: d.durationSumMs,
+		DurationCount: d.durationCount,
+		DurationMaxMs: d.durationMaxMs,
+		UpstreamSumMs: d.upstreamSumMs,
+		UpstreamCount: d.upstreamCount,
+		UpdatedAt:     time.Now(),
+	}
+	var existing model.MetricsMinuteBucket
+	err := db.Where("minute = ?", key).First(&existing).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, db.Create(&row).Error
+	}
+	if err != nil {
+		return false, err
+	}
+	row.ID = existing.ID
+	return true, db.Save(&row).Error
+}
+
 func (s *MetricsRollupStore) LoadSince(since time.Time) ([]model.MetricsMinuteBucket, error) {
 	db := s.db()
 	if db == nil {
@@ -91,6 +127,20 @@ func (s *MetricsRollupStore) LoadSince(since time.Time) ([]model.MetricsMinuteBu
 	}
 	var rows []model.MetricsMinuteBucket
 	if err := db.Where("minute >= ?", since.Truncate(time.Minute)).Order("minute asc").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func (s *MetricsRollupStore) LoadBetween(from, to time.Time) ([]model.MetricsMinuteBucket, error) {
+	db := s.db()
+	if db == nil {
+		return nil, nil
+	}
+	from = from.Truncate(time.Minute)
+	to = to.Truncate(time.Minute)
+	var rows []model.MetricsMinuteBucket
+	if err := db.Where("minute >= ? AND minute <= ?", from, to).Order("minute asc").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return rows, nil

@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react'
 import { Cpu, HardDrive, Zap } from 'lucide-react'
 import type { OverviewMetrics, SystemMetrics } from '../api/client'
-import { formatMetricsWindowLabel, snapshotMatchesWindow } from '../lib/metricsWindow'
+import { type OverviewRange, formatOverviewRangeLabel, snapshotMatchesRange } from '../lib/overviewRange'
 import { KpiSparkline } from './KpiSparkline'
 
 type Props = {
@@ -9,7 +9,7 @@ type Props = {
   chartSystem?: SystemMetrics | null
   metrics: OverviewMetrics | null
   chartMetrics?: OverviewMetrics | null
-  metricsWindow: string
+  overviewRange: OverviewRange
   loading?: boolean
   refreshing?: boolean
 }
@@ -19,12 +19,12 @@ export function SystemResourceStrip({
   chartSystem,
   metrics,
   chartMetrics,
-  metricsWindow,
+  overviewRange,
   loading,
   refreshing,
 }: Props) {
-  const liveSystem = snapshotMatchesWindow(system, metricsWindow) ? system : null
-  const liveMetrics = snapshotMatchesWindow(metrics, metricsWindow) ? metrics : null
+  const liveSystem = snapshotMatchesRange(system, overviewRange) ? system : null
+  const liveMetrics = snapshotMatchesRange(metrics, overviewRange) ? metrics : null
   const sparkSystem = liveSystem ?? chartSystem
   const sparkMetrics = liveMetrics ?? chartMetrics
   const displayMetrics = liveMetrics ?? chartMetrics
@@ -35,7 +35,7 @@ export function SystemResourceStrip({
   const cpuTone =
     (system?.cpu_pct ?? 0) > 80 ? 'var(--danger)' : (system?.cpu_pct ?? 0) > 50 ? 'var(--warn)' : 'var(--accent)'
   const rpm = displayMetrics?.rpm ?? 0
-  const windowLabel = formatMetricsWindowLabel(metricsWindow)
+  const windowLabel = formatOverviewRangeLabel(overviewRange)
 
   return (
     <div className={refreshing ? 'overview-resource-strip is-refreshing' : 'overview-resource-strip'}>
