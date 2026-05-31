@@ -27,12 +27,10 @@ func processMemoryMB() float64 {
 			return mb
 		}
 	}
-	var ru syscall.Rusage
-	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &ru); err != nil {
-		return heapInuseMB()
-	}
 	if runtime.GOOS == "darwin" {
-		return float64(ru.Maxrss) / (1024 * 1024)
+		if mb, ok := darwinProcessRSSMB(); ok {
+			return mb
+		}
 	}
 	return heapInuseMB()
 }

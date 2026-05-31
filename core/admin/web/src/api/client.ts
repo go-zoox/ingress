@@ -55,11 +55,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ status, note }),
     }),
-  batchUpdateWafEventStatus: (ids: number[], status: 'ignored' | 'resolved' | 'open', note = '') =>
-    request<{ ok: boolean; updated: number }>('/waf/events/batch-status', {
-      method: 'POST',
-      body: JSON.stringify({ ids, status, note }),
-    }),
+  batchUpdateWafEventStatus: (
+    ids: number[],
+    status: 'ignored' | 'resolved' | 'open',
+    note = '',
+    opts?: { allOpen?: boolean },
+  ) =>
+    request<{ ok: boolean; updated: number }>(
+      `/waf/events/batch-status${opts?.allOpen ? '?all_open=1' : ''}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ids: opts?.allOpen ? [] : ids,
+          all_open: Boolean(opts?.allOpen),
+          status,
+          note,
+        }),
+      },
+    ),
   wafMatch: (body: WAFTrialInput) =>
     request<WAFTrialResult>('/waf/match', {
       method: 'POST',
@@ -190,11 +203,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ status, note }),
     }),
-  batchUpdateParseIssueStatus: (ids: number[], status: 'ignored' | 'resolved' | 'open', note = '') =>
-    request<{ ok: boolean; updated: number }>('/logs/parse-issues/batch-status', {
-      method: 'POST',
-      body: JSON.stringify({ ids, status, note }),
-    }),
+  batchUpdateParseIssueStatus: (
+    ids: number[],
+    status: 'ignored' | 'resolved' | 'open',
+    note = '',
+    opts?: { allOpen?: boolean },
+  ) =>
+    request<{ ok: boolean; updated: number }>(
+      `/logs/parse-issues/batch-status${opts?.allOpen ? '?all_open=1' : ''}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          ids: opts?.allOpen ? [] : ids,
+          all_open: Boolean(opts?.allOpen),
+          status,
+          note,
+        }),
+      },
+    ),
+  eventsSummary: (status: 'open' | 'resolved' | 'ignored' = 'open') =>
+    request<EventsTabSummary>(`/events/summary?status=${encodeURIComponent(status)}`),
   parseIssueDetail: (id: number) => request<AccessLogParseIssueDetail>(`/logs/parse-issues/${id}`),
   logs: (params: {
     log?: 'access' | 'error'
@@ -768,6 +796,14 @@ export type AccessLogParseIssue = {
   first_seen_at: string
   last_seen_at: string
   note?: string
+}
+
+export type EventsTabSummary = {
+  waf_block: number
+  parse_issues: number
+  health_down: number
+  tls_warn: number
+  total: number
 }
 
 export type AccessLogParseIssueDetail = AccessLogParseIssue & {

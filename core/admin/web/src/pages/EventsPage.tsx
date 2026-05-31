@@ -3,7 +3,7 @@ import { Activity, CheckSquare, Square } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { ParseIssueDetailDrawer } from '../components/ParseIssueDetailDrawer'
 import { WafEventDetailDrawer } from '../components/WafEventDetailDrawer'
-import { api } from '../api/client'
+import { api, type EventsTabSummary } from '../api/client'
 import {
   buildAdminEvents,
   OPEN_EVENTS_LIST_LIMIT,
@@ -21,6 +21,7 @@ const STATUS_TABS: { id: EventStatusTab; label: string }[] = [
 export function EventsPage() {
   const [statusTab, setStatusTab] = useState<EventStatusTab>('open')
   const [events, setEvents] = useState<AdminEvent[]>([])
+  const [summary, setSummary] = useState<EventsTabSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -38,12 +39,13 @@ export function EventsPage() {
     return Promise.all([
       api.wafEvents({ action: 'block', status: wafStatus, limit: OPEN_EVENTS_LIST_LIMIT }).catch(() => []),
       api.parseIssues(parseStatus, OPEN_EVENTS_LIST_LIMIT).catch(() => []),
+      api.eventsSummary(statusTab).catch(() => null),
       statusTab === 'open'
         ? api.healthCheck().catch(() => ({ checks: [], summary: { total: 0, up: 0, down: 0, unknown: 0 } }))
         : Promise.resolve({ checks: [] as Awaited<ReturnType<typeof api.healthCheck>>['checks'] }),
       statusTab === 'open' ? api.tlsCerts().catch(() => []) : Promise.resolve([]),
     ])
-      .then(([waf, parseIssues, health, certs]) => {
+      .then(([waf, parseIssues, tabSummary, health, certs]) => {
         const rows = buildAdminEvents({
           statusTab,
           wafEvents: Array.isArray(waf) ? waf : [],
@@ -52,6 +54,7 @@ export function EventsPage() {
           certs: Array.isArray(certs) ? certs : [],
         })
         setEvents(rows)
+        setSummary(tabSummary)
         setSelected(new Set())
         setLoading(false)
       })
@@ -110,6 +113,22 @@ export function EventsPage() {
     }
   }
 
+  const runBatchAllOpen = async (status: 'resolved' | 'ignored') => {
+    setBatchBusy(true)
+    try {
+      await Promise.all([
+        api.batchUpdateWafEventStatus([], status, batchNote, { allOpen: true }),
+        api.batchUpdateParseIssueStatus([], status, batchNote, { allOpen: true }),
+      ])
+      setBatchNote('')
+      await load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '全部操作失败')
+    } finally {
+      setBatchBusy(false)
+    }
+  }
+
   const openDetail = (event: AdminEvent) => {
     if (event.kind === 'waf' && event.entityId != null) {
       setParseDrawerId(null)
@@ -122,13 +141,26 @@ export function EventsPage() {
     }
   }
 
-  const showBatchBar = statusTab === 'open' && actionable.length > 0
+  const showBatchBar = statusTab === 'open' && (summary?.total ?? actionable.length) > 0
+
+  const countLabel = useMemo(() => {
+    if (summary == null) return `${events.length} 条`
+    if (events.length < summary.total) {
+      return `共 ${summary.total} 条 · 本页 ${events.length}`
+    }
+    return `共 ${summary.total} 条`
+  }, [summary, events.length])
+
+  const actionableTotal = useMemo(() => {
+    if (summary == null) return actionable.length
+    return summary.waf_block + summary.parse_issues
+  }, [summary, actionable.length])
 
   return (
     <div className="page">
       <PageHeader
         title="事件"
-        desc="待处理、已处理与已忽略；点击处理打开详情弹窗，可批量或全部标记"
+        desc="待处理、已处理与已忽略；点击处理打开详情弹窗，可批量或全部（数据库内全部待处理）标记"
         actions={
           <button type="button" className="btn btn-sm" onClick={() => load()} disabled={loading}>
             刷新
@@ -150,7 +182,7 @@ export function EventsPage() {
             {tab.label}
           </button>
         ))}
-        <span className="chart-hint">{events.length} 条</span>
+        <span className="chart-hint">{countLabel}</span>
       </div>
 
       {showBatchBar ? (
@@ -164,7 +196,8 @@ export function EventsPage() {
               )}
             </button>
             <span className="chart-hint">
-              已选 {selectedActionable.length} / {actionable.length} 条可处置
+              已选 {selectedActionable.length} / 本页 {actionable.length} 条可处置
+              {actionableTotal > actionable.length ? ` · 共 ${actionableTotal} 条待处理` : ''}
             </span>
           </div>
           <label className="events-batch-note">
@@ -198,7 +231,7 @@ export function EventsPage() {
               type="button"
               className="btn btn-sm"
               disabled={batchBusy}
-              onClick={() => runBatch('resolved', actionable.map((e) => e.key))}
+              onClick={() => runBatchAllOpen('resolved')}
             >
               全部已处理
             </button>
@@ -206,7 +239,7 @@ export function EventsPage() {
               type="button"
               className="btn btn-ghost btn-sm"
               disabled={batchBusy}
-              onClick={() => runBatch('ignored', actionable.map((e) => e.key))}
+              onClick={() => runBatchAllOpen('ignored')}
             >
               全部忽略
             </button>

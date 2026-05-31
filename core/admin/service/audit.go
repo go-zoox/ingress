@@ -194,6 +194,41 @@ func (a *Audit) BatchSetWAFEventStatus(ids []uint, status, note string) (int64, 
 	return res.RowsAffected, res.Error
 }
 
+// SetAllOpenBlockWAFEventStatus updates every open block WAF event (not only the current UI page).
+func (a *Audit) SetAllOpenBlockWAFEventStatus(status, note string) (int64, error) {
+	status = strings.TrimSpace(status)
+	switch status {
+	case wafEventStatusIgnored, wafEventStatusResolved, wafEventStatusOpen:
+	default:
+		status = wafEventStatusIgnored
+	}
+	now := time.Now()
+	updates := map[string]any{
+		"status": status,
+		"note":   strings.TrimSpace(note),
+	}
+	if status == wafEventStatusResolved {
+		updates["resolved_at"] = now
+	} else {
+		updates["resolved_at"] = nil
+	}
+	q := gormx.GetDB().Model(&model.WAFEvent{}).Where("action = ?", "block")
+	q = applyWAFEventStatusFilter(q, wafEventStatusOpen)
+	res := q.Updates(updates)
+	return res.RowsAffected, res.Error
+}
+
+// CountBlockWAFEvents counts block events for the given triage status (open, resolved, ignored).
+func (a *Audit) CountBlockWAFEvents(status string) (int64, error) {
+	var count int64
+	q := gormx.GetDB().Model(&model.WAFEvent{}).Where("action = ?", "block")
+	if strings.TrimSpace(status) != "" {
+		q = applyWAFEventStatusFilter(q, status)
+	}
+	err := q.Count(&count).Error
+	return count, err
+}
+
 // OpenBlockCount returns block events still needing attention.
 func (a *Audit) OpenBlockCount() (int64, error) {
 	var count int64

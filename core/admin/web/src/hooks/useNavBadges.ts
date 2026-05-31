@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { NavBadgeKey } from '../layout/navConfig'
-import { countOpenAdminEvents, OPEN_EVENTS_LIST_LIMIT } from '../lib/adminEvents'
 
 export type NavBadges = Record<NavBadgeKey, number>
 
@@ -13,29 +12,22 @@ export function useNavBadges() {
   useEffect(() => {
     const load = () => {
       Promise.all([
+        api.eventsSummary('open').catch(() => null),
         api.healthCheck().catch(() => ({ checks: [], summary: { total: 0, up: 0, down: 0, unknown: 0 } })),
         api.tlsCerts().catch(() => [] as Awaited<ReturnType<typeof api.tlsCerts>>),
-        api.parseIssues('open', OPEN_EVENTS_LIST_LIMIT).catch(() => []),
         api
-          .wafEvents({ action: 'block', status: 'open', limit: OPEN_EVENTS_LIST_LIMIT })
+          .wafEvents({ action: 'block', status: 'open', limit: 1 })
           .catch(() => []),
-      ]).then(([health, certs, parseIssues, wafEvents]) => {
+      ]).then(([eventsSummary, health, certs, wafEvents]) => {
         const down = health.summary?.down ?? 0
         const critical = certs.filter((c) => c.days_remaining < 7).length
         const warn = certs.filter((c) => c.days_remaining >= 7 && c.days_remaining < 30).length
         const wafList = Array.isArray(wafEvents) ? wafEvents : []
-        const parseList = Array.isArray(parseIssues) ? parseIssues : []
-        const certList = Array.isArray(certs) ? certs : []
         setBadges({
-          events: countOpenAdminEvents({
-            wafEvents: wafList,
-            parseIssues: parseList,
-            healthChecks: health.checks || [],
-            certs: certList,
-          }),
+          events: eventsSummary?.total ?? 0,
           healths: down,
           tls: critical + warn,
-          waf: wafList.length,
+          waf: eventsSummary?.waf_block ?? wafList.length,
         })
       })
     }

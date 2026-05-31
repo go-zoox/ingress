@@ -85,6 +85,7 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/waf/toggle", a.WAFToggle)
 	g.Get("/waf/events", a.WAFEvents)
 	g.Post("/waf/events/batch-status", a.BatchUpdateWAFEventStatus)
+	g.Get("/events/summary", a.EventsSummary)
 	g.Delete("/waf/events/demo-seed", a.ClearDemoWAFEvents)
 	g.Get("/waf/events/:id", a.WAFEventDetail)
 	g.Post("/waf/events/:id/status", a.UpdateWAFEventStatus)
@@ -457,21 +458,38 @@ func (a *API) UpdateWAFEventStatus(ctx *zoox.Context) {
 	ok(ctx, row)
 }
 
+func batchStatusAllOpen(ctx *zoox.Context, bodyAllOpen bool) bool {
+	if bodyAllOpen {
+		return true
+	}
+	v := strings.TrimSpace(ctx.Query().Get("all_open").String())
+	return v == "1" || strings.EqualFold(v, "true") || strings.EqualFold(v, "yes")
+}
+
 func (a *API) BatchUpdateWAFEventStatus(ctx *zoox.Context) {
 	var body struct {
-		IDs    []uint `json:"ids"`
-		Status string `json:"status"`
-		Note   string `json:"note"`
+		IDs     []uint `json:"ids"`
+		AllOpen bool   `json:"all_open"`
+		Status  string `json:"status"`
+		Note    string `json:"note"`
 	}
 	if err := ctx.BindJSON(&body); err != nil {
 		fail(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
-	if len(body.IDs) == 0 {
-		fail(ctx, http.StatusBadRequest, "ids required")
-		return
+	var (
+		n   int64
+		err error
+	)
+	if batchStatusAllOpen(ctx, body.AllOpen) {
+		n, err = a.audit.SetAllOpenBlockWAFEventStatus(body.Status, body.Note)
+	} else {
+		if len(body.IDs) == 0 {
+			fail(ctx, http.StatusBadRequest, "ids required")
+			return
+		}
+		n, err = a.audit.BatchSetWAFEventStatus(body.IDs, body.Status, body.Note)
 	}
-	n, err := a.audit.BatchSetWAFEventStatus(body.IDs, body.Status, body.Note)
 	if err != nil {
 		fail(ctx, http.StatusInternalServerError, err.Error())
 		return
@@ -929,21 +947,75 @@ func (a *API) UpdateParseIssueStatus(ctx *zoox.Context) {
 	ok(ctx, row)
 }
 
+func (a *API) EventsSummary(ctx *zoox.Context) {
+	status := strings.TrimSpace(ctx.Query().Get("status").String())
+	if status == "" {
+		status = "open"
+	}
+	switch status {
+	case "open", "resolved", "ignored":
+	default:
+		fail(ctx, http.StatusBadRequest, "status must be open, resolved, or ignored")
+		return
+	}
+	wafStatus := status
+	if status == "open" {
+		wafStatus = "open"
+	}
+	wafCount, err := a.audit.CountBlockWAFEvents(wafStatus)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	parseCount, err := a.parseIssues.CountByStatus(status)
+	if err != nil {
+		fail(ctx, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var healthDown int64
+	var tlsWarn int64
+	if status == "open" {
+		if a.health != nil {
+			_, summary := a.health.ListResults()
+			healthDown = int64(summary.Down)
+		}
+		if a.tls != nil {
+			if rows, err := a.tls.List(); err == nil {
+				for _, c := range rows {
+					if c.DaysRemaining < 30 {
+						tlsWarn++
+					}
+				}
+			}
+		}
+	}
+	ok(ctx, service.BuildEventsTabSummary(status, wafCount, parseCount, healthDown, tlsWarn))
+}
+
 func (a *API) BatchUpdateParseIssueStatus(ctx *zoox.Context) {
 	var body struct {
-		IDs    []uint `json:"ids"`
-		Status string `json:"status"`
-		Note   string `json:"note"`
+		IDs     []uint `json:"ids"`
+		AllOpen bool   `json:"all_open"`
+		Status  string `json:"status"`
+		Note    string `json:"note"`
 	}
 	if err := ctx.BindJSON(&body); err != nil {
 		fail(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
-	if len(body.IDs) == 0 {
-		fail(ctx, http.StatusBadRequest, "ids required")
-		return
+	var (
+		n   int64
+		err error
+	)
+	if batchStatusAllOpen(ctx, body.AllOpen) {
+		n, err = a.parseIssues.SetAllOpenStatus(body.Status, body.Note)
+	} else {
+		if len(body.IDs) == 0 {
+			fail(ctx, http.StatusBadRequest, "ids required")
+			return
+		}
+		n, err = a.parseIssues.BatchSetStatus(body.IDs, body.Status, body.Note)
 	}
-	n, err := a.parseIssues.BatchSetStatus(body.IDs, body.Status, body.Note)
 	if err != nil {
 		fail(ctx, http.StatusInternalServerError, err.Error())
 		return
