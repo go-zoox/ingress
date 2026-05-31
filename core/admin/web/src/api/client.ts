@@ -260,11 +260,10 @@ export const api = {
   routeMetrics: (
     ri: number,
     pi: number,
-    window?: string,
+    rangeParams?: MetricsRangeQueryParams,
     scope?: { host?: string; path?: string; path_match?: 'prefix' | 'exact' },
   ) => {
-    const q = new URLSearchParams()
-    if (window) q.set('window', window)
+    const q = new URLSearchParams(metricsRangeQuery(rangeParams ?? { window: '15m' }))
     if (scope?.host) q.set('host', scope.host)
     if (scope?.path) q.set('path', scope.path)
     if (scope?.path_match) q.set('path_match', scope.path_match)
@@ -273,10 +272,8 @@ export const api = {
   },
   serviceDetail: (name: string) =>
     request<ServiceDetail>(`/services/${encodeURIComponent(name)}`),
-  serviceMetrics: (name: string, window?: string) => {
-    const q = new URLSearchParams()
-    if (window) q.set('window', window)
-    const qs = q.toString()
+  serviceMetrics: (name: string, rangeParams?: MetricsRangeQueryParams) => {
+    const qs = metricsRangeQuery(rangeParams ?? { window: '15m' })
     return request<ServiceMetrics>(
       `/services/${encodeURIComponent(name)}/metrics${qs ? `?${qs}` : ''}`,
     )

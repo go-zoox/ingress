@@ -52,6 +52,7 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 
 	metricsSvc := api.MetricsService()
 	overviewStreamer := api.OverviewStreamer()
+	detailMetricsStreamer := api.DetailMetricsStreamer()
 
 	// Wire WAF event callback so blocks/audits are persisted and pushed over SSE.
 	if cfg.CoreInstance != nil {
@@ -81,6 +82,9 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 		if cfg.CoreInstance == nil {
 			logStreamer.SetOnAccessLine(func() {
 				overviewStreamer.ThrottledPushAll(overviewPushMinGap)
+				if detailMetricsStreamer != nil {
+					detailMetricsStreamer.ThrottledPushAll(overviewPushMinGap)
+				}
 			})
 			if metricsSvc != nil {
 				logStreamer.SetAccessLineHandler(func(line string) {
@@ -92,6 +96,9 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 		}
 		logStreamer.Start(logStreamerInterval)
 		overviewStreamer.Start(overviewTickInterval)
+		if detailMetricsStreamer != nil {
+			detailMetricsStreamer.Start(overviewTickInterval)
+		}
 		api.Health().Start()
 		api.SystemMetricsService().Start()
 		if err := api.Jobs().Start(app.Cron()); err != nil {

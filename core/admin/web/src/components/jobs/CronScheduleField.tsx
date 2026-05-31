@@ -20,7 +20,7 @@ export function CronScheduleField({ value, onChange }: Props) {
         label="调度周期"
         hint={
           custom
-            ? '五段式 Cron：分 时 日 月 周'
+            ? '五段式 Cron（分 时 日 月 周），或 @every 1s / @every 10s 等秒级周期'
             : presetMeta
               ? `${presetMeta.label} · ${value}`
               : value

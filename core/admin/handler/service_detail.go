@@ -12,12 +12,12 @@ import (
 // ServiceDetailHandler serves catalog service detail and metrics.
 type ServiceDetailHandler struct {
 	ingress *service.Ingress
-	health  *service.HealthCheckService
+	service *service.ServiceMetricsBuilder
 }
 
 // NewServiceDetailHandler creates a service detail handler.
-func NewServiceDetailHandler(ingress *service.Ingress, health *service.HealthCheckService) *ServiceDetailHandler {
-	return &ServiceDetailHandler{ingress: ingress, health: health}
+func NewServiceDetailHandler(ingress *service.Ingress, svc *service.ServiceMetricsBuilder) *ServiceDetailHandler {
+	return &ServiceDetailHandler{ingress: ingress, service: svc}
 }
 
 // GetDetail handles GET /api/v1/services/:name
@@ -110,18 +110,17 @@ func (h *ServiceDetailHandler) GetMetrics(ctx *zoox.Context) {
 	refs := service.ListServiceRouteRefs(cfg, name)
 	aliases := service.ServiceTargetAliases(entry, refs)
 
-	window := strings.TrimSpace(ctx.Query().Get("window").String())
-	lines := []string(nil)
-	if logs := h.ingress.Logs(); logs != nil {
-		lines, err = logs.TailAccess(service.TailLinesForWindow(window))
-		if err != nil {
-			fail(ctx, http.StatusInternalServerError, err.Error())
-			return
-		}
+	rangeQ, err := parseMetricsRangeQuery(ctx)
+	if err != nil {
+		return
+	}
+	windowLabel := strings.TrimSpace(ctx.Query().Get("window").String())
+	if windowLabel == "" {
+		windowLabel = service.WindowLabelForDuration(rangeQ.Duration())
 	}
 
-	analytics := service.BuildServiceAnalytics(window, lines, aliases, h.health)
-	ok(ctx, serviceAnalyticsJSON(analytics))
+	analytics := h.service.Build(windowLabel, rangeQ, aliases)
+	ok(ctx, service.ServiceAnalyticsToMap(analytics))
 }
 
 func parseServiceNameParam(ctx *zoox.Context) (string, error) {
@@ -140,42 +139,4 @@ type serviceNameError struct{}
 
 func (e *serviceNameError) Error() string {
 	return "service name is required"
-}
-
-func serviceAnalyticsJSON(a service.ServiceAnalytics) zoox.H {
-	m := a.OverviewMetrics
-	out := zoox.H{
-		"window":            m.Window,
-		"source":            m.Source,
-		"total":             m.Total,
-		"rpm":               m.RPM,
-		"error_rate":        m.ErrorRate,
-		"p50_ms":            m.P50Ms,
-		"p95_ms":            m.P95Ms,
-		"cache_hit_rate":    m.CacheHitRate,
-		"waf_blocks":        m.WAFBlocks,
-		"status_counts":     m.StatusCounts,
-		"timeline":          m.Timeline,
-		"slowest":           m.Slowest,
-		"error_samples":     m.ErrorSamples,
-		"latency_histogram": m.LatencyHistogram,
-		"delta":             m.Delta,
-		"upstream":          a.Upstream,
-		"compare": zoox.H{
-			"site_rpm":            a.Compare.SiteRPM,
-			"site_error_rate":     a.Compare.SiteErrorRate,
-			"service_share_pct":   a.Compare.ServiceSharePct,
-			"error_rate_vs_site":  a.Compare.ErrorRateVsSite,
-		},
-		"target_aliases":  a.TargetAliases,
-		"health_checks":   a.HealthChecks,
-		"health_summary":  a.HealthSummary,
-	}
-	if len(a.TopHosts) > 0 {
-		out["top_hosts"] = a.TopHosts
-	}
-	if len(a.TopPaths) > 0 {
-		out["top_paths"] = a.TopPaths
-	}
-	return out
 }

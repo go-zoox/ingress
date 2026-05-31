@@ -24,6 +24,15 @@ func TestParseMetricsRangeQuery_RequiresBoth(t *testing.T) {
 	}
 }
 
+func TestWindowLabelForDuration(t *testing.T) {
+	if WindowLabelForDuration(4*time.Minute) != "5m" {
+		t.Fatal("expected 5m bucket")
+	}
+	if WindowLabelForDuration(2*time.Hour) != "6h" {
+		t.Fatal("expected 6h bucket")
+	}
+}
+
 func TestMetricsRangeFromWindow(t *testing.T) {
 	q := MetricsRangeFromWindow("15m")
 	if q.Duration() < 14*time.Minute || q.Duration() > 16*time.Minute {

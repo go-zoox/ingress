@@ -5,9 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-zoox/ingress/core/admin/model"
 	"github.com/go-zoox/ingress/core/admin/service"
-	ingcore "github.com/go-zoox/ingress/core"
 	coresvc "github.com/go-zoox/ingress/core/service"
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/zoox"
@@ -16,16 +14,16 @@ import (
 // RouteDetailHandler serves route detail and per-route metrics.
 type RouteDetailHandler struct {
 	ingress *service.Ingress
-	metrics *service.Metrics
+	route   *service.RouteMetricsBuilder
 	health  *service.HealthCheckService
 	audit   *service.Audit
 }
 
 // NewRouteDetailHandler creates a new route detail handler.
-func NewRouteDetailHandler(ingress *service.Ingress, metrics *service.Metrics, health *service.HealthCheckService, audit *service.Audit) *RouteDetailHandler {
+func NewRouteDetailHandler(ingress *service.Ingress, route *service.RouteMetricsBuilder, health *service.HealthCheckService, audit *service.Audit) *RouteDetailHandler {
 	return &RouteDetailHandler{
 		ingress: ingress,
-		metrics: metrics,
+		route:   route,
 		health:  health,
 		audit:   audit,
 	}
@@ -95,8 +93,16 @@ func (h *RouteDetailHandler) GetMetrics(ctx *zoox.Context) {
 	if pathMatch == "" {
 		pathMatch = "prefix"
 	}
-	metrics := h.buildRouteAnalytics(cfg, ri, pi, window, scopeHost, scopePath, pathMatch)
-	ok(ctx, routeAnalyticsJSON(metrics))
+	rangeQ, err := parseMetricsRangeQuery(ctx)
+	if err != nil {
+		return
+	}
+	windowLabel := window
+	if windowLabel == "" {
+		windowLabel = service.WindowLabelForDuration(rangeQ.Duration())
+	}
+	analytics := h.route.Build(cfg, ri, pi, windowLabel, rangeQ, scopeHost, scopePath, pathMatch)
+	ok(ctx, service.RouteAnalyticsToMap(analytics))
 }
 
 // parseRouteIndices extracts rule_index and path_index from URL params.
@@ -285,115 +291,4 @@ func getBackendTarget(b rule.Backend) string {
 		}
 		return s.Name + ":" + strconv.FormatInt(port, 10)
 	}
-}
-
-func (h *RouteDetailHandler) buildRouteAnalytics(
-	cfg *ingcore.Config,
-	ruleIndex, pathIndex int,
-	window string,
-	scopeHost, scopePath, pathMatch string,
-) service.RouteAnalytics {
-	window = strings.TrimSpace(window)
-	if window == "" {
-		window = "15m"
-	}
-
-	logs := h.ingress.Logs()
-	lines := []string(nil)
-	if logs != nil {
-		var err error
-		lines, err = logs.TailAccess(service.TailLinesForWindow(window))
-		if err != nil {
-			return service.BuildRouteAnalytics(
-				cfg, ruleIndex, pathIndex,
-				window, nil,
-				h.health,
-				nil,
-				false, 0, 0,
-				scopeHost, scopePath, pathMatch,
-			)
-		}
-	}
-
-	cacheEnabled := false
-	var cacheTTL, cacheMaxBodyKB int64
-	if ruleIndex >= 0 && ruleIndex < len(cfg.Rules) {
-		r := &cfg.Rules[ruleIndex]
-		var b rule.Backend
-		if pathIndex >= 0 && pathIndex < len(r.Paths) {
-			b = r.Paths[pathIndex].Backend
-		} else {
-			b = r.Backend
-		}
-		if b.Cache.Enabled {
-			cacheEnabled = true
-			cacheTTL = b.Cache.TTL
-			cacheMaxBodyKB = b.Cache.MaxBodyBytes / 1024
-		}
-	}
-
-	var wafEvents []model.WAFEvent
-	if h.audit != nil {
-		rows, _ := h.audit.ListWAFEvents(service.WAFAuditFilter{Limit: 500})
-		wafEvents = rows
-		if cfg != nil && len(rows) > 0 {
-			wafEvents = service.FilterWAFEventsForRoute(cfg, ruleIndex, pathIndex, rows)
-		}
-	}
-
-	return service.BuildRouteAnalytics(
-		cfg, ruleIndex, pathIndex,
-		window, lines,
-		h.health,
-		wafEvents,
-		cacheEnabled, cacheTTL, cacheMaxBodyKB,
-		scopeHost, scopePath, pathMatch,
-	)
-}
-
-func routeAnalyticsJSON(a service.RouteAnalytics) zoox.H {
-	m := a.OverviewMetrics
-	out := zoox.H{
-		"window":            m.Window,
-		"source":            m.Source,
-		"total":             m.Total,
-		"rpm":               m.RPM,
-		"error_rate":        m.ErrorRate,
-		"p50_ms":            m.P50Ms,
-		"p95_ms":            m.P95Ms,
-		"cache_hit_rate":    m.CacheHitRate,
-		"waf_blocks":        m.WAFBlocks,
-		"status_counts":     m.StatusCounts,
-		"timeline":          m.Timeline,
-		"slowest":           m.Slowest,
-		"error_samples":     m.ErrorSamples,
-		"latency_histogram": m.LatencyHistogram,
-		"top_hosts":         m.TopHosts,
-		"top_paths":         m.TopPaths,
-		"delta":             a.Delta,
-		"upstream":          a.Upstream,
-		"compare":           a.Compare,
-	}
-	if len(a.PathBreakdown) > 0 {
-		out["path_breakdown"] = a.PathBreakdown
-	}
-	if len(a.ScopeHosts) > 0 {
-		out["scope_hosts"] = a.ScopeHosts
-	}
-	if len(a.ScopePaths) > 0 {
-		out["scope_paths"] = a.ScopePaths
-	}
-	if len(a.WAFTopRules) > 0 {
-		out["waf_top_rules"] = a.WAFTopRules
-	}
-	if len(a.HealthHistory) > 0 {
-		out["health_history"] = a.HealthHistory
-	}
-	if len(a.RelatedRoutes) > 0 {
-		out["related_routes"] = a.RelatedRoutes
-	}
-	if a.RouteCache != nil {
-		out["route_cache"] = a.RouteCache
-	}
-	return out
 }

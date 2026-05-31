@@ -64,6 +64,25 @@ func (q MetricsRangeQuery) Duration() time.Duration {
 	return q.To.Sub(q.From)
 }
 
+func WindowLabelForDuration(d time.Duration) string {
+	if d <= 0 {
+		return "15m"
+	}
+	minutes := int(d.Round(time.Minute) / time.Minute)
+	switch {
+	case minutes <= 5:
+		return "5m"
+	case minutes <= 15:
+		return "15m"
+	case minutes <= 60:
+		return "1h"
+	case minutes <= 6*60:
+		return "6h"
+	default:
+		return "24h"
+	}
+}
+
 func timelineBucketsForDuration(d time.Duration) int {
 	if d <= 0 {
 		return 5

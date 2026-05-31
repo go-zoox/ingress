@@ -1,4 +1,4 @@
-/** Common cron presets (5-field: min hour dom month dow). */
+/** Common cron presets (5-field or @every for sub-minute). */
 export const CRON_PRESET_CUSTOM = '__custom__'
 
 export type CronPreset = {
@@ -8,6 +8,10 @@ export type CronPreset = {
 }
 
 export const CRON_PRESETS: CronPreset[] = [
+  { id: 'every-1s', label: '每秒', value: '@every 1s' },
+  { id: 'every-10s', label: '每 10 秒', value: '@every 10s' },
+  { id: 'every-30s', label: '每 30 秒', value: '@every 30s' },
+  { id: 'every-1m', label: '每分钟', value: '*/1 * * * *' },
   { id: 'every-30m', label: '每 30 分钟', value: '*/30 * * * *' },
   { id: 'hourly', label: '每小时整点', value: '0 * * * *' },
   { id: 'every-6h', label: '每 6 小时', value: '0 */6 * * *' },

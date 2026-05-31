@@ -35,6 +35,9 @@ type API struct {
 	parseIssues      *service.ParseIssues
 	overviewBuilder  *service.OverviewBuilder
 	overviewStreamer *service.OverviewStreamer
+	detailMetrics    *service.DetailMetricsStreamer
+	routeMetrics     *service.RouteMetricsBuilder
+	serviceMetrics   *service.ServiceMetricsBuilder
 	jobs             *jobs.Service
 	rbac             *rbac.Service
 	auth             *adminauth.Service
@@ -53,6 +56,9 @@ func NewAPI(cfg *config.Config, auth *adminauth.Service) *API {
 	configSvc := service.NewConfig(ingress, audit)
 	scenariosSvc := service.NewScenarios(ingress, audit, configSvc)
 	overviewBuilder := service.NewOverviewBuilder(ingress, metrics, systemSvc, tlsSvc, healthSvc, audit, parseIssues, configSvc)
+	routeMetricsBuilder := service.NewRouteMetricsBuilder(ingress, healthSvc, audit)
+	serviceMetricsBuilder := service.NewServiceMetricsBuilder(ingress, healthSvc)
+	detailMetricsStreamer := service.NewDetailMetricsStreamer(broker, ingress, routeMetricsBuilder, serviceMetricsBuilder)
 	jobsSvc := jobs.New(cfg, ingress, audit, tlsSvc, metrics)
 	return &API{
 		cfg:              cfg,
@@ -71,6 +77,9 @@ func NewAPI(cfg *config.Config, auth *adminauth.Service) *API {
 		parseIssues:      parseIssues,
 		overviewBuilder:  overviewBuilder,
 		overviewStreamer: service.NewOverviewStreamer(overviewBuilder, broker),
+		detailMetrics:    detailMetricsStreamer,
+		routeMetrics:     routeMetricsBuilder,
+		serviceMetrics:   serviceMetricsBuilder,
 		jobs:             jobsSvc,
 		rbac:             rbac.New(),
 		auth:             auth,
@@ -121,12 +130,12 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	g.Post("/logs/parse-issues/:id/status", a.UpdateParseIssueStatus)
 	g.Get("/settings", a.Settings)
 	// New routes for SSE, route detail, and health check
-	sseHandler := NewSSEHandler(a.broker, a.overviewStreamer)
+	sseHandler := NewSSEHandler(a.broker, a.overviewStreamer, a.detailMetrics)
 	g.Get("/events/stream", sseHandler.Stream)
-	routeDetailHandler := NewRouteDetailHandler(a.ingress, a.metrics, a.health, a.audit)
+	routeDetailHandler := NewRouteDetailHandler(a.ingress, a.routeMetrics, a.health, a.audit)
 	g.Get("/routes/:ri/:pi", routeDetailHandler.GetDetail)
 	g.Get("/routes/:ri/:pi/metrics", routeDetailHandler.GetMetrics)
-	serviceDetailHandler := NewServiceDetailHandler(a.ingress, a.health)
+	serviceDetailHandler := NewServiceDetailHandler(a.ingress, a.serviceMetrics)
 	g.Get("/services/:name", serviceDetailHandler.GetDetail)
 	g.Get("/services/:name/metrics", serviceDetailHandler.GetMetrics)
 	healthHandler := NewHealthHandler(a.health)
@@ -1059,4 +1068,9 @@ func (a *API) SystemMetricsService() *service.SystemMetrics {
 // OverviewStreamer returns the overview SSE publisher.
 func (a *API) OverviewStreamer() *service.OverviewStreamer {
 	return a.overviewStreamer
+}
+
+// DetailMetricsStreamer returns the route/service metrics SSE publisher.
+func (a *API) DetailMetricsStreamer() *service.DetailMetricsStreamer {
+	return a.detailMetrics
 }
