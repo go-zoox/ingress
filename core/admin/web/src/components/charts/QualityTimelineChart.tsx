@@ -13,13 +13,17 @@ export const QualityTimelineChart = memo(function QualityTimelineChart({ timelin
   const colors = useMemo(() => readChartColors(), [])
   const labels = timeline.map((b) => b.label)
 
-  const data = useMemo(() => {
+  const { data, yMax, y2Max } = useMemo(() => {
     const xs = timeline.map((_, i) => i)
-    return [
-      xs,
-      timeline.map((b) => b.error_rate),
-      timeline.map((b) => b.waf_blocks),
-    ] as AlignedData
+    const errorRates = timeline.map((b) => b.error_rate)
+    const wafBlocks = timeline.map((b) => b.waf_blocks)
+    const maxErr = Math.max(1, ...errorRates, 0)
+    const maxWaf = Math.max(1, ...wafBlocks, 0)
+    return {
+      data: [xs, errorRates, wafBlocks] as AlignedData,
+      yMax: maxErr * 1.15,
+      y2Max: maxWaf * 1.15,
+    }
   }, [timeline])
 
   const labelsRef = useRef(labels)
@@ -32,8 +36,8 @@ export const QualityTimelineChart = memo(function QualityTimelineChart({ timelin
       legend: { show: true },
       scales: {
         x: { time: false },
-        y: { auto: true },
-        y2: { auto: true },
+        y: { range: [0, yMax] },
+        y2: { range: [0, y2Max] },
       },
       axes: [
         {
@@ -64,7 +68,7 @@ export const QualityTimelineChart = memo(function QualityTimelineChart({ timelin
         { scale: 'y2', label: 'WAF 拦截', stroke: c.danger, fill: c.danger + '55', width: 1 },
       ],
     }
-  }, [colors])
+  }, [colors, yMax, y2Max])
 
   const ref = useUPlot(opts, data, 200)
   return <div className="uplot-wrap" ref={ref} />

@@ -68,6 +68,9 @@ func computeOverviewSSEPatch(prev, next OverviewSnapshot) OverviewSSEPatch {
 	if !reflect.DeepEqual(prev.Revisions, next.Revisions) {
 		p.Revisions = append([]ConfigRevisionSummary(nil), next.Revisions...)
 	}
+	if !p.isEmpty() {
+		p.Window = next.Window
+	}
 	return p
 }
 

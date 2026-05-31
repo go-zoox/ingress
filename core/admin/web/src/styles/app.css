@@ -2439,7 +2439,19 @@ table.data.tls-certs .tls-domain {
 
 .backend-perf-table .backend-target {
   font-size: 12px;
-  word-break: break-all;
+}
+
+.backend-perf-grid .backend-target {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backend-perf-row > span:first-child {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .backend-perf-grid {

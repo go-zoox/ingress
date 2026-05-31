@@ -562,11 +562,17 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 	if anchor.IsZero() {
 		anchor = time.Now()
 	}
+	slot := window / time.Duration(buckets)
+	if slot <= 0 {
+		slot = time.Minute
+	}
+	windowStart := alignedTimelineEnd(anchor, slot).Add(-window)
+
 	result := make([]TimelineBucket, buckets)
 	for i := range result {
 		if hasTime {
-			end := anchor.Add(-time.Duration(buckets-1-i) * window / time.Duration(buckets))
-			result[i].Label = end.Format("15:04")
+			bucketStart := windowStart.Add(time.Duration(i) * slot)
+			result[i].Label = formatTimelineLabel(bucketStart, slot)
 		} else {
 			result[i].Label = formatIndexLabel(i, buckets)
 		}
@@ -579,16 +585,11 @@ func buildTimeline(entries []AccessEntry, hasTime bool, window time.Duration, bu
 	scratches := make([]timelineBucketScratch, buckets)
 
 	if hasTime {
-		start := anchor.Add(-window)
-		slot := window / time.Duration(buckets)
-		if slot <= 0 {
-			slot = time.Minute
-		}
 		for _, e := range entries {
-			if e.At.Before(start) || e.At.After(anchor) {
+			if e.At.Before(windowStart) || e.At.After(anchor) {
 				continue
 			}
-			idx := int(e.At.Sub(start) / slot)
+			idx := int(e.At.Sub(windowStart) / slot)
 			if idx >= buckets {
 				idx = buckets - 1
 			}

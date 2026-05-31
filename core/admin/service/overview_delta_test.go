@@ -23,8 +23,8 @@ func TestComputeOverviewSSEPatch_onlyChangedFields(t *testing.T) {
 	if patch.isEmpty() {
 		t.Fatal("expected patch")
 	}
-	if patch.Window != "" {
-		t.Fatalf("window should be omitted, got %q", patch.Window)
+	if patch.Window != "15m" {
+		t.Fatalf("window should be included for routing, got %q", patch.Window)
 	}
 	if patch.Status != nil {
 		t.Fatal("status should be omitted")

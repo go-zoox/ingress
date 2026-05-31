@@ -17,8 +17,8 @@ func TestSystemMetricsSnapshot_windowFilter(t *testing.T) {
 	svc.mu.Unlock()
 
 	out := svc.Snapshot("15m")
-	if len(out.Timeline) != 2 {
-		t.Fatalf("timeline len=%d want 2", len(out.Timeline))
+	if len(out.Timeline) != 8 {
+		t.Fatalf("timeline len=%d want 8 buckets for 15m", len(out.Timeline))
 	}
 	if out.CPUPct != 3 || out.MemoryMB != 30 {
 		t.Fatalf("latest snapshot=%+v", out)
@@ -28,22 +28,22 @@ func TestSystemMetricsSnapshot_windowFilter(t *testing.T) {
 	}
 }
 
-func TestBuildSystemTimeline_downsample(t *testing.T) {
+func TestBuildSystemTimeline_bucketed(t *testing.T) {
 	now := time.Now()
-	samples := make([]systemSample, 30)
+	samples := make([]systemSample, 20)
 	for i := range samples {
 		samples[i] = systemSample{
-			at:       now.Add(time.Duration(i) * time.Minute),
-			cpuPct:   float64(i),
-			memoryMB: float64(i + 1),
+			at:       now.Add(-time.Duration(19-i) * time.Minute),
+			cpuPct:   float64(i + 1),
+			memoryMB: float64(i + 10),
 		}
 	}
 	out := buildSystemTimeline(samples, 15*time.Minute)
 	if len(out) != 8 {
 		t.Fatalf("len=%d want 8", len(out))
 	}
-	if out[len(out)-1].CPUPct < 20 {
-		t.Fatalf("last point should reflect recent samples: %+v", out[len(out)-1])
+	if out[len(out)-1].CPUPct <= 0 {
+		t.Fatalf("last bucket should include recent samples: %+v", out[len(out)-1])
 	}
 }
 

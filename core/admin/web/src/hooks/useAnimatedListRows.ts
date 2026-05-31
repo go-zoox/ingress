@@ -80,20 +80,24 @@ export function useAnimatedListRows<T>(
     [clearExitTimer, exitMs],
   )
 
+  const itemKeyRef = useRef(itemKey)
+  itemKeyRef.current = itemKey
+
   useEffect(() => {
+    const keyFn = itemKeyRef.current
     if (!mountedRef.current) {
       mountedRef.current = true
-      setRows(items.map((item) => ({ key: itemKey(item), item, phase: 'stable' as const })))
+      setRows(items.map((item) => ({ key: keyFn(item), item, phase: 'stable' as const })))
       return
     }
 
     setRows((prev) => {
-      const incomingSet = new Set(items.map((item) => itemKey(item)))
+      const incomingSet = new Set(items.map((item) => keyFn(item)))
       const prevMap = new Map(prev.map((row) => [row.key, row]))
       const result: AnimatedListRow<T>[] = []
 
       for (const item of items) {
-        const key = itemKey(item)
+        const key = keyFn(item)
         const old = prevMap.get(key)
         if (old?.phase === 'exit') {
           result.push({ key, item, phase: 'enter' })
@@ -115,7 +119,7 @@ export function useAnimatedListRows<T>(
 
       return result
     })
-  }, [items, itemKey])
+  }, [items])
 
   useEffect(() => {
     for (const row of rows) {

@@ -156,31 +156,54 @@ func buildSystemTimeline(samples []systemSample, dur time.Duration) []SystemMetr
 	if buckets <= 0 {
 		buckets = 15
 	}
-	if len(samples) <= buckets {
-		out := make([]SystemMetricPoint, len(samples))
-		for i, sample := range samples {
-			out[i] = SystemMetricPoint{
-				Label:    sample.at.Format("15:04"),
-				CPUPct:   sample.cpuPct,
-				MemoryMB: sample.memoryMB,
-			}
-		}
-		return out
+	slot := dur / time.Duration(buckets)
+	if slot <= 0 {
+		slot = time.Minute
 	}
-	// Downsample evenly when we have more samples than chart buckets.
-	step := float64(len(samples)) / float64(buckets)
-	out := make([]SystemMetricPoint, 0, buckets)
-	for i := 0; i < buckets; i++ {
-		idx := int(float64(i) * step)
-		if idx >= len(samples) {
-			idx = len(samples) - 1
+	anchor := time.Now()
+	if last := samples[len(samples)-1].at; !last.IsZero() {
+		anchor = last
+	}
+	windowStart := alignedTimelineEnd(anchor, slot).Add(-dur)
+
+	type bucketScratch struct {
+		cpuSum float64
+		cpuN   int
+		mem    float64
+		memSet bool
+	}
+	scratches := make([]bucketScratch, buckets)
+	out := make([]SystemMetricPoint, buckets)
+	for i := range out {
+		bucketStart := windowStart.Add(time.Duration(i) * slot)
+		out[i].Label = formatTimelineLabel(bucketStart, slot)
+	}
+
+	for _, sample := range samples {
+		if sample.at.Before(windowStart) || sample.at.After(anchor) {
+			continue
 		}
-		sample := samples[idx]
-		out = append(out, SystemMetricPoint{
-			Label:    sample.at.Format("15:04"),
-			CPUPct:   sample.cpuPct,
-			MemoryMB: sample.memoryMB,
-		})
+		idx := int(sample.at.Sub(windowStart) / slot)
+		if idx >= buckets {
+			idx = buckets - 1
+		}
+		if idx < 0 {
+			idx = 0
+		}
+		scratches[idx].cpuSum += sample.cpuPct
+		scratches[idx].cpuN++
+		scratches[idx].mem = sample.memoryMB
+		scratches[idx].memSet = true
+	}
+
+	for i := range out {
+		sc := scratches[i]
+		if sc.cpuN > 0 {
+			out[i].CPUPct = round1(sc.cpuSum / float64(sc.cpuN))
+		}
+		if sc.memSet {
+			out[i].MemoryMB = sc.mem
+		}
 	}
 	return out
 }

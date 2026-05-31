@@ -18,7 +18,7 @@ import {
   type OverviewSnapshot,
 } from '../api/client'
 import { useSSE } from '../hooks/useSSE'
-import { mergeOverviewPatch } from '../lib/overviewMerge'
+import { mergeOverviewPatch, overviewPatchWindowMismatch } from '../lib/overviewMerge'
 import { useOverviewStream } from '../context/OverviewStreamContext'
 import { loadPreferences, savePreferences } from '../lib/preferences'
 import { normalizeMetricsWindow } from '../lib/metricsWindow'
@@ -52,16 +52,13 @@ export function OverviewPage() {
   const [metricsWindow, setMetricsWindow] = useState(() =>
     normalizeMetricsWindow(loadPreferences().metricsWindow),
   )
-  const [sseWindow, setSseWindow] = useState(() =>
-    normalizeMetricsWindow(loadPreferences().metricsWindow),
-  )
   const windowFetchRef = useRef(0)
   const snapshotRef = useRef<OverviewSnapshot | null>(null)
   const prevSseConnectedRef = useRef(false)
 
   const { overviewPatch, connected: sseConnected, reconnecting: sseReconnecting, fallbackPolling } = useSSE(
     ['overview'],
-    { window: sseWindow },
+    { window: metricsWindow },
   )
   const { setStream } = useOverviewStream()
 
@@ -142,9 +139,12 @@ export function OverviewPage() {
 
   useEffect(() => {
     if (!overviewPatch) return
+    if (overviewPatchWindowMismatch(overviewPatch, metricsWindow, metricsWindow)) {
+      return
+    }
     const merged = mergeOverviewPatch(snapshotRef.current ?? undefined, overviewPatch)
     applySnapshot(merged, merged.window)
-  }, [overviewPatch, applySnapshot])
+  }, [overviewPatch, applySnapshot, metricsWindow])
 
   useEffect(() => {
     if (!fallbackPolling) return
@@ -163,14 +163,9 @@ export function OverviewPage() {
   const onWindowChange = (value: string) => {
     const normalized = normalizeMetricsWindow(value)
     setMetricsWindow(normalized)
+    snapshotRef.current = null
     savePreferences({ ...loadPreferences(), metricsWindow: normalized })
   }
-
-  useEffect(() => {
-    if (sseWindow === metricsWindow) return
-    const timer = window.setTimeout(() => setSseWindow(metricsWindow), 1000)
-    return () => window.clearTimeout(timer)
-  }, [metricsWindow, sseWindow])
 
   const handleParseIssueStatus = useCallback(
     async (id: number, nextStatus: 'ignored' | 'resolved') => {
