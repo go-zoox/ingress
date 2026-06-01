@@ -189,10 +189,18 @@ func (m *Metrics) Overview(window string) OverviewMetrics {
 			}
 			anchor := time.Now()
 			var out OverviewMetrics
+			windowDur := parseWindowDuration(window)
 			if source == "rollup_persisted" || source == "rollup_hybrid" {
 				liveOnly := m.rollup.LiveEntriesForOverview(window, anchor)
 				if stored, ok := m.rollup.AggregateOverviewFromStores(window, source, anchor, liveOnly); ok {
 					out = stored
+					enrichOverviewBreakdowns(&out, liveOnly, windowDur)
+					if len(out.TopHosts) == 0 {
+						slot := timelineSlotForWindow(windowDur, window)
+						alignedStart := timelineWindowStart(anchor, windowDur, slot)
+						fallback := entriesWithAccessDetail(filterEntriesSince(rw.Entries, alignedStart, anchor))
+						enrichOverviewBreakdowns(&out, fallback, windowDur)
+					}
 				} else {
 					out = aggregateOverview(rw.Entries, window, source)
 				}
@@ -263,14 +271,12 @@ func (m *Metrics) overviewAbsolute(q MetricsRangeQuery) OverviewMetrics {
 	if m.rollup == nil {
 		return out
 	}
-	var live []AccessEntry
-	if m.rollup != nil && anchor.After(now.Add(-10*time.Minute)) {
-		live = m.rollup.LiveEntriesForOverview("5m", now)
-	}
+	live := m.rollup.LiveEntriesInRange(from, anchor)
 	if stored, ok := m.rollup.AggregateOverviewAbsolute(from, anchor, "rollup_hybrid", live); ok {
 		stored.RangeFrom = out.RangeFrom
 		stored.RangeTo = out.RangeTo
 		stored.Window = "range"
+		enrichOverviewBreakdowns(&stored, live, q.Duration())
 		if m.parseIssues != nil {
 			if n, err := m.parseIssues.OpenCount(); err == nil {
 				stored.ParseIssueOpen = int(n)
@@ -406,6 +412,60 @@ func (m *Metrics) overviewSource(lines []string, entries []AccessEntry, parseSki
 		return "access_log"
 	}
 	return "access_log_empty"
+}
+
+// entriesWithAccessDetail drops rollup-synthesized rows that lack host labels.
+func entriesWithAccessDetail(entries []AccessEntry) []AccessEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+	out := make([]AccessEntry, 0, len(entries))
+	for _, e := range entries {
+		if strings.TrimSpace(e.Host) == "" {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// enrichOverviewBreakdowns fills Top Host / backend / slowest panels from per-request rollup rows.
+func enrichOverviewBreakdowns(out *OverviewMetrics, entries []AccessEntry, windowDur time.Duration) {
+	if out == nil {
+		return
+	}
+	entries = entriesWithAccessDetail(entries)
+	if len(entries) == 0 {
+		return
+	}
+	hostCounts := map[string]int{}
+	pathCounts := map[string]int{}
+	var histogramDurations []float64
+	var durations []float64
+	for _, e := range entries {
+		hostCounts[e.Host]++
+		pathCounts[accessPathKey(e.Path)]++
+		histogramDurations = append(histogramDurations, e.DurationMs)
+		if e.DurationMs > 0 {
+			durations = append(durations, e.DurationMs)
+		}
+	}
+	out.TopHosts = topN(hostCounts, 8)
+	out.TopHostsError = topHostsByError(entries, 8)
+	out.HostTraffic = hostTrafficStats(entries, 12)
+	out.TopPaths = topN(pathCounts, 6)
+	out.TopBackends = topBackends(entries, windowDur, 8)
+	out.Slowest = slowest(entries, 5)
+	out.ErrorSamples = errorSamples(entries, 5)
+	if len(histogramDurations) > 0 {
+		out.LatencyHistogram = buildLatencyHistogram(histogramDurations)
+		out.LatencySLO = buildLatencySLO(entries)
+	}
+	if out.P50Ms <= 0 && out.P95Ms <= 0 {
+		if ps := percentiles(durations, 0.5, 0.95); len(ps) >= 2 {
+			out.P50Ms, out.P95Ms = ps[0], ps[1]
+		}
+	}
 }
 
 func aggregateOverview(entries []AccessEntry, window, source string) OverviewMetrics {

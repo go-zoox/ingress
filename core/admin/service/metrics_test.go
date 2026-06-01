@@ -130,6 +130,51 @@ func TestAggregateOverview_upstreamP95AndBackends(t *testing.T) {
 	}
 }
 
+func TestMetrics_OverviewAbsolute_enrichesBreakdowns(t *testing.T) {
+	setupMetricsRollupDB(t)
+	m := NewMetrics(nil, nil)
+	m.SetLiveHook(true)
+	r := m.Rollup()
+	anchor := time.Now().Truncate(time.Minute)
+	from := anchor.Add(-15 * time.Minute)
+
+	for i := 14; i >= 1; i-- {
+		minute := anchor.Add(-time.Duration(i) * time.Minute)
+		if err := r.store.ApplyDelta(minute, minuteDelta{count: 2, s2: 2, durationSumMs: 40, durationCount: 2}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := r.LoadPersisted(rollupPersistRetention); err != nil {
+		t.Fatal(err)
+	}
+
+	r.Record(AccessEntry{
+		At: anchor.Add(-2 * time.Minute), Host: "api.example.com", Target: "api.internal:8080",
+		Method: "GET", Path: "/v1", Status: 200, DurationMs: 120, UpstreamDurationMs: 100,
+	})
+	r.Record(AccessEntry{
+		At: anchor.Add(-1 * time.Minute), Host: "api.example.com", Target: "api.internal:8080",
+		Method: "GET", Path: "/slow", Status: 200, DurationMs: 900, UpstreamDurationMs: 850,
+	})
+
+	out := m.OverviewWithRange(MetricsRangeQuery{From: from, To: anchor})
+	if out.Total <= 0 {
+		t.Fatalf("total=%d want >0", out.Total)
+	}
+	if len(out.TopHosts) == 0 {
+		t.Fatal("expected top_hosts from live rollup rows")
+	}
+	if out.TopHosts[0].Name != "api.example.com" {
+		t.Fatalf("top_hosts[0]=%+v", out.TopHosts[0])
+	}
+	if len(out.TopBackends) == 0 {
+		t.Fatal("expected top_backends")
+	}
+	if len(out.Slowest) == 0 || out.Slowest[0].DurationMs < 900 {
+		t.Fatalf("slowest=%+v", out.Slowest)
+	}
+}
+
 func TestParseWindowDuration_24h(t *testing.T) {
 	if parseWindowDuration("24h") != 24*time.Hour {
 		t.Fatal("24h window")

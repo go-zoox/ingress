@@ -236,9 +236,17 @@ func (r *MetricsRollup) LiveEntriesForOverview(window string, anchor time.Time) 
 	windowDur := parseWindowDuration(window)
 	slot := timelineSlotForWindow(windowDur, window)
 	alignedStart := timelineWindowStart(anchor, windowDur, slot)
+	return r.LiveEntriesInRange(alignedStart, anchor)
+}
+
+// LiveEntriesInRange returns in-process rollup entries with full access-log detail in [from, to].
+func (r *MetricsRollup) LiveEntriesInRange(from, to time.Time) []AccessEntry {
+	if r == nil || to.IsZero() {
+		return nil
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return append([]AccessEntry(nil), filterEntriesSince(r.entries, alignedStart, anchor)...)
+	return append([]AccessEntry(nil), filterEntriesSince(r.entries, from, to)...)
 }
 
 func (r *MetricsRollup) windowEntriesAt(window string, anchor time.Time, requireLive bool) RollupWindow {
