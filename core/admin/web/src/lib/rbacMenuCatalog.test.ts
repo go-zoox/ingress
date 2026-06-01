@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { RBACPermissionRow } from '../api/client'
-import { filterPermissionCatalog, groupPermissionsByMenu } from './rbacMenuCatalog'
+import {
+  filterPermissionCatalog,
+  flattenPermissionCatalog,
+  groupPermissionsByMenu,
+  RBAC_UNASSIGNED_MENU_KEY,
+} from './rbacMenuCatalog'
 
 function perm(partial: Partial<RBACPermissionRow> & Pick<RBACPermissionRow, 'id' | 'code' | 'name'>): RBACPermissionRow {
   return {
@@ -47,6 +52,21 @@ describe('groupPermissionsByMenu', () => {
     ])
     expect(view.unassigned).toHaveLength(1)
     expect(view.unassigned[0]?.code).toBe('custom:foo')
+  })
+})
+
+describe('flattenPermissionCatalog', () => {
+  it('orders menus within nav groups and appends unassigned', () => {
+    const catalog = groupPermissionsByMenu([
+      perm({ id: 1, code: 'menu:overview', name: '菜单：总览', group: '菜单' }),
+      perm({ id: 2, code: 'menu:logs', name: '菜单：日志', group: '菜单' }),
+      perm({ id: 9, code: 'custom:foo', name: '自定义', group: '自定义', builtin: false }),
+    ])
+    const flat = flattenPermissionCatalog(catalog)
+    expect(flat[0]?.menu.key).toBe('overview')
+    expect(flat[1]?.menu.key).toBe('logs')
+    expect(flat.at(-1)?.menu.key).toBe(RBAC_UNASSIGNED_MENU_KEY)
+    expect(flat.at(-1)?.permissions[0]?.code).toBe('custom:foo')
   })
 })
 

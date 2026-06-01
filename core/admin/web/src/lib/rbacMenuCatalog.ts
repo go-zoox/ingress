@@ -90,6 +90,41 @@ export type RbacPermissionCatalogView = {
   unassigned: RBACPermissionRow[]
 }
 
+/** Synthetic menu key for permissions not mapped to a sidebar menu. */
+export const RBAC_UNASSIGNED_MENU_KEY = '__unassigned__'
+
+export type RbacFlatMenuSection = {
+  navGroup: string
+  menu: RbacMenuDef
+  permissions: RBACPermissionRow[]
+}
+
+/** Flatten grouped catalog into ordered menu sections for side-nav pickers. */
+export function flattenPermissionCatalog(catalog: RbacPermissionCatalogView): RbacFlatMenuSection[] {
+  const items: RbacFlatMenuSection[] = []
+  for (const section of catalog.navGroups) {
+    for (const block of section.menus) {
+      items.push({
+        navGroup: section.navGroup,
+        menu: block.menu,
+        permissions: block.permissions,
+      })
+    }
+  }
+  if (catalog.unassigned.length > 0) {
+    items.push({
+      navGroup: '其他',
+      menu: {
+        key: RBAC_UNASSIGNED_MENU_KEY,
+        label: '未关联菜单',
+        navGroup: '其他',
+      },
+      permissions: catalog.unassigned,
+    })
+  }
+  return items
+}
+
 function sortPermissions(rows: RBACPermissionRow[]): RBACPermissionRow[] {
   return [...rows].sort((a, b) => {
     const aMenu = a.code.startsWith('menu:') ? 0 : 1

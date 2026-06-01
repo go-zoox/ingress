@@ -1,6 +1,13 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { HoverTooltip } from '../EllipsisTooltip'
 import { FormCheckbox } from '../Form'
-import { filterPermissionCatalog, groupPermissionsByMenu } from '../../lib/rbacMenuCatalog'
+import {
+  filterPermissionCatalog,
+  flattenPermissionCatalog,
+  groupPermissionsByMenu,
+  RBAC_UNASSIGNED_MENU_KEY,
+  type RbacFlatMenuSection,
+} from '../../lib/rbacMenuCatalog'
 import type { RBACPermissionRow } from '../../api/client'
 
 type Props = {
@@ -12,11 +19,39 @@ type Props = {
   search?: string
 }
 
+function selectedCount(section: RbacFlatMenuSection, value: number[]): number {
+  const ids = new Set(section.permissions.map((p) => p.id))
+  return value.filter((id) => ids.has(id)).length
+}
+
 export function PermissionPicker({ permissions, value, onChange, disabled, search = '' }: Props) {
-  const catalog = useMemo(() => {
+  const menuSections = useMemo(() => {
     const grouped = groupPermissionsByMenu(permissions)
-    return filterPermissionCatalog(grouped, search)
+    return flattenPermissionCatalog(filterPermissionCatalog(grouped, search))
   }, [permissions, search])
+
+  const [activeKey, setActiveKey] = useState('')
+
+  useEffect(() => {
+    setActiveKey((prev) => {
+      if (menuSections.length === 0) return ''
+      if (prev && menuSections.some((s) => s.menu.key === prev)) return prev
+      return menuSections[0].menu.key
+    })
+  }, [menuSections])
+
+  const active =
+    menuSections.find((s) => s.menu.key === activeKey) ?? menuSections[0] ?? null
+
+  const navByGroup = useMemo(() => {
+    const map = new Map<string, RbacFlatMenuSection[]>()
+    for (const section of menuSections) {
+      const list = map.get(section.navGroup) ?? []
+      list.push(section)
+      map.set(section.navGroup, list)
+    }
+    return map
+  }, [menuSections])
 
   const toggle = (id: number, checked: boolean) => {
     if (disabled) return
@@ -31,76 +66,62 @@ export function PermissionPicker({ permissions, value, onChange, disabled, searc
     return <p className="empty-hint">暂无可用权限</p>
   }
 
-  const hasResults = catalog.navGroups.length > 0 || catalog.unassigned.length > 0
-  if (!hasResults) {
+  if (menuSections.length === 0) {
     return <p className="empty-hint">无匹配权限，请调整搜索关键词</p>
   }
 
   return (
-    <div className="rbac-permission-picker">
-      {catalog.navGroups.map((section) => {
-        const sectionCount = section.menus.reduce((n, m) => n + m.permissions.length, 0)
-        return (
-          <div key={section.navGroup} className="panel rbac-permission-picker-panel">
-            <div className="panel-head">
-              <h2>{section.navGroup}</h2>
-              <span className="chart-hint">{sectionCount} 项</span>
-            </div>
-            <div className="panel-body rbac-permission-picker-stack">
-              {section.menus.map(({ menu, permissions: menuPerms }) => (
-                <section key={menu.key} className="rbac-permission-picker-menu">
-                  <div className="rbac-permissions-menu-head rbac-permissions-menu-head--inline">
-                    <span className="rbac-permissions-menu-label">{menu.label}</span>
-                    <span className="chart-hint">
-                      <code>menu:{menu.key}</code> · {menuPerms.length} 项
-                    </span>
-                  </div>
-                  <div className="rbac-permission-list">
-                    {menuPerms.map((perm) => (
-                      <label key={perm.id} className="rbac-permission-item">
-                        <FormCheckbox
-                          label={perm.name}
-                          checked={value.includes(perm.id)}
-                          onChange={(checked) => toggle(perm.id, checked)}
-                        />
-                        <code className="rbac-permission-item-code">{perm.code}</code>
-                        {perm.description ? (
-                          <span className="rbac-permission-item-desc chart-hint">{perm.description}</span>
-                        ) : null}
-                      </label>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+    <div className="rbac-permission-picker-split">
+      <nav className="rbac-permission-picker-nav" aria-label="按菜单选择权限">
+        {[...navByGroup.entries()].map(([navGroup, sections]) => (
+          <div key={navGroup} className="rbac-permission-picker-nav-group">
+            <div className="rbac-permission-picker-nav-heading">{navGroup}</div>
+            {sections.map((section) => {
+              const picked = selectedCount(section, value)
+              const isActive = section.menu.key === active?.menu.key
+              return (
+                <button
+                  key={section.menu.key}
+                  type="button"
+                  className={`rbac-permission-picker-nav-item${isActive ? ' active' : ''}`}
+                  onClick={() => setActiveKey(section.menu.key)}
+                >
+                  <span className="rbac-permission-picker-nav-label">{section.menu.label}</span>
+                  <span className="rbac-permission-picker-nav-meta">
+                    {picked > 0 ? `${picked}/` : ''}
+                    {section.permissions.length}
+                  </span>
+                </button>
+              )
+            })}
           </div>
-        )
-      })}
-      {catalog.unassigned.length > 0 ? (
-        <div className="panel rbac-permission-picker-panel">
-          <div className="panel-head">
-            <h2>未关联菜单</h2>
-            <span className="chart-hint">{catalog.unassigned.length} 项</span>
-          </div>
-          <div className="panel-body">
+        ))}
+      </nav>
+      <div className="rbac-permission-picker-detail">
+        {active ? (
+          <>
+            <header className="rbac-permission-picker-detail-head">
+              <h3>{active.menu.label}</h3>
+              {active.menu.key === RBAC_UNASSIGNED_MENU_KEY ? (
+                <span className="chart-hint">自定义或未映射到侧栏的权限</span>
+              ) : null}
+            </header>
             <div className="rbac-permission-list">
-              {catalog.unassigned.map((perm) => (
+              {active.permissions.map((perm) => (
                 <label key={perm.id} className="rbac-permission-item">
-                  <FormCheckbox
-                    label={perm.name}
-                    checked={value.includes(perm.id)}
-                    onChange={(checked) => toggle(perm.id, checked)}
-                  />
-                  <code className="rbac-permission-item-code">{perm.code}</code>
-                  {perm.description ? (
-                    <span className="rbac-permission-item-desc chart-hint">{perm.description}</span>
-                  ) : null}
+                  <HoverTooltip content={perm.description ?? ''} className="rbac-permission-item-trigger">
+                    <FormCheckbox
+                      label={perm.name}
+                      checked={value.includes(perm.id)}
+                      onChange={(checked) => toggle(perm.id, checked)}
+                    />
+                  </HoverTooltip>
                 </label>
               ))}
             </div>
-          </div>
-        </div>
-      ) : null}
+          </>
+        ) : null}
+      </div>
     </div>
   )
 }
