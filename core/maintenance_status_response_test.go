@@ -91,7 +91,7 @@ func TestRenderIngressStatusBody_CustomTemplates(t *testing.T) {
 		},
 	}
 
-	okBody, err := ins.renderIngressStatusBody(false, settings, "app.example.com")
+	okBody, err := ins.renderIngressStatusBody(false, settings, compiledMaintenanceWindow{}, "app.example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestRenderIngressStatusBody_CustomTemplates(t *testing.T) {
 		t.Fatalf("unexpected ok body: %v", ok)
 	}
 
-	maintBody, err := ins.renderIngressStatusBody(true, settings, "app.example.com")
+	maintBody, err := ins.renderIngressStatusBody(true, settings, compiledMaintenanceWindow{}, "app.example.com")
 	if err != nil {
 		t.Fatal(err)
 	}

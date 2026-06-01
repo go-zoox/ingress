@@ -2,6 +2,7 @@ import { arr, obj, str, num, bool } from './ingressModuleForms'
 import {
   maintenanceHostEntriesFromYAML,
   maintenanceHostEntriesToYAML,
+  validateServiceMaintenanceForm,
   type MaintenanceHostFormEntry,
 } from './maintenance'
 
@@ -177,6 +178,8 @@ export type BackendForm = {
   maintenance_enabled: boolean
   maintenance_scope: 'all' | 'listed' | ''
   maintenance_host_entries: MaintenanceHostFormEntry[]
+  maintenance_window_start: string
+  maintenance_window_end: string
   maintenance_retry_after: number
   maintenance_title: string
   maintenance_subtitle: string
@@ -587,12 +590,14 @@ function healthCheckToForm(service: Record<string, unknown>): Pick<BackendForm,
 
 function maintenanceToForm(service: Record<string, unknown>): Pick<BackendForm,
   'maintenance_enabled' | 'maintenance_scope' | 'maintenance_host_entries' |
+  'maintenance_window_start' | 'maintenance_window_end' |
   'maintenance_retry_after' | 'maintenance_title' | 'maintenance_subtitle' |
   'maintenance_bypass_paths' | 'maintenance_bypass_allow_ips' |
   'maintenance_bypass_header_name' | 'maintenance_bypass_header_value' |
   'maintenance_response_header_name' | 'maintenance_response_header_value'
 > {
   const m = obj(service.maintenance)
+  const window = obj(m.window)
   const bypass = obj(m.bypass)
   const header = obj(bypass.header)
   const responseHeader = obj(m.response_header)
@@ -604,6 +609,8 @@ function maintenanceToForm(service: Record<string, unknown>): Pick<BackendForm,
     maintenance_enabled: bool(m.enabled),
     maintenance_scope: scope,
     maintenance_host_entries: maintenanceHostEntriesFromYAML(m.hosts),
+    maintenance_window_start: str(window.start),
+    maintenance_window_end: str(window.end),
     maintenance_retry_after: num(m.retry_after, 0),
     maintenance_title: str(m.title),
     maintenance_subtitle: str(m.subtitle),
@@ -701,6 +708,8 @@ export function emptyBackendForm(): BackendForm {
     maintenance_enabled: false,
     maintenance_scope: 'all',
     maintenance_host_entries: [],
+    maintenance_window_start: '',
+    maintenance_window_end: '',
     maintenance_retry_after: 0,
     maintenance_title: '',
     maintenance_subtitle: '',
@@ -1051,6 +1060,13 @@ function buildMaintenance(form: BackendForm): Record<string, unknown> | undefine
     block.scope = 'listed'
     const hosts = maintenanceHostEntriesToYAML(form.maintenance_host_entries)
     if (hosts.length) block.hosts = hosts
+  }
+  if (form.maintenance_enabled && scope === 'all') {
+    const start = form.maintenance_window_start.trim()
+    const end = form.maintenance_window_end.trim()
+    if (start && end) {
+      block.window = { start, end }
+    }
   }
   if (form.maintenance_retry_after > 0) block.retry_after = form.maintenance_retry_after
   if (form.maintenance_title.trim()) block.title = form.maintenance_title.trim()
@@ -1483,8 +1499,16 @@ function handlerSaveDisabled(form: BackendForm): boolean {
 export function backendSaveDisabled(form: BackendForm): boolean {
   if (form.backend_type === 'handler') return handlerSaveDisabled(form)
   if (form.backend_type === 'redirect') return !form.redirect_url.trim()
-  if (form.backend_type === 'service') return !form.service_name.trim()
+  if (form.backend_type === 'service') {
+    if (!form.service_name.trim()) return true
+    if (validateServiceMaintenanceForm(form) != null) return true
+  }
   return false
+}
+
+export function backendMaintenanceValidationError(form: BackendForm): string | null {
+  if (form.backend_type !== 'service') return null
+  return validateServiceMaintenanceForm(form)
 }
 
 export function pathSaveDisabled(form: PathForm): boolean {

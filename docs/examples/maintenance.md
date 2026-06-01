@@ -10,7 +10,7 @@ Hosts in `maintenance.hosts` with **no `window`** are active whenever the hostna
 
 ```bash
 curl -sS http://app.example.com/_/ingress/status
-curl -sS -D - http://app.example.com/api   # 503 + X-Ingress-Maintenance: true when active
+curl -sS -D - http://app.example.com/api   # 503 + X-Ingress-Maintenance: 1 when active
 ```
 
 ## Global maintenance + bypass

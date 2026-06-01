@@ -70,6 +70,8 @@ const (
 	ingressStatusPathDefault = "/_/ingress/status"
 
 	// Set on maintenance 503 responses and on /_/ingress/status when the host is in maintenance.
-	headerXIngressMaintenance   = "X-Ingress-Maintenance"
-	ingressMaintenanceHeaderVal = "true"
+	headerXIngressMaintenance      = "X-Ingress-Maintenance"
+	headerXIngressMaintenanceFrom  = "X-Ingress-Maintenance-From"
+	headerXIngressMaintenanceUntil = "X-Ingress-Maintenance-Until"
+	ingressMaintenanceHeaderVal    = "1"
 )

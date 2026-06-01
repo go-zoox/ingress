@@ -147,8 +147,8 @@ func (c *core) build() error {
 			return false, true, nil
 		}
 
-		if block, settings := c.maintenanceDecision(ruleIdx, hostname, path, ctx.Request); block {
-			c.writeMaintenanceResponse(ctx, secProf, settings, pageDetail)
+		if block, settings, window := c.maintenanceDecision(ruleIdx, hostname, path, ctx.Request); block {
+			c.writeMaintenanceResponse(ctx, secProf, settings, window, pageDetail)
 			target := "-"
 			if serviceIns != nil {
 				target = serviceIns.Target()

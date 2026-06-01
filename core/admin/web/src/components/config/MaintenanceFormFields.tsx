@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   FormCheckbox,
   FormField,
@@ -7,7 +8,8 @@ import {
   FormSelectField,
 } from '../Form'
 import type { BackendForm } from '../../lib/configEntities'
-import type { MaintenanceScope } from '../../lib/maintenance'
+import { validateServiceMaintenanceForm, type MaintenanceScope } from '../../lib/maintenance'
+import { DateTimeRangeField } from '../DateTimeRangeField'
 import { MaintenanceHostListEditor } from './MaintenanceHostListEditor'
 
 export function MaintenanceFormFields<T extends BackendForm>({
@@ -28,10 +30,19 @@ export function MaintenanceFormFields<T extends BackendForm>({
   }
 
   const scope = (form.maintenance_scope || 'all') as MaintenanceScope
+  const validationErr = useMemo(
+    () => (form.maintenance_enabled ? validateServiceMaintenanceForm(form) : null),
+    [form],
+  )
 
   return (
     <FormSection title={embedded ? undefined : '维护模式 service.maintenance'}>
       <FormGrid columns={1}>
+        {validationErr ? (
+          <p className="validate-err config-validate-banner-text" role="alert">
+            {validationErr}
+          </p>
+        ) : null}
         <FormCheckbox
           label="启用规则级维护（503，跳过 auth）"
           checked={form.maintenance_enabled}
@@ -53,6 +64,21 @@ export function MaintenanceFormFields<T extends BackendForm>({
               <option value="all">all — 规则下全部 Host</option>
               <option value="listed">listed — 仅列出的 Host</option>
             </FormSelectField>
+            {scope === 'all' ? (
+              <DateTimeRangeField
+                label="维护时间 window"
+                hint="scope=all 时必填；规则下全部 Host 共用此时间窗"
+                start={form.maintenance_window_start}
+                end={form.maintenance_window_end}
+                showDisplayHint
+                onChange={({ start, end }) =>
+                  patch((n) => {
+                    n.maintenance_window_start = start
+                    n.maintenance_window_end = end
+                  })
+                }
+              />
+            ) : null}
             {scope === 'listed' ? (
               <MaintenanceHostListEditor
                 title="维护 Host"
@@ -102,7 +128,7 @@ export function MaintenanceFormFields<T extends BackendForm>({
                 <FormField
                   label="Header 值"
                   keyName={`${idPrefix}service.maintenance.response_header.value`}
-                  placeholder="true"
+                  placeholder="1"
                   value={form.maintenance_response_header_value}
                   onChange={(e) => patch((n) => { n.maintenance_response_header_value = e.target.value })}
                 />

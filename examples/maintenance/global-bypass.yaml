@@ -5,6 +5,9 @@ port: 8080
 maintenance:
   hosts:
     - host: app.example.com
+      window:
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-12-31T23:59:59Z"
   title: Planned maintenance
   retry_after: 600
   bypass:

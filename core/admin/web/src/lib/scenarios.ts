@@ -15,6 +15,7 @@ import {
   globalMaintenanceFromDoc,
   patchGlobalMaintenance,
   type GlobalMaintenanceForm,
+  validateGlobalMaintenanceForm,
 } from './maintenance'
 
 export type ScenarioOverlaySections = {
@@ -340,9 +341,19 @@ export function scenarioItemConfigured(form: ScenarioItemForm): boolean {
   return overlaySummaryKeys(form).length > 0 || form.label.trim() !== '' || form.description.trim() !== ''
 }
 
+export function validateScenarioMaintenanceOverlay(item: ScenarioItemForm): string | null {
+  if (!item.sections.maintenance) return null
+  return validateGlobalMaintenanceForm(maintenanceFormFromOverlay(item.maintenance))
+}
+
 export function validateScenariosFormState(state: ScenariosFormState): string | null {
   const ids = new Set<string>()
   for (const item of state.items) {
+    const maintErr = validateScenarioMaintenanceOverlay(item)
+    if (maintErr) {
+      const label = item.label.trim() || item.id.trim() || '场景'
+      return `${label}：${maintErr}`
+    }
     const id = item.id.trim()
     if (!id) return '每个场景必须填写 ID'
     if (id === DEFAULT_SCENARIO_ID) {

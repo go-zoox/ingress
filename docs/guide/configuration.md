@@ -143,7 +143,7 @@ Evaluated after route match and WAF; returns **503** before redirect/handler/ups
 | `bypass.paths` | string array | Exact or trailing-`*` prefix paths |
 | `bypass.header.name` / `value` | string | Header bypass pair |
 | `response_header.name` | string | Maintenance indicator header name | `X-Ingress-Maintenance` |
-| `response_header.value` | string | Maintenance indicator header value | `true` |
+| `response_header.value` | string | Maintenance indicator header value | `1` |
 | `status_path` | string | JSON maintenance status probe path | `/_/ingress/status` |
 | `status_response.ok` | string | JSON template when host is not in maintenance | built-in `{"status":"ok"}` |
 | `status_response.maintenance` | string | JSON template when host is in maintenance | built-in fields |
@@ -162,9 +162,9 @@ Evaluated after route match and WAF; returns **503** before redirect/handler/ups
 | `title` / `subtitle` | string | Overrides global when route maintenance triggers | — |
 | `bypass` | object | Merged with global bypass | — |
 | `response_header.name` | string | Maintenance indicator header (overrides global when route maintenance triggers) | `X-Ingress-Maintenance` |
-| `response_header.value` | string | Maintenance indicator header value | `true` |
+| `response_header.value` | string | Maintenance indicator header value | `1` |
 
-Access logs append `maintenance_block=1` on 503 maintenance responses. Maintenance 503 responses include the configured maintenance header (default **`X-Ingress-Maintenance: true`**; upstream 503 does not).
+Access logs append `maintenance_block=1` on 503 maintenance responses. Maintenance 503 responses include the configured maintenance header (default **`X-Ingress-Maintenance: 1`**; optional **`X-Ingress-Maintenance-From` / `-Until`** when a host `window` is set; upstream 503 does not).
 
 ### Scenarios (`scenarios`)
 

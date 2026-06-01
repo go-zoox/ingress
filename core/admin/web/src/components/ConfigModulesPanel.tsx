@@ -1,6 +1,8 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { api, type ConfigModule } from '../api/client'
 import { ConfigModuleForm } from './ConfigModuleForm'
+import { parseModuleDoc } from '../lib/ingressModuleForms'
+import { globalMaintenanceFromDoc, validateGlobalMaintenanceForm } from '../lib/maintenance'
 
 const AUTO_APPLY_DEBOUNCE_MS = 400
 
@@ -94,6 +96,13 @@ export const ConfigModulesPanel = forwardRef<ConfigModulesPanelHandle, {
 
   const runAutoApply = useCallback(async (): Promise<string | null> => {
     if (!dirtyRef.current || applyingRef.current) return null
+    if (activeIdRef.current === 'maintenance') {
+      const err = validateGlobalMaintenanceForm(globalMaintenanceFromDoc(parseModuleDoc(moduleYAMLRef.current)))
+      if (err) {
+        onError(err)
+        return null
+      }
+    }
     try {
       return await doApply(activeIdRef.current, moduleYAMLRef.current, contentRef.current)
     } catch (e) {

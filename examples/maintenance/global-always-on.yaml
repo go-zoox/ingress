@@ -1,12 +1,18 @@
 version: v1
 port: 8080
 
-# Global maintenance for listed hosts (no time window = always active when host matches).
+# Global maintenance for listed hosts within maintenance.hosts[].window.
 # Probe: curl -sS -D - http://app.example.com/_/ingress/status
 maintenance:
   hosts:
     - host: app.example.com
+      window:
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-12-31T23:59:59Z"
     - host: staging-*.example.com
+      window:
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-12-31T23:59:59Z"
   title: Site maintenance
   subtitle: We will be back shortly.
   retry_after: 3600

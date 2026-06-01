@@ -1,3 +1,4 @@
+import { isDateTimeRangeOrdered, parseRFC3339 } from './datetimeRange'
 import { arr, num, obj, str } from './ingressModuleForms'
 
 export type MaintenanceScope = 'all' | 'listed'
@@ -88,13 +89,8 @@ export function maintenanceHostEntriesToYAML(entries: MaintenanceHostFormEntry[]
       if (!host) return null
       const start = entry.window_start.trim()
       const end = entry.window_end.trim()
-      if (!start && !end) return { host }
-      const row: Record<string, unknown> = { host }
-      const window: Record<string, unknown> = {}
-      if (start) window.start = start
-      if (end) window.end = end
-      row.window = window
-      return row
+      if (!start || !end) return null
+      return { host, window: { start, end } }
     })
     .filter(Boolean)
 }
@@ -243,4 +239,76 @@ export function globalMaintenanceSectionOpen(form: GlobalMaintenanceForm): {
 
 export function maintenanceHostCount(form: GlobalMaintenanceForm): number {
   return form.maintenance_host_entries.filter((e) => e.host.trim()).length
+}
+
+export type ServiceMaintenanceFormSlice = {
+  maintenance_enabled: boolean
+  maintenance_scope: 'all' | 'listed' | ''
+  maintenance_host_entries: MaintenanceHostFormEntry[]
+  maintenance_window_start: string
+  maintenance_window_end: string
+}
+
+function validateMaintenanceWindowTimes(start: string, end: string, loc: string): string | null {
+  const s = start.trim()
+  const e = end.trim()
+  if (!s || !e) {
+    return `${loc}：须填写维护开始与结束时间（RFC3339）`
+  }
+  if (!parseRFC3339(s)) {
+    return `${loc}：开始时间格式无效（请使用 RFC3339）`
+  }
+  if (!parseRFC3339(e)) {
+    return `${loc}：结束时间格式无效（请使用 RFC3339）`
+  }
+  if (!isDateTimeRangeOrdered(s, e)) {
+    return `${loc}：结束时间须晚于或等于开始时间`
+  }
+  return null
+}
+
+/** Validate one maintenance.hosts[] row; skips rows with empty host. */
+export function validateMaintenanceHostEntry(entry: MaintenanceHostFormEntry, label: string): string | null {
+  const host = entry.host.trim()
+  if (!host) return null
+  return validateMaintenanceWindowTimes(entry.window_start, entry.window_end, label)
+}
+
+/** Validate all non-empty maintenance.hosts[] rows. */
+export function validateMaintenanceHostEntries(
+  entries: MaintenanceHostFormEntry[],
+  loc: string,
+): string | null {
+  for (let i = 0; i < entries.length; i++) {
+    const host = entries[i]?.host.trim() ?? ''
+    if (!host) continue
+    const err = validateMaintenanceHostEntry(entries[i], `${loc}[${i + 1}]`)
+    if (err) return err
+  }
+  return null
+}
+
+/** Global maintenance.hosts[] — each listed host must have a complete window. */
+export function validateGlobalMaintenanceForm(form: GlobalMaintenanceForm): string | null {
+  const hosts = form.maintenance_host_entries.filter((e) => e.host.trim())
+  if (hosts.length === 0) return null
+  return validateMaintenanceHostEntries(form.maintenance_host_entries, 'maintenance.hosts')
+}
+
+/** Route service.maintenance when enabled. */
+export function validateServiceMaintenanceForm(form: ServiceMaintenanceFormSlice): string | null {
+  if (!form.maintenance_enabled) return null
+  const scope = form.maintenance_scope === 'listed' ? 'listed' : 'all'
+  if (scope === 'listed') {
+    const hosts = form.maintenance_host_entries.filter((e) => e.host.trim())
+    if (hosts.length === 0) {
+      return '规则维护 scope=listed 时须至少添加一个 Host'
+    }
+    return validateMaintenanceHostEntries(form.maintenance_host_entries, 'service.maintenance.hosts')
+  }
+  return validateMaintenanceWindowTimes(
+    form.maintenance_window_start,
+    form.maintenance_window_end,
+    'service.maintenance.window',
+  )
 }

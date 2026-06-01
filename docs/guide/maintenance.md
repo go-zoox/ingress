@@ -35,15 +35,15 @@ maintenance:
 
 ### `maintenance.hosts[]`
 
-Each entry is a `{ host, window? }` object (`host` is required). When **no `window`** is set (or both sides are empty), the host entry is **always active** once the hostname matches.
+Each entry is a `{ host, window }` object (`host` and **`window`** with **`start`** and **`end`** are required). Maintenance applies only while `now` is inside that window.
 
 Times use **RFC3339** (e.g. `2026-05-30T02:00:00+08:00`). Validation rejects `end` before `start`.
 
 | Field | Description |
 |-------|-------------|
 | `host` | Host pattern (exact, `*` wildcard, or Go regex — same inference as route `host`) |
-| `window.start` | Optional RFC3339; omit for no lower bound |
-| `window.end` | Optional RFC3339; omit for no upper bound |
+| `window.start` | Required RFC3339 maintenance start |
+| `window.end` | Required RFC3339 maintenance end |
 
 ## Route-level maintenance
 
@@ -76,7 +76,8 @@ rules:
 |-------|-------------|---------|
 | `enabled` | Turn on route maintenance | `false` |
 | `scope` | `all` — every host matched by the rule; `listed` — only `hosts[]` | `all` |
-| `hosts` | Required when `scope: listed`; same shape as global `maintenance.hosts` | — |
+| `hosts` | Required when `scope: listed`; same shape as global `maintenance.hosts` (each with `window`) | — |
+| `window` | Required when `scope: all` and `enabled: true` (rule-level maintenance window) | — |
 | `retry_after` | `Retry-After` response header (seconds) | `0` (omit header) |
 | `title` / `subtitle` | Override built-in 503 heading / message | built-in copy |
 | `bypass` | Same as global bypass | — |
@@ -102,9 +103,20 @@ Sent on maintenance **503** responses and on **`GET /_/ingress/status`** when th
 | Field | Description | Default |
 |-------|-------------|---------|
 | `name` | Response header name | `X-Ingress-Maintenance` |
-| `value` | Response header value | `true` |
+| `value` | Response header value | `1` |
 
 Omit the block entirely to use defaults. Set only `name` or only `value` to override one side; the other keeps its default. Route-level `response_header` overrides global when route maintenance triggers.
+
+### Maintenance window headers
+
+When the matched `hosts[]` entry has a **`window`**, ingress also sends (on maintenance **503** and **`GET /_/ingress/status`**):
+
+| Header | When set |
+|--------|----------|
+| `X-Ingress-Maintenance-From` | `window.start` is set (RFC3339) |
+| `X-Ingress-Maintenance-Until` | `window.end` is set (RFC3339) |
+
+Route-level listed hosts take precedence over global `hosts[]` for these values; `scope: all` with no per-host window falls back to the global matched entry’s window if any.
 
 ## Distinguishing maintenance 503 vs upstream 503
 
@@ -112,7 +124,7 @@ Both may return HTTP **503**, but they come from different stages:
 
 | Signal | Maintenance 503 | Upstream 503 |
 |--------|-----------------|--------------|
-| Response header | **`X-Ingress-Maintenance: true`** (default; customizable via `response_header`) | _(absent)_ |
+| Response header | **`X-Ingress-Maintenance: 1`** (+ optional **`X-Ingress-Maintenance-From` / `-Until`** when a host `window` is configured) | _(absent)_ |
 | Access log | **`maintenance_block=1`**, `upstream_response_length=-1` | `maintenance_block=0`, real upstream length/RTT |
 | Body | Ingress error page (custom `title` / `subtitle`) | Upstream response body |
 | Upstream contacted | **No** (short-circuited before proxy) | **Yes** |
@@ -122,7 +134,8 @@ Use **`GET /_/ingress/status`** for load-balancer / monitoring probes (host-leve
 ## Response and logging
 
 - Status **503** with HTML error page (or JSON when `Accept` prefers JSON).
-- Response header **`X-Ingress-Maintenance: true`** by default (`maintenance.response_header` / `service.maintenance.response_header` to customize).
+- Response header **`X-Ingress-Maintenance: 1`** by default (`maintenance.response_header` / `service.maintenance.response_header` to customize).
+- Optional **`X-Ingress-Maintenance-From`** / **`X-Ingress-Maintenance-Until`** when the active host entry defines `window.start` / `window.end`.
 - Optional **`Retry-After`** when `retry_after` > 0.
 - Access log appends **`maintenance_block=1`**.
 
@@ -133,11 +146,11 @@ Use **`GET /_/ingress/status`** for load-balancer / monitoring probes (host-leve
 | Condition | HTTP | JSON `status` | Maintenance header |
 |-----------|------|---------------|----------------------|
 | Host not in maintenance | `200` | `"ok"` | _(absent)_ |
-| Host in maintenance | `503` | `"maintenance"` (+ optional fields) | configured (default `X-Ingress-Maintenance: true`) |
+| Host in maintenance | `503` | `"maintenance"` (+ optional fields) | configured (default `X-Ingress-Maintenance: 1`; window headers when applicable) |
 
-JSON maintenance responses include `maintenance_header_name` and `maintenance_header_value` with the effective `response_header` settings.
+JSON maintenance responses include `maintenance_header_name`, `maintenance_header_value`, and when a host `window` is active: `maintenance_from`, `maintenance_until` (RFC3339, same as the `X-Ingress-Maintenance-*` headers).
 
-Customize the JSON body with **`maintenance.status_response`** (`ok` / `maintenance` templates). Placeholders: `${host}`, `${title}`, `${subtitle}`, `${retry_after}` (bare number), `${maintenance_header_name}`, `${maintenance_header_value}`, `${status}` (`ok` | `maintenance`). String placeholders expand inside JSON quotes; omit a template to keep the built-in body for that state.
+Customize the JSON body with **`maintenance.status_response`** (`ok` / `maintenance` templates). Placeholders: `${host}`, `${title}`, `${subtitle}`, `${retry_after}` (bare number), `${maintenance_header_name}`, `${maintenance_header_value}`, `${maintenance_from}`, `${maintenance_until}`, `${status}` (`ok` | `maintenance`). String placeholders expand inside JSON quotes; omit a template to keep the built-in body for that state.
 
 ```yaml
 maintenance:

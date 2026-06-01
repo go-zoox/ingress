@@ -6,6 +6,9 @@ maintenance:
   status_path: /internal/ingress-status
   hosts:
     - host: app.example.com
+      window:
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-12-31T23:59:59Z"
   title: Planned maintenance
 
 rules:

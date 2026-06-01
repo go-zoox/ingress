@@ -24,6 +24,8 @@ type maintenanceStatusTemplateContext struct {
 	RetryAfter  int64
 	HeaderName  string
 	HeaderValue string
+	From        string
+	Until       string
 	Status      string
 }
 
@@ -81,6 +83,8 @@ func expandMaintenanceStatusResponseTemplate(raw string, ctx maintenanceStatusTe
 		"${retry_after}", strconv.FormatInt(ctx.RetryAfter, 10),
 		"${maintenance_header_name}", jsonStringContent(ctx.HeaderName),
 		"${maintenance_header_value}", jsonStringContent(ctx.HeaderValue),
+		"${maintenance_from}", jsonStringContent(ctx.From),
+		"${maintenance_until}", jsonStringContent(ctx.Until),
 		"${status}", jsonStringContent(ctx.Status),
 	)
 	return repl.Replace(raw), nil
@@ -97,12 +101,13 @@ func jsonStringContent(s string) string {
 	return string(b[1 : len(b)-1])
 }
 
-func (c *core) renderIngressStatusBody(active bool, settings compiledMaintenanceSettings, hostname string) (string, error) {
+func (c *core) renderIngressStatusBody(active bool, settings compiledMaintenanceSettings, window compiledMaintenanceWindow, hostname string) (string, error) {
 	statusResp := c.globalMaintenance.statusResponse
 	logicalStatus := "ok"
 	if active {
 		logicalStatus = "maintenance"
 	}
+	from, until := maintenanceWindowHeaderValues(window)
 	tplCtx := maintenanceStatusTemplateContext{
 		Hostname:    hostname,
 		Title:       settings.Title,
@@ -110,6 +115,8 @@ func (c *core) renderIngressStatusBody(active bool, settings compiledMaintenance
 		RetryAfter:  settings.RetryAfter,
 		HeaderName:  settings.responseHeader.name,
 		HeaderValue: settings.responseHeader.value,
+		From:        from,
+		Until:       until,
 		Status:      logicalStatus,
 	}
 
@@ -126,6 +133,8 @@ func (c *core) renderIngressStatusBody(active bool, settings compiledMaintenance
 		body.Subtitle = settings.Subtitle
 		body.MaintenanceHeaderName = settings.responseHeader.name
 		body.MaintenanceHeaderValue = settings.responseHeader.value
+		body.MaintenanceFrom = from
+		body.MaintenanceUntil = until
 		if settings.RetryAfter > 0 {
 			body.RetryAfter = settings.RetryAfter
 		}

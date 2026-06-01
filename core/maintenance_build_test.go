@@ -8,10 +8,26 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/service"
 )
+
+const (
+	buildTestMaintWindowStart = "2000-01-01T00:00:00Z"
+	buildTestMaintWindowEnd   = "2099-12-31T23:59:59Z"
+)
+
+func maintHostEntry(host string) service.MaintenanceHostEntry {
+	return service.MaintenanceHostEntry{
+		Host: host,
+		Window: service.MaintenanceWindow{
+			Start: buildTestMaintWindowStart,
+			End:   buildTestMaintWindowEnd,
+		},
+	}
+}
 
 func mustBuildIngressCore(t *testing.T, cfg *Config) *core {
 	t.Helper()
@@ -33,7 +49,7 @@ func TestBuild_GlobalMaintenance_Returns503(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
 		Maintenance: MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHostEntry("app.example.com")),
 			Title: "Planned downtime",
 		},
 		Rules: []rule.Rule{
@@ -67,6 +83,54 @@ func TestBuild_GlobalMaintenance_Returns503(t *testing.T) {
 	}
 }
 
+func TestBuild_GlobalMaintenance_WindowResponseHeaders(t *testing.T) {
+	now := time.Now().UTC()
+	start := now.Add(-time.Hour).Format(time.RFC3339)
+	end := now.Add(time.Hour).Format(time.RFC3339)
+
+	cfg := &Config{
+		Port: 8080,
+		Maintenance: MaintenanceConfig{
+			Hosts: hosts(service.MaintenanceHostEntry{
+				Host: "app.example.com",
+				Window: service.MaintenanceWindow{
+					Start: start,
+					End:   end,
+				},
+			}),
+			Title: "Windowed maintenance",
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	ins := mustBuildIngressCore(t, cfg)
+	req := httptest.NewRequest(http.MethodGet, "http://app.example.com/api", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+	if got := rec.Header().Get(headerXIngressMaintenanceFrom); got != start {
+		t.Fatalf("expected %s %q, got %q", headerXIngressMaintenanceFrom, start, got)
+	}
+	if got := rec.Header().Get(headerXIngressMaintenanceUntil); got != end {
+		t.Fatalf("expected %s %q, got %q", headerXIngressMaintenanceUntil, end, got)
+	}
+}
+
 func TestBuild_GlobalMaintenance_BypassPath_PassesToUpstream(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -79,7 +143,7 @@ func TestBuild_GlobalMaintenance_BypassPath_PassesToUpstream(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
 		Maintenance: MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHostEntry("app.example.com")),
 			Title: "Planned downtime",
 			Bypass: service.MaintenanceBypass{
 				Paths: []string{"/healthz"},
@@ -132,7 +196,11 @@ func TestBuild_RuleMaintenance_ScopeAll_Returns503WithTitle(t *testing.T) {
 						Maintenance: service.Maintenance{
 							Enabled: true,
 							Scope:   service.MaintenanceScopeAll,
-							Title:   "Rule maintenance window",
+							Window: service.MaintenanceWindow{
+								Start: buildTestMaintWindowStart,
+								End:   buildTestMaintWindowEnd,
+							},
+							Title: "Rule maintenance window",
 						},
 					},
 				},
@@ -157,7 +225,7 @@ func TestBuild_Maintenance_RetryAfterHeader(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
 		Maintenance: MaintenanceConfig{
-			Hosts:      hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts:      hosts(maintHostEntry("app.example.com")),
 			RetryAfter: 300,
 		},
 		Rules: []rule.Rule{
@@ -197,7 +265,7 @@ func TestBuild_Maintenance_NotBlockedWhenHostOutsideGlobalList(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
 		Maintenance: MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "maint.example.com"}),
+			Hosts: hosts(maintHostEntry("maint.example.com")),
 		},
 		Rules: []rule.Rule{
 			{
@@ -228,7 +296,7 @@ func TestBuild_Maintenance_CustomResponseHeader(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
 		Maintenance: MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHostEntry("app.example.com")),
 			ResponseHeader: service.MaintenanceResponseHeader{
 				Name:  "X-Custom-Maintenance",
 				Value: "yes",
@@ -269,7 +337,7 @@ func TestBuild_IngressStatus_IncludesCustomHeaderInJSON(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
 		Maintenance: MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHostEntry("app.example.com")),
 			ResponseHeader: service.MaintenanceResponseHeader{
 				Name:  "X-Custom-Maintenance",
 				Value: "yes",
@@ -391,7 +459,7 @@ func TestBuild_IngressStatus_Maintenance(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
 		Maintenance: MaintenanceConfig{
-			Hosts:      hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts:      hosts(maintHostEntry("app.example.com")),
 			Title:      "Planned downtime",
 			RetryAfter: 600,
 		},
@@ -433,11 +501,60 @@ func TestBuild_IngressStatus_Maintenance(t *testing.T) {
 	}
 }
 
+func TestBuild_IngressStatus_WindowFieldsInJSON(t *testing.T) {
+	now := time.Now().UTC()
+	start := now.Add(-time.Hour).Format(time.RFC3339)
+	end := now.Add(2 * time.Hour).Format(time.RFC3339)
+
+	cfg := &Config{
+		Port: 8080,
+		Maintenance: MaintenanceConfig{
+			Hosts: hosts(service.MaintenanceHostEntry{
+				Host: "app.example.com",
+				Window: service.MaintenanceWindow{
+					Start: start,
+					End:   end,
+				},
+			}),
+			Title: "Planned downtime",
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	ins := mustBuildIngressCore(t, cfg)
+	req := httptest.NewRequest(http.MethodGet, "http://app.example.com/_/ingress/status", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Header().Get(headerXIngressMaintenanceUntil) != end {
+		t.Fatalf("expected until header %q, got %q", end, rec.Header().Get(headerXIngressMaintenanceUntil))
+	}
+	var body ingressStatusBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.MaintenanceFrom != start || body.MaintenanceUntil != end {
+		t.Fatalf("unexpected window fields: %+v", body)
+	}
+}
+
 func TestBuild_IngressStatus_IgnoresBypass(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
 		Maintenance: MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHostEntry("app.example.com")),
 			Bypass: service.MaintenanceBypass{
 				Paths: []string{"/healthz"},
 			},
@@ -512,7 +629,7 @@ func TestBuild_IngressStatus_CustomResponseBody(t *testing.T) {
 	maintCfg := &Config{
 		Port: 8080,
 		Maintenance: MaintenanceConfig{
-			Hosts:      hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts:      hosts(maintHostEntry("app.example.com")),
 			Title:      "Planned downtime",
 			RetryAfter: 300,
 			StatusResponse: service.MaintenanceStatusResponse{

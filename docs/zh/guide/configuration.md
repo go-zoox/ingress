@@ -105,7 +105,7 @@ rules:
 | `bypass.paths` | string 数组 | 精确路径或后缀 `*` 前缀匹配 |
 | `bypass.header.name` / `value` | string | 请求头放行键值对 |
 | `response_header.name` | string | 维护标识响应头名称 | `X-Ingress-Maintenance` |
-| `response_header.value` | string | 维护标识响应头值 | `true` |
+| `response_header.value` | string | 维护标识响应头值 | `1` |
 | `status_path` | string | JSON 维护状态探测路径 | `/_/ingress/status` |
 | `status_response.ok` | string | Host 未维护时的 JSON 模板 | 内置 `{"status":"ok"}` |
 | `status_response.maintenance` | string | Host 维护中时的 JSON 模板 | 内置字段 |
@@ -124,9 +124,9 @@ rules:
 | `title` / `subtitle` | string | 路由维护命中时覆盖全局 | — |
 | `bypass` | object | 与全局 bypass 合并 | — |
 | `response_header.name` | string | 维护标识响应头（路由维护命中时覆盖全局） | `X-Ingress-Maintenance` |
-| `response_header.value` | string | 维护标识响应头值 | `true` |
+| `response_header.value` | string | 维护标识响应头值 | `1` |
 
-维护 503 的访问日志附加 `maintenance_block=1`；维护 503 附带已配置的维护响应头（默认 **`X-Ingress-Maintenance: true`**；上游 503 不会）。
+维护 503 的访问日志附加 `maintenance_block=1`；维护 503 附带已配置的维护响应头（默认 **`X-Ingress-Maintenance: 1`**；host `window` 时另有 **`X-Ingress-Maintenance-From` / `-Until`**；上游 503 不会）。
 
 ### 运行场景（`scenarios`）
 

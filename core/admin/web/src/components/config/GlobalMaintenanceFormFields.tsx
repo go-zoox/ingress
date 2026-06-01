@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   CollapsibleFormSection,
   FormField,
@@ -8,10 +8,10 @@ import {
 } from '../Form'
 import { MaintenanceHostListEditor } from './MaintenanceHostListEditor'
 import type { GlobalMaintenanceForm } from '../../lib/maintenance'
-import { globalMaintenanceSectionOpen } from '../../lib/maintenance'
+import { globalMaintenanceSectionOpen, validateGlobalMaintenanceForm } from '../../lib/maintenance'
 
 const HOST_TOOLTIP =
-  '精确域名、*.wildcard.example.com，或 Go 正则。每个域名可单独设置维护时间；留空时间表示该域名始终处于维护（匹配时）。'
+  '精确域名、*.wildcard.example.com，或 Go 正则。每个域名须填写维护开始与结束时间（RFC3339）。'
 
 type SectionKey = 'hosts' | 'response' | 'statusApi' | 'bypass'
 
@@ -49,8 +49,15 @@ export function GlobalMaintenanceFormFields({
     onChange(next)
   }
 
+  const validationErr = useMemo(() => validateGlobalMaintenanceForm(form), [form])
+
   return (
     <FormGrid columns={1}>
+      {validationErr ? (
+        <p className="validate-err config-validate-banner-text" role="alert">
+          {validationErr}
+        </p>
+      ) : null}
       <CollapsibleFormSection
         title="全局维护域名 maintenance.hosts"
         open={sectionsOpen.hosts}
@@ -97,7 +104,7 @@ export function GlobalMaintenanceFormFields({
         />
         <FormItem
           label="维护响应头 response_header"
-          hint="作用于所有维护 503（业务请求与维护中的状态 API）；留空使用默认 X-Ingress-Maintenance: true"
+          hint="作用于所有维护 503（业务请求与维护中的状态 API）；留空使用默认 X-Ingress-Maintenance: 1；有 window 时另发 X-Ingress-Maintenance-From / -Until"
         >
           <div className="form-list-row">
             <FormField
@@ -144,7 +151,7 @@ export function GlobalMaintenanceFormFields({
         />
         <p className="form-hint">
           响应体 JSON 模板占位符：${'{'}host{'}'}、${'{'}title{'}'}、${'{'}subtitle{'}'}、${'{'}retry_after{'}'}（裸数字）、
-          ${'{'}maintenance_header_name{'}'}、${'{'}maintenance_header_value{'}'}、${'{'}status{'}'}（ok | maintenance）。字符串写在引号内。
+          ${'{'}maintenance_header_name{'}'}、${'{'}maintenance_header_value{'}'}、${'{'}maintenance_from{'}'}、${'{'}maintenance_until{'}'}、${'{'}status{'}'}（ok | maintenance）。字符串写在引号内。
         </p>
         <FormTextareaField
           label="正常 ok status_response.ok"

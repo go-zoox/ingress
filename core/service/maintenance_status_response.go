@@ -4,7 +4,8 @@ import "strings"
 
 // MaintenanceStatusResponse customizes the JSON body of the maintenance status probe.
 // Placeholders: ${host} ${title} ${subtitle} ${retry_after} ${maintenance_header_name}
-// ${maintenance_header_value} ${status} (ok | maintenance). String placeholders expand inside JSON quotes.
+// ${maintenance_header_value} ${maintenance_from} ${maintenance_until} ${status} (ok | maintenance).
+// String placeholders expand inside JSON quotes.
 type MaintenanceStatusResponse struct {
 	OK          string `config:"ok"`
 	Maintenance string `config:"maintenance"`

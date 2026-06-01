@@ -10,7 +10,7 @@
 
 ```bash
 curl -sS http://app.example.com/_/ingress/status
-curl -sS -D - http://app.example.com/api   # 维护中时 503 + X-Ingress-Maintenance: true
+curl -sS -D - http://app.example.com/api   # 维护中时 503 + X-Ingress-Maintenance: 1
 ```
 
 ## 全局维护 + 放行（bypass）

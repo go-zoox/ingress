@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,13 +12,32 @@ import (
 	"github.com/go-zoox/ingress/core/service"
 )
 
+const (
+	testMaintWindowStart = "2000-01-01T00:00:00Z"
+	testMaintWindowEnd   = "2099-12-31T23:59:59Z"
+)
+
 func hosts(entries ...service.MaintenanceHostEntry) service.MaintenanceHostList {
 	return service.MaintenanceHostList(entries)
 }
 
+func maintHost(host string) service.MaintenanceHostEntry {
+	return service.MaintenanceHostEntry{
+		Host: host,
+		Window: service.MaintenanceWindow{
+			Start: testMaintWindowStart,
+			End:   testMaintWindowEnd,
+		},
+	}
+}
+
+func maintRuleWindow() service.MaintenanceWindow {
+	return service.MaintenanceWindow{Start: testMaintWindowStart, End: testMaintWindowEnd}
+}
+
 func TestValidateServiceMaintenance_RejectsPathLevel(t *testing.T) {
 	err := validateServiceMaintenance(
-		service.Maintenance{Enabled: true, Scope: service.MaintenanceScopeAll},
+		service.Maintenance{Enabled: true, Scope: service.MaintenanceScopeAll, Window: maintRuleWindow()},
 		backendTypeService,
 		"rules[0].paths[0].backend.service",
 		false,
@@ -44,7 +64,7 @@ func TestValidateServiceMaintenance_ScopeAllForbidsHosts(t *testing.T) {
 		service.Maintenance{
 			Enabled: true,
 			Scope:   service.MaintenanceScopeAll,
-			Hosts:   hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts:   hosts(maintHost("app.example.com")),
 		},
 		backendTypeService,
 		"rules[0].backend.service",
@@ -82,7 +102,7 @@ func TestCompileMaintenanceByRule_ScopeListed(t *testing.T) {
 						Maintenance: service.Maintenance{
 							Enabled: true,
 							Scope:   service.MaintenanceScopeListed,
-							Hosts:   hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+							Hosts:   hosts(maintHost("app.example.com")),
 							Title:   "Maintenance",
 						},
 					},
@@ -109,8 +129,8 @@ func TestCompileMaintenanceByRule_ScopeListed(t *testing.T) {
 func TestCompileGlobalMaintenance(t *testing.T) {
 	g, err := compileGlobalMaintenance(MaintenanceConfig{
 		Hosts: hosts(
-			service.MaintenanceHostEntry{Host: "app.example.com"},
-			service.MaintenanceHostEntry{Host: "staging-*.example.com"},
+			maintHost("app.example.com"),
+			maintHost("staging-*.example.com"),
 		),
 		Title: "Global",
 	})
@@ -130,12 +150,12 @@ func TestMaintenanceDecision_GlobalHost(t *testing.T) {
 	c := &core{
 		cfg: &Config{},
 		globalMaintenance: mustCompileGlobal(t, MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHost("app.example.com")),
 			Title: "Global maintenance",
 		}),
 		maintenanceByRule: []compiledRuleMaintenance{},
 	}
-	block, settings := c.maintenanceDecision(0, "app.example.com", "/api", &http.Request{Header: http.Header{}})
+	block, settings, _ := c.maintenanceDecision(0, "app.example.com", "/api", &http.Request{Header: http.Header{}})
 	if !block || settings.Title != "Global maintenance" {
 		t.Fatalf("expected global maintenance, got block=%v settings=%+v", block, settings)
 	}
@@ -179,7 +199,7 @@ func TestMaintenanceDecision_RespectsPerHostWindow(t *testing.T) {
 		}),
 		maintenanceByRule: []compiledRuleMaintenance{},
 	}
-	block, _ := c.maintenanceDecision(0, "app.example.com", "/api", &http.Request{Header: http.Header{}})
+	block, _, _ := c.maintenanceDecision(0, "app.example.com", "/api", &http.Request{Header: http.Header{}})
 	if block {
 		t.Fatal("expected outside future per-host window to not block")
 	}
@@ -207,11 +227,11 @@ func TestMaintenanceDecision_NonMatchingHostNoBlock(t *testing.T) {
 	c := &core{
 		cfg: &Config{},
 		globalMaintenance: mustCompileGlobal(t, MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHost("app.example.com")),
 		}),
 		maintenanceByRule: []compiledRuleMaintenance{},
 	}
-	block, _ := c.maintenanceDecision(0, "other.example.com", "/api", &http.Request{Header: http.Header{}})
+	block, _, _ := c.maintenanceDecision(0, "other.example.com", "/api", &http.Request{Header: http.Header{}})
 	if block {
 		t.Fatal("expected non-matching host to pass through")
 	}
@@ -225,11 +245,12 @@ func TestMaintenanceDecision_RuleScopeAll(t *testing.T) {
 			mustCompileRuleMaintenance(t, service.Maintenance{
 				Enabled: true,
 				Scope:   service.MaintenanceScopeAll,
+				Window:  maintRuleWindow(),
 				Title:   "Rule maintenance",
 			}),
 		},
 	}
-	block, settings := c.maintenanceDecision(0, "any.example.com", "/api", &http.Request{Header: http.Header{}})
+	block, settings, _ := c.maintenanceDecision(0, "any.example.com", "/api", &http.Request{Header: http.Header{}})
 	if !block || settings.Title != "Rule maintenance" {
 		t.Fatalf("expected rule scope all block, got block=%v settings=%+v", block, settings)
 	}
@@ -243,16 +264,16 @@ func TestMaintenanceDecision_RuleScopeListed(t *testing.T) {
 			mustCompileRuleMaintenance(t, service.Maintenance{
 				Enabled: true,
 				Scope:   service.MaintenanceScopeListed,
-				Hosts:   hosts(service.MaintenanceHostEntry{Host: "legacy.example.com"}),
+				Hosts:   hosts(maintHost("legacy.example.com")),
 				Title:   "Legacy maintenance",
 			}),
 		},
 	}
-	block, settings := c.maintenanceDecision(0, "legacy.example.com", "/api", &http.Request{Header: http.Header{}})
+	block, settings, _ := c.maintenanceDecision(0, "legacy.example.com", "/api", &http.Request{Header: http.Header{}})
 	if !block || settings.Title != "Legacy maintenance" {
 		t.Fatalf("expected listed host block, got block=%v settings=%+v", block, settings)
 	}
-	block, _ = c.maintenanceDecision(0, "other.example.com", "/api", &http.Request{Header: http.Header{}})
+	block, _, _ = c.maintenanceDecision(0, "other.example.com", "/api", &http.Request{Header: http.Header{}})
 	if block {
 		t.Fatal("expected non-listed host to pass through")
 	}
@@ -262,7 +283,7 @@ func TestMaintenanceDecision_MergeSettingsRuleOverridesGlobal(t *testing.T) {
 	c := &core{
 		cfg: &Config{},
 		globalMaintenance: mustCompileGlobal(t, MaintenanceConfig{
-			Hosts:      hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts:      hosts(maintHost("app.example.com")),
 			Title:      "Global title",
 			RetryAfter: 60,
 		}),
@@ -270,12 +291,13 @@ func TestMaintenanceDecision_MergeSettingsRuleOverridesGlobal(t *testing.T) {
 			mustCompileRuleMaintenance(t, service.Maintenance{
 				Enabled:    true,
 				Scope:      service.MaintenanceScopeAll,
+				Window:     maintRuleWindow(),
 				Title:      "Rule title",
 				RetryAfter: 120,
 			}),
 		},
 	}
-	block, settings := c.maintenanceDecision(0, "app.example.com", "/api", &http.Request{Header: http.Header{}})
+	block, settings, _ := c.maintenanceDecision(0, "app.example.com", "/api", &http.Request{Header: http.Header{}})
 	if !block {
 		t.Fatal("expected block when global and rule both hit")
 	}
@@ -288,19 +310,19 @@ func TestMaintenanceDecision_GlobalOnlyUsesGlobalSettings(t *testing.T) {
 	c := &core{
 		cfg: &Config{},
 		globalMaintenance: mustCompileGlobal(t, MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHost("app.example.com")),
 			Title: "Global title",
 		}),
 		maintenanceByRule: []compiledRuleMaintenance{
 			mustCompileRuleMaintenance(t, service.Maintenance{
 				Enabled: true,
 				Scope:   service.MaintenanceScopeListed,
-				Hosts:   hosts(service.MaintenanceHostEntry{Host: "legacy.example.com"}),
+				Hosts:   hosts(maintHost("legacy.example.com")),
 				Title:   "Rule title",
 			}),
 		},
 	}
-	block, settings := c.maintenanceDecision(0, "app.example.com", "/api", &http.Request{Header: http.Header{}})
+	block, settings, _ := c.maintenanceDecision(0, "app.example.com", "/api", &http.Request{Header: http.Header{}})
 	if !block || settings.Title != "Global title" {
 		t.Fatalf("expected global settings when only global hits, got block=%v settings=%+v", block, settings)
 	}
@@ -310,18 +332,18 @@ func TestMaintenanceDecision_BypassPathInDecision(t *testing.T) {
 	c := &core{
 		cfg: &Config{},
 		globalMaintenance: mustCompileGlobal(t, MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHost("app.example.com")),
 			Bypass: service.MaintenanceBypass{
 				Paths: []string{"/healthz"},
 			},
 		}),
 		maintenanceByRule: []compiledRuleMaintenance{},
 	}
-	block, _ := c.maintenanceDecision(0, "app.example.com", "/healthz", &http.Request{Header: http.Header{}})
+	block, _, _ := c.maintenanceDecision(0, "app.example.com", "/healthz", &http.Request{Header: http.Header{}})
 	if block {
 		t.Fatal("expected bypass path to skip maintenance block")
 	}
-	block, _ = c.maintenanceDecision(0, "app.example.com", "/api", &http.Request{Header: http.Header{}})
+	block, _, _ = c.maintenanceDecision(0, "app.example.com", "/api", &http.Request{Header: http.Header{}})
 	if !block {
 		t.Fatal("expected non-bypass path to block")
 	}
@@ -331,7 +353,7 @@ func TestMaintenanceDecision_BypassHeaderInDecision(t *testing.T) {
 	c := &core{
 		cfg: &Config{},
 		globalMaintenance: mustCompileGlobal(t, MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHost("app.example.com")),
 			Bypass: service.MaintenanceBypass{
 				Header: service.MaintenanceBypassHeader{Name: "X-Maintenance-Bypass", Value: "secret"},
 			},
@@ -339,7 +361,7 @@ func TestMaintenanceDecision_BypassHeaderInDecision(t *testing.T) {
 		maintenanceByRule: []compiledRuleMaintenance{},
 	}
 	req := &http.Request{Header: http.Header{"X-Maintenance-Bypass": {"secret"}}}
-	block, _ := c.maintenanceDecision(0, "app.example.com", "/api", req)
+	block, _, _ := c.maintenanceDecision(0, "app.example.com", "/api", req)
 	if block {
 		t.Fatal("expected bypass header to skip maintenance block")
 	}
@@ -427,7 +449,7 @@ func TestMaintenanceDecision_BypassMergesGlobalAndRule(t *testing.T) {
 	c := &core{
 		cfg: &Config{},
 		globalMaintenance: mustCompileGlobal(t, MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHost("app.example.com")),
 			Bypass: service.MaintenanceBypass{
 				Paths: []string{"/healthz"},
 			},
@@ -436,6 +458,7 @@ func TestMaintenanceDecision_BypassMergesGlobalAndRule(t *testing.T) {
 			mustCompileRuleMaintenance(t, service.Maintenance{
 				Enabled: true,
 				Scope:   service.MaintenanceScopeAll,
+				Window:  maintRuleWindow(),
 				Bypass: service.MaintenanceBypass{
 					Header: service.MaintenanceBypassHeader{Name: "X-Bypass", Value: "yes"},
 				},
@@ -443,11 +466,11 @@ func TestMaintenanceDecision_BypassMergesGlobalAndRule(t *testing.T) {
 		},
 	}
 	req := &http.Request{Header: http.Header{"X-Bypass": {"yes"}}}
-	block, _ := c.maintenanceDecision(0, "app.example.com", "/api", req)
+	block, _, _ := c.maintenanceDecision(0, "app.example.com", "/api", req)
 	if block {
 		t.Fatal("expected merged rule header bypass")
 	}
-	block, _ = c.maintenanceDecision(0, "app.example.com", "/healthz", &http.Request{Header: http.Header{}})
+	block, _, _ = c.maintenanceDecision(0, "app.example.com", "/healthz", &http.Request{Header: http.Header{}})
 	if block {
 		t.Fatal("expected merged global path bypass")
 	}
@@ -468,6 +491,27 @@ func TestCompileIngressStatusPath_DefaultAndCustom(t *testing.T) {
 	}
 	if _, err := compileIngressStatusPath("/../secret"); err == nil {
 		t.Fatal("expected .. to fail")
+	}
+}
+
+func TestValidateServiceMaintenance_ScopeAllRequiresWindow(t *testing.T) {
+	err := validateServiceMaintenance(
+		service.Maintenance{Enabled: true, Scope: service.MaintenanceScopeAll},
+		backendTypeService,
+		"rules[0].backend.service",
+		true,
+	)
+	if err == nil || !strings.Contains(err.Error(), "maintenance.window") {
+		t.Fatalf("expected scope all window error, got %v", err)
+	}
+}
+
+func TestCompileMaintenanceHostList_RequiresWindow(t *testing.T) {
+	_, err := compileMaintenanceHostList(service.MaintenanceHostList{
+		{Host: "app.example.com"},
+	}, "maintenance.hosts")
+	if err == nil || !strings.Contains(err.Error(), "window") {
+		t.Fatalf("expected window required, got %v", err)
 	}
 }
 
@@ -526,20 +570,55 @@ func TestMergeMaintenanceSettings_RuleResponseHeaderOverride(t *testing.T) {
 	}
 }
 
+func TestPickEffectiveMaintenanceWindow_RuleOverridesGlobal(t *testing.T) {
+	ruleWin := compiledMaintenanceWindow{configured: true, start: mustParseMaintTime(t, "2026-06-01T00:00:00Z"), end: mustParseMaintTime(t, "2026-06-01T06:00:00Z")}
+	globalWin := compiledMaintenanceWindow{configured: true, end: mustParseMaintTime(t, "2026-12-31T23:59:59Z")}
+	got := pickEffectiveMaintenanceWindow(true, ruleWin, true, globalWin)
+	if !got.configured || !got.end.Equal(ruleWin.end) {
+		t.Fatalf("expected rule window, got %+v", got)
+	}
+	got = pickEffectiveMaintenanceWindow(true, compiledMaintenanceWindow{}, true, globalWin)
+	if !got.configured || !got.end.Equal(globalWin.end) {
+		t.Fatalf("expected global window for scope:all rule, got %+v", got)
+	}
+}
+
+func mustParseMaintTime(t *testing.T, raw string) time.Time {
+	t.Helper()
+	tm, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tm
+}
+
+func TestMaintenanceWindowHeaderValues(t *testing.T) {
+	start := mustParseMaintTime(t, "2026-05-30T02:00:00+08:00")
+	end := mustParseMaintTime(t, "2026-05-30T06:00:00+08:00")
+	from, until := maintenanceWindowHeaderValues(compiledMaintenanceWindow{configured: true, start: start, end: end})
+	if from != "2026-05-30T02:00:00+08:00" || until != "2026-05-30T06:00:00+08:00" {
+		t.Fatalf("unexpected headers: from=%q until=%q", from, until)
+	}
+	from, until = maintenanceWindowHeaderValues(compiledMaintenanceWindow{})
+	if from != "" || until != "" {
+		t.Fatalf("expected empty for unconfigured window, got from=%q until=%q", from, until)
+	}
+}
+
 func TestMaintenanceActiveForHost_Global(t *testing.T) {
 	c := &core{
 		cfg: &Config{},
 		globalMaintenance: mustCompileGlobal(t, MaintenanceConfig{
-			Hosts: hosts(service.MaintenanceHostEntry{Host: "app.example.com"}),
+			Hosts: hosts(maintHost("app.example.com")),
 			Title: "Global maintenance",
 		}),
 		maintenanceByRule: []compiledRuleMaintenance{},
 	}
-	active, settings := c.maintenanceActiveForHost(-1, "app.example.com", time.Now())
+	active, settings, _ := c.maintenanceActiveForHost(-1, "app.example.com", time.Now())
 	if !active || settings.Title != "Global maintenance" {
 		t.Fatalf("expected active global maintenance, got active=%v settings=%+v", active, settings)
 	}
-	active, _ = c.maintenanceActiveForHost(-1, "other.example.com", time.Now())
+	active, _, _ = c.maintenanceActiveForHost(-1, "other.example.com", time.Now())
 	if active {
 		t.Fatal("expected inactive for non-listed host")
 	}

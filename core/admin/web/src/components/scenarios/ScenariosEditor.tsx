@@ -12,6 +12,7 @@ import {
   overlaySummaryKeys,
   patchModuleDocScenarios,
   scenariosFromModuleDoc,
+  validateScenarioMaintenanceOverlay,
   validateScenariosFormState,
   type ScenarioItemForm,
   type ScenariosFormState,
@@ -106,6 +107,12 @@ export const ScenariosEditor = forwardRef<ScenariosEditorHandle, Props>(function
       active: state.active,
       items: nextItems,
     }
+    const maintErr = validateScenarioMaintenanceOverlay(resolved)
+    if (maintErr) {
+      onNotify?.(maintErr, 'error')
+      return
+    }
+
     const validationErr = validateScenariosFormState(nextState)
     if (validationErr) {
       onNotify?.(validationErr, 'error')

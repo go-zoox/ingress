@@ -51,6 +51,7 @@ export function MaintenanceHostListEditor({
   const save = () => {
     const host = draft.host.trim()
     if (!host) return
+    if (!draft.window_start.trim() || !draft.window_end.trim()) return
     if (!isDateTimeRangeOrdered(draft.window_start, draft.window_end)) return
     const next = [...items]
     const row: MaintenanceHostFormEntry = {
@@ -126,6 +127,8 @@ export function MaintenanceHostListEditor({
         onSave={save}
         disableSave={
           !draft.host.trim() ||
+          !draft.window_start.trim() ||
+          !draft.window_end.trim() ||
           !isDateTimeRangeOrdered(draft.window_start, draft.window_end)
         }
       >
@@ -139,7 +142,7 @@ export function MaintenanceHostListEditor({
           />
           <DateTimeRangeField
             label="维护时间 window"
-            hint="可选；未设置表示该域名匹配后始终维护"
+            hint="必填；维护开始与结束时间（RFC3339）"
             start={draft.window_start}
             end={draft.window_end}
             showDisplayHint

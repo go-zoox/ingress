@@ -7,7 +7,7 @@ const (
 	MaintenanceScopeListed = "listed"
 )
 
-// MaintenanceWindow limits maintenance to a time range (RFC3339). Empty start/end means unbounded on that side.
+// MaintenanceWindow limits maintenance to a time range (RFC3339). Both start and end are required when maintenance is enabled.
 type MaintenanceWindow struct {
 	Start string `config:"start"`
 	End   string `config:"end"`
@@ -23,15 +23,17 @@ type Maintenance struct {
 	Enabled bool `config:"enabled"`
 	// Scope: all (default) applies to every host matched by the rule; listed applies only to maintenance.hosts on the rule.
 	Scope string `config:"scope,default=all"`
-	// Hosts is required when scope is listed; each entry may set its own window.
+	// Hosts is required when scope is listed; each entry must set hosts[].window (start and end).
 	Hosts MaintenanceHostList `config:"hosts"`
+	// Window is required when scope is all and maintenance is enabled.
+	Window MaintenanceWindow `config:"window"`
 	// RetryAfter sets Retry-After response header (seconds).
 	RetryAfter int64 `config:"retry_after"`
 	// Title overrides the built-in 503 heading when non-empty.
 	Title string `config:"title"`
 	// Subtitle overrides the built-in 503 message when non-empty.
 	Subtitle string `config:"subtitle"`
-	// ResponseHeader is sent on maintenance 503 and /_/ingress/status when active (defaults: X-Ingress-Maintenance / true).
+	// ResponseHeader is sent on maintenance 503 and /_/ingress/status when active (defaults: X-Ingress-Maintenance / 1).
 	ResponseHeader MaintenanceResponseHeader `config:"response_header"`
 	Bypass         MaintenanceBypass         `config:"bypass"`
 }

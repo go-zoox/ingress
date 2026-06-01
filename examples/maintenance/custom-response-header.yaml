@@ -1,10 +1,13 @@
 version: v1
 port: 8080
 
-# Custom maintenance response header (default is X-Ingress-Maintenance: true).
+# Custom maintenance response header (default is X-Ingress-Maintenance: 1).
 maintenance:
   hosts:
     - host: app.example.com
+      window:
+        start: "2026-01-01T00:00:00Z"
+        end: "2026-12-31T23:59:59Z"
   title: Planned maintenance
   response_header:
     name: X-Custom-Maintenance

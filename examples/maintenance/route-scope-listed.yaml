@@ -15,6 +15,9 @@ rules:
           scope: listed
           hosts:
             - host: legacy.example.com
+              window:
+                start: "2026-12-01T00:00:00Z"
+                end: "2026-12-01T06:00:00Z"
             - host: beta.example.com
               window:
                 start: "2026-12-01T00:00:00Z"

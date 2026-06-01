@@ -11,6 +11,7 @@ import {
   globalMaintenanceConfigured,
   maintenanceHostCount,
   patchGlobalMaintenance,
+  validateGlobalMaintenanceForm,
 } from '../lib/maintenance'
 import { parseModuleDoc, stringifyModuleDoc } from '../lib/ingressModuleForms'
 
@@ -71,7 +72,14 @@ export function MaintenancePage() {
   const globalHostCount = maintenanceHostCount(form)
   const globalActive = globalHostCount > 0
 
+  const validationErr = useMemo(() => validateGlobalMaintenanceForm(form), [form])
+
   const save = async () => {
+    if (validationErr) {
+      setErr(validationErr)
+      show(validationErr, 'error')
+      return
+    }
     setSaving(true)
     setErr('')
     try {
@@ -93,6 +101,11 @@ export function MaintenancePage() {
   }
 
   const publish = async () => {
+    if (validationErr) {
+      setErr(validationErr)
+      show(validationErr, 'error')
+      return
+    }
     setSaving(true)
     setErr('')
     try {
@@ -155,13 +168,18 @@ export function MaintenancePage() {
           <h2>全局维护 maintenance</h2>
           <div className="toolbar">
             {dirty ? <span className="config-draft-badge">未保存</span> : null}
-            <button type="button" className="btn btn-sm" disabled={!dirty || saving} onClick={() => void save()}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={!dirty || saving || !!validationErr}
+              onClick={() => void save()}
+            >
               保存
             </button>
             <button
               type="button"
               className="btn btn-sm btn-primary"
-              disabled={!dirty || saving}
+              disabled={!dirty || saving || !!validationErr}
               onClick={() => void publish()}
             >
               发布 reload
@@ -174,6 +192,11 @@ export function MaintenancePage() {
           ) : (
             <GlobalMaintenanceFormFields form={form} onChange={setForm} formRevision={savedYAML} />
           )}
+          {!loading && validationErr ? (
+            <p className="validate-err config-validate-banner-text" style={{ marginTop: '1rem' }}>
+              {validationErr}
+            </p>
+          ) : null}
           {!loading && !globalMaintenanceConfigured(form) ? (
             <p className="form-hint" style={{ marginTop: '1rem' }}>
               未配置任何全局维护字段。添加 <code>maintenance.hosts</code> 后，匹配路由且 Host 命中的请求会返回

@@ -63,18 +63,48 @@ func (l compiledMaintenanceHostList) Len() int {
 }
 
 func (l compiledMaintenanceHostList) MatchesActive(hostname string, now time.Time) bool {
+	ok, _ := l.MatchActive(hostname, now)
+	return ok
+}
+
+// MatchActive returns whether hostname matches an active host entry and that entry's window.
+func (l compiledMaintenanceHostList) MatchActive(hostname string, now time.Time) (bool, compiledMaintenanceWindow) {
 	for _, e := range l.entries {
 		if e.host.Matches(hostname) && e.window.activeAt(now) {
-			return true
+			return true, e.window
 		}
 	}
-	return false
+	return false, compiledMaintenanceWindow{}
+}
+
+func pickEffectiveMaintenanceWindow(ruleHit bool, ruleWin compiledMaintenanceWindow, globalHit bool, globalWin compiledMaintenanceWindow) compiledMaintenanceWindow {
+	if ruleHit && ruleWin.configured {
+		return ruleWin
+	}
+	if globalHit && globalWin.configured {
+		return globalWin
+	}
+	return compiledMaintenanceWindow{}
+}
+
+func maintenanceWindowHeaderValues(w compiledMaintenanceWindow) (from, until string) {
+	if !w.configured {
+		return "", ""
+	}
+	if !w.start.IsZero() {
+		from = w.start.Format(time.RFC3339)
+	}
+	if !w.end.IsZero() {
+		until = w.end.Format(time.RFC3339)
+	}
+	return from, until
 }
 
 type compiledRuleMaintenance struct {
 	enabled  bool
 	scopeAll bool
 	hosts    compiledMaintenanceHostList
+	window   compiledMaintenanceWindow
 	settings compiledMaintenanceSettings
 }
 
@@ -187,6 +217,9 @@ func compileServiceMaintenance(m service.Maintenance, loc string) (compiledRuleM
 		return out, fmt.Errorf("%s.maintenance.scope %q is invalid (all or listed)", loc, m.Scope)
 	}
 	if m.Enabled && scope == service.MaintenanceScopeListed {
+		if m.Window.Configured() {
+			return out, fmt.Errorf("%s.maintenance.window must not be set when scope is listed (use hosts[].window)", loc)
+		}
 		if len(m.Hosts) == 0 {
 			return out, fmt.Errorf("%s.maintenance.hosts is required when scope is listed", loc)
 		}
@@ -196,8 +229,18 @@ func compileServiceMaintenance(m service.Maintenance, loc string) (compiledRuleM
 		}
 		out.hosts = hosts
 	}
-	if m.Enabled && scope == service.MaintenanceScopeAll && len(m.Hosts) > 0 {
-		return out, fmt.Errorf("%s.maintenance.hosts must not be set when scope is all", loc)
+	if m.Enabled && scope == service.MaintenanceScopeAll {
+		if len(m.Hosts) > 0 {
+			return out, fmt.Errorf("%s.maintenance.hosts must not be set when scope is all", loc)
+		}
+		if err := validateMaintenanceWindowRequired(m.Window, loc+".maintenance.window"); err != nil {
+			return out, err
+		}
+		win, err := compileMaintenanceWindow(m.Window, loc+".maintenance.window")
+		if err != nil {
+			return out, err
+		}
+		out.window = win
 	}
 	out.scopeAll = scope == service.MaintenanceScopeAll
 
@@ -210,6 +253,13 @@ func compileServiceMaintenance(m service.Maintenance, loc string) (compiledRuleM
 	return out, nil
 }
 
+func validateMaintenanceWindowRequired(w service.MaintenanceWindow, loc string) error {
+	if strings.TrimSpace(w.Start) == "" || strings.TrimSpace(w.End) == "" {
+		return fmt.Errorf("%s requires start and end (RFC3339)", loc)
+	}
+	return nil
+}
+
 func compileMaintenanceHostList(entries service.MaintenanceHostList, loc string) (compiledMaintenanceHostList, error) {
 	out := compiledMaintenanceHostList{}
 	for i, entry := range entries {
@@ -217,11 +267,15 @@ func compileMaintenanceHostList(entries service.MaintenanceHostList, loc string)
 		if pattern == "" {
 			return out, fmt.Errorf("%s[%d].host is required", loc, i)
 		}
+		winLoc := fmt.Sprintf("%s[%d].window", loc, i)
+		if err := validateMaintenanceWindowRequired(entry.Window, winLoc); err != nil {
+			return out, err
+		}
 		host, err := waf.CompileSingleHostPattern(pattern)
 		if err != nil {
 			return out, fmt.Errorf("%s[%d].host: %w", loc, i, err)
 		}
-		win, err := compileMaintenanceWindow(entry.Window, fmt.Sprintf("%s[%d].window", loc, i))
+		win, err := compileMaintenanceWindow(entry.Window, winLoc)
 		if err != nil {
 			return out, err
 		}
@@ -320,6 +374,17 @@ func applyMaintenanceResponseHeader(ctx *zoox.Context, h compiledMaintenanceResp
 	ctx.SetHeader(h.name, h.value)
 }
 
+func applyMaintenanceResponseHeaders(ctx *zoox.Context, h compiledMaintenanceResponseHeader, window compiledMaintenanceWindow) {
+	applyMaintenanceResponseHeader(ctx, h)
+	from, until := maintenanceWindowHeaderValues(window)
+	if from != "" {
+		ctx.SetHeader(headerXIngressMaintenanceFrom, from)
+	}
+	if until != "" {
+		ctx.SetHeader(headerXIngressMaintenanceUntil, until)
+	}
+}
+
 func compileMaintenanceBypass(bypass service.MaintenanceBypass, loc string) (compiledMaintenanceBypass, error) {
 	out := compiledMaintenanceBypass{}
 	for _, raw := range bypass.AllowIPs {
@@ -370,8 +435,9 @@ func validateServiceMaintenance(m service.Maintenance, backendType, loc string, 
 	return err
 }
 
-func (c *core) maintenanceMatch(ruleIdx int, hostname string, now time.Time) (globalHit, ruleHit bool, settings compiledMaintenanceSettings) {
-	globalHit = c.globalMaintenance.hosts.MatchesActive(hostname, now)
+func (c *core) maintenanceMatch(ruleIdx int, hostname string, now time.Time) (globalHit, ruleHit bool, settings compiledMaintenanceSettings, window compiledMaintenanceWindow) {
+	var globalWin, ruleWin compiledMaintenanceWindow
+	globalHit, globalWin = c.globalMaintenance.hosts.MatchActive(hostname, now)
 
 	var ruleMaint compiledRuleMaintenance
 	if ruleIdx >= 0 && ruleIdx < len(c.maintenanceByRule) {
@@ -379,25 +445,29 @@ func (c *core) maintenanceMatch(ruleIdx int, hostname string, now time.Time) (gl
 		if ruleMaint.enabled {
 			if ruleMaint.scopeAll {
 				ruleHit = true
-			} else if ruleMaint.hosts.MatchesActive(hostname, now) {
-				ruleHit = true
+				ruleWin = ruleMaint.window
+			} else {
+				var matched bool
+				matched, ruleWin = ruleMaint.hosts.MatchActive(hostname, now)
+				ruleHit = matched
 			}
 		}
 	}
 
 	settings = mergeMaintenanceSettings(c.globalMaintenance.settings, ruleMaint.settings, ruleHit)
-	return globalHit, ruleHit, settings
+	window = pickEffectiveMaintenanceWindow(ruleHit, ruleWin, globalHit, globalWin)
+	return globalHit, ruleHit, settings, window
 }
 
-func (c *core) maintenanceActiveForHost(ruleIdx int, hostname string, now time.Time) (active bool, settings compiledMaintenanceSettings) {
-	globalHit, ruleHit, settings := c.maintenanceMatch(ruleIdx, hostname, now)
-	return globalHit || ruleHit, settings
+func (c *core) maintenanceActiveForHost(ruleIdx int, hostname string, now time.Time) (active bool, settings compiledMaintenanceSettings, window compiledMaintenanceWindow) {
+	globalHit, ruleHit, settings, window := c.maintenanceMatch(ruleIdx, hostname, now)
+	return globalHit || ruleHit, settings, window
 }
 
-func (c *core) maintenanceDecision(ruleIdx int, hostname, path string, req *http.Request) (block bool, settings compiledMaintenanceSettings) {
-	globalHit, ruleHit, settings := c.maintenanceMatch(ruleIdx, hostname, time.Now())
+func (c *core) maintenanceDecision(ruleIdx int, hostname, path string, req *http.Request) (block bool, settings compiledMaintenanceSettings, window compiledMaintenanceWindow) {
+	globalHit, ruleHit, settings, window := c.maintenanceMatch(ruleIdx, hostname, time.Now())
 	if !globalHit && !ruleHit {
-		return false, compiledMaintenanceSettings{}
+		return false, compiledMaintenanceSettings{}, compiledMaintenanceWindow{}
 	}
 
 	var ruleMaint compiledRuleMaintenance
@@ -406,10 +476,10 @@ func (c *core) maintenanceDecision(ruleIdx int, hostname, path string, req *http
 	}
 	bypass := mergeMaintenanceBypass(c.globalMaintenance.settings.bypass, ruleMaint.settings.bypass)
 	if maintenanceBypassAllows(bypass, req, path) {
-		return false, compiledMaintenanceSettings{}
+		return false, compiledMaintenanceSettings{}, compiledMaintenanceWindow{}
 	}
 
-	return true, settings
+	return true, settings, window
 }
 
 func mergeMaintenanceBypass(a, b compiledMaintenanceBypass) compiledMaintenanceBypass {
@@ -474,9 +544,9 @@ func maintenanceBypassPathMatches(patterns []maintenanceBypassPath, path string)
 	return false
 }
 
-func (c *core) writeMaintenanceResponse(ctx *zoox.Context, secProf *security.Profile, settings compiledMaintenanceSettings, detail ErrorPageDetail) {
+func (c *core) writeMaintenanceResponse(ctx *zoox.Context, secProf *security.Profile, settings compiledMaintenanceSettings, window compiledMaintenanceWindow, detail ErrorPageDetail) {
 	applySecurityHeaders(ctx, secProf)
-	applyMaintenanceResponseHeader(ctx, settings.responseHeader)
+	applyMaintenanceResponseHeaders(ctx, settings.responseHeader, window)
 	if settings.RetryAfter > 0 {
 		ctx.SetHeader("Retry-After", strconv.FormatInt(settings.RetryAfter, 10))
 	}
@@ -513,6 +583,8 @@ type ingressStatusBody struct {
 	RetryAfter             int64  `json:"retry_after,omitempty"`
 	MaintenanceHeaderName  string `json:"maintenance_header_name,omitempty"`
 	MaintenanceHeaderValue string `json:"maintenance_header_value,omitempty"`
+	MaintenanceFrom        string `json:"maintenance_from,omitempty"`
+	MaintenanceUntil       string `json:"maintenance_until,omitempty"`
 }
 
 func (c *core) writeIngressStatus(ctx *zoox.Context) {
@@ -522,17 +594,17 @@ func (c *core) writeIngressStatus(ctx *zoox.Context) {
 		ruleIdx = matcher.ruleIndex
 	}
 
-	active, settings := c.maintenanceActiveForHost(ruleIdx, hostname, time.Now())
+	active, settings, window := c.maintenanceActiveForHost(ruleIdx, hostname, time.Now())
 	status := http.StatusOK
 	if active {
 		status = http.StatusServiceUnavailable
-		applyMaintenanceResponseHeader(ctx, settings.responseHeader)
+		applyMaintenanceResponseHeaders(ctx, settings.responseHeader, window)
 		if settings.RetryAfter > 0 {
 			ctx.SetHeader("Retry-After", strconv.FormatInt(settings.RetryAfter, 10))
 		}
 	}
 
-	raw, err := c.renderIngressStatusBody(active, settings, hostname)
+	raw, err := c.renderIngressStatusBody(active, settings, window, hostname)
 	if err != nil {
 		ctx.SetHeader("Content-Type", errorPageContentTypeJSON)
 		ctx.String(http.StatusInternalServerError, `{"status":"error","message":"failed to encode status"}`)
