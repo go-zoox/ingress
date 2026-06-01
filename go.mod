@@ -18,10 +18,10 @@ require (
 	github.com/go-zoox/kv v1.5.9
 	github.com/go-zoox/logger v1.6.4
 	github.com/go-zoox/oauth2 v1.9.0
-	github.com/go-zoox/proxy v1.6.2
+	github.com/go-zoox/proxy v1.7.1
 	github.com/go-zoox/ratelimit v1.2.1
 	github.com/go-zoox/websocket v1.3.5
-	github.com/go-zoox/zoox v1.18.10
+	github.com/go-zoox/zoox v1.18.11
 	github.com/google/uuid v1.6.0
 	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/traefik/yaegi v0.16.1

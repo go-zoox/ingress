@@ -222,8 +222,8 @@ github.com/go-zoox/mq v1.0.1/go.mod h1:0Zhgww1wcFNC37NJZjtumai03MvBAZuQ4VhezcAiF
 github.com/go-zoox/oauth2 v1.9.0 h1:mHL9jQjih6AQ7CLM7/mXMEwR5kaPYP0fC6C+MdXdd6w=
 github.com/go-zoox/oauth2 v1.9.0/go.mod h1:Rdd2kCctAACQ+NOu+WsHFOwFhEVbP+AUit5tSaLZglg=
 github.com/go-zoox/proxy v1.2.3/go.mod h1:T+gbngAtIgvambbYibAbzrjwdu8j5pduJdA2j6RYi94=
-github.com/go-zoox/proxy v1.6.2 h1:/CsjsEJkzEkiijpYPoJCod7GtCLqONuXvgK7mkoKQgI=
-github.com/go-zoox/proxy v1.6.2/go.mod h1:yKa83UAdXic0SqUQyQaf7vbTDkqujmVC9+HTqnpykyE=
+github.com/go-zoox/proxy v1.7.1 h1:qPgVEQ2z5eTGvyzFD2EGWzQpB47HNora7T3JdWjzMbo=
+github.com/go-zoox/proxy v1.7.1/go.mod h1:yKa83UAdXic0SqUQyQaf7vbTDkqujmVC9+HTqnpykyE=
 github.com/go-zoox/pubsub v1.2.3 h1:doDwmt3KUR+i4sI+Jrqm09zrQBZoH9CFyRqlGgkN02k=
 github.com/go-zoox/pubsub v1.2.3/go.mod h1:LWX0NAg80hkeGdZf7PJOEGnyN6CXooCxpIlh2MxESDo=
 github.com/go-zoox/random v1.0.0/go.mod h1:W+PTQiInxaCngiXpSvycucAKvu1tE/tKlZ9kaMp2/Ys=
@@ -249,8 +249,8 @@ github.com/go-zoox/uuid v0.0.1/go.mod h1:0/F4LdfLqFdyqOf7aXoiYXRkXHU324JQ5DZEytX
 github.com/go-zoox/websocket v1.3.5 h1:+puemx88m6Phi9Q4FzaZcqaElK5iTx0m4okFpyxKE+k=
 github.com/go-zoox/websocket v1.3.5/go.mod h1:rIYK7JAkzehFe0c8Ozw+WoUuM24uKV7Viyksi+mYnlo=
 github.com/go-zoox/zoox v1.2.19/go.mod h1:xk3S3L58ugJIDyuZMCYrj3qIGLSxddbkARwTRkpxPVE=
-github.com/go-zoox/zoox v1.18.10 h1:S6IpnIkgEcI3EHKIEorqP8RYu3m+FaXOI5dipc9qh04=
-github.com/go-zoox/zoox v1.18.10/go.mod h1:xoQdD02sEQ+KslpYDvA6/5AVDscj7fdcc/G15dkPSAE=
+github.com/go-zoox/zoox v1.18.11 h1:Ik60ezf4HHlaMRdfv8WUJmy2y8AGtfxiDs25HVyJeGc=
+github.com/go-zoox/zoox v1.18.11/go.mod h1:+3B3DBfDrRCDRQuekRJNS1Mvi7V+PVFcDNzfVauNRyQ=
 github.com/goccy/go-yaml v1.9.5/go.mod h1:U/jl18uSupI5rdI2jmuCswEA2htH9eXfferR3KfscvA=
 github.com/goccy/go-yaml v1.19.2 h1:PmFC1S6h8ljIz6gMRBopkjP1TVT7xuwrButHID66PoM=
 github.com/goccy/go-yaml v1.19.2/go.mod h1:XBurs7gK8ATbW4ZPGKgcbrY1Br56PdM69F7LkFRi1kA=
