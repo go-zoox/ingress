@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RBACPermissionRow } from '../api/client'
-import { groupPermissionsByMenu } from './rbacMenuCatalog'
+import { filterPermissionCatalog, groupPermissionsByMenu } from './rbacMenuCatalog'
 
 function perm(partial: Partial<RBACPermissionRow> & Pick<RBACPermissionRow, 'id' | 'code' | 'name'>): RBACPermissionRow {
   return {
@@ -47,5 +47,18 @@ describe('groupPermissionsByMenu', () => {
     ])
     expect(view.unassigned).toHaveLength(1)
     expect(view.unassigned[0]?.code).toBe('custom:foo')
+  })
+})
+
+describe('filterPermissionCatalog', () => {
+  it('filters by permission code and menu label', () => {
+    const catalog = groupPermissionsByMenu([
+      perm({ id: 1, code: 'menu:overview', name: '菜单：总览', group: '菜单' }),
+      perm({ id: 2, code: 'overview:read', name: '查看总览', group: '监控' }),
+      perm({ id: 3, code: 'menu:logs', name: '菜单：日志', group: '菜单' }),
+    ])
+    const filtered = filterPermissionCatalog(catalog, 'overview')
+    const codes = filtered.navGroups.flatMap((g) => g.menus.flatMap((m) => m.permissions.map((p) => p.code)))
+    expect(codes).toEqual(['menu:overview', 'overview:read'])
   })
 })

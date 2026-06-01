@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
 import { Drawer } from '../../components/Drawer'
 import { FormField, FormGrid, FormTextareaField } from '../../components/Form'
+import { EllipsisTooltip } from '../../components/EllipsisTooltip'
 import { PageHeader } from '../../components/PageHeader'
 import { ToastContainer, useToast } from '../../components/Toast'
-import { groupPermissionsByMenu } from '../../lib/rbacMenuCatalog'
+import { groupPermissionsByMenu, type RbacNavGroupPermissionView } from '../../lib/rbacMenuCatalog'
 import { api, type RBACPermissionInput, type RBACPermissionRow } from '../../api/client'
 
 type PermissionDraft = {
@@ -21,7 +22,102 @@ const emptyDraft = (): PermissionDraft => ({
   description: '',
 })
 
-function PermissionTable({
+function PermissionTableHead() {
+  return (
+    <thead>
+      <tr>
+        <th className="col-name">名称</th>
+        <th className="col-code">标识</th>
+        <th className="col-desc">描述</th>
+        <th className="col-type">类型</th>
+        <th className="col-actions">操作</th>
+      </tr>
+    </thead>
+  )
+}
+
+function PermissionRowCells({
+  perm,
+  onEdit,
+  onRemove,
+}: {
+  perm: RBACPermissionRow
+  onEdit: (perm: RBACPermissionRow) => void
+  onRemove: (perm: RBACPermissionRow) => void
+}) {
+  return (
+    <tr>
+      <td className="col-name">
+        <EllipsisTooltip text={perm.name} className="rbac-cell-ellipsis" />
+      </td>
+      <td className="col-code">
+        <EllipsisTooltip text={perm.code} className="rbac-cell-ellipsis rbac-cell-code" />
+      </td>
+      <td className="col-desc">
+        <EllipsisTooltip text={perm.description ?? ''} className="rbac-cell-ellipsis" />
+      </td>
+      <td className="col-type">{perm.builtin ? '内置' : '自定义'}</td>
+      <td className="col-actions">
+        <div className="table-actions">
+          {!perm.builtin ? (
+            <>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => onEdit(perm)}>
+                编辑
+              </button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => onRemove(perm)}>
+                删除
+              </button>
+            </>
+          ) : (
+            <span className="chart-hint">只读</span>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function NavGroupPermissionTable({
+  section,
+  loading,
+  onEdit,
+  onRemove,
+}: {
+  section: RbacNavGroupPermissionView
+  loading: boolean
+  onEdit: (perm: RBACPermissionRow) => void
+  onRemove: (perm: RBACPermissionRow) => void
+}) {
+  if (loading) {
+    return <p className="empty-hint">加载中…</p>
+  }
+  return (
+    <table className="data rbac-data-table rbac-permissions-table">
+      <PermissionTableHead />
+      <tbody>
+        {section.menus.map(({ menu, permissions: menuPerms }) => (
+          <Fragment key={menu.key}>
+            <tr className="rbac-permissions-menu-row">
+              <td colSpan={5}>
+                <div className="rbac-permissions-menu-head rbac-permissions-menu-head--inline">
+                  <span className="rbac-permissions-menu-label">{menu.label}</span>
+                  <span className="chart-hint">
+                    <code>menu:{menu.key}</code> · {menuPerms.length} 项
+                  </span>
+                </div>
+              </td>
+            </tr>
+            {menuPerms.map((perm) => (
+              <PermissionRowCells key={perm.id} perm={perm} onEdit={onEdit} onRemove={onRemove} />
+            ))}
+          </Fragment>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function FlatPermissionTable({
   rows,
   loading,
   onEdit,
@@ -39,40 +135,11 @@ function PermissionTable({
     return <p className="empty-hint">暂无权限</p>
   }
   return (
-    <table className="data">
-      <thead>
-        <tr>
-          <th>名称</th>
-          <th>标识</th>
-          <th>描述</th>
-          <th>类型</th>
-          <th>操作</th>
-        </tr>
-      </thead>
+    <table className="data rbac-data-table rbac-permissions-table">
+      <PermissionTableHead />
       <tbody>
         {rows.map((perm) => (
-          <tr key={perm.id}>
-            <td>{perm.name}</td>
-            <td><code>{perm.code}</code></td>
-            <td>{perm.description || '—'}</td>
-            <td>{perm.builtin ? '内置' : '自定义'}</td>
-            <td>
-              <div className="table-actions">
-                {!perm.builtin ? (
-                  <>
-                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => onEdit(perm)}>
-                      编辑
-                    </button>
-                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => onRemove(perm)}>
-                      删除
-                    </button>
-                  </>
-                ) : (
-                  <span className="chart-hint">只读</span>
-                )}
-              </div>
-            </td>
-          </tr>
+          <PermissionRowCells key={perm.id} perm={perm} onEdit={onEdit} onRemove={onRemove} />
         ))}
       </tbody>
     </table>
@@ -189,25 +256,13 @@ export function RbacPermissionsPage() {
               <h2>{section.navGroup}</h2>
               <span className="chart-hint">{sectionCount} 项权限 · {section.menus.length} 个菜单</span>
             </div>
-            <div className="panel-body rbac-permissions-menu-stack">
-              {section.menus.map(({ menu, permissions: menuPerms }) => (
-                <section key={menu.key} className="rbac-permissions-menu-section">
-                  <div className="rbac-permissions-menu-head">
-                    <h3>{menu.label}</h3>
-                    <span className="chart-hint">
-                      <code>menu:{menu.key}</code> · {menuPerms.length} 项
-                    </span>
-                  </div>
-                  <div className="panel-table-wrap">
-                    <PermissionTable
-                      rows={menuPerms}
-                      loading={loading}
-                      onEdit={openEdit}
-                      onRemove={removePermission}
-                    />
-                  </div>
-                </section>
-              ))}
+            <div className="panel-body panel-table-wrap">
+              <NavGroupPermissionTable
+                section={section}
+                loading={loading}
+                onEdit={openEdit}
+                onRemove={removePermission}
+              />
             </div>
           </div>
         )
@@ -220,7 +275,7 @@ export function RbacPermissionsPage() {
             <span className="chart-hint">{catalog.unassigned.length} 项</span>
           </div>
           <div className="panel-body panel-table-wrap">
-            <PermissionTable
+            <FlatPermissionTable
               rows={catalog.unassigned}
               loading={loading}
               onEdit={openEdit}

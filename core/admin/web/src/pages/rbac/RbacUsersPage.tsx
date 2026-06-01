@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
 import { Drawer } from '../../components/Drawer'
 import { FormCheckbox, FormField, FormGrid } from '../../components/Form'
+import { EllipsisTooltip } from '../../components/EllipsisTooltip'
 import { PageHeader } from '../../components/PageHeader'
 import { ToastContainer, useToast } from '../../components/Toast'
 import { api, type RBACRoleRow, type RBACUserInput, type RBACUserRow } from '../../api/client'
@@ -172,36 +173,47 @@ export function RbacUsersPage() {
           ) : users.length === 0 ? (
             <p className="empty-hint">暂无用户</p>
           ) : (
-            <table className="data">
+            <table className="data rbac-data-table">
               <thead>
                 <tr>
-                  <th>用户名</th>
-                  <th>显示名</th>
-                  <th>邮箱</th>
-                  <th>角色</th>
-                  <th>状态</th>
-                  <th>类型</th>
-                  <th>操作</th>
+                  <th className="col-id">ID</th>
+                  <th className="col-name">名称</th>
+                  <th className="col-code">标识</th>
+                  <th className="col-email">邮箱</th>
+                  <th className="col-roles">角色</th>
+                  <th className="col-status">状态</th>
+                  <th className="col-type">类型</th>
+                  <th className="col-actions">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {users.map((user) => {
+                  const roleLabels =
+                    user.role_ids.length === 0
+                      ? ''
+                      : user.role_ids.map((id) => roleMap.get(id) ?? `#${id}`).join('、')
+                  return (
                   <tr key={user.id}>
-                    <td><code>{user.username}</code></td>
-                    <td>{user.display_name}</td>
-                    <td>{user.email || '—'}</td>
-                    <td>
-                      {user.role_ids.length === 0
-                        ? '—'
-                        : user.role_ids.map((id) => roleMap.get(id) ?? `#${id}`).join('、')}
+                    <td className="col-id">{user.id}</td>
+                    <td className="col-name">
+                      <EllipsisTooltip text={user.display_name} className="rbac-cell-ellipsis" />
                     </td>
-                    <td>
+                    <td className="col-code">
+                      <EllipsisTooltip text={user.username} className="rbac-cell-ellipsis rbac-cell-code" />
+                    </td>
+                    <td className="col-email">
+                      <EllipsisTooltip text={user.email ?? ''} className="rbac-cell-ellipsis" />
+                    </td>
+                    <td className="col-roles">
+                      <EllipsisTooltip text={roleLabels} className="rbac-cell-ellipsis" />
+                    </td>
+                    <td className="col-status">
                       <span className={`badge ${user.enabled ? 'badge-exact' : 'badge-block'}`}>
                         {user.enabled ? '启用' : '禁用'}
                       </span>
                     </td>
-                    <td>{user.builtin ? '内置' : '自定义'}</td>
-                    <td>
+                    <td className="col-type">{user.builtin ? '内置' : '自定义'}</td>
+                    <td className="col-actions">
                       <div className="table-actions">
                         <button type="button" className="btn btn-sm btn-ghost" onClick={() => openEdit(user)}>
                           编辑
@@ -217,7 +229,8 @@ export function RbacUsersPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           )}
@@ -241,15 +254,16 @@ export function RbacUsersPage() {
       >
         <FormGrid columns={1}>
           <FormField
+            label="显示名称"
+            value={draft.display_name}
+            onChange={(e) => setDraft((d) => ({ ...d, display_name: e.target.value }))}
+          />
+          <FormField
             label="用户名"
+            hint="登录标识，小写字母、数字、下划线"
             value={draft.username}
             readOnly={!!editUser?.builtin}
             onChange={(e) => setDraft((d) => ({ ...d, username: e.target.value }))}
-          />
-          <FormField
-            label="显示名"
-            value={draft.display_name}
-            onChange={(e) => setDraft((d) => ({ ...d, display_name: e.target.value }))}
           />
           <FormField
             label="邮箱"

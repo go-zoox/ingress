@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { FormCheckbox } from '../Form'
-import { groupPermissionsByMenu } from '../../lib/rbacMenuCatalog'
+import { filterPermissionCatalog, groupPermissionsByMenu } from '../../lib/rbacMenuCatalog'
 import type { RBACPermissionRow } from '../../api/client'
 
 type Props = {
@@ -8,10 +8,15 @@ type Props = {
   value: number[]
   onChange: (ids: number[]) => void
   disabled?: boolean
+  /** Case-insensitive filter on name, code, description, menu label. */
+  search?: string
 }
 
-export function PermissionPicker({ permissions, value, onChange, disabled }: Props) {
-  const catalog = useMemo(() => groupPermissionsByMenu(permissions), [permissions])
+export function PermissionPicker({ permissions, value, onChange, disabled, search = '' }: Props) {
+  const catalog = useMemo(() => {
+    const grouped = groupPermissionsByMenu(permissions)
+    return filterPermissionCatalog(grouped, search)
+  }, [permissions, search])
 
   const toggle = (id: number, checked: boolean) => {
     if (disabled) return
@@ -26,47 +31,75 @@ export function PermissionPicker({ permissions, value, onChange, disabled }: Pro
     return <p className="empty-hint">暂无可用权限</p>
   }
 
+  const hasResults = catalog.navGroups.length > 0 || catalog.unassigned.length > 0
+  if (!hasResults) {
+    return <p className="empty-hint">无匹配权限，请调整搜索关键词</p>
+  }
+
   return (
     <div className="rbac-permission-picker">
-      {catalog.navGroups.map((section) => (
-        <section key={section.navGroup} className="rbac-permission-nav-group">
-          <h3 className="rbac-permission-nav-title">{section.navGroup}</h3>
-          {section.menus.map(({ menu, permissions: menuPerms }) => (
-            <div key={menu.key} className="rbac-permission-group">
-              <h4>{menu.label}</h4>
-              <div className="rbac-permission-list">
-                {menuPerms.map((perm) => (
-                  <label key={perm.id} className="rbac-permission-item">
-                    <FormCheckbox
-                      label={perm.name}
-                      checked={value.includes(perm.id)}
-                      onChange={(checked) => toggle(perm.id, checked)}
-                    />
-                    <code className="rbac-permission-item-code">{perm.code}</code>
-                    {perm.description ? <span className="chart-hint">{perm.description}</span> : null}
-                  </label>
-                ))}
-              </div>
+      {catalog.navGroups.map((section) => {
+        const sectionCount = section.menus.reduce((n, m) => n + m.permissions.length, 0)
+        return (
+          <div key={section.navGroup} className="panel rbac-permission-picker-panel">
+            <div className="panel-head">
+              <h2>{section.navGroup}</h2>
+              <span className="chart-hint">{sectionCount} 项</span>
             </div>
-          ))}
-        </section>
-      ))}
-      {catalog.unassigned.length > 0 ? (
-        <section className="rbac-permission-nav-group">
-          <h3 className="rbac-permission-nav-title">未关联菜单</h3>
-          <div className="rbac-permission-list">
-            {catalog.unassigned.map((perm) => (
-              <label key={perm.id} className="rbac-permission-item">
-                <FormCheckbox
-                  label={perm.name}
-                  checked={value.includes(perm.id)}
-                  onChange={(checked) => toggle(perm.id, checked)}
-                />
-                <code className="rbac-permission-item-code">{perm.code}</code>
-              </label>
-            ))}
+            <div className="panel-body rbac-permission-picker-stack">
+              {section.menus.map(({ menu, permissions: menuPerms }) => (
+                <section key={menu.key} className="rbac-permission-picker-menu">
+                  <div className="rbac-permissions-menu-head rbac-permissions-menu-head--inline">
+                    <span className="rbac-permissions-menu-label">{menu.label}</span>
+                    <span className="chart-hint">
+                      <code>menu:{menu.key}</code> · {menuPerms.length} 项
+                    </span>
+                  </div>
+                  <div className="rbac-permission-list">
+                    {menuPerms.map((perm) => (
+                      <label key={perm.id} className="rbac-permission-item">
+                        <FormCheckbox
+                          label={perm.name}
+                          checked={value.includes(perm.id)}
+                          onChange={(checked) => toggle(perm.id, checked)}
+                        />
+                        <code className="rbac-permission-item-code">{perm.code}</code>
+                        {perm.description ? (
+                          <span className="rbac-permission-item-desc chart-hint">{perm.description}</span>
+                        ) : null}
+                      </label>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
-        </section>
+        )
+      })}
+      {catalog.unassigned.length > 0 ? (
+        <div className="panel rbac-permission-picker-panel">
+          <div className="panel-head">
+            <h2>未关联菜单</h2>
+            <span className="chart-hint">{catalog.unassigned.length} 项</span>
+          </div>
+          <div className="panel-body">
+            <div className="rbac-permission-list">
+              {catalog.unassigned.map((perm) => (
+                <label key={perm.id} className="rbac-permission-item">
+                  <FormCheckbox
+                    label={perm.name}
+                    checked={value.includes(perm.id)}
+                    onChange={(checked) => toggle(perm.id, checked)}
+                  />
+                  <code className="rbac-permission-item-code">{perm.code}</code>
+                  {perm.description ? (
+                    <span className="rbac-permission-item-desc chart-hint">{perm.description}</span>
+                  ) : null}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   )

@@ -6826,75 +6826,219 @@ table.data.config-revisions code {
 .rbac-permission-picker {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
-.rbac-permission-nav-group {
+.rbac-permission-picker-panel .panel-head h2 {
+  font-size: 14px;
+}
+
+.rbac-permission-picker-stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.rbac-permission-nav-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
+.rbac-permission-picker-menu {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.rbac-permission-group h4 {
-  margin: 0 0 8px;
-  font-size: 13px;
-  color: var(--text-muted);
+.rbac-permission-picker-menu .rbac-permissions-menu-head {
+  padding: 10px 14px;
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.03));
+  border-bottom: 1px solid var(--border);
+}
+
+.rbac-permission-picker-menu .rbac-permission-list {
+  padding: 10px 14px;
 }
 
 .rbac-permission-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .rbac-permission-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .rbac-permission-item-code {
   font-size: 12px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.rbac-permissions-menu-stack {
+.rbac-permission-item-desc {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rbac-role-permissions-drawer {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
 }
 
-.rbac-permissions-menu-section {
-  border: 1px solid var(--border);
-  border-radius: 8px;
+.rbac-permission-picker-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.rbac-permission-picker-search {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.rbac-permission-picker-summary {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.rbac-permission-picker-summary strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.rbac-permission-picker-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.drawer-body:has(.rbac-role-permissions-drawer) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 
-.rbac-permissions-menu-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
+table.data.rbac-data-table.rbac-roles-table .col-actions {
+  width: 168px;
+}
+
+table.data.rbac-data-table {
+  table-layout: fixed;
+}
+
+table.data.rbac-data-table .col-id {
+  width: 56px;
+}
+
+table.data.rbac-data-table .col-name {
+  width: 14%;
+}
+
+table.data.rbac-data-table .col-code {
+  width: 18%;
+}
+
+table.data.rbac-data-table .col-desc {
+  width: auto;
+}
+
+table.data.rbac-data-table .col-email {
+  width: 16%;
+}
+
+table.data.rbac-data-table .col-roles {
+  width: 14%;
+}
+
+table.data.rbac-data-table .col-num {
+  width: 72px;
+}
+
+table.data.rbac-data-table .col-status {
+  width: 72px;
+}
+
+table.data.rbac-data-table .col-type {
+  width: 72px;
+}
+
+table.data.rbac-data-table .col-actions {
+  width: 132px;
+}
+
+table.data.rbac-data-table .rbac-cell-ellipsis {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+table.data.rbac-data-table .rbac-cell-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+}
+
+table.data.rbac-data-table .col-id,
+table.data.rbac-data-table .col-type,
+table.data.rbac-data-table .col-status,
+table.data.rbac-data-table .col-num,
+table.data.rbac-data-table .col-actions {
+  white-space: nowrap;
+}
+
+table.data.rbac-data-table .col-actions .table-actions {
+  flex-wrap: nowrap;
+}
+
+table.data.rbac-data-table.rbac-permissions-table .col-name {
+  width: 18%;
+}
+
+table.data.rbac-data-table.rbac-permissions-table .col-code {
+  width: 22%;
+}
+
+table.data.rbac-data-table tr.rbac-permissions-menu-row td {
+  padding: 10px 12px;
   background: var(--bg-elevated, rgba(255, 255, 255, 0.03));
   border-bottom: 1px solid var(--border);
 }
 
-.rbac-permissions-menu-head h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+table.data.rbac-data-table tr.rbac-permissions-menu-row:hover td {
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.03));
 }
 
-.rbac-permissions-nav-group .panel-body {
-  padding-top: 12px;
+.rbac-permissions-menu-head--inline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.rbac-permissions-menu-label {
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.rbac-permissions-menu-head--inline .chart-hint {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-loading {

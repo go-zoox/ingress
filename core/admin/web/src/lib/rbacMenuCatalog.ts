@@ -147,3 +147,52 @@ export function groupPermissionsByMenu(permissions: RBACPermissionRow[]): RbacPe
 
   return { navGroups, unassigned }
 }
+
+function permissionMatchesSearch(
+  perm: RBACPermissionRow,
+  query: string,
+  menu?: RbacMenuDef,
+  navGroup?: string,
+): boolean {
+  const haystack = [
+    perm.name,
+    perm.code,
+    perm.description ?? '',
+    perm.group ?? '',
+    menu?.label ?? '',
+    menu?.key ?? '',
+    navGroup ?? '',
+  ]
+    .join(' ')
+    .toLowerCase()
+  return haystack.includes(query)
+}
+
+/** Filter a menu-grouped catalog by name / code / description / menu label. */
+export function filterPermissionCatalog(
+  catalog: RbacPermissionCatalogView,
+  query: string,
+): RbacPermissionCatalogView {
+  const q = query.trim().toLowerCase()
+  if (!q) return catalog
+
+  const navGroups: RbacNavGroupPermissionView[] = []
+  for (const section of catalog.navGroups) {
+    const menus: RbacMenuPermissionSection[] = []
+    for (const block of section.menus) {
+      const permissions = block.permissions.filter((perm) =>
+        permissionMatchesSearch(perm, q, block.menu, section.navGroup),
+      )
+      if (permissions.length > 0) {
+        menus.push({ menu: block.menu, permissions })
+      }
+    }
+    if (menus.length > 0) {
+      navGroups.push({ navGroup: section.navGroup, menus })
+    }
+  }
+
+  const unassigned = catalog.unassigned.filter((perm) => permissionMatchesSearch(perm, q))
+
+  return { navGroups, unassigned }
+}
