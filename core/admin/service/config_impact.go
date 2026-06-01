@@ -11,6 +11,7 @@ var globalModuleLabels = map[string]string{
 	"general":      "基础",
 	"admin":        "Admin",
 	"cache":        "全局缓存",
+	"proxy":        "代理",
 	"logging":      "日志",
 	"waf":          "WAF",
 	"rate_limit":   "限流",

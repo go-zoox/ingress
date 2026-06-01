@@ -158,6 +158,36 @@ function CacheModuleForm({
   )
 }
 
+function ProxyModuleForm({
+  doc,
+  onChange,
+}: {
+  doc: Record<string, unknown>
+  onChange: (doc: Record<string, unknown>) => void
+}) {
+  const proxy = { ...obj(doc.proxy) }
+  const patchProxy = (fn: (next: Record<string, unknown>) => void) => {
+    const next = { ...proxy }
+    fn(next)
+    onChange({ proxy: next })
+  }
+
+  return (
+    <FormGrid columns={1}>
+      <FormSection title="转发链路">
+        <FormCheckbox
+          label="信任上游 X-Forwarded-*（proxy.trust_proxy）"
+          checked={bool(proxy.trust_proxy)}
+          onChange={(v) => patchProxy((n) => setBool(n, 'trust_proxy', v))}
+        />
+        <p className="form-hint">
+          仅影响转发头链路（X-Forwarded-For/Proto/Host/Port/Target），不影响 WAF 或限流的 trust_proxy 配置。
+        </p>
+      </FormSection>
+    </FormGrid>
+  )
+}
+
 function RateLimitModuleForm({
   doc,
   onChange,
@@ -832,6 +862,8 @@ export function ConfigModuleForm({
       return <GeneralModuleForm doc={doc} onChange={onDocChange} />
     case 'cache':
       return <CacheModuleForm doc={doc} onChange={onDocChange} />
+    case 'proxy':
+      return <ProxyModuleForm doc={doc} onChange={onDocChange} />
     case 'admin':
       return <AdminModuleForm doc={doc} onChange={onDocChange} />
     case 'logging':

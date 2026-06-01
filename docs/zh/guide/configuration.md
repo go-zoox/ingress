@@ -75,11 +75,20 @@ rules:
 | `fallback` | object | 回退后端 | - |
 | `rules` | array | 路由规则 | `[]` |
 | `waf` | object | WAF 基线；路由级补丁为 **`rules[].waf`** 映射（参见 [WAF](waf.md)） | 省略或 `enabled: false` 时不启用 |
+| `proxy` | object | 反向代理转发行为（仅控制 X-Forwarded-* 链路头 `trust_proxy`） | 默认关闭 |
 | `security` | object | 安全响应头预设（HSTS / frame / CSP / CORS）；路由级 **`rules[].security`** | 省略或 `profile: off` 时不启用 |
 | `maintenance` | object | 全局维护域名列表与默认 503 设置（参见 [维护模式](maintenance.md)） | 省略时不启用 |
 | `scenarios` | object | 命名运行场景 overlay；`active: default` 为根配置（参见 [运行场景](scenarios.md)） | 省略时不启用 |
 | `logging` | object | Zoox 日志配置（控制台 + 可选文件 transport）；见 [Logging](#logging-日志) | 省略时仅控制台 |
 | `admin` | object | 内嵌运维控制台（参见 [Admin 指南](admin.md)） | 省略时不启用 |
+
+### 代理（`proxy`）
+
+控制反向代理转发链路行为。
+
+| 字段 | 类型 | 描述 | 默认值 |
+|------|------|------|--------|
+| `trust_proxy` | bool | 生成出站转发头时是否信任入站 `X-Forwarded-*`（`X-Forwarded-For/Proto/Host/Port/Target`） | `false` |
 
 ### 维护（`maintenance` / `rules[].backend.service.maintenance`）
 

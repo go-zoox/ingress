@@ -33,6 +33,7 @@ var configModuleDefs = []configModuleDef{
 	{ID: "rules", Label: "路由规则", Keys: []string{"rules"}},
 	{ID: "admin", Label: "Admin 控制台", Keys: []string{"admin"}},
 	{ID: "cache", Label: "缓存", Keys: []string{"cache"}},
+	{ID: "proxy", Label: "代理", Keys: []string{"proxy"}},
 	{ID: "logging", Label: "日志", Keys: []string{"logging"}},
 	{ID: "waf", Label: "WAF", Keys: []string{"waf"}},
 	{ID: "maintenance", Label: "维护", Keys: []string{"maintenance"}},

@@ -81,6 +81,21 @@ func TestMergeConfigModuleUpdatesWAF(t *testing.T) {
 	}
 }
 
+func TestMergeConfigModuleUpdatesProxy(t *testing.T) {
+	base := "port: 8080\nproxy:\n  trust_proxy: false\n"
+	patch := "proxy:\n  trust_proxy: true\n"
+	out, err := MergeConfigModule(base, "proxy", patch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "trust_proxy: true") {
+		t.Fatalf("expected proxy patch applied: %q", out)
+	}
+	if strings.Contains(out, "trust_proxy: false") {
+		t.Fatalf("expected old proxy value replaced: %q", out)
+	}
+}
+
 func TestChangedConfigModules(t *testing.T) {
 	a := "version: v1\nport: 8080\nwaf:\n  enabled: true\n"
 	b := "version: v1\nport: 9090\nwaf:\n  enabled: true\n"

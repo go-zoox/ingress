@@ -41,6 +41,8 @@ type Config struct {
 	RateLimit rule.RateLimit `config:"rate_limit"`
 	// Security optional global baseline for HTTP security response headers (HSTS, CORS, frame, etc.).
 	Security rule.Security `config:"security"`
+	// Proxy controls reverse-proxy request forwarding behavior.
+	Proxy Proxy `config:"proxy"`
 	// Maintenance global host registry and default 503 settings (see maintenance.hosts).
 	Maintenance MaintenanceConfig `config:"maintenance"`
 	// Jobs configures scheduled tasks (built-in ops jobs and custom platform jobs).
@@ -48,6 +50,13 @@ type Config struct {
 	// Scenarios optional named overlays; scenarios.active selects the effective overlay at runtime.
 	Scenarios Scenarios `config:"scenarios"`
 	// Match func(host string, path string) (cfg *service.Service, err error)
+}
+
+// Proxy controls reverse-proxy forwarding-chain behavior.
+type Proxy struct {
+	// TrustProxy controls whether proxy forwarding headers trust upstream X-Forwarded-* values.
+	// When true, go-zoox/proxy prioritizes inbound X-Forwarded-* and propagates forwarded chain headers.
+	TrustProxy bool `config:"trust_proxy"`
 }
 
 // Admin configures the embedded operations console (HTTP API + optional UI).

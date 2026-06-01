@@ -77,6 +77,7 @@ rules:
 | `rules` | array | Routing rules | `[]` |
 | `waf` | object | Optional WAF baseline; route patches use **`rules[].waf`** YAML maps ([WAF guide](waf.md)) | _(inactive when omitted or `enabled: false`)_ |
 | `rate_limit` | object | Optional global request throttling; per-route overrides use **`rules[].rate_limit`** | off when omitted |
+| `proxy` | object | Reverse-proxy forwarding behavior (`trust_proxy` for X-Forwarded-* chain headers only) | default off |
 | `security` | object | Profile-based security response headers (HSTS, frame, CSP, CORS); per-route **`rules[].security`** | off when omitted |
 | `maintenance` | object | Global maintenance host registry and default 503 settings ([Maintenance guide](maintenance.md)) | off when omitted |
 | `scenarios` | object | Named runtime overlays; `active: default` uses root config ([Scenarios guide](scenarios.md)) | off when omitted |
@@ -98,6 +99,14 @@ Fixed-window counters evaluated after route match (global then per-rule). Exceed
 | `xff_index` | int | XFF segment index (`0` = leftmost) | `0` |
 
 Access logs append `rate_limit_block=1` on 429 responses.
+
+### Proxy (`proxy`)
+
+Controls reverse-proxy forwarding-chain behavior.
+
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `trust_proxy` | bool | Trust inbound `X-Forwarded-*` when generating outbound forwarding headers (`X-Forwarded-For/Proto/Host/Port/Target`) | `false` |
 
 ### Security headers (`security` / `rules[].security`)
 
