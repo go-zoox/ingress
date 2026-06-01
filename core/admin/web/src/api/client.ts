@@ -1174,7 +1174,6 @@ export type RBACPermissionRow = {
   group: string
   description?: string
   builtin: boolean
-  role_count: number
 }
 
 export type RBACPermissionInput = {

@@ -74,7 +74,7 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
   },
   '/rbac/permissions': {
     title: '权限管理',
-    desc: 'Admin Console 功能权限目录；内置权限随版本同步，可追加自定义权限',
+    desc: '按侧栏菜单浏览原子权限；在角色管理中为角色勾选权限组合',
   },
   '/settings': {
     title: '设置',

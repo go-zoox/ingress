@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { FormCheckbox } from '../Form'
+import { groupPermissionsByMenu } from '../../lib/rbacMenuCatalog'
 import type { RBACPermissionRow } from '../../api/client'
 
 type Props = {
@@ -10,15 +11,7 @@ type Props = {
 }
 
 export function PermissionPicker({ permissions, value, onChange, disabled }: Props) {
-  const groups = useMemo(() => {
-    const map = new Map<string, RBACPermissionRow[]>()
-    for (const perm of permissions) {
-      const list = map.get(perm.group) ?? []
-      list.push(perm)
-      map.set(perm.group, list)
-    }
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b, 'zh-CN'))
-  }, [permissions])
+  const catalog = useMemo(() => groupPermissionsByMenu(permissions), [permissions])
 
   const toggle = (id: number, checked: boolean) => {
     if (disabled) return
@@ -35,23 +28,46 @@ export function PermissionPicker({ permissions, value, onChange, disabled }: Pro
 
   return (
     <div className="rbac-permission-picker">
-      {groups.map(([group, items]) => (
-        <section key={group} className="rbac-permission-group">
-          <h4>{group}</h4>
+      {catalog.navGroups.map((section) => (
+        <section key={section.navGroup} className="rbac-permission-nav-group">
+          <h3 className="rbac-permission-nav-title">{section.navGroup}</h3>
+          {section.menus.map(({ menu, permissions: menuPerms }) => (
+            <div key={menu.key} className="rbac-permission-group">
+              <h4>{menu.label}</h4>
+              <div className="rbac-permission-list">
+                {menuPerms.map((perm) => (
+                  <label key={perm.id} className="rbac-permission-item">
+                    <FormCheckbox
+                      label={perm.name}
+                      checked={value.includes(perm.id)}
+                      onChange={(checked) => toggle(perm.id, checked)}
+                    />
+                    <code className="rbac-permission-item-code">{perm.code}</code>
+                    {perm.description ? <span className="chart-hint">{perm.description}</span> : null}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      ))}
+      {catalog.unassigned.length > 0 ? (
+        <section className="rbac-permission-nav-group">
+          <h3 className="rbac-permission-nav-title">未关联菜单</h3>
           <div className="rbac-permission-list">
-            {items.map((perm) => (
+            {catalog.unassigned.map((perm) => (
               <label key={perm.id} className="rbac-permission-item">
                 <FormCheckbox
-                  label={`${perm.name} (${perm.code})`}
+                  label={perm.name}
                   checked={value.includes(perm.id)}
                   onChange={(checked) => toggle(perm.id, checked)}
                 />
-                {perm.description ? <span className="chart-hint">{perm.description}</span> : null}
+                <code className="rbac-permission-item-code">{perm.code}</code>
               </label>
             ))}
           </div>
         </section>
-      ))}
+      ) : null}
     </div>
   )
 }

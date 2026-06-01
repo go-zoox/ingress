@@ -6826,7 +6826,20 @@ table.data.config-revisions code {
 .rbac-permission-picker {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+}
+
+.rbac-permission-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rbac-permission-nav-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .rbac-permission-group h4 {
@@ -6845,6 +6858,43 @@ table.data.config-revisions code {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.rbac-permission-item-code {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.rbac-permissions-menu-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.rbac-permissions-menu-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rbac-permissions-menu-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.03));
+  border-bottom: 1px solid var(--border);
+}
+
+.rbac-permissions-menu-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rbac-permissions-nav-group .panel-body {
+  padding-top: 12px;
 }
 
 .nav-loading {

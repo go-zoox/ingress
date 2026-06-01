@@ -30,7 +30,6 @@ type PermissionRow struct {
 	Group       string `json:"group"`
 	Description string `json:"description,omitempty"`
 	Builtin     bool   `json:"builtin"`
-	RoleCount   int    `json:"role_count"`
 }
 
 // RoleRow is a list entry for role management.
@@ -282,10 +281,6 @@ func (s *Service) ListPermissions() ([]PermissionRow, error) {
 	}
 	out := make([]PermissionRow, 0, len(rows))
 	for _, row := range rows {
-		count, err := s.permissionRoleCount(row.ID)
-		if err != nil {
-			return nil, err
-		}
 		out = append(out, PermissionRow{
 			ID:          row.ID,
 			Code:        row.Code,
@@ -293,7 +288,6 @@ func (s *Service) ListPermissions() ([]PermissionRow, error) {
 			Group:       row.Group,
 			Description: row.Description,
 			Builtin:     row.Builtin,
-			RoleCount:   count,
 		})
 	}
 	return out, nil
@@ -355,7 +349,6 @@ func (s *Service) UpdatePermission(id uint, in PermissionInput) (*PermissionRow,
 	if err := db().Model(row).Updates(updates).Error; err != nil {
 		return nil, err
 	}
-	count, _ := s.permissionRoleCount(row.ID)
 	return &PermissionRow{
 		ID:          row.ID,
 		Code:        row.Code,
@@ -363,7 +356,6 @@ func (s *Service) UpdatePermission(id uint, in PermissionInput) (*PermissionRow,
 		Group:       group,
 		Description: strings.TrimSpace(in.Description),
 		Builtin:     row.Builtin,
-		RoleCount:   count,
 	}, nil
 }
 
