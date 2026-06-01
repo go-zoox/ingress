@@ -46,12 +46,12 @@ LABEL MAINTAINER="Zero<tobewhatwewant@gmail.com>"
 
 LABEL org.opencontainers.image.source="https://github.com/go-zoox/ingress"
 
-COPY --from=builder /build/ingress /bin
-
 RUN mkdir -p /etc/geoip \
   && apk add --no-cache ca-certificates wget \
   && wget -qO /etc/geoip/GeoLite2-City.mmdb \
     https://github.com/go-zoox/geoip/releases/download/v0.0.3/GeoLite2-City.mmdb \
   && apk del wget
+
+COPY --from=builder /build/ingress /bin
 
 CMD ingress run -c /etc/ingress/config.yaml
