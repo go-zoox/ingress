@@ -331,7 +331,7 @@ rules:
 - **HEAD** 与 **GET** 共用同一缓存键；**GET**（及路径允许的 **POST**）可写入缓存：**反代**在 `OnResponse` 落盘；**handler** 在配置允许时捕获 body；**redirect** 在 URL 展开后写入 `Location` 与状态码（redirect 写入仍仅 **GET**；避免空 HEAD 覆盖完整 GET）。
 - **客户端绕过**（不读不写缓存）：请求 `Cache-Control` 含 `no-cache`、`no-store` 或 `max-age=0`（可配置）、在默认开启 `honor_pragma_no_cache` 时含 `Pragma: no-cache`、或请求带 **`Range`**。
 - **不写入**（service / handler 带 body）：非 200；**非空 `Vary`** 默认阻止落盘（可按 `Vary` 拆键未实现，见[缓存指南](caching.md)）；若 **`cache.skip_vary: true`**，则**不保存、不下发** `Vary`（仍以单一变体对外，需自担语义风险）；`no-store`；`private`（除非 `ignore_response_private: true`）；**响应含 `Set-Cookie`** 且 `skip_when_set_cookie` 为 **true**（默认）时；body 大于 `max_body_bytes`。**redirect** 可缓存 301/302/303/307/308 及 `Location`（无 body；适用相同的 Cache-Control / `Set-Cookie` 等规则）。许多 httpbin 路径带 `Vary: Origin`；需共享缓存时可设 **`skip_vary: true`**（仅限你可接受「一剂到底」的场景）。
-- **验证命中**：对同一 URL 连续发两次不带绕过条件的 **GET**；第二次应走缓存。命中时访问日志行尾附加 **`cache_hit=1`**（含 handler、redirect 分支）。
+- **验证命中**：对同一 URL 连续发两次不带绕过条件的 **GET**；第二次应走缓存。命中时访问日志行尾附加 **`cache_hit=1`**（含 handler、redirect 分支）。命中响应默认附带 **`X-Ingress-Cache: hit`**（可通过 `response_header` 自定义）。
 
 | 字段 | 类型 | 描述 | 默认值 |
 |------|------|------|--------|
@@ -348,6 +348,8 @@ rules:
 | `skip_vary` | bool | 为 **true** 时允许缓存带 **`Vary`** 的响应（**不写入**也**不返回** `Vary` 头）；仅当上游对该 URL 实际可视为单变体时使用 | `false` |
 | `default` | string | 配置了 **`paths`** 时，未命中任何规则的路径：`cache` 或 `bypass` | `cache` |
 | `paths` | array | 有序路径规则（**先匹配先生效**）；见下表 | — |
+| `response_header.name` | string | 缓存命中时的响应头名称 | `X-Ingress-Cache` |
+| `response_header.value` | string | 缓存命中时的响应头值 | `hit` |
 
 **`backend.cache.paths[]`**（可选）：
 

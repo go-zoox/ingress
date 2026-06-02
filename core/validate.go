@@ -312,6 +312,11 @@ func validateBackendCache(cache rule.BackendCache, ruleIdx int, host, pathPatter
 	if err := compileBackendCachePathRules(&cache); err != nil {
 		return fmt.Errorf("%s: %w", loc, err)
 	}
+	if cache.Enabled {
+		if _, err := compileBackendCacheHitHeader(cache.ResponseHeader, loc+".response_header"); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

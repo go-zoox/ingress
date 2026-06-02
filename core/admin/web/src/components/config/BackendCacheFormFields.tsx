@@ -240,6 +240,27 @@ export function BackendCacheFormFields<T extends BackendForm>({
             checked={form.cache_honor_pragma_no_cache}
             onChange={(v) => patch((n) => { n.cache_honor_pragma_no_cache = v })}
           />
+          <FormItem
+            label="命中响应头 response_header"
+            hint="缓存命中时下发；留空名称与值则使用默认 X-Ingress-Cache: hit。可只填其一，未填项由运行时默认补齐"
+          >
+            <div className="form-list-row">
+              <FormField
+                label="Header 名"
+                keyName={`${idPrefix}cache.response_header.name`}
+                placeholder="X-Ingress-Cache"
+                value={form.cache_response_header_name}
+                onChange={(e) => patch((n) => { n.cache_response_header_name = e.target.value })}
+              />
+              <FormField
+                label="Header 值"
+                keyName={`${idPrefix}cache.response_header.value`}
+                placeholder="hit"
+                value={form.cache_response_header_value}
+                onChange={(e) => patch((n) => { n.cache_response_header_value = e.target.value })}
+              />
+            </div>
+          </FormItem>
           <CacheKeyHeadersFields form={form} patch={patch} />
           <FormMultiSelectField
             label="methods（backend 级）"
@@ -386,7 +407,7 @@ export function BackendCacheFormFields<T extends BackendForm>({
 
           <p className="form-hint">
             适用于 service / handler / redirect backend；需顶层 <code>cache</code> 引擎（Redis/内存）。
-            命中时访问日志附加 <code>cache_hit=1</code>。
+            命中时访问日志附加 <code>cache_hit=1</code>，响应默认附带 <code>X-Ingress-Cache: hit</code>（可由上方 response_header 自定义）。
           </p>
         </>
       )}

@@ -74,4 +74,15 @@ const (
 	headerXIngressMaintenanceFrom  = "X-Ingress-Maintenance-From"
 	headerXIngressMaintenanceUntil = "X-Ingress-Maintenance-Until"
 	ingressMaintenanceHeaderVal    = "1"
+
+	// HTTP response cache hits (backend.cache).
+	headerXIngressCache     = "X-Ingress-Cache"
+	ingressCacheHitHeaderVal = "hit"
+
+	// Rate limit quota and block indicator (rate_limit / rules[].rate_limit).
+	headerXRateLimitLimit      = "X-RateLimit-Limit"
+	headerXRateLimitRemaining  = "X-RateLimit-Remaining"
+	headerXRateLimitReset      = "X-RateLimit-Reset"
+	headerXIngressRateLimit    = "X-Ingress-RateLimit"
+	ingressRateLimitBlockHeaderVal = "1"
 )

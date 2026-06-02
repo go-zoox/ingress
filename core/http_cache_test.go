@@ -121,6 +121,43 @@ func TestCloneHeadersForCache_OmitVary(t *testing.T) {
 	}
 }
 
+func TestCompileBackendCacheHitHeader_DefaultsAndCustom(t *testing.T) {
+	h, err := compileBackendCacheHitHeader(rule.BackendCacheResponseHeader{}, "backend.cache.response_header")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.name != headerXIngressCache || h.value != ingressCacheHitHeaderVal {
+		t.Fatalf("defaults: %+v", h)
+	}
+	h2, err := compileBackendCacheHitHeader(rule.BackendCacheResponseHeader{
+		Name: "X-Custom-Cache", Value: "HIT",
+	}, "backend.cache.response_header")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h2.name != "X-Custom-Cache" || h2.value != "HIT" {
+		t.Fatalf("custom: %+v", h2)
+	}
+}
+
+func TestWriteHTTPCacheHit_SetsHitHeader(t *testing.T) {
+	app := zoox.New()
+	pc := normalizeHTTPCache(rule.BackendCache{Enabled: true})
+	entry := &httpCacheEntry{
+		StatusCode: 200,
+		Header:     map[string][]string{"Content-Type": {"text/plain"}},
+		Body:       []byte("cached"),
+	}
+	rec := httptest.NewRecorder()
+	app.Use(func(ctx *zoox.Context) {
+		writeHTTPCacheHit(ctx, entry, pc)
+	})
+	app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if got := rec.Header().Get(headerXIngressCache); got != ingressCacheHitHeaderVal {
+		t.Fatalf("hit header: got %q", got)
+	}
+}
+
 func TestWriteHTTPCacheHit_StripsVaryWhenSkipVary(t *testing.T) {
 	app := zoox.New()
 	pc := normalizeHTTPCache(rule.BackendCache{Enabled: true, SkipVary: true})

@@ -30,7 +30,7 @@ const PAGE_ABOUT: Record<string, PageAbout> = {
   },
   '/cache': {
     title: '缓存',
-    desc: '全局 cache 后端、路由级 HTTP 响应缓存策略与 access log 命中统计',
+    desc: '全局 cache 后端、路由级 HTTP 响应缓存策略、命中响应头与 access log 命中统计',
   },
   '/waf': {
     title: 'WAF',

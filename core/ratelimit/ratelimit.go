@@ -19,6 +19,12 @@ const (
 	KeyRoute  = "route"
 	KeyIP     = "ip"
 	KeyHeader = "header"
+
+	headerXRateLimitLimit           = "X-RateLimit-Limit"
+	headerXRateLimitRemaining       = "X-RateLimit-Remaining"
+	headerXRateLimitReset           = "X-RateLimit-Reset"
+	headerXIngressRateLimit         = "X-Ingress-RateLimit"
+	ingressRateLimitBlockHeaderVal  = "1"
 )
 
 // Policy is a compiled rate limit policy.
@@ -126,17 +132,26 @@ func enabled(cfg rule.RateLimit) bool {
 	return cfg.Requests > 0
 }
 
+// Result is the outcome of Check (after counters are incremented).
+type Result struct {
+	Blocked      bool
+	Blocking     *Policy
+	ScopeRuleIdx int // -1 when the blocking policy is global scope
+}
+
 // Check evaluates policies in order; returns blocked=true when any limit is exceeded.
-func Check(req *http.Request, global *Policy, rulePolicy *Policy, ruleIdx int) (blocked bool, retryAfterSec int64) {
+func Check(req *http.Request, global *Policy, rulePolicy *Policy, ruleIdx int) Result {
 	if global != nil {
-		if blocked, retryAfterSec = checkOne(req, global, ruleIdx, -1); blocked {
-			return true, retryAfterSec
+		if blocked, _ := checkOne(req, global, ruleIdx, -1); blocked {
+			return Result{Blocked: true, Blocking: global, ScopeRuleIdx: -1}
 		}
 	}
 	if rulePolicy != nil {
-		return checkOne(req, rulePolicy, ruleIdx, ruleIdx)
+		if blocked, _ := checkOne(req, rulePolicy, ruleIdx, ruleIdx); blocked {
+			return Result{Blocked: true, Blocking: rulePolicy, ScopeRuleIdx: ruleIdx}
+		}
 	}
-	return false, 0
+	return Result{}
 }
 
 func checkOne(req *http.Request, p *Policy, ruleIdx, scopeRuleIdx int) (blocked bool, retryAfterSec int64) {
@@ -234,21 +249,58 @@ func ClientIP(req *http.Request, trustProxy bool, xffIndex int) string {
 	return "-"
 }
 
-// StatusFor returns limit headers for a policy/id (after Inc).
-func StatusFor(req *http.Request, p *Policy, ruleIdx int) (limit, remaining int64, resetAfterSec int64) {
-	id := bucketID(req, p, ruleIdx, ruleIdx)
+// QuotaFor returns limit, remaining, and reset time (Unix seconds) for a policy bucket (after Inc).
+func QuotaFor(req *http.Request, p *Policy, ruleIdx, scopeRuleIdx int) (limit, remaining, resetUnixSec int64) {
+	if p == nil {
+		return 0, 0, 0
+	}
+	id := bucketID(req, p, ruleIdx, scopeRuleIdx)
 	st, err := p.rl.Status(id)
 	if err != nil {
-		return p.rl.Total(id), p.rl.Remaining(id), 0
+		limit = p.rl.Total(id)
+		remaining = p.rl.Remaining(id)
+	} else {
+		limit = st.Total
+		remaining = st.Remaining
 	}
-	reset := st.ResetAfter / 1000
-	if reset < 0 {
-		reset = 0
+	if remaining < 0 {
+		remaining = 0
 	}
-	return st.Total, st.Remaining, reset
+	resetMs := p.rl.ResetAt(id)
+	if resetMs > 0 {
+		resetUnixSec = resetMs / 1000
+	}
+	return limit, remaining, resetUnixSec
 }
 
-// ParseRetryAfter converts seconds to Retry-After header value.
-func ParseRetryAfter(sec int64) string {
-	return strconv.FormatInt(sec, 10)
+// WriteResponseHeaders sets X-RateLimit-* and, when blocked, X-Ingress-RateLimit.
+// On success, reports the per-rule policy when present, otherwise global.
+func WriteResponseHeaders(setHeader func(key, value string), req *http.Request, global, rulePolicy *Policy, ruleIdx int, res Result) {
+	if setHeader == nil {
+		return
+	}
+	var p *Policy
+	scope := -1
+	if res.Blocked && res.Blocking != nil {
+		setHeader(headerXIngressRateLimit, ingressRateLimitBlockHeaderVal)
+		p = res.Blocking
+		scope = res.ScopeRuleIdx
+	} else if rulePolicy != nil {
+		p = rulePolicy
+		scope = ruleIdx
+	} else if global != nil {
+		p = global
+		scope = -1
+	} else {
+		return
+	}
+	limit, remaining, reset := QuotaFor(req, p, ruleIdx, scope)
+	if res.Blocked {
+		remaining = 0
+	}
+	setHeader(headerXRateLimitLimit, strconv.FormatInt(limit, 10))
+	setHeader(headerXRateLimitRemaining, strconv.FormatInt(remaining, 10))
+	if reset > 0 {
+		setHeader(headerXRateLimitReset, strconv.FormatInt(reset, 10))
+	}
 }

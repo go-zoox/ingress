@@ -86,7 +86,7 @@ rules:
 
 ### Rate limit (`rate_limit` / `rules[].rate_limit`)
 
-Fixed-window counters evaluated after route match (global then per-rule). Exceeded limits return **429** with **`Retry-After`**. Uses in-memory counters by default; when top-level **`cache.engine: redis`** host is set, limiters share the same Redis settings.
+Fixed-window counters evaluated after route match (global then per-rule). Exceeded limits return **429** with **`X-RateLimit-Limit`**, **`X-RateLimit-Remaining`** (`0`), **`X-RateLimit-Reset`** (Unix seconds), and **`X-Ingress-RateLimit: 1`**. Allowed requests also receive **`X-RateLimit-*`** for the effective policy (per-rule when set, otherwise global). Uses in-memory counters by default; when top-level **`cache.engine: redis`** host is set, limiters share the same Redis settings.
 
 | Field | Type | Description | Default |
 |-------|------|-------------|---------|
@@ -356,7 +356,7 @@ Effective **`internal` / `external`** for **`Host`** rewrite is **`backend.servi
 - **HEAD** shares the same cache key as **GET** for the same URL; **GET** (and path-allowed **POST**) round-trips populate the cache for **service** (proxy), **handler** (response capture when configured), and **redirect** (final `Location` after template expansion; redirect store remains **GET**-only). Avoids replacing a full GET entry with an empty HEAD body.
 - **Client bypass** (no cache read/write): `Cache-Control` containing `no-cache`, `no-store`, or `max-age=0` (configurable), `Pragma: no-cache` when `honor_pragma_no_cache` is true (default), or any **`Range`** request header.
 - **Not stored** (service / handler bodies): non-200; **non-empty `Vary`** blocks storage unless **`cache.skip_vary: true`** (then **`Vary` is not stored** and **not sent** on hits; you still serve a single variant—see [Caching](caching.md)); `Cache-Control: no-store`; `Cache-Control: private` (unless `ignore_response_private: true`); **`Set-Cookie`** on the response when `skip_when_set_cookie` is true (default); body larger than `max_body_bytes`. **Redirect** entries store 301/302/303/307/308 with a `Location` header (no body; same header rules where applicable). Many public httpbin mirrors send `Vary: Origin` on common paths (e.g. `/ip`); use **`skip_vary: true`** only if you accept treating that path as one shared variant.
-- **Verifying hits**: send the same **GET** twice without bypass headers; the second response should be served from cache. Access log lines from cached responses append **`cache_hit=1`** (service proxy, handler, redirect).
+- **Verifying hits**: send the same **GET** twice without bypass headers; the second response should be served from cache. Access log lines from cached responses append **`cache_hit=1`** (service proxy, handler, redirect). Cache hits also send **`X-Ingress-Cache: hit`** by default (`response_header` to customize).
 
 | Field | Type | Description | Default |
 |-------|------|-------------|---------|
@@ -373,6 +373,8 @@ Effective **`internal` / `external`** for **`Host`** rewrite is **`backend.servi
 | `skip_vary` | bool | When **true**, allow storing responses with **`Vary`** (unsafe unless the origin is single-variant for this URL); **`Vary` is omitted** from stored entries and **not sent** on cache hits | `false` |
 | `default` | string | When **`paths`** is non-empty: behavior for requests that match **no** rule — `cache` or `bypass` | `cache` |
 | `paths` | array | Ordered path rules (**first match wins**); see below | — |
+| `response_header.name` | string | Header name on cache hits | `X-Ingress-Cache` |
+| `response_header.value` | string | Header value on cache hits | `hit` |
 
 **`backend.cache.paths[]`** (optional):
 

@@ -73,7 +73,7 @@ export function CachePage() {
     <div className="page">
       <PageHeader
         title="缓存"
-        desc="全局 cache 后端、路由级 HTTP 响应缓存策略与 access log 命中统计"
+        desc="全局 cache 后端、路由级 HTTP 响应缓存策略、命中响应头（X-Ingress-Cache）与 access log 命中统计"
       />
       {err && <p className="err">{err}</p>}
       <div className="cards">

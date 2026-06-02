@@ -142,6 +142,8 @@ export type BackendForm = {
   cache_methods: string
   cache_default: 'cache' | 'bypass'
   cache_path_rules: CachePathRuleForm[]
+  cache_response_header_name: string
+  cache_response_header_value: string
   // auth fields
   auth_enabled: boolean | undefined  // undefined = not set (default by type), true = explicit enable, false = explicit disable
   auth_type: AuthFormType
@@ -380,8 +382,11 @@ function cacheToForm(backend: Record<string, unknown>): Pick<
   | 'cache_methods'
   | 'cache_default'
   | 'cache_path_rules'
+  | 'cache_response_header_name'
+  | 'cache_response_header_value'
 > {
   const c = obj(backend.cache)
+  const responseHeader = obj(c.response_header)
   const keyHeaders = arr<string>(c.key_headers)
   const methods = arr<string>(c.methods)
   const defaultAction = str(c.default, 'cache')
@@ -398,6 +403,8 @@ function cacheToForm(backend: Record<string, unknown>): Pick<
     cache_methods: methods.length ? methods.join(', ') : '',
     cache_default: defaultAction === 'bypass' ? 'bypass' : 'cache',
     cache_path_rules: cachePathRulesToForm(c),
+    cache_response_header_name: str(responseHeader.name),
+    cache_response_header_value: str(responseHeader.value),
   }
 }
 
@@ -675,6 +682,8 @@ export function emptyBackendForm(): BackendForm {
     cache_methods: '',
     cache_default: 'cache',
     cache_path_rules: [],
+    cache_response_header_name: '',
+    cache_response_header_value: '',
     auth_enabled: undefined,
     auth_type: '' as AuthFormType,
     auth_basic_users: [],
@@ -872,6 +881,17 @@ function buildCache(form: BackendForm, original?: Record<string, unknown>): Reco
   } else {
     delete cache.paths
     delete cache.default
+  }
+
+  const rhName = form.cache_response_header_name.trim()
+  const rhValue = form.cache_response_header_value.trim()
+  if (rhName || rhValue) {
+    const responseHeader: Record<string, unknown> = {}
+    if (rhName) responseHeader.name = rhName
+    if (rhValue) responseHeader.value = rhValue
+    cache.response_header = responseHeader
+  } else {
+    delete cache.response_header
   }
 
   return cache

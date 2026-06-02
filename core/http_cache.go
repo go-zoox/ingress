@@ -123,6 +123,7 @@ type httpCacheRuntime struct {
 	JSONKeyLines []string
 	KeyJSON      []string
 	KeyBodyMaxBytes int64
+	HitHeader    compiledBackendCacheHitHeader
 }
 
 // effectiveRouteBackend returns the backend block that applies: path-level overrides host-level when present.
@@ -180,6 +181,15 @@ func normalizeHTTPCache(bc rule.BackendCache) *httpCacheRuntime {
 		skipCookie = *bc.SkipWhenSetCookie
 	}
 
+	hitHeader, err := compileBackendCacheHitHeader(bc.ResponseHeader, "backend.cache.response_header")
+	if err != nil {
+		// normalizeHTTPCache is only called after validate; keep a safe default.
+		hitHeader = compiledBackendCacheHitHeader{
+			name:  headerXIngressCache,
+			value: ingressCacheHitHeaderVal,
+		}
+	}
+
 	return &httpCacheRuntime{
 		TTL:           time.Duration(ttl) * time.Second,
 		MaxBodyBytes:  maxBody,
@@ -193,7 +203,31 @@ func normalizeHTTPCache(bc rule.BackendCache) *httpCacheRuntime {
 		SkipVary:      bc.SkipVary,
 		PathDefaultCache: httpCachePathDefaultAllowsCache(bc.Default),
 		PathRules:     append([]rule.BackendCachePathRuleCompiled(nil), bc.CompiledPathRules...),
+		HitHeader:     hitHeader,
 	}
+}
+
+type compiledBackendCacheHitHeader struct {
+	name  string
+	value string
+}
+
+func compileBackendCacheHitHeader(h rule.BackendCacheResponseHeader, loc string) (compiledBackendCacheHitHeader, error) {
+	name := strings.TrimSpace(h.Name)
+	value := strings.TrimSpace(h.Value)
+	if name == "" {
+		name = headerXIngressCache
+	}
+	if value == "" {
+		value = ingressCacheHitHeaderVal
+	}
+	if strings.ContainsAny(name, " \t\r\n") {
+		return compiledBackendCacheHitHeader{}, fmt.Errorf("%s.name must not contain whitespace", loc)
+	}
+	return compiledBackendCacheHitHeader{
+		name:  http.CanonicalHeaderKey(name),
+		value: value,
+	}, nil
 }
 
 func httpCachePathDefaultAllowsCache(defaultAction string) bool {
@@ -843,6 +877,7 @@ func writeHTTPCacheHit(ctx *zoox.Context, entry *httpCacheEntry, pc *httpCacheRu
 	if pc != nil && pc.SkipVary {
 		dst.Del(headerVary)
 	}
+	applyBackendCacheHitHeader(dst, pc)
 	status := entry.StatusCode
 	if ctx.Method == http.MethodHead {
 		cl := strconv.Itoa(len(entry.Body))
@@ -854,6 +889,13 @@ func writeHTTPCacheHit(ctx *zoox.Context, entry *httpCacheEntry, pc *httpCacheRu
 	if len(entry.Body) > 0 {
 		_, _ = ctx.Writer.Write(entry.Body)
 	}
+}
+
+func applyBackendCacheHitHeader(dst http.Header, pc *httpCacheRuntime) {
+	if pc == nil || pc.HitHeader.name == "" {
+		return
+	}
+	dst.Set(pc.HitHeader.name, pc.HitHeader.value)
 }
 
 func statusWriter(ctx *zoox.Context, code int) {

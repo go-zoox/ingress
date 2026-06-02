@@ -1760,8 +1760,14 @@ func TestBuild_RateLimit_Returns429(t *testing.T) {
 	if rec2.Code != http.StatusTooManyRequests {
 		t.Fatalf("second request expected 429, got %d", rec2.Code)
 	}
-	if rec2.Header().Get("Retry-After") == "" {
-		t.Fatal("expected Retry-After header")
+	if rec2.Header().Get("Retry-After") != "" {
+		t.Fatal("Retry-After should not be set")
+	}
+	if rec2.Header().Get("X-Ingress-RateLimit") != "1" {
+		t.Fatalf("X-Ingress-RateLimit: got %q", rec2.Header().Get("X-Ingress-RateLimit"))
+	}
+	if rec2.Header().Get("X-RateLimit-Remaining") != "0" {
+		t.Fatalf("X-RateLimit-Remaining: got %q", rec2.Header().Get("X-RateLimit-Remaining"))
 	}
 }
 

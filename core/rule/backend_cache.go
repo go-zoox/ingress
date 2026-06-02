@@ -1,6 +1,19 @@
 package rule
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
+
+// BackendCacheResponseHeader is sent on HTTP cache hits (defaults: X-Ingress-Cache / hit).
+type BackendCacheResponseHeader struct {
+	Name  string `config:"name"`
+	Value string `config:"value"`
+}
+
+func (h BackendCacheResponseHeader) Configured() bool {
+	return strings.TrimSpace(h.Name) != "" || strings.TrimSpace(h.Value) != ""
+}
 
 // BackendCachePathRule selects cache vs bypass for request paths under a backend.cache block.
 // Rules are evaluated in list order; the first match wins. When no rule matches, backend.cache.default applies.
@@ -71,6 +84,8 @@ type BackendCache struct {
 	Default string `config:"default"`
 	// Paths lists ordered path rules (first match wins). When empty, all paths use cache when enabled.
 	Paths []BackendCachePathRule `config:"paths"`
+	// ResponseHeader identifies cache hits for clients (defaults: X-Ingress-Cache / hit).
+	ResponseHeader BackendCacheResponseHeader `config:"response_header"`
 	// CompiledPathRules is populated at validate/prepare; not loaded from YAML.
 	CompiledPathRules []BackendCachePathRuleCompiled `config:"-"`
 }

@@ -97,8 +97,9 @@ func (c *core) build() error {
 			if ruleIdx >= 0 && ruleIdx < len(c.rateLimits.ByRule) {
 				ruleRL = c.rateLimits.ByRule[ruleIdx]
 			}
-			if blocked, retryAfter := ratelimit.Check(ctx.Request, c.rateLimits.Global, ruleRL, ruleIdx); blocked {
-				ctx.SetHeader("Retry-After", ratelimit.ParseRetryAfter(retryAfter))
+			rlRes := ratelimit.Check(ctx.Request, c.rateLimits.Global, ruleRL, ruleIdx)
+			if rlRes.Blocked {
+				ratelimit.WriteResponseHeaders(ctx.SetHeader, ctx.Request, c.rateLimits.Global, ruleRL, ruleIdx, rlRes)
 				applySecurityHeaders(ctx, secProf)
 				ctx.Status(http.StatusTooManyRequests)
 				ctx.String(http.StatusTooManyRequests, "Too Many Requests")
@@ -113,6 +114,7 @@ func (c *core) build() error {
 				})
 				return false, true, nil
 			}
+			ratelimit.WriteResponseHeaders(ctx.SetHeader, ctx.Request, c.rateLimits.Global, ruleRL, ruleIdx, rlRes)
 		}
 
 		wafProf := c.wafFallback

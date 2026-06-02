@@ -97,7 +97,10 @@ export function RateLimitFormFields<T extends RateLimitFormSlice>({
             </>
           )}
           <p className="form-hint">
-            超出限制返回 429，响应含 Retry-After。配置 Redis 缓存时，限流计数器可共享 Redis。
+            超出限制返回 <strong>429</strong>，响应含 <code>X-Ingress-RateLimit: 1</code> 与{' '}
+            <code>X-RateLimit-Limit</code> / <code>Remaining</code> / <code>Reset</code>（Unix 秒）。
+            未超限请求也会返回配额头（有规则级限流时展示规则策略，否则为全局限流）。
+            配置 Redis 缓存时，限流计数器可共享 Redis。
           </p>
         </>
       )}

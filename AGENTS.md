@@ -63,6 +63,7 @@ Zoox may also honor env overrides when unset in config: `ENABLE_H2C`, `ENABLE_HT
 - **Keys**: prefix `httpcache:v1:` (under the global `cache.prefix` when using Redis). Canonical string treats **HEAD method as GET** for fingerprinting so both can share an entry.
 - **Store**: **GET** only for population: proxy upstream in `OnResponse`; handler after executing handler; redirect after final URL is known. Handler uses an optional body capture buffer; other methods may still **hit** cache (e.g. HEAD shares GET key).
 - **Logs**: hits append `cache_hit=1` to the access log line (service proxy, handler, and redirect).
+- **Hit header**: cache hits send **`X-Ingress-Cache: hit`** by default (`backend.cache.response_header` to customize name/value).
 
 Separate from matcher KV: top-level `cache` still configures the shared `ctx.Cache()` backend (`core/prepare.go`, `core/match.go` uses `match.host:v2:` keys).
 

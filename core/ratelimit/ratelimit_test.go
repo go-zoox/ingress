@@ -116,11 +116,45 @@ func TestCheck_GlobalAndRuleBothApply(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://example.com/", nil)
 	req.RemoteAddr = "198.51.100.2:1234"
 
-	if blocked, _ := Check(req, global, ruleP, 0); blocked {
+	if res := Check(req, global, ruleP, 0); res.Blocked {
 		t.Fatal("first request should pass both limits")
 	}
-	if blocked, _ := Check(req, global, ruleP, 0); !blocked {
+	if res := Check(req, global, ruleP, 0); !res.Blocked {
 		t.Fatal("second request should hit global limit")
+	}
+}
+
+func TestWriteResponseHeaders_Blocked(t *testing.T) {
+	p, err := compilePolicy(rule.RateLimit{
+		Requests: 1,
+		Period:   60,
+		Key:      KeyIP,
+	}, "test:hdr", "", 0, "", "", 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("GET", "http://example.com/", nil)
+	req.RemoteAddr = "203.0.113.99:1234"
+	if res := Check(req, p, nil, 0); res.Blocked {
+		t.Fatal("first request should pass")
+	}
+	res := Check(req, p, nil, 0)
+	if !res.Blocked {
+		t.Fatal("expected blocked on second request")
+	}
+	headers := map[string]string{}
+	WriteResponseHeaders(func(k, v string) { headers[k] = v }, req, nil, p, 0, res)
+	if headers[headerXIngressRateLimit] != ingressRateLimitBlockHeaderVal {
+		t.Fatalf("X-Ingress-RateLimit: got %q", headers[headerXIngressRateLimit])
+	}
+	if headers[headerXRateLimitRemaining] != "0" {
+		t.Fatalf("remaining: got %q", headers[headerXRateLimitRemaining])
+	}
+	if headers[headerXRateLimitLimit] != "1" {
+		t.Fatalf("limit: got %q", headers[headerXRateLimitLimit])
+	}
+	if headers[headerXRateLimitReset] == "" {
+		t.Fatal("expected X-RateLimit-Reset")
 	}
 }
 
