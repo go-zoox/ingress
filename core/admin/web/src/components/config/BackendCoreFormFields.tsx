@@ -4,6 +4,7 @@ import {
   FormSelectField,
 } from '../Form'
 import { HandlerFormFields } from './HandlerFormFields'
+import { RedirectFormFields } from './RedirectFormFields'
 import type { BackendForm } from '../../lib/configEntities'
 import { applyServiceToBackend, type ServiceForm } from '../../lib/services'
 
@@ -117,19 +118,11 @@ export function BackendCoreFormFields<T extends BackendForm>({
       )}
 
       {form.backend_type === 'redirect' && (
-        <>
-          <FormField
-            label="重定向 URL"
-            keyName={`${idPrefix}redirect.url`}
-            value={form.redirect_url}
-            onChange={(e) => patch((n) => { n.redirect_url = e.target.value })}
-          />
-          <FormCheckbox
-            label="永久重定向 (301/308)（默认 302/307）"
-            checked={form.redirect_permanent}
-            onChange={(v) => patch((n) => { n.redirect_permanent = v })}
-          />
-        </>
+        <RedirectFormFields
+          form={form}
+          idPrefix={idPrefix}
+          patch={(fn) => patch(fn)}
+        />
       )}
 
       {form.backend_type === 'handler' && (

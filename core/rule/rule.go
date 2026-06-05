@@ -62,10 +62,13 @@ type Path struct {
 
 type Redirect struct {
 	URL string `config:"url"`
-	// Permanent selects 301/308 vs 302/307 depending on WithOriginMethodAndBody.
+	// Duration is permanent or temporary (default temporary when empty and permanent is false).
+	Duration string `config:"duration"`
+	// PreserveRequest uses HTTP 307/308 so clients keep the original method and body.
+	PreserveRequest bool `config:"preserve_request"`
+	// Permanent selects 301/308 vs 302/307 when Duration is empty (legacy).
 	Permanent bool `config:"permanent"`
-	// WithOriginMethodAndBody uses HTTP 307/308 so clients preserve method and body on redirect.
-	// Default false uses 302/301 via RedirectTemporary / RedirectPermanent.
+	// WithOriginMethodAndBody is a legacy alias for preserve_request (deprecated).
 	WithOriginMethodAndBody bool `config:"with_origin_method_and_body"`
 }
 

@@ -756,18 +756,13 @@ func httpCacheShouldStoreHandler(status int, h http.Header, bodyLen int, pc *htt
 	return true
 }
 
-// redirectStatusFromFlags mirrors applyRedirect status codes (301/302/307/308).
+// redirectStatusFromFlags maps legacy bool flags to an HTTP redirect status (301/302/307/308).
 func redirectStatusFromFlags(permanent, withOriginMethodAndBody bool) int {
-	if withOriginMethodAndBody {
-		if permanent {
-			return http.StatusPermanentRedirect
-		}
-		return http.StatusTemporaryRedirect
+	b, err := effectiveRedirectBehavior("", false, permanent, withOriginMethodAndBody)
+	if err != nil {
+		return http.StatusFound
 	}
-	if permanent {
-		return http.StatusMovedPermanently
-	}
-	return http.StatusFound
+	return redirectStatusCode(b)
 }
 
 // httpCacheShouldStoreRedirect allows persisting redirect rules when status and Location are cacheable (GET store path only; see build.go).

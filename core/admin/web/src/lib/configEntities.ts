@@ -5,6 +5,12 @@ import {
   validateServiceMaintenanceForm,
   type MaintenanceHostFormEntry,
 } from './maintenance'
+import {
+  emptyRedirectFormSlice,
+  redirectFromYAML,
+  redirectToYAML,
+  type RedirectFormSlice,
+} from './redirectForm'
 
 export type SSLForm = {
   domain: string
@@ -120,8 +126,7 @@ export type BackendForm = {
   service_protocol: string
   service_mode: string
   service_strip_prefix: boolean
-  redirect_url: string
-  redirect_permanent: boolean
+} & RedirectFormSlice & {
   handler_type: HandlerType
   handler_status_code: number
   handler_content_type: string
@@ -284,9 +289,7 @@ export type FallbackForm = {
   service_name: string
   service_port: number
   service_protocol: string
-  redirect_url: string
-  redirect_permanent: boolean
-}
+} & RedirectFormSlice
 
 export function sslFromRow(row: Record<string, unknown>): SSLForm {
   const cert = obj(row.cert)
@@ -641,8 +644,7 @@ export function backendToForm(backend: Record<string, unknown>): BackendForm {
     service_protocol: str(service.protocol, 'http') || 'http',
     service_mode: str(service.mode),
     service_strip_prefix: bool(service.strip_prefix),
-    redirect_url: str(redirect.url),
-    redirect_permanent: bool(redirect.permanent),
+    ...redirectFromYAML(redirect),
     ...handlerToForm(obj(backend.handler)),
     ...cacheToForm(backend),
     ...authToForm(service),
@@ -660,8 +662,7 @@ export function emptyBackendForm(): BackendForm {
     service_protocol: 'http',
     service_mode: '',
     service_strip_prefix: false,
-    redirect_url: '',
-    redirect_permanent: false,
+    ...emptyRedirectFormSlice(),
     handler_type: 'static_response',
     handler_status_code: 200,
     handler_content_type: 'text/plain; charset=utf-8',
@@ -899,9 +900,7 @@ function buildCache(form: BackendForm, original?: Record<string, unknown>): Reco
 
 function buildBackendCore(form: BackendForm): Record<string, unknown> {
   if (form.backend_type === 'redirect') {
-    const redirect: Record<string, unknown> = { url: form.redirect_url.trim() }
-    if (form.redirect_permanent) redirect.permanent = true
-    return { type: 'redirect', redirect }
+    return { type: 'redirect', redirect: redirectToYAML(form) }
   }
   if (form.backend_type === 'handler') {
     return { type: 'handler', handler: buildHandler(form) }
@@ -1477,16 +1476,13 @@ export function fallbackToForm(doc: Record<string, unknown>): FallbackForm {
     service_name: str(service.name),
     service_port: num(service.port, 8080),
     service_protocol: str(service.protocol, 'http') || 'http',
-    redirect_url: str(redirect.url),
-    redirect_permanent: bool(redirect.permanent),
+    ...redirectFromYAML(redirect),
   }
 }
 
 export function formToFallback(form: FallbackForm): Record<string, unknown> {
   if (form.backend_type === 'redirect') {
-    const redirect: Record<string, unknown> = { url: form.redirect_url.trim() }
-    if (form.redirect_permanent) redirect.permanent = true
-    return { fallback: { type: 'redirect', redirect } }
+    return { fallback: { type: 'redirect', redirect: redirectToYAML(form) } }
   }
   const service: Record<string, unknown> = {
     name: form.service_name.trim(),

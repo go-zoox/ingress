@@ -1,5 +1,4 @@
 import {
-  FormCheckbox,
   FormField,
   FormGrid,
   FormSection,
@@ -10,6 +9,7 @@ import {
   formToFallback,
   type FallbackForm,
 } from '../../lib/configEntities'
+import { RedirectFormFields } from './RedirectFormFields'
 
 export function FallbackEditor({
   doc,
@@ -68,17 +68,7 @@ export function FallbackEditor({
         </FormSection>
       ) : (
         <FormSection title="重定向">
-          <FormField
-            label="重定向 URL"
-            keyName="redirect.url"
-            value={form.redirect_url}
-            onChange={(e) => patch((n) => { n.redirect_url = e.target.value })}
-          />
-          <FormCheckbox
-            label="永久重定向 (301/308)（默认 302/307）"
-            checked={form.redirect_permanent}
-            onChange={(v) => patch((n) => { n.redirect_permanent = v })}
-          />
+          <RedirectFormFields form={form} patch={(fn) => patch(fn)} />
         </FormSection>
       )}
     </FormGrid>

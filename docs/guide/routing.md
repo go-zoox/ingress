@@ -263,8 +263,26 @@ Runnable twin-host sample: **`examples/ssl-tls/route-redirect.yaml`**.
 Fields:
 
 - **`url`**: Target URL. If it does not start with `http://` or `https://`, Ingress treats the value as a host (optional port) and builds the full URL with the incoming request’s scheme, original path, and query string. Full `http://` / `https://` URLs **without an explicit path** (host only, or trailing `/`) also preserve the request path and query—use a path in `url` (e.g. `https://new.example.com/landing`) when every request should go to the same destination.
-- **`permanent`**: When `false`, uses **302**; when `true`, uses **301**—unless `with_origin_method_and_body` is enabled (below).
-- **`with_origin_method_and_body`** (default `false`): When `true`, uses **307** / **308** so clients keep the original HTTP method and body (temporary vs permanent follows `permanent`). When `false`, uses **302** / **301** as above.
+- **`duration`**: `temporary` (default) or `permanent` — whether the redirect is meant to be cached long-term (SEO / canonical move).
+- **`preserve_request`**: When `true`, uses **307** / **308** so clients keep the original HTTP method and body. When `false` (default), uses **302** / **301**, where browsers may rewrite non-GET requests to GET.
+- **`permanent`** / **`with_origin_method_and_body`**: Legacy booleans; still accepted. Prefer **`duration`** and **`preserve_request`**. Validation fails when `duration: temporary` conflicts with `permanent: true`.
+
+| duration | preserve_request | Status |
+|----------|------------------|--------|
+| temporary | false | 302 |
+| permanent | false | 301 |
+| temporary | true | 307 |
+| permanent | true | 308 |
+
+```yaml
+rules:
+  - host: old.example.com
+    backend:
+      redirect:
+        url: https://new.example.com
+        duration: permanent
+        preserve_request: false
+```
 
 **Capture templates** in `url` follow the same rules as `service.name`: `${host.N}` and `${path.N}` from regex captures; for regex/wildcard hosts you can also use legacy **`$1`-style** substitution from the host pattern. Path captures apply when the redirect is chosen from a matched `paths[].path` entry.
 

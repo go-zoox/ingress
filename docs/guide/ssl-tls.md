@@ -32,8 +32,10 @@ https:
 | `http3_port` | int | UDP port for HTTP/3; omit or `0` to use the same port as HTTPS (TCP and UDP) |
 | `http3_altsvc_max_age` | int | `Alt-Svc` response header `ma=` in seconds; `0` uses a server default; negative omits `Alt-Svc` |
 | `redirect_from_http.enabled` | bool | Enable forced HTTP -> HTTPS redirect (`false` by default; set to `true` to activate when HTTPS is configured) |
-| `redirect_from_http.permanent` | bool | Use `301` when true, `302` when false |
-| `redirect_from_http.with_origin_method_and_body` | bool | When true, use `308`/`307` instead of `301`/`302` so method and body are preserved (default `false`) |
+| `redirect_from_http.duration` | string | `temporary` (default) or `permanent` |
+| `redirect_from_http.preserve_request` | bool | When true, use `307`/`308` to preserve method and body (default `false` → `302`/`301`) |
+| `redirect_from_http.permanent` | bool | (legacy) Use `301` when true, `302` when false; prefer `duration` |
+| `redirect_from_http.with_origin_method_and_body` | bool | (legacy) When true, use `308`/`307`; prefer `preserve_request` |
 | `redirect_from_http.exclude_paths` | array | Exact request paths that should skip forced redirect |
 | `ssl` | array | Array of SSL certificate configurations |
 

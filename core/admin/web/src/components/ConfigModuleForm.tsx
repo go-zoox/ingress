@@ -9,6 +9,8 @@ import {
 import { AdminDatabaseFormFields } from './config/AdminDatabaseFormFields'
 import { AdminGeoIPFormFields } from './config/AdminGeoIPFormFields'
 import { FallbackEditor } from './config/FallbackEditor'
+import { RedirectFormFields } from './config/RedirectFormFields'
+import { redirectBehaviorToYAML, redirectFromYAML } from '../lib/redirectForm'
 import { RulesEditor } from './config/RulesEditor'
 import { ServicesEditor } from './config/ServicesEditor'
 import { RateLimitFormFields } from './config/RateLimitFormFields'
@@ -750,14 +752,19 @@ function HTTPSModuleForm({
           }
         />
         {bool(redirect.enabled) && (
-          <FormCheckbox
-            label="301/308 永久重定向（默认 302/307）"
-            checked={bool(redirect.permanent)}
-            onChange={(v) =>
+          <RedirectFormFields
+            showURL={false}
+            form={redirectFromYAML(redirect)}
+            patch={(fn) =>
               patchHttps((n) => {
-                const r = { ...obj(n.redirect_from_http) }
-                setBool(r, 'permanent', v)
-                n.redirect_from_http = r
+                const r = { ...obj(n.redirect_from_http), enabled: true }
+                const slice = redirectFromYAML(r)
+                fn(slice)
+                const next = {
+                  ...redirectBehaviorToYAML(slice.redirect_duration, slice.redirect_preserve_request),
+                  enabled: true,
+                }
+                n.redirect_from_http = next
               })
             }
           />

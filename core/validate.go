@@ -49,6 +49,9 @@ func ValidateConfig(cfg *Config) error {
 	if cfg.HTTPS.Port != 0 && len(cfg.HTTPS.SSL) == 0 {
 		return fmt.Errorf("https.ssl is required when https.port is set")
 	}
+	if err := validateRedirectFromHTTP(cfg.HTTPS.RedirectFromHTTP); err != nil {
+		return err
+	}
 
 	for i, ssl := range cfg.HTTPS.SSL {
 		if ssl.Domain == "" {
@@ -153,6 +156,11 @@ func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string
 	hr := hasRedirectBackend(backend)
 	hs := servicePopulated(backend.Service)
 	hh := handlerPopulated(backend.Handler)
+	if hr {
+		if err := validateRuleRedirect(backend.Redirect, ruleBackendLoc(ruleIdx, host, pathPattern)+".redirect"); err != nil {
+			return err
+		}
+	}
 
 	switch backendType {
 	case backendTypeService:

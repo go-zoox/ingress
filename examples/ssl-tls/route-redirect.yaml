@@ -7,9 +7,9 @@ rules:
       type: redirect
       redirect:
         url: https://new.example.com
-        permanent: true
+        duration: permanent
   - host: old-inferred.example.com
     backend:
       redirect:
         url: https://new.example.com
-        permanent: true
+        duration: permanent

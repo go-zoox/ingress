@@ -67,7 +67,13 @@ func (c *core) build() error {
 		if shouldRedirectFromHTTP(ctx.Request, path, c.cfg) {
 			redirectURL := buildHTTPSRedirectURL(hostname, path, rawQuery, c.cfg.HTTPS.Port)
 			rf := c.cfg.HTTPS.RedirectFromHTTP
-			applyRedirect(ctx, redirectURL, rf.Permanent, rf.WithOriginMethodAndBody)
+			behavior, err := effectiveHTTPRedirectBehavior(rf)
+			if err != nil {
+				c.app.Logger().Warnf("redirect_from_http: %s", err)
+				ctx.Status(http.StatusInternalServerError)
+				return false, true, nil
+			}
+			applyRedirectBehavior(ctx, redirectURL, behavior)
 			return false, true, nil
 		}
 
@@ -167,19 +173,24 @@ func (c *core) build() error {
 		// Redirect-only configs keep Backend.Type as default "service" with backend.redirect only; otherwise matched upstream proxy continues below.
 		// Next block handles Backend.Type "handler".
 		var redirectURL string
-		var permanent bool
-		var withOriginMethodAndBody bool
+		var redirectBehavior RedirectBehavior
 		var hasRedirect bool
 
 		if pathBackend != nil && pathBackend.Redirect.URL != "" {
 			redirectURL = pathBackend.Redirect.URL
-			permanent = pathBackend.Redirect.Permanent
-			withOriginMethodAndBody = pathBackend.Redirect.WithOriginMethodAndBody
+			behavior, err := effectiveRuleRedirectBehavior(pathBackend.Redirect)
+			if err != nil {
+				return false, true, err
+			}
+			redirectBehavior = behavior
 			hasRedirect = true
 		} else if matchedRule.Backend.Redirect.URL != "" && pathBackend == nil {
 			redirectURL = matchedRule.Backend.Redirect.URL
-			permanent = matchedRule.Backend.Redirect.Permanent
-			withOriginMethodAndBody = matchedRule.Backend.Redirect.WithOriginMethodAndBody
+			behavior, err := effectiveRuleRedirectBehavior(matchedRule.Backend.Redirect)
+			if err != nil {
+				return false, true, err
+			}
+			redirectBehavior = behavior
 			hasRedirect = true
 		}
 
@@ -221,7 +232,7 @@ func (c *core) build() error {
 			redirectURL = finalizeRedirectURL(redirectURL, scheme, path, ctx.Request.URL.RawQuery)
 
 			if mayStoreRedirect && policyRedirect != nil && redirectCacheKey != "" {
-				code := redirectStatusFromFlags(permanent, withOriginMethodAndBody)
+				code := redirectStatusCode(redirectBehavior)
 				if httpCacheShouldStoreRedirect(code, redirectURL) {
 					h := http.Header{}
 					h.Set("Location", redirectURL)
@@ -236,8 +247,8 @@ func (c *core) build() error {
 			}
 
 			applySecurityHeaders(ctx, secProf)
-			applyRedirect(ctx, redirectURL, permanent, withOriginMethodAndBody)
-			rdCode := redirectStatusFromFlags(permanent, withOriginMethodAndBody)
+			applyRedirectBehavior(ctx, redirectURL, redirectBehavior)
+			rdCode := redirectStatusCode(redirectBehavior)
 			c.logAccess(ctx, hostname, "redirect", method, path, ctx.Request.Proto, rdCode, time.Since(redirectCacheStart), accessLogMeta{
 				UpstreamStatus:         rdCode,
 				UpstreamResponseLength: -1,
@@ -625,22 +636,6 @@ func (c *core) build() error {
 	}))
 
 	return nil
-}
-
-func applyRedirect(ctx *zoox.Context, url string, permanent, withOriginMethodAndBody bool) {
-	if withOriginMethodAndBody {
-		if permanent {
-			ctx.RedirectPermanentWithOriginMethodAndBody(url)
-		} else {
-			ctx.RedirectTemporaryWithOriginMethodAndBody(url)
-		}
-		return
-	}
-	if permanent {
-		ctx.RedirectPermanent(url)
-	} else {
-		ctx.RedirectTemporary(url)
-	}
 }
 
 func shouldRedirectFromHTTP(req *http.Request, path string, cfg *Config) bool {

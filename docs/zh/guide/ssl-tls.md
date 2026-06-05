@@ -32,8 +32,10 @@ https:
 | `http3_port` | int | HTTP/3 的 UDP 端口；省略或 `0` 时与 HTTPS 端口相同（TCP 与 UDP 可同时监听同端口号） |
 | `http3_altsvc_max_age` | int | HTTPS 响应中 `Alt-Svc` 的 `ma=`（秒）；`0` 使用服务端默认；负数为不发送 `Alt-Svc` |
 | `redirect_from_http.enabled` | bool | 启用全局 HTTP -> HTTPS 强制重定向（默认 `false`，设为 `true` 以在配置 HTTPS 时激活） |
-| `redirect_from_http.permanent` | bool | 为 `true` 时使用 `301`，否则使用 `302` |
-| `redirect_from_http.with_origin_method_and_body` | bool | 为 `true` 时使用 `308`/`307` 以保留方法与请求体（默认 `false`，否则为 `301`/`302`） |
+| `redirect_from_http.duration` | string | `temporary`（默认）或 `permanent` |
+| `redirect_from_http.preserve_request` | bool | 为 `true` 时使用 `307`/`308` 保留方法与请求体（默认 `false`，否则 `302`/`301`） |
+| `redirect_from_http.permanent` | bool | （旧）为 `true` 时使用 `301`，否则 `302`；请优先用 `duration` |
+| `redirect_from_http.with_origin_method_and_body` | bool | （旧）为 `true` 时使用 `308`/`307`；请优先用 `preserve_request` |
 | `redirect_from_http.exclude_paths` | array | 需要跳过强制重定向的精确路径 |
 | `ssl` | array | SSL 证书配置数组 |
 

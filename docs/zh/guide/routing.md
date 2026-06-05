@@ -263,8 +263,26 @@ rules:
 字段说明：
 
 - **`url`**：跳转地址。若非 `http://` / `https://` 开头，则视为主机（可含端口），Ingress 会用当前请求的协议，并保留原始 path 与 query 拼出完整 URL。完整的 `http://` / `https://` URL 若**未指定路径**（仅 host，或以 `/` 结尾）同样会保留请求的 path 与 query；若希望所有请求都跳到同一地址，请在 `url` 中写出明确路径（例如 `https://new.example.com/landing`）。
-- **`permanent`**：为 `false` 时使用 **302**，为 `true` 时使用 **301**；若开启下面的 `with_origin_method_and_body`，则状态码见该项说明。
-- **`with_origin_method_and_body`**（默认 `false`）：为 `true` 时使用 **307** / **308**，客户端会保留原 HTTP 方法与请求体（临时/永久仍由 `permanent` 决定）；为 `false` 时仍为 **302** / **301**。
+- **`duration`**：`temporary`（默认）或 `permanent` — 临时或永久跳转（SEO / 规范 URL）。
+- **`preserve_request`**：为 `true` 时使用 **307** / **308**，保留原 HTTP 方法与请求体；为 `false`（默认）时使用 **302** / **301**，浏览器可能将非 GET 改为 GET。
+- **`permanent`** / **`with_origin_method_and_body`**：旧版布尔字段，仍兼容；请优先使用 **`duration`** 与 **`preserve_request`**。若 `duration: temporary` 与 `permanent: true` 同时出现，校验会报错。
+
+| duration | preserve_request | 状态码 |
+|----------|------------------|--------|
+| temporary | false | 302 |
+| permanent | false | 301 |
+| temporary | true | 307 |
+| permanent | true | 308 |
+
+```yaml
+rules:
+  - host: old.example.com
+    backend:
+      redirect:
+        url: https://new.example.com
+        duration: permanent
+        preserve_request: false
+```
 
 可在 **`url` 中写捕获占位**，规则与 `service.name` 一致：`${host.N}`、`${path.N}`；对正则或通配 host 还可使用基于 host 模式的 **`$1` 风格** 替换。若重定向来自某条已匹配的 `paths[].path`，可使用 path 捕获。
 

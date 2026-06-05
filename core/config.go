@@ -163,10 +163,13 @@ type HTTPS struct {
 type RedirectFromHTTP struct {
 	// Enabled activates forced HTTP -> HTTPS redirects when https.port is configured. Default false means no redirect.
 	Enabled bool `config:"enabled"`
-	// Permanent uses 301 when true; 302 when false (or 308/307 when WithOriginMethodAndBody is true).
+	// Duration is permanent or temporary (default temporary).
+	Duration string `config:"duration"`
+	// PreserveRequest uses HTTP 307/308 so clients keep the original method and body.
+	PreserveRequest bool `config:"preserve_request"`
+	// Permanent uses 301 when true; 302 when false when Duration is empty (legacy).
 	Permanent bool `config:"permanent"`
-	// WithOriginMethodAndBody uses HTTP 307/308 so clients preserve method and body on redirect.
-	// Default false uses 302/301.
+	// WithOriginMethodAndBody is a legacy alias for preserve_request (deprecated).
 	WithOriginMethodAndBody bool `config:"with_origin_method_and_body"`
 	// ExcludePaths skips redirect for exact path matches.
 	ExcludePaths []string `config:"exclude_paths"`
