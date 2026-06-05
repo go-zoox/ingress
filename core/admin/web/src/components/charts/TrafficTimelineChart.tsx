@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react'
 import type { OverviewMetrics } from '../../api/client'
 import { buildTrafficTimelineOption, niceAxisMax } from '../../lib/overviewEChartsOptions'
+import { OVERVIEW_TIMELINE_LINK_GROUP } from '../../lib/overviewTimelineChartGroup'
 import { readChartColors } from './chartTheme'
 import { EChartView } from './EChartView'
 
@@ -23,5 +24,5 @@ export const TrafficTimelineChart = memo(function TrafficTimelineChart({ timelin
     () => buildTrafficTimelineOption(timeline, colors, { yMax }),
     [timeline, colors, yMax],
   )
-  return <EChartView option={option} height={200} />
+  return <EChartView option={option} height={200} linkGroup={OVERVIEW_TIMELINE_LINK_GROUP} />
 })

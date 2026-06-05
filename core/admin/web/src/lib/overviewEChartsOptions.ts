@@ -168,6 +168,63 @@ export function buildTrafficTimelineOption(
   }
 }
 
+const hostSeriesPalette = (c: ChartColors) => [
+  c.accent,
+  c.ok,
+  '#a78bfa',
+  '#f472b6',
+  '#38bdf8',
+  '#fb923c',
+  '#4ade80',
+  '#facc15',
+  c.muted,
+]
+
+export function buildHostTimelineOption(
+  series: NonNullable<OverviewMetrics['host_timeline']>,
+  c: ChartColors,
+  axis?: AxisMaxOpts,
+): EChartsOption {
+  if (series.length === 0) {
+    return { ...overviewChartMotion() }
+  }
+  const labels = series[0]?.points.map((p) => p.label) ?? []
+  const peak = series.reduce((max, row) => {
+    for (const p of row.points) {
+      if (p.count > max) max = p.count
+    }
+    return max
+  }, 0)
+  const yMax = axis?.yMax ?? niceAxisMax(peak)
+  const names = series.map((row) => row.name)
+  return {
+    ...overviewChartMotion(),
+    color: hostSeriesPalette(c),
+    grid: baseGrid(),
+    legend: {
+      ...legendBottom(c),
+      type: 'scroll',
+      data: names,
+    },
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'line' },
+      valueFormatter: (v) => formatChartInteger(Number(v)),
+    },
+    xAxis: categoryAxis(labels, c),
+    yAxis: countAxis(c, { integerTicks: true, min: 0, max: yMax, name: '请求数' }),
+    series: series.map((row) => ({
+      name: row.name,
+      type: 'line' as const,
+      smooth: true,
+      showSymbol: false,
+      lineStyle: { width: row.name === 'Other' ? 1.5 : 2 },
+      emphasis: { focus: 'series' as const },
+      data: row.points.map((p) => p.count),
+    })),
+  }
+}
+
 export function buildQualityTimelineOption(
   timeline: OverviewMetrics['timeline'],
   c: ChartColors,

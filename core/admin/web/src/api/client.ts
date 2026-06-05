@@ -724,6 +724,11 @@ export type OverviewMetrics = {
     p95_ms?: number
     upstream_p95_ms?: number
   }>
+  host_timeline?: Array<{
+    name: string
+    total: number
+    points: Array<{ label: string; count: number }>
+  }>
   top_hosts: Array<{ name: string; count: number }>
   top_hosts_error: Array<{
     name: string

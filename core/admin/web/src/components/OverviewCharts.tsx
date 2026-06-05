@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import type { OverviewMetrics, HealthCheckResult, HealthSummary, TLSCert } from '../api/client'
 import { type OverviewRange, formatOverviewRangeLabel, rangeQueryKey, snapshotMatchesRange } from '../lib/overviewRange'
+import { OverviewHostTimelinePanel } from './OverviewHostTimelinePanel'
 import { TrafficTimelineChart } from './charts/TrafficTimelineChart'
 import { QualityTimelineChart } from './charts/QualityTimelineChart'
 import { CacheTimelineChart } from './charts/CacheTimelineChart'
@@ -147,8 +148,12 @@ export const OverviewCharts = memo(function OverviewCharts({
           <p className="empty-hint overview-charts-loading">{refreshing ? `加载${windowLabel}数据…` : '暂无图表数据'}</p>
         ) : (
           <>
+        {(charts.host_timeline?.length ?? 0) > 0 ? (
+          <OverviewHostTimelinePanel metrics={charts} windowLabel={windowLabel} />
+        ) : null}
+
         <div className="charts-grid charts-grid-2">
-          <ChartPanel title="流量趋势" hint={`${windowLabel} · 堆叠状态码`}>
+          <ChartPanel title="全站流量趋势" hint={`${windowLabel} · 堆叠状态码`}>
             <TrafficTimelineChart timeline={charts!.timeline ?? []} />
           </ChartPanel>
           <ChartPanel title="质量趋势" hint="错误率 · WAF">

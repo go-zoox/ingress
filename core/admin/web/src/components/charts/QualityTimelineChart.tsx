@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react'
 import type { OverviewMetrics } from '../../api/client'
 import { buildQualityTimelineOption, niceAxisMax } from '../../lib/overviewEChartsOptions'
+import { OVERVIEW_TIMELINE_LINK_GROUP } from '../../lib/overviewTimelineChartGroup'
 import { readChartColors } from './chartTheme'
 import { EChartView } from './EChartView'
 
@@ -24,5 +25,5 @@ export const QualityTimelineChart = memo(function QualityTimelineChart({ timelin
     () => buildQualityTimelineOption(timeline, colors, { yMax, y2Max }),
     [timeline, colors, yMax, y2Max],
   )
-  return <EChartView option={option} height={200} />
+  return <EChartView option={option} height={200} linkGroup={OVERVIEW_TIMELINE_LINK_GROUP} />
 })

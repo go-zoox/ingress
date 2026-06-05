@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react'
 import type { MetricsTimelineBucket } from '../../api/client'
 import { buildUpstreamLatencyTrendOption } from '../../lib/overviewEChartsOptions'
+import { OVERVIEW_TIMELINE_LINK_GROUP } from '../../lib/overviewTimelineChartGroup'
 import { readChartColors } from './chartTheme'
 import { EChartView } from './EChartView'
 
@@ -20,5 +21,5 @@ export const UpstreamLatencyTrendChart = memo(function UpstreamLatencyTrendChart
     return <p className="empty-hint">暂无上游耗时数据（需 access log 含 upstream_response_time）</p>
   }
 
-  return <EChartView option={option} height={200} />
+  return <EChartView option={option} height={200} linkGroup={OVERVIEW_TIMELINE_LINK_GROUP} />
 })

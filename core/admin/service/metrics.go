@@ -19,8 +19,9 @@ type OverviewMetrics struct {
 	CacheHitRate     float64          `json:"cache_hit_rate"`
 	WAFBlocks        int              `json:"waf_blocks"`
 	StatusCounts     map[string]int   `json:"status_counts"`
-	Timeline         []TimelineBucket `json:"timeline"`
-	TopHosts         []NamedCount     `json:"top_hosts"`
+	Timeline         []TimelineBucket     `json:"timeline"`
+	HostTimeline     []HostTimelineSeries `json:"host_timeline,omitempty"`
+	TopHosts         []NamedCount         `json:"top_hosts"`
 	TopHostsError    []HostErrorStat  `json:"top_hosts_error"`
 	HostTraffic      []HostTrafficStat `json:"host_traffic,omitempty"`
 	TopPaths         []NamedCount     `json:"top_paths"`
@@ -466,6 +467,7 @@ func enrichOverviewBreakdowns(out *OverviewMetrics, entries []AccessEntry, windo
 			out.P50Ms, out.P95Ms = ps[0], ps[1]
 		}
 	}
+	enrichHostTimeline(out, entries, windowDur)
 }
 
 func aggregateOverview(entries []AccessEntry, window, source string) OverviewMetrics {
@@ -537,6 +539,8 @@ func aggregateOverview(entries []AccessEntry, window, source string) OverviewMet
 
 	prevFiltered := filterEntriesInPreviousWindow(entries, anchor, windowDur, hasTime)
 	out.Delta = computeOverviewDelta(filtered, prevFiltered, windowDur)
+
+	enrichHostTimeline(&out, filtered, windowDur)
 
 	return out
 }

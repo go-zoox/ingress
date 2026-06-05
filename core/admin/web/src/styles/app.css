@@ -3424,6 +3424,60 @@ table.data.tls-certs .tls-domain {
   font-weight: normal;
 }
 
+.overview-host-timeline-head {
+  justify-content: space-between;
+}
+
+.overview-host-timeline-head-start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.overview-host-timeline-head h2 {
+  white-space: nowrap;
+}
+
+.overview-host-filter {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.overview-host-filter-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 148px;
+  max-width: 280px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.overview-host-filter-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.overview-host-filter-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.overview-host-filter-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 240px;
+  max-width: min(420px, 90vw);
+  max-height: 280px;
+  overflow: auto;
+}
+
 .timeline-chart {
   display: flex;
   align-items: stretch;

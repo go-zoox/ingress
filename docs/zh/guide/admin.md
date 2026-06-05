@@ -172,6 +172,10 @@ GET /api/v1/events/stream?channels=metrics,waf,logs,health
 
 **日志页**仍走 SSE tail + offset；仅总览聚合走 rollup。
 
+### 总览趋势图联动
+
+同一页面内的时间序列图（域名流量、全站流量、质量、缓存、上游延迟等）通过 ECharts **`connect`** 共享十字线与 tooltip：鼠标悬停任意一张图，其余图在同一时间桶对齐高亮。X 轴刻度来自同一份 `metrics.timeline[]`（`host_timeline[].points[].label` 与之间对齐）。非时间序列面板（状态码 donut、延迟 SLO 占比、Top 排名等）不参与联动。
+
 事件格式：
 
 ```

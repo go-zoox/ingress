@@ -176,6 +176,10 @@ Supported channels: `metrics`, `waf`, `logs`, `health`. The UI auto-subscribes b
 
 Logs for the **Logs** page still use SSE tail + offset; only overview aggregates use rollup.
 
+### Overview timeline chart linking
+
+Time-series panels on the same page (per-host traffic, site-wide traffic, quality, cache, upstream latency, …) use ECharts **`connect`**: hovering one chart highlights the same time bucket on the others. Category labels come from the same `metrics.timeline[]` (`host_timeline[].points[].label` is aligned). Non-time panels (status donut, latency SLO share, Top-N lists, …) are not linked.
+
 Event format:
 
 ```
