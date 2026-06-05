@@ -19,7 +19,7 @@ Several files **mix explicit `backend.type` and omission on purpose** (for examp
 | `authentication/` | Basic and bearer auth |
 | `ssl-tls/` | HTTPS, certs, global redirect |
 | `advanced/` | Regex hosts, rewrites, health, **`service.mode`**, **`backend.cache`** (+ optional **`skip_vary`**), Redis |
-| `redirect/` | Backend redirects, path regex redirects, capture templates |
+| `redirect/` | Backend redirects, path regex, `duration`/`preserve_request` status codes |
 | `handler/` | **`backend.handler`** — `static_response`, `file_server`, `templates`, `script` |
 | `waf/` | IP lists, custom signatures, `rules[].waf` overlays |
 | `admin-console/` | **Admin UI** demo routes, WAF, sample `access.log` (`admin.enabled: true` in ingress.yaml) |

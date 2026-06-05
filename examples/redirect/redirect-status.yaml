@@ -1,0 +1,29 @@
+version: v1
+port: 8080
+
+# Redirect status codes (scheme A: duration + preserve_request).
+# Each host returns a different status when probed with GET.
+
+rules:
+  - host: r302.example.com
+    backend:
+      redirect:
+        url: https://target.example.com
+        duration: temporary
+  - host: r301.example.com
+    backend:
+      redirect:
+        url: https://target.example.com
+        duration: permanent
+  - host: r307.example.com
+    backend:
+      redirect:
+        url: https://target.example.com
+        duration: temporary
+        preserve_request: true
+  - host: r308.example.com
+    backend:
+      redirect:
+        url: https://target.example.com
+        duration: permanent
+        preserve_request: true

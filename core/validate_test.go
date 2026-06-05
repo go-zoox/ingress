@@ -294,6 +294,57 @@ func TestValidateConfig_RedirectBackendCacheOK(t *testing.T) {
 	}
 }
 
+func TestValidateConfig_RedirectDurationOK(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "r.example.com",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{
+						URL:             "https://example.com/",
+						Duration:        redirectDurationPermanent,
+						PreserveRequest: true,
+					},
+				},
+			},
+		},
+	}
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatalf("expected valid config, got: %v", err)
+	}
+	if err := validateRedirectFromHTTP(RedirectFromHTTP{
+		Enabled:         true,
+		Duration:        redirectDurationTemporary,
+		PreserveRequest: true,
+	}); err != nil {
+		t.Fatalf("redirect_from_http: %v", err)
+	}
+}
+
+func TestValidateConfig_RedirectDurationConflict(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "r.example.com",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{
+						URL:       "https://example.com/",
+						Duration:  redirectDurationTemporary,
+						Permanent: true,
+					},
+				},
+			},
+		},
+	}
+	if err := ValidateConfig(cfg); err == nil {
+		t.Fatal("expected duration/permanent conflict")
+	} else if !strings.Contains(err.Error(), "conflicts") {
+		t.Fatalf("expected conflict error, got: %v", err)
+	}
+}
+
 func TestValidateConfig_ServiceBackendCacheOK(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,

@@ -6,6 +6,21 @@
 
 配置文件：[examples/redirect/](https://github.com/go-zoox/ingress/tree/master/examples/redirect)；最简单的 host 级跳转见 [route-redirect.yaml](https://github.com/go-zoox/ingress/blob/master/examples/ssl-tls/route-redirect.yaml)。
 
+## 跳转状态码（`duration` + `preserve_request`）
+
+用 **`duration`**（`temporary` | `permanent`）和 **`preserve_request`**（`true` | `false`）选择 **302 / 301 / 307 / 308**，无需死记数字。旧字段 **`permanent`** / **`with_origin_method_and_body`** 仍兼容，请优先用新字段。
+
+| duration | preserve_request | 状态码 |
+|----------|------------------|--------|
+| temporary | false | 302 |
+| permanent | false | 301 |
+| temporary | true | 307 |
+| permanent | true | 308 |
+
+<<< @/../examples/redirect/redirect-status.yaml
+
+示例中每个 host 在 GET 时返回不同状态码。POST/API 场景若需保留方法与 body，请设 **`preserve_request: true`**（307/308）。
+
 ## 路径正则 redirect
 
 `paths[].path` 为 Go 正则（编译时隐式加前缀 `^`）。path 级 **`backend.redirect`** 与 service/handler 共用同一套匹配；在 `redirect.url` 中用 **`${path.N}`** 引用捕获组，需要精确匹配时在 pattern 末尾加 **`$`**。
