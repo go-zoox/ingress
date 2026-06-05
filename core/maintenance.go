@@ -551,21 +551,15 @@ func (c *core) writeMaintenanceResponse(ctx *zoox.Context, secProf *security.Pro
 		ctx.SetHeader("Retry-After", strconv.FormatInt(settings.RetryAfter, 10))
 	}
 	status := http.StatusServiceUnavailable
-	title, subtitle := settings.Title, settings.Subtitle
-	if title == "" {
-		title, subtitle = builtinErrorPageCopy(status)
-	}
-	if subtitle == "" && settings.Title != "" {
-		_, subtitle = builtinErrorPageCopy(status)
-	}
+	title, subtitle := maintenancePageCopy(settings, window)
 
 	asJSON := requestPrefersJSON(ctx.Request)
 	var body, contentType string
 	if asJSON {
-		body = ingressErrorPageJSON(status, title, subtitle, c.cfg.ErrorPageExposeDetails, detail.Hostname, detail.Path, detail.Method, detail.Reason)
+		body = ingressMaintenancePageJSON(title, subtitle)
 		contentType = errorPageContentTypeJSON
 	} else {
-		body = ingressErrorPageHTML(status, title, subtitle, c.cfg.ErrorPageExposeDetails, detail.Hostname, detail.Path, detail.Method, detail.Reason, "maintenance")
+		body = ingressMaintenancePageHTML(title, subtitle, c.cfg.ErrorPageExposeDetails, detail.Hostname, detail.Path, detail.Method, detail.Reason)
 		contentType = errorPageContentTypeHTML
 	}
 	ctx.SetHeader("Content-Type", contentType)

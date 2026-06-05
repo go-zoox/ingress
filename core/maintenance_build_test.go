@@ -83,6 +83,53 @@ func TestBuild_GlobalMaintenance_Returns503(t *testing.T) {
 	}
 }
 
+func TestBuild_GlobalMaintenance_DefaultPageCopy(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Maintenance: MaintenanceConfig{
+			Hosts: hosts(service.MaintenanceHostEntry{
+				Host: "app.example.com",
+				Window: service.MaintenanceWindow{
+					Start: buildTestMaintWindowStart,
+					End:   "2099-12-31T23:59:59Z",
+				},
+			}),
+		},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Type: backendTypeService,
+					Service: service.Service{
+						Name:     "127.0.0.1",
+						Port:     1,
+						Protocol: "http",
+					},
+				},
+			},
+		},
+	}
+
+	ins := mustBuildIngressCore(t, cfg)
+	req := httptest.NewRequest(http.MethodGet, "http://app.example.com/api", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d body=%q", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, defaultMaintenanceTitle) {
+		t.Fatalf("expected default title in body, got %q", body)
+	}
+	if !strings.Contains(body, "我们正在进行计划维护，预计恢复时间：2099-12-31 23:59:59") {
+		t.Fatalf("expected recovery subtitle in body, got %q", body)
+	}
+	if strings.Contains(body, "Service Unavailable") {
+		t.Fatalf("expected maintenance copy, not generic 503 page, got %q", body)
+	}
+}
+
 func TestBuild_GlobalMaintenance_WindowResponseHeaders(t *testing.T) {
 	now := time.Now().UTC()
 	start := now.Add(-time.Hour).Format(time.RFC3339)

@@ -103,7 +103,7 @@ export function MaintenanceFormFields<T extends BackendForm>({
             <FormField
               label="标题 title"
               keyName={`${idPrefix}service.maintenance.title`}
-              hint="可选；覆盖全局 / 内置 503 标题"
+              hint="可选；覆盖默认「系统维护中」标题"
               value={form.maintenance_title}
               onChange={(e) => patch((n) => { n.maintenance_title = e.target.value })}
             />

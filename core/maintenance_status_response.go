@@ -108,10 +108,11 @@ func (c *core) renderIngressStatusBody(active bool, settings compiledMaintenance
 		logicalStatus = "maintenance"
 	}
 	from, until := maintenanceWindowHeaderValues(window)
+	pageTitle, pageSubtitle := maintenancePageCopy(settings, window)
 	tplCtx := maintenanceStatusTemplateContext{
 		Hostname:    hostname,
-		Title:       settings.Title,
-		Subtitle:    settings.Subtitle,
+		Title:       pageTitle,
+		Subtitle:    pageSubtitle,
 		RetryAfter:  settings.RetryAfter,
 		HeaderName:  settings.responseHeader.name,
 		HeaderValue: settings.responseHeader.value,
@@ -129,8 +130,8 @@ func (c *core) renderIngressStatusBody(active bool, settings compiledMaintenance
 
 	body := ingressStatusBody{Status: logicalStatus}
 	if active {
-		body.Title = settings.Title
-		body.Subtitle = settings.Subtitle
+		body.Title = pageTitle
+		body.Subtitle = pageSubtitle
 		body.MaintenanceHeaderName = settings.responseHeader.name
 		body.MaintenanceHeaderValue = settings.responseHeader.value
 		body.MaintenanceFrom = from
