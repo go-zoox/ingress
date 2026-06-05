@@ -1,0 +1,26 @@
+version: v1
+port: 8080
+
+rules:
+  - host: redirect.example.com
+    backend:
+      redirect:
+        url: https://new.example.com
+        permanent: true
+    paths:
+      # Prefix match: /legacy/* → fixed archive URL (explicit path in url).
+      - path: /legacy/
+        backend:
+          redirect:
+            url: https://archive.example.com/docs
+            permanent: true
+      # Regex capture: /go/{segment} → templated host from ${path.1}.
+      - path: /go/([^/]+)$
+        backend:
+          redirect:
+            url: https://seg.${path.1}.example.com/app
+      # Exact match: only /promo → fixed campaign landing (explicit path in url).
+      - path: /promo$
+        backend:
+          redirect:
+            url: https://campaign.example.com/special

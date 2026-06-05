@@ -280,6 +280,33 @@ rules:
 
 同一 host 上「默认重定向 + 按 path 反代 / 按 path 再重定向」可参考 **`examples/redirect/capture-and-mixed.yaml`**：其中 **部分 backend 显式写 `backend.type`，部分省略**，便于在同一文件里对照。Host 级 redirect 会保留请求的 path 与 query 以实现整站迁移；**已匹配的 `paths[]` 规则优先**（反代、handler 或 path 级 redirect）。
 
+### 路径级 redirect
+
+`paths[].path` 与 service、handler 路径一样，使用 **Go 正则**（启动时编译，并隐式加上前缀 `^`）。path 上的 redirect 支持：
+
+- **前缀式 pattern** — 如 `/legacy/` 可匹配 `/legacy/release-notes`。
+- **捕获组** — 在 `redirect.url` 中使用 **`${path.N}`**（规则同 `service.name`）。
+- **精确 path** — 末尾加 **`$`**，如 `/promo$` 仅匹配 `/promo`。
+
+```yaml
+rules:
+  - host: redirect.example.com
+    backend:
+      redirect:
+        url: https://new.example.com   # 默认：整站跳转，保留 path
+    paths:
+      - path: /go/([^/]+)$
+        backend:
+          redirect:
+            url: https://seg.${path.1}.example.com/app
+      - path: /promo$
+        backend:
+          redirect:
+            url: https://campaign.example.com/special
+```
+
+可运行示例：**`examples/redirect/path-regex.yaml`**。另见 [重定向示例](/zh/examples/redirect)。
+
 全局 HTTP→HTTPS 强跳使用 `https.redirect_from_http`（同样支持 `with_origin_method_and_body`），详见 [SSL/TLS 指南](/zh/guide/ssl-tls)。
 
 ## Handler 后端

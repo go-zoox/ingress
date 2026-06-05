@@ -484,6 +484,56 @@ func TestFinalizeRedirectURL(t *testing.T) {
 	}
 }
 
+func TestMatchPath_RedirectBackendRegex(t *testing.T) {
+	rules := []rule.Rule{
+		{
+			Host: "redirect.example.com",
+			Backend: rule.Backend{
+				Redirect: rule.Redirect{URL: "https://new.example.com"},
+			},
+			Paths: []rule.Path{
+				{
+					Path: `/go/([^/]+)$`,
+					Backend: rule.Backend{
+						Redirect: rule.Redirect{URL: "https://seg.${path.1}.example.com/app"},
+					},
+				},
+			},
+		},
+	}
+
+	idx, err := compileRouterIndex(rules, rule.Backend{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := inferPathSliceBackends(rules[0].Paths, 0, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	svc, matchedPath, subs, pathIdx, err := matchPathWithRouter(idx, rules, 0, "/go/zone99", "redirect.example.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if svc != nil {
+		t.Fatal("expected nil service for redirect path backend")
+	}
+	if matchedPath == nil || getBackendType(matchedPath.Backend) != backendTypeRedirect {
+		t.Fatalf("expected redirect path backend, got %+v", matchedPath)
+	}
+	if pathIdx != 0 {
+		t.Fatalf("expected path index 0, got %d", pathIdx)
+	}
+	if len(subs) < 2 || subs[1] != "zone99" {
+		t.Fatalf("expected capture zone99, got %v", subs)
+	}
+
+	_, _, _, _, err = matchPathWithRouter(idx, rules, 0, "/go/zone99/extra", "redirect.example.com", nil)
+	if err != ErrPathNotFound {
+		t.Fatalf("expected ErrPathNotFound for non-matching regex, got %v", err)
+	}
+}
+
 func TestMatchHost_RedirectOnlyBackendNoService(t *testing.T) {
 	rules := []rule.Rule{
 		{

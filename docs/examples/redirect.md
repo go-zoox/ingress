@@ -6,6 +6,14 @@ For global HTTP→HTTPS (before routing), use `https.redirect_from_http` — see
 
 Sources: [`examples/redirect/`](https://github.com/go-zoox/ingress/tree/master/examples/redirect) and [`examples/ssl-tls/route-redirect.yaml`](https://github.com/go-zoox/ingress/blob/master/examples/ssl-tls/route-redirect.yaml) for a minimal host redirect.
 
+## Path regex redirect
+
+`paths[].path` is a Go regexp (compiled with an implicit leading `^`). Path-level **`backend.redirect`** uses the same matcher as service/handler paths. Use **`${path.N}`** for capture groups in `redirect.url`; add **`$`** when you need an exact path match.
+
+<<< @/../examples/redirect/path-regex.yaml
+
+Prefix `/legacy/` sends matching traffic to a fixed URL; `/go/([^/]+)$` expands `${path.1}`; `/promo$` matches only `/promo` and redirects to an explicit landing path. Unmatched paths fall back to the host-level redirect (preserving path and query).
+
 ## Regex host with captures in `redirect.url`
 
 Same templating as `service.name`: `$1`, `${host.1}`, etc.

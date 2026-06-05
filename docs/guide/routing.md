@@ -280,6 +280,33 @@ rules:
 
 For host-level redirect combined with path-specific proxies or path-only redirects, **`examples/redirect/capture-and-mixed.yaml`** mixes **explicit `backend.type`** on some backends with **omission** on others so you can compare styles in one file. Host-level redirect preserves the request path and query for whole-site moves; **matched `paths[]` backends take precedence** (proxy, handler, or path-only redirect).
 
+### Path-level redirect
+
+`paths[].path` uses the same **Go regexp** matching as service and handler paths (compiled once at startup with an implicit leading `^`). Redirect backends on paths support:
+
+- **Prefix-style patterns** — e.g. `/legacy/` matches `/legacy/release-notes`.
+- **Capture groups** — use **`${path.N}`** in `redirect.url` (same as `service.name`).
+- **Exact paths** — add a **`$` suffix**, e.g. `/promo$` matches only `/promo`.
+
+```yaml
+rules:
+  - host: redirect.example.com
+    backend:
+      redirect:
+        url: https://new.example.com   # fallback: whole-site redirect, preserves path
+    paths:
+      - path: /go/([^/]+)$
+        backend:
+          redirect:
+            url: https://seg.${path.1}.example.com/app
+      - path: /promo$
+        backend:
+          redirect:
+            url: https://campaign.example.com/special
+```
+
+Runnable sample: **`examples/redirect/path-regex.yaml`**. See also [Redirect examples](/examples/redirect).
+
 Forced HTTP→HTTPS uses `https.redirect_from_http` (including optional `with_origin_method_and_body`); see the [SSL/TLS guide](/guide/ssl-tls).
 
 ## Handler Backend

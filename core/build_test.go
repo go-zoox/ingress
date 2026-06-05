@@ -1218,6 +1218,140 @@ func TestBuild_PathRedirect_WithPathCaptureInURL(t *testing.T) {
 	}
 }
 
+func TestBuild_PathRedirect_RegexPatterns(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "redirect.example.com",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{
+						URL:       "https://new.example.com",
+						Permanent: true,
+					},
+				},
+				Paths: []rule.Path{
+					{
+						Path: `/legacy/`,
+						Backend: rule.Backend{
+							Redirect: rule.Redirect{
+								URL:       "https://archive.example.com/docs",
+								Permanent: true,
+							},
+						},
+					},
+					{
+						Path: `/go/([^/]+)$`,
+						Backend: rule.Backend{
+							Redirect: rule.Redirect{
+								URL: "https://seg.${path.1}.example.com/app",
+							},
+						},
+					},
+					{
+						Path: `/promo$`,
+						Backend: rule.Backend{
+							Redirect: rule.Redirect{
+								URL: "https://campaign.example.com/special",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	tests := []struct {
+		name         string
+		requestPath  string
+		wantCode     int
+		wantLocation string
+	}{
+		{
+			name:         "prefix path redirect fixed destination",
+			requestPath:  "/legacy/release-notes",
+			wantCode:     http.StatusMovedPermanently,
+			wantLocation: "https://archive.example.com/docs",
+		},
+		{
+			name:         "regex capture in redirect url",
+			requestPath:  "/go/zone99",
+			wantCode:     http.StatusFound,
+			wantLocation: "https://seg.zone99.example.com/app",
+		},
+		{
+			name:         "exact path redirect",
+			requestPath:  "/promo",
+			wantCode:     http.StatusFound,
+			wantLocation: "https://campaign.example.com/special",
+		},
+		{
+			name:         "non matching path uses host redirect with preserved path",
+			requestPath:  "/docs/guide?lang=en",
+			wantCode:     http.StatusMovedPermanently,
+			wantLocation: "https://new.example.com/docs/guide?lang=en",
+		},
+		{
+			name:         "similar but non exact path skips promo rule",
+			requestPath:  "/promo/extra",
+			wantCode:     http.StatusMovedPermanently,
+			wantLocation: "https://new.example.com/promo/extra",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "http://redirect.example.com"+tt.requestPath, nil)
+			rec := httptest.NewRecorder()
+			ins.app.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantCode {
+				t.Fatalf("expected status %d, got %d", tt.wantCode, rec.Code)
+			}
+			if location := rec.Header().Get("Location"); location != tt.wantLocation {
+				t.Fatalf("expected Location %q, got %q", tt.wantLocation, location)
+			}
+		})
+	}
+}
+
+func TestCompileRouterIndex_InvalidPathRedirectRegex(t *testing.T) {
+	rules := []rule.Rule{
+		{
+			Host: "redirect.example.com",
+			Backend: rule.Backend{
+				Redirect: rule.Redirect{URL: "https://new.example.com"},
+			},
+			Paths: []rule.Path{
+				{
+					Path: `[unclosed`,
+					Backend: rule.Backend{
+						Redirect: rule.Redirect{URL: "https://bad.example.com"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := compileRouterIndex(rules, rule.Backend{})
+	if err == nil {
+		t.Fatal("expected compile error for invalid path regex")
+	}
+	if !strings.Contains(err.Error(), "paths[0]") {
+		t.Fatalf("expected paths[0] in error, got: %v", err)
+	}
+}
+
 func TestBuild_RedirectFromHTTP_WithCustomHTTPSPortAndExcludePath(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
