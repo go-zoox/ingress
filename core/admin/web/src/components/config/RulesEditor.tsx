@@ -126,6 +126,7 @@ export const RulesEditor = forwardRef<
         <thead>
           <tr>
             <th>#</th>
+            <th>状态</th>
             <th>Host</th>
             <th>类型</th>
             <th>Backend</th>
@@ -136,16 +137,22 @@ export const RulesEditor = forwardRef<
         <tbody>
           {rules.length === 0 ? (
             <tr>
-              <td colSpan={6} className="empty-hint">
+              <td colSpan={7} className="empty-hint">
                 无路由规则，点击「添加」
               </td>
             </tr>
           ) : (
             rules.map((rule, i) => {
               const pathCount = arr(rule.paths).length
+              const enabled = rule.enabled !== false
               return (
-                <tr key={`${str(rule.host)}-${i}`}>
+                <tr key={`${str(rule.host)}-${i}`} className={enabled ? undefined : 'row-muted'}>
                   <td>{i + 1}</td>
+                  <td>
+                    <span className={`badge ${enabled ? 'badge-exact' : 'badge-block'}`}>
+                      {enabled ? '启用' : '禁用'}
+                    </span>
+                  </td>
                   <td>
                     {onOpenDetail ? (
                       <button

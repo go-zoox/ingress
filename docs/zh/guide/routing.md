@@ -149,6 +149,26 @@ rules:
 
 路径按定义的顺序匹配。将使用第一个匹配的路径。如果没有路径匹配，将使用主机级后端。
 
+### 禁用规则
+
+在规则上设置 **`enabled: false`** 可在运行时跳过该条规则而不删除配置。被禁用的规则不参与匹配（继续尝试下一条**已启用**的规则）。省略 **`enabled`** 或设为 **`true`** 表示启用。配置中的规则序号不变，便于 **`rules[].waf`**、**`rules[].rate_limit`** 与 Admin 路由列表对齐。
+
+```yaml
+rules:
+  - host: legacy.example.com
+    enabled: false
+    backend:
+      redirect:
+        url: https://old.example.com
+  - host: legacy.example.com
+    backend:
+      service:
+        name: current-upstream
+        port: 8080
+```
+
+可运行示例：**`examples/basic/rule-disabled.yaml`**。
+
 ## 请求重写
 
 在路由到后端服务时，您可以重写请求路径、头和查询参数。
@@ -480,7 +500,7 @@ rules:
 
 Ingress **不会**在每次请求时再为 host、path 解析正则。
 
-- 进程**启动**或配置 **Reload** 时，`prepare()` 会构建内部**路由索引**（`core/compile.go`）：对每条规则先解析最终 `host_type`（含省略或 `auto` 时的**自动推断**），再对作为 `regex` / `wildcard` 的 `host` 以及每条 `paths[].path`，使用 Go `regexp` **只编译一次**。
+- 进程**启动**或配置 **Reload** 时，`prepare()` 会构建内部**路由索引**（`core/compile.go`）：对每条**已启用**的规则先解析最终 `host_type`（含省略或 `auto` 时的**自动推断**），再对作为 `regex` / `wildcard` 的 `host` 以及每条 `paths[].path`，使用 Go `regexp` **只编译一次**。`enabled: false` 的规则不参与匹配，但仍保留在配置序号中。
 - **配置里规则的顺序会保留。** 匹配按规则顺序遍历；**先**命中的 host 规则生效；在同一 host 下 **先**命中的 path 生效（与优化前语义一致）。
 - 若存在**非法**模式（例如 `host` 或 `path` 的正则无法编译），**启动或 `Reload` 会直接报错失败**，需先修正配置。这与早期「可能直到第一次匹配请求才暴露错误」的行为不同。
 

@@ -25,6 +25,7 @@ type RouteRow struct {
 	Auth        string `json:"auth"`
 	HealthCheck string `json:"health_check"`
 	Maintenance string `json:"maintenance"`
+	Enabled     bool   `json:"enabled"`
 }
 
 // MatchPreview is the result of a dry-run host/path match.
@@ -105,6 +106,7 @@ func routeRowFromBackend(id, ruleIndex, pathIndex int, r *rule.Rule, hostType, p
 		Auth:        authLabelFromBackend(b),
 		HealthCheck: healthCheckLabelFromBackend(b),
 		Maintenance: maintenanceLabelFromRule(r),
+		Enabled:     r.IsEnabled(),
 	}
 }
 
@@ -199,6 +201,9 @@ func healthCheckLabelFromService(s *service.Service) string {
 // flattened route identified by ruleIndex and pathIndex (-1 = rule-level backend).
 func RequestMatchesRoute(cfg *Config, ruleIndex, pathIndex int, requestHost, requestPath string) (bool, error) {
 	if cfg == nil || ruleIndex < 0 || ruleIndex >= len(cfg.Rules) {
+		return false, nil
+	}
+	if !cfg.Rules[ruleIndex].IsEnabled() {
 		return false, nil
 	}
 	if err := inferBackendTypes(cfg); err != nil {

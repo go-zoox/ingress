@@ -281,6 +281,7 @@ function cachePathRulesToForm(cache: Record<string, unknown>): CachePathRuleForm
 export type RuleForm = {
   host: string
   host_type: string
+  enabled: boolean
   paths: PathForm[]
 } & BackendForm & RateLimitFormSlice & SecurityLayerFormSlice
 
@@ -759,6 +760,7 @@ export function ruleToForm(rule: Record<string, unknown>): RuleForm {
   return {
     host: str(rule.host),
     host_type: str(rule.host_type, 'auto'),
+    enabled: rule.enabled !== false,
     paths: arr<Record<string, unknown>>(rule.paths).map(pathToForm),
     ...backendToForm(obj(rule.backend)),
     ...rateLimitToForm(obj(rule.rate_limit)),
@@ -770,6 +772,7 @@ export function emptyRuleForm(): RuleForm {
   return {
     host: 'app.example.com',
     host_type: 'exact',
+    enabled: true,
     paths: [],
     ...emptyBackendForm(),
     ...emptyRateLimitForm(),
@@ -1174,6 +1177,8 @@ export function formToPath(form: PathForm, original?: Record<string, unknown>): 
 export function formToRule(form: RuleForm, original?: Record<string, unknown>): Record<string, unknown> {
   const next: Record<string, unknown> = original ? { ...original } : {}
   next.host = form.host.trim()
+  if (form.enabled) delete next.enabled
+  else next.enabled = false
   if (form.host_type && form.host_type !== 'auto') next.host_type = form.host_type
   else delete next.host_type
   next.backend = formToBackend(form, obj(original?.backend))

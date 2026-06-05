@@ -1,0 +1,13 @@
+version: v1
+port: 8080
+
+rules:
+  - host: disabled.example.com
+    enabled: false
+    backend:
+      redirect:
+        url: https://old.example.com
+  - host: disabled.example.com
+    backend:
+      handler:
+        body: "still live\n"

@@ -19,6 +19,8 @@ type Rule struct {
 	// Empty or "auto" selects exact vs regex vs wildcard from Host at compile time.
 	// Set "exact" explicitly to match Host as a literal string even if it looks like a pattern.
 	HostType string `config:"host_type"`
+	// Enabled controls whether the rule participates in routing. Omitted or true = enabled.
+	Enabled *bool `config:"enabled"`
 }
 
 // Backend describes what to do for a matched host or path (rules[].backend or paths[].backend;

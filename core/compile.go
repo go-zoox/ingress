@@ -67,6 +67,9 @@ func compileRouterIndex(rules []rule.Rule, fallback rule.Backend) (*routerIndex,
 
 	for i := range rules {
 		r := &rules[i]
+		if !r.IsEnabled() {
+			continue
+		}
 		ht := effectiveHostType(r.HostType, r.Host)
 		r.HostType = ht
 		switch ht {

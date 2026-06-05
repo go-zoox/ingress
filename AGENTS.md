@@ -5,6 +5,7 @@ Context for humans and coding agents working on this repository.
 ## Host routing
 
 - **Compile path**: `core/prepare.go` calls `compileRouterIndex` in `core/compile.go` on startup and on config reload. Host and path patterns are compiled once (Go `regexp`); invalid patterns fail startup/reload.
+- **`rules[].enabled`**: Optional; default **enabled** when omitted (`rule.IsEnabled()`). Disabled rules are **skipped in the router index** (no host/path match) but remain in `cfg.Rules` for validation, admin list, and WAF/rate-limit index alignment. Admin: Rules table **状态** column + form checkbox (`RulesEditor`, `RuleEntityFormSections`).
 - **`host_type` resolution**: If `host_type` is omitted or set to `auto`, the effective type is chosen from the `host` string at compile time and **written back** to `rule.Rule.HostType`. Downstream code (`core/match.go`, `core/build.go`, service name templates) relies on that final value, not only on the YAML omission.
 - **Inference order** (when auto):
   1. If `host` contains regexp metacharacters `( ) [ ] ^ $ | + ? \` → **regex**

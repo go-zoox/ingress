@@ -392,6 +392,7 @@ export type RouteRow = {
   auth?: string
   health_check?: string
   maintenance?: string
+  enabled?: boolean
 }
 
 export type MatchPreview = {

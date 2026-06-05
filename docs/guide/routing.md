@@ -149,6 +149,26 @@ Path matching uses regex patterns. The path `/api` will match `/api`, `/api/`, `
 
 Paths are matched in the order they are defined. The first matching path will be used. If no path matches, the host-level backend will be used.
 
+### Disabling rules
+
+Set **`enabled: false`** on a rule to take it out of matching without deleting it. Disabled rules are skipped in order (the next matching **enabled** rule wins). Omitted **`enabled`** or **`enabled: true`** keeps the rule active. Rule indices in the config file stay fixed so **`rules[].waf`**, **`rules[].rate_limit`**, and admin route rows remain aligned.
+
+```yaml
+rules:
+  - host: legacy.example.com
+    enabled: false
+    backend:
+      redirect:
+        url: https://old.example.com
+  - host: legacy.example.com
+    backend:
+      service:
+        name: current-upstream
+        port: 8080
+```
+
+Runnable sample: **`examples/basic/rule-disabled.yaml`**.
+
 ## Request Rewriting
 
 You can rewrite request paths, headers, and query parameters when routing to backend services.
@@ -480,7 +500,7 @@ This matches any subdomain of `example.work` and routes to the same backend serv
 
 Ingress does **not** compile regular expressions on every request for host and path rules.
 
-- When the process **starts** or when configuration is **reloaded**, `prepare()` builds an internal **router index** (`core/compile.go`): for each rule, the effective `host_type` is resolved (including **automatic** inference when omitted or `auto`), then each `host` that is regex or wildcard and each `paths[].path` pattern is compiled once with Go’s `regexp` package.
+- When the process **starts** or when configuration is **reloaded**, `prepare()` builds an internal **router index** (`core/compile.go`): for each **enabled** rule, the effective `host_type` is resolved (including **automatic** inference when omitted or `auto`), then each `host` that is regex or wildcard and each `paths[].path` pattern is compiled once with Go’s `regexp` package. Rules with **`enabled: false`** are skipped for matching but keep their config index.
 - **Rule order in your config is preserved.** Matching walks rules in order; the **first** matching host rule wins, and within a host the **first** matching path wins (same semantics as before this optimization).
 - If any pattern is **invalid** (e.g. bad regex in `host` or `path`), **startup or `Reload` fails** with an error. You must fix the configuration before Ingress accepts traffic. This replaces the older behavior where some invalid patterns might only surface on the first matching request.
 

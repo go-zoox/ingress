@@ -1,4 +1,4 @@
-import { FormGrid, FormField, FormSelectField } from '../Form'
+import { FormCheckbox, FormGrid, FormField, FormSelectField } from '../Form'
 import { AuthFormFields } from './AuthFormFields'
 import { BackendCacheFormFields } from './BackendCacheFormFields'
 import { BackendCoreFormFields } from './BackendCoreFormFields'
@@ -273,6 +273,11 @@ export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
         case 'basic':
           return (
             <FormGrid columns={1}>
+              <FormCheckbox
+                label="启用规则 (enabled)"
+                checked={ruleForm.enabled}
+                onChange={(v) => setRuleForm({ ...ruleForm, enabled: v })}
+              />
               <FormField
                 label="Host"
                 keyName="host"

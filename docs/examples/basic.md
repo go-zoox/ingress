@@ -28,3 +28,9 @@ curl -H "Host: example.com" http://localhost:8080
 ## Multiple services
 
 <<< @/../examples/basic/multi-host.yaml
+
+## Disabling a rule
+
+<<< @/../examples/basic/rule-disabled.yaml
+
+When the first rule for `disabled.example.com` has **`enabled: false`**, traffic falls through to the next matching enabled rule (handler body `still live` in the sample).
