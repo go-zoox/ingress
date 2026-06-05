@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -366,6 +367,36 @@ func redirectLegacyHostPattern(rule *rule.Rule) string {
 	default:
 		return ""
 	}
+}
+
+// finalizeRedirectURL builds the redirect Location after template expansion.
+// Host-only values (no scheme) become scheme://host{path}?{query}.
+// Full http(s) URLs without an explicit path (empty or "/") keep the request path and query for whole-site redirects.
+func finalizeRedirectURL(redirectURL, scheme, path, rawQuery string) string {
+	if redirectURL == "" {
+		return redirectURL
+	}
+	if !strings.HasPrefix(redirectURL, "http://") && !strings.HasPrefix(redirectURL, "https://") {
+		loc := fmt.Sprintf("%s://%s%s", scheme, redirectURL, path)
+		if rawQuery != "" {
+			loc = fmt.Sprintf("%s?%s", loc, rawQuery)
+		}
+		return loc
+	}
+
+	u, err := url.Parse(redirectURL)
+	if err != nil {
+		return redirectURL
+	}
+	if u.Path != "" && u.Path != "/" {
+		return redirectURL
+	}
+
+	u.Path = path
+	if rawQuery != "" {
+		u.RawQuery = rawQuery
+	}
+	return u.String()
 }
 
 // stackoverflow: https://stackoverflow.com/questions/64509506/golang-determine-if-string-contains-a-string-with-wildcards

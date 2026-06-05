@@ -262,7 +262,7 @@ Runnable twin-host sample: **`examples/ssl-tls/route-redirect.yaml`**.
 
 Fields:
 
-- **`url`**: Target URL. If it does not start with `http://` or `https://`, Ingress treats the value as a host (optional port) and builds the full URL with the incoming request’s scheme, original path, and query string.
+- **`url`**: Target URL. If it does not start with `http://` or `https://`, Ingress treats the value as a host (optional port) and builds the full URL with the incoming request’s scheme, original path, and query string. Full `http://` / `https://` URLs **without an explicit path** (host only, or trailing `/`) also preserve the request path and query—use a path in `url` (e.g. `https://new.example.com/landing`) when every request should go to the same destination.
 - **`permanent`**: When `false`, uses **302**; when `true`, uses **301**—unless `with_origin_method_and_body` is enabled (below).
 - **`with_origin_method_and_body`** (default `false`): When `true`, uses **307** / **308** so clients keep the original HTTP method and body (temporary vs permanent follows `permanent`). When `false`, uses **302** / **301** as above.
 
@@ -278,7 +278,7 @@ rules:
         url: https://bigscreen-$1.other.example.com
 ```
 
-For host-level redirect combined with path-specific proxies or path-only redirects, **`examples/redirect/capture-and-mixed.yaml`** mixes **explicit `backend.type`** on some backends with **omission** on others so you can compare styles in one file.
+For host-level redirect combined with path-specific proxies or path-only redirects, **`examples/redirect/capture-and-mixed.yaml`** mixes **explicit `backend.type`** on some backends with **omission** on others so you can compare styles in one file. Host-level redirect preserves the request path and query for whole-site moves; **matched `paths[]` backends take precedence** (proxy, handler, or path-only redirect).
 
 Forced HTTP→HTTPS uses `https.redirect_from_http` (including optional `with_origin_method_and_body`); see the [SSL/TLS guide](/guide/ssl-tls).
 

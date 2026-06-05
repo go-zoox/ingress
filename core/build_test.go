@@ -3,10 +3,12 @@ package core
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -979,6 +981,156 @@ func TestBuild_RedirectOnlyHost_OmitsService(t *testing.T) {
 	}
 }
 
+func TestBuild_BackendRedirect_FullURLHostOnly_PreservesPath(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "old.example.com",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{
+						URL: "https://new.example.com",
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://old.example.com/docs/guide?lang=en", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status code 302, got %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "https://new.example.com/docs/guide?lang=en" {
+		t.Fatalf("expected Location with preserved path and query, got %q", location)
+	}
+}
+
+func TestBuild_HostRedirect_SkippedWhenPathServiceMatches(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("api-ok"))
+	}))
+	defer upstream.Close()
+
+	host, portStr, err := net.SplitHostPort(upstream.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("SplitHostPort: %v", err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		t.Fatalf("Atoi: %v", err)
+	}
+
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{
+						URL: "https://www.example.com",
+					},
+				},
+				Paths: []rule.Path{
+					{
+						Path: "^/api/",
+						Backend: rule.Backend{
+							Service: service.Service{
+								Name:     host,
+								Port:     int64(port),
+								Protocol: "http",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://app.example.com/api/users", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected path service to proxy (200), got %d Location=%q", rec.Code, rec.Header().Get("Location"))
+	}
+	if body := rec.Body.String(); body != "api-ok" {
+		t.Fatalf("expected upstream body, got %q", body)
+	}
+}
+
+func TestBuild_HostRedirect_FallsBackWhenNoPathMatches(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Redirect: rule.Redirect{
+						URL: "https://www.example.com",
+					},
+				},
+				Paths: []rule.Path{
+					{
+						Path: "^/api/",
+						Backend: rule.Backend{
+							Service: service.Service{
+								Name:     "api-svc",
+								Port:     8080,
+								Protocol: "http",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://app.example.com/docs/guide", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status code 302, got %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "https://www.example.com/docs/guide" {
+		t.Fatalf("expected host redirect with preserved path, got %q", location)
+	}
+}
+
 func TestBuild_BackendRedirect_RegexHost_CaptureInURL(t *testing.T) {
 	cfg := &Config{
 		Port: 8080,
@@ -1012,8 +1164,8 @@ func TestBuild_BackendRedirect_RegexHost_CaptureInURL(t *testing.T) {
 	if rec.Code != http.StatusFound {
 		t.Fatalf("expected status code 302, got %d", rec.Code)
 	}
-	if location := rec.Header().Get("Location"); location != "https://bigscreen-acme.yss.example.com" {
-		t.Fatalf("expected expanded Location, got %q", location)
+	if location := rec.Header().Get("Location"); location != "https://bigscreen-acme.yss.example.com/dashboard" {
+		t.Fatalf("expected expanded Location with request path, got %q", location)
 	}
 }
 

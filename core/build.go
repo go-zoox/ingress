@@ -176,7 +176,7 @@ func (c *core) build() error {
 			permanent = pathBackend.Redirect.Permanent
 			withOriginMethodAndBody = pathBackend.Redirect.WithOriginMethodAndBody
 			hasRedirect = true
-		} else if matchedRule.Backend.Redirect.URL != "" {
+		} else if matchedRule.Backend.Redirect.URL != "" && pathBackend == nil {
 			redirectURL = matchedRule.Backend.Redirect.URL
 			permanent = matchedRule.Backend.Redirect.Permanent
 			withOriginMethodAndBody = matchedRule.Backend.Redirect.WithOriginMethodAndBody
@@ -214,21 +214,11 @@ func (c *core) build() error {
 			}
 
 			redirectURL = expandRedirectURL(matchedRule, hostname, redirectURL, hostSm, pathSm)
-			// If redirect URL is not a full URL (doesn't start with http:// or https://),
-			// construct the full URL by keeping the original path and query parameters
-			if !strings.HasPrefix(redirectURL, "http://") && !strings.HasPrefix(redirectURL, "https://") {
-				// Use the same scheme as the original request
-				scheme := schemeHTTP
-				if ctx.Request.TLS != nil || strings.EqualFold(ctx.Request.Header.Get(headerXForwardedProto), schemeHTTPS) {
-					scheme = schemeHTTPS
-				}
-
-				// Build the redirect URL with original path and query
-				redirectURL = fmt.Sprintf("%s://%s%s", scheme, redirectURL, path)
-				if ctx.Request.URL.RawQuery != "" {
-					redirectURL = fmt.Sprintf("%s?%s", redirectURL, ctx.Request.URL.RawQuery)
-				}
+			scheme := schemeHTTP
+			if ctx.Request.TLS != nil || strings.EqualFold(ctx.Request.Header.Get(headerXForwardedProto), schemeHTTPS) {
+				scheme = schemeHTTPS
 			}
+			redirectURL = finalizeRedirectURL(redirectURL, scheme, path, ctx.Request.URL.RawQuery)
 
 			if mayStoreRedirect && policyRedirect != nil && redirectCacheKey != "" {
 				code := redirectStatusFromFlags(permanent, withOriginMethodAndBody)

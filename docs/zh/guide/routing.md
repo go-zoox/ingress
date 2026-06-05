@@ -262,7 +262,7 @@ rules:
 
 字段说明：
 
-- **`url`**：跳转地址。若非 `http://` / `https://` 开头，则视为主机（可含端口），Ingress 会用当前请求的协议，并保留原始 path 与 query 拼出完整 URL。
+- **`url`**：跳转地址。若非 `http://` / `https://` 开头，则视为主机（可含端口），Ingress 会用当前请求的协议，并保留原始 path 与 query 拼出完整 URL。完整的 `http://` / `https://` URL 若**未指定路径**（仅 host，或以 `/` 结尾）同样会保留请求的 path 与 query；若希望所有请求都跳到同一地址，请在 `url` 中写出明确路径（例如 `https://new.example.com/landing`）。
 - **`permanent`**：为 `false` 时使用 **302**，为 `true` 时使用 **301**；若开启下面的 `with_origin_method_and_body`，则状态码见该项说明。
 - **`with_origin_method_and_body`**（默认 `false`）：为 `true` 时使用 **307** / **308**，客户端会保留原 HTTP 方法与请求体（临时/永久仍由 `permanent` 决定）；为 `false` 时仍为 **302** / **301**。
 
@@ -278,7 +278,7 @@ rules:
         url: https://bigscreen-$1.other.example.com
 ```
 
-同一 host 上「默认重定向 + 按 path 反代 / 按 path 再重定向」可参考 **`examples/redirect/capture-and-mixed.yaml`**：其中 **部分 backend 显式写 `backend.type`，部分省略**，便于在同一文件里对照。
+同一 host 上「默认重定向 + 按 path 反代 / 按 path 再重定向」可参考 **`examples/redirect/capture-and-mixed.yaml`**：其中 **部分 backend 显式写 `backend.type`，部分省略**，便于在同一文件里对照。Host 级 redirect 会保留请求的 path 与 query 以实现整站迁移；**已匹配的 `paths[]` 规则优先**（反代、handler 或 path 级 redirect）。
 
 全局 HTTP→HTTPS 强跳使用 `https.redirect_from_http`（同样支持 `with_origin_method_and_body`），详见 [SSL/TLS 指南](/zh/guide/ssl-tls)。
 

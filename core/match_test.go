@@ -432,6 +432,58 @@ func TestExpandRedirectURL_RegexHostCaptures(t *testing.T) {
 	}
 }
 
+func TestFinalizeRedirectURL(t *testing.T) {
+	tests := []struct {
+		name       string
+		redirect   string
+		scheme     string
+		path       string
+		rawQuery   string
+		want       string
+	}{
+		{
+			name:     "host only",
+			redirect: "new.example.com",
+			scheme:   "https",
+			path:     "/docs/guide",
+			rawQuery: "lang=en",
+			want:     "https://new.example.com/docs/guide?lang=en",
+		},
+		{
+			name:     "full url without path",
+			redirect: "https://new.example.com",
+			scheme:   "https",
+			path:     "/docs/guide",
+			rawQuery: "lang=en",
+			want:     "https://new.example.com/docs/guide?lang=en",
+		},
+		{
+			name:     "full url root path",
+			redirect: "https://new.example.com/",
+			scheme:   "https",
+			path:     "/api/v1",
+			want:     "https://new.example.com/api/v1",
+		},
+		{
+			name:     "explicit redirect path unchanged",
+			redirect: "https://new.example.com/welcome",
+			scheme:   "https",
+			path:     "/any/path",
+			rawQuery: "x=1",
+			want:     "https://new.example.com/welcome",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := finalizeRedirectURL(tt.redirect, tt.scheme, tt.path, tt.rawQuery)
+			if got != tt.want {
+				t.Fatalf("got %q want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMatchHost_RedirectOnlyBackendNoService(t *testing.T) {
 	rules := []rule.Rule{
 		{
