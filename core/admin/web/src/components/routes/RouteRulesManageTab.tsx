@@ -130,7 +130,10 @@ export function RouteRulesManageTab({ onPublished, onSaveError, onSaveSuccess }:
               hideTableChrome
               onOpenDetail={(ri, pi = -1) => navigate(`/routes/${ri}/${pi}`)}
             />
-            <p className="form-hint" style={{ marginTop: '1rem' }}>
+            <p className="form-hint" style={{ marginTop: '0.75rem' }}>
+              列表顺序即匹配优先级；拖拽左侧手柄或使用操作菜单中的上移/下移调整顺序。
+            </p>
+            <p className="form-hint" style={{ marginTop: '0.5rem' }}>
               与 <Link to="/config">配置 → 路由规则</Link> 编辑同一模块；也可在{' '}
               <Link to="/services">服务</Link> 维护 upstream 目录后在 backend 中选用。
             </p>

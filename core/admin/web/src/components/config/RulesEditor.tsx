@@ -1,4 +1,5 @@
 import { forwardRef, useImperativeHandle, useState } from 'react'
+import { GripVertical } from 'lucide-react'
 import {
   ConfigEntityModal,
   EntityRowActions,
@@ -20,7 +21,8 @@ import {
   type RuleForm,
 } from '../../lib/configEntities'
 import { arr, str } from '../../lib/ingressModuleForms'
-import { moveAdjacent } from '../../lib/arrayMove'
+import { moveToIndex, remapIndexAfterMove } from '../../lib/arrayMove'
+import { useListDragReorder } from '../../hooks/useListDragReorder'
 import type { ServiceForm } from '../../lib/services'
 
 export type RulesEditorHandle = {
@@ -97,13 +99,21 @@ export const RulesEditor = forwardRef<
     patchRules(rules.filter((_, i) => i !== index))
   }
 
+  const moveRuleByIndex = (from: number, to: number) => {
+    patchRules(moveToIndex(rules, from, to))
+    setPathsModalIndex((cur) => remapIndexAfterMove(cur, from, to))
+  }
+
   const moveRule = (index: number, delta: -1 | 1) => {
     const j = index + delta
     if (j < 0 || j >= rules.length) return
-    patchRules(moveAdjacent(rules, index, delta))
-    if (pathsModalIndex === index) setPathsModalIndex(j)
-    else if (pathsModalIndex === j) setPathsModalIndex(index)
+    moveRuleByIndex(index, j)
   }
+
+  const { rowClassName, handleProps, rowProps } = useListDragReorder({
+    items: rules,
+    onMove: moveRuleByIndex,
+  })
 
   const savePaths = (nextRule: Record<string, unknown>) => {
     if (pathsModalIndex == null) return
@@ -119,12 +129,13 @@ export const RulesEditor = forwardRef<
       {!hideTableChrome ? (
         <>
           <EntityTableToolbar label="rules" onAdd={openAdd} />
-          <p className="form-hint">列表顺序即匹配优先级，排在前面的规则优先匹配。</p>
+          <p className="form-hint">列表顺序即匹配优先级，排在前面的规则优先匹配；可拖拽左侧手柄调整顺序。</p>
         </>
       ) : null}
       <table className="data config-rules-table">
         <thead>
           <tr>
+            <th className="col-drag" aria-label="排序" />
             <th>#</th>
             <th>状态</th>
             <th>Host</th>
@@ -137,7 +148,7 @@ export const RulesEditor = forwardRef<
         <tbody>
           {rules.length === 0 ? (
             <tr>
-              <td colSpan={7} className="empty-hint">
+              <td colSpan={8} className="empty-hint">
                 无路由规则，点击「添加」
               </td>
             </tr>
@@ -146,7 +157,21 @@ export const RulesEditor = forwardRef<
               const pathCount = arr(rule.paths).length
               const enabled = rule.enabled !== false
               return (
-                <tr key={`${str(rule.host)}-${i}`} className={enabled ? undefined : 'row-muted'}>
+                <tr
+                  key={`${str(rule.host)}-${i}`}
+                  className={rowClassName(i, enabled ? undefined : 'row-muted')}
+                  {...rowProps(i)}
+                >
+                  <td className="col-drag">
+                    <span
+                      className="row-drag-handle"
+                      title="拖拽排序"
+                      aria-label={`拖拽调整规则 ${i + 1} 顺序`}
+                      {...handleProps(i)}
+                    >
+                      <GripVertical size={14} aria-hidden />
+                    </span>
+                  </td>
                   <td>{i + 1}</td>
                   <td>
                     <span className={`badge ${enabled ? 'badge-exact' : 'badge-block'}`}>
