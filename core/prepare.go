@@ -2,12 +2,14 @@ package core
 
 import (
 	"fmt"
+	"os"
 
-	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/ingress/core/ratelimit"
 	"github.com/go-zoox/ingress/core/security"
+	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/kv"
 	"github.com/go-zoox/kv/redis"
+	"github.com/go-zoox/zoox"
 )
 
 func (c *core) prepare() error {
@@ -18,6 +20,10 @@ func (c *core) prepare() error {
 	if c.cfg.Cache.TTL == 0 {
 		c.cfg.Cache.TTL = 60
 	}
+
+	// Use a stable session encryption key for OAuth2/OIDC across replicas.
+	// Precedence: SECRET_KEY env > config secret_key > zoox per-process default.
+	c.applySecretKey()
 
 	if err := c.cfg.Logging.Prepare(c.cfg.Admin, c.configFilePath); err != nil {
 		return fmt.Errorf("logging: %w", err)
@@ -91,6 +97,21 @@ func (c *core) prepare() error {
 	}
 
 	return nil
+}
+
+// applySecretKey sets the session encryption key used for OAuth2/OIDC session cookies.
+// The SECRET_KEY env var takes precedence over the config value, so operators can rotate
+// the secret without editing the config file, and so the same value can be shared across
+// every replica (required for OAuth2 to survive load-balanced callbacks). When both are
+// absent we leave app.Config.SecretKey empty and let zoox use its per-process random key.
+func (c *core) applySecretKey() {
+	secretKey := c.cfg.SecretKey
+	if v := os.Getenv(zoox.BuiltInEnvSecretKey); v != "" {
+		secretKey = v
+	}
+	if secretKey != "" {
+		c.app.Config.SecretKey = secretKey
+	}
 }
 
 func (c *core) prepareCache() {

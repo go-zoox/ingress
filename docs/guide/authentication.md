@@ -301,6 +301,44 @@ userID := claims.Get("id").String()
 8. On subsequent requests, the session cookie identifies the authenticated user
 9. If `connect.enabled: true`, `X-Connect-Token` and `X-Connect-Timestamp` are injected into the upstream request
 
+#### HTTP → HTTPS behind a load balancer
+
+The OAuth2 **`redirect_uri`** is auto-generated from the request scheme and host (`auth_oauth2.go`). If ingress sits behind a TLS-terminating reverse proxy (so it receives plain HTTP internally), it honors **`X-Forwarded-Proto: https`**. For public/multi-replica deployments, we recommend setting **`oauth2.redirect_url`** explicitly to the public HTTPS URL so the identity provider always sees the same callback:
+
+```yaml
+auth:
+  type: oauth2
+  oauth2:
+    provider: github
+    client_id: ...
+    client_secret: ...
+    redirect_url: https://example.com/oauth2/callback
+```
+
+#### Multi-replica deployments
+
+The OAuth2/OIDC **CSRF `state`** and the **post-login redirect URL** are carried in an **encrypted session cookie**. The cookie is encrypted with `app.Config.SecretKey`, which defaults to a **per-process random** key when you do not configure it. If you run **multiple ingress replicas behind a load balancer**, the callback request can land on a different replica than the one that issued the redirect: that replica cannot decrypt the cookie, so the CSRF `state` is empty and the callback fails with **401**.
+
+To make OAuth2 work across replicas, set an identical session key on **every** replica:
+
+```yaml
+# ingress.yaml
+secret_key: a-long-random-shared-secret
+```
+
+or
+
+```bash
+# the SECRET_KEY env var overrides the config value
+export SECRET_KEY="a-long-random-shared-secret"
+```
+
+Generate one with `openssl rand -hex 32`. Because the session lives entirely in the cookie, you do **not** need sticky sessions once the key is stable.
+
+#### Concurrent logins
+
+`state`/redirect are tracked **per flow** (keyed by `state`), so a user who starts two logins at once (two tabs, a refresh, etc.) no longer has the two flows overwrite each other: each callback resolves its own `state` and redirects back to its own original URL. A legacy single-state fallback keeps in-flight flows from older versions working across a rolling upgrade.
+
 ## OIDC Authentication
 
 OpenID Connect (OIDC) authentication extends OAuth2 with identity verification.

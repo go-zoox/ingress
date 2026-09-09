@@ -12,6 +12,12 @@ type Config struct {
 	Port int64 `config:"port"`
 	// EnableH2C enables cleartext HTTP/2 (h2c) on the plaintext HTTP port. Unsafe on public networks; use behind a trusted load balancer or for local testing.
 	EnableH2C bool `config:"enable_h2c"`
+	// SecretKey is the shared secret used to encrypt/decrypt the OAuth2/OIDC session cookie
+	// that carries the CSRF state and post-login redirect URL. Set the SAME value on every
+	// ingress replica so those cookies round-trip across replicas. When unset, zoox falls back
+	// to a per-process random key, which breaks OAuth2 in multi-replica deployments.
+	// The SECRET_KEY environment variable overrides this config value.
+	SecretKey string `config:"secret_key"`
 	//
 	Rules []rule.Rule `config:"rules"`
 	// WAF is optional global baseline; rules[].waf patches this map-wise (see docs/guide/waf.md).

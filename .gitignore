@@ -22,6 +22,9 @@
 # Go workspace file
 go.work
 
+# Local Go build cache (used when the global GOCACHE is unwritable, e.g. sandboxed builds)
+.gocache/
+
 # Common
 .env
 

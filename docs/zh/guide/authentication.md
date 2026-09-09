@@ -296,6 +296,44 @@ userID := claims.Get("id").String()
 8. 后续请求中，session cookie 标识已认证的用户
 9. 若 `connect.enabled: true`，在向上游转发请求时注入 `X-Connect-Token` 和 `X-Connect-Timestamp`
 
+#### 负载均衡后的 HTTP → HTTPS
+
+OAuth2 的 **`redirect_uri`** 根据请求的 scheme 和 host 自动生成（`auth_oauth2.go`）。若 ingress 位于 TLS 终结的反向代理之后（内部收到的是明文 HTTP），它会根据 **`X-Forwarded-Proto: https`** 判定 scheme。对于公网/多副本部署，建议显式设置 **`oauth2.redirect_url`** 为公网 HTTPS 地址，确保身份提供方始终看到同一个回调地址：
+
+```yaml
+auth:
+  type: oauth2
+  oauth2:
+    provider: github
+    client_id: ...
+    client_secret: ...
+    redirect_url: https://example.com/oauth2/callback
+```
+
+#### 多副本部署
+
+OAuth2/OIDC 的 **CSRF `state`** 与 **登录后跳转 URL** 都存在**加密的 session cookie** 中，而该 cookie 是用 `app.Config.SecretKey` 加密的。当你没有配置 `SecretKey` 时，会退化为**每个进程随机生成**的密钥。如果**多副本 + 负载均衡**部署，回调请求可能落到与发起跳转不同的副本上：该副本无法解密 cookie，CSRF `state` 为空，回调返回 **401**。
+
+要让 OAuth2 在多副本下正常工作，请在**每个副本**上设置相同的会话密钥：
+
+```yaml
+# ingress.yaml
+secret_key: a-long-random-shared-secret
+```
+
+或
+
+```bash
+# SECRET_KEY 环境变量的优先级高于配置
+export SECRET_KEY="a-long-random-shared-secret"
+```
+
+可用 `openssl rand -hex 32` 生成一个。由于会话完全存储在 cookie 中，密钥稳定后**无需**开启 sticky session。
+
+#### 并发登录
+
+`state`/跳转地址按**每次登录流程**（以 `state` 为键）分别记录，因此同一用户同时发起两次登录（多标签页、刷新等）不再互相覆盖：每个回调各自解析自己的 `state`，并跳回各自原始的 URL。同时保留旧的单值 `state` 回退逻辑，保证滚动升级过程中旧的在途流程仍可用。
+
 ## OIDC 认证
 
 OpenID Connect (OIDC) 认证扩展了 OAuth2，增加了身份验证。

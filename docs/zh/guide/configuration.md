@@ -69,6 +69,7 @@ rules:
 |------|------|------|--------|
 | `port` | int | 监听的 HTTP 端口 | `8080` |
 | `enable_h2c` | bool | 在 HTTP 端口启用明文 HTTP/2（h2c） | `false` |
+| `secret_key` | string | 用于加密/解密 OAuth2/OIDC 会话 cookie（CSRF `state` + 登录后跳转 URL）的共享密钥。**在每副本设置相同值**以让 OAuth2 在负载均衡后正常工作。`SECRET_KEY` 环境变量优先于该值。 | 省略时每个进程随机 |
 | `cache` | object | 应用层 `ctx.Cache()`（内存或 Redis）；承载匹配器数据及可选的 **`backend.cache`** 条目 | - |
 | `https` | object | HTTPS 配置 | - |
 | `healthcheck` | object | 健康检查配置 | - |
@@ -461,6 +462,7 @@ Ingress 的访问日志为应用侧固定格式（非 Nginx `log_format` 配置�
 
 - `CONFIG`: 配置文件路径
 - `PORT`: HTTP 监听端口；设置时会**覆盖** YAML 顶层 **`port`**
+- `SECRET_KEY`: OAuth2/OIDC 会话密钥；**覆盖** YAML 顶层 **`secret_key`**。**在每个副本设置相同值**以让 OAuth2 登录在负载均衡的回调中正常工作。
 
 ## 配置验证
 

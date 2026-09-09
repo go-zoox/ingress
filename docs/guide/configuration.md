@@ -70,6 +70,7 @@ rules:
 |-------|------|-------------|---------|
 | `port` | int | HTTP port to listen on | `8080` |
 | `enable_h2c` | bool | Cleartext HTTP/2 (h2c) on the HTTP port | `false` |
+| `secret_key` | string | Shared key used to encrypt/decrypt the OAuth2/OIDC session cookie (CSRF `state` + post-login redirect). **Set the same value on every replica** to keep OAuth2 working behind a load balancer. `SECRET_KEY` env overrides it. | per-process random when omitted |
 | `cache` | object | Application `ctx.Cache()` engine (memory or Redis); backs matcher data and optional **`backend.cache`** entries | - |
 | `https` | object | HTTPS configuration | - |
 | `healthcheck` | object | Health check configuration | - |
@@ -492,6 +493,7 @@ You can override some configuration using environment variables:
 
 - `CONFIG`: Path to configuration file
 - `PORT`: HTTP listen port; **overrides** the top-level **`port`** field in the YAML when set
+- `SECRET_KEY`: Session encryption key for OAuth2/OIDC cookies; **overrides** the top-level **`secret_key`** field. **Set the identical value on every ingress replica** so OAuth2 login survives load-balanced callbacks.
 
 ## Configuration Validation
 

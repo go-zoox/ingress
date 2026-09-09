@@ -17,6 +17,14 @@
 
 port: 8080
 
+# Shared session key for OAuth2/OIDC cookies.
+#   Set the SAME value on every ingress replica so the CSRF state + post-login redirect
+#   survive a load-balanced callback. When omitted, a per-process random key is used,
+#   which breaks OAuth2 in multi-replica deployments. SECRET_KEY env overrides this.
+#   Generate one with `openssl rand -hex 32`.
+#   Because the session lives entirely in the cookie, sticky sessions are NOT required.
+# secret_key: "a-long-random-shared-secret"
+
 rules:
   - host: oauth2-github.example.com
     backend:
@@ -34,7 +42,7 @@ rules:
             client_secret: "your-github-client-secret"
             scopes:
               - "user:email"
-            # Optional: redirect_url — auto-generated from the request host if omitted.
+            # Recommended behind a TLS-terminating LB so the IdP always sees one https callback:
             # redirect_url: "https://oauth2-github.example.com/oauth2/callback"
 
             # Optional: connect JWT headers for upstream user identification.

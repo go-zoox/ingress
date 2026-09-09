@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -63,6 +64,9 @@ const (
 	sessOAuth2Token    = "ingress_oauth2_token"
 	sessOAuth2User     = "ingress_oauth2_user"
 	sessOAuth2Redirect = "ingress_oauth2_redirect"
+	// sessOAuth2Flows holds a JSON map {state: originalURL} of in-flight logins so
+	// concurrent flows on one session don't clobber a single state/redirect slot.
+	sessOAuth2Flows = "ingress_oauth2_flows"
 )
 
 // ValidateOAuth2 runs the OAuth2 authentication flow.
@@ -91,11 +95,10 @@ func (s *Service) ValidateOAuth2(ctx *zoox.Context) (redirected bool, err error)
 	if err != nil {
 		return false, fmt.Errorf("failed to generate oauth2 state: %w", err)
 	}
-	ctx.Session().Set(sessOAuth2State, state)
 
 	// Save the original request URL so we can redirect back after login.
-	originalURL := ctx.Request.URL.String()
-	ctx.Session().Set(sessOAuth2Redirect, originalURL)
+	// Stored per-login (keyed by state) so concurrent flows don't clobber each other.
+	saveOAuth2Flow(ctx, state, ctx.Request.URL.String())
 
 	client.Authorize(state, func(loginURL string) {
 		ctx.RedirectTemporary(loginURL)
@@ -116,9 +119,10 @@ func (s *Service) handleOAuth2Callback(ctx *zoox.Context, cfg *OAuth2Auth) (redi
 		return false, fmt.Errorf("oauth2 callback: missing code or state")
 	}
 
-	// Verify state matches to prevent CSRF.
-	expectedState := ctx.Session().Get(sessOAuth2State)
-	if expectedState == "" || state != expectedState {
+	// Verify state matches to prevent CSRF. Flows are keyed by state so concurrent
+	// logins each keep their own original-URL redirect (no single-slot clobber).
+	flowRedirect, ok := takeOAuth2Flow(ctx, state)
+	if !ok {
 		return false, fmt.Errorf("oauth2 callback: state mismatch")
 	}
 
@@ -143,20 +147,90 @@ func (s *Service) handleOAuth2Callback(ctx *zoox.Context, cfg *OAuth2Auth) (redi
 		tokenBytes, _ := json.Marshal(token)
 		ctx.Session().Set(sessOAuth2Token, string(tokenBytes))
 
-		// Clean up state.
+		// Legacy pointers are cleared here; the flow map was already consumed by
+		// takeOAuth2Flow before the exchange.
 		ctx.Session().Del(sessOAuth2State)
+		ctx.Session().Del(sessOAuth2Redirect)
 
-		// Redirect back to the original URL.
-		redirectURL := ctx.Session().Get(sessOAuth2Redirect)
+		// Redirect back to the original URL for THIS login flow.
+		redirectURL := flowRedirect
 		if redirectURL == "" {
 			redirectURL = "/"
 		}
-		ctx.Session().Del(sessOAuth2Redirect)
-
 		ctx.RedirectTemporary(redirectURL)
 		redirected = true
 	})
 	return
+}
+
+// ---------------------------------------------------------------------------
+// OAuth2 flow tracking
+//
+// The CSRF state and the post-login redirect URL are stored per flow (keyed by
+// state) so concurrent logins on the same browser/session do not clobber a
+// single shared slot — a common cause of intermittent 401 on the callback.
+// A legacy single-state fallback keeps in-flight flows created by older versions
+// working across a rolling upgrade.
+// ---------------------------------------------------------------------------
+
+// maxOAuth2Flows caps the number of tracked in-flight flows to keep the session
+// cookie bounded against abuse (each login initiation takes one slot).
+const maxOAuth2Flows = 64
+
+func saveOAuth2Flow(ctx *zoox.Context, state, redirectURL string) {
+	flows := readOAuth2Flows(ctx)
+	flows[state] = redirectURL
+	writeOAuth2Flows(ctx, flows)
+
+	// Legacy single-slot pointers, retained for backward-compatible reads.
+	ctx.Session().Set(sessOAuth2State, state)
+	ctx.Session().Set(sessOAuth2Redirect, redirectURL)
+}
+
+func takeOAuth2Flow(ctx *zoox.Context, state string) (redirectURL string, ok bool) {
+	flows := readOAuth2Flows(ctx)
+	if redirectURL, ok = flows[state]; ok {
+		delete(flows, state)
+		writeOAuth2Flows(ctx, flows)
+		return redirectURL, true
+	}
+
+	// Legacy fallback for flows started before this version.
+	if ctx.Session().Get(sessOAuth2State) == state {
+		redirectURL = ctx.Session().Get(sessOAuth2Redirect)
+		ctx.Session().Del(sessOAuth2State)
+		ctx.Session().Del(sessOAuth2Redirect)
+		return redirectURL, redirectURL != ""
+	}
+
+	return "", false
+}
+
+func readOAuth2Flows(ctx *zoox.Context) map[string]string {
+	raw := ctx.Session().Get(sessOAuth2Flows)
+	if raw == "" {
+		return map[string]string{}
+	}
+	var flows map[string]string
+	if err := json.Unmarshal([]byte(raw), &flows); err != nil || flows == nil {
+		return map[string]string{}
+	}
+	return flows
+}
+
+func writeOAuth2Flows(ctx *zoox.Context, flows map[string]string) {
+	for len(flows) > maxOAuth2Flows {
+		for k := range flows {
+			delete(flows, k)
+			break
+		}
+	}
+	b, err := json.Marshal(flows)
+	if err != nil {
+		ctx.Session().Del(sessOAuth2Flows)
+		return
+	}
+	ctx.Session().Set(sessOAuth2Flows, string(b))
 }
 
 // newOAuth2Client creates a go-zoox/oauth2 client from the ingress config.
@@ -167,11 +241,10 @@ func (s *Service) newOAuth2Client(ctx *zoox.Context, cfg *OAuth2Auth) (gozooxoau
 
 	redirectURL := cfg.RedirectURL
 	if redirectURL == "" {
-		// Auto-generate redirect URL from the current request.
-		scheme := "http"
-		if ctx.Request.TLS != nil {
-			scheme = "https"
-		}
+		// Auto-generate redirect URL from the current request. Honor a TLS-terminating
+		// reverse proxy via X-Forwarded-Proto (same heuristic as HTTP->HTTPS redirects),
+		// so multi-replica deployments behind an LB register the correct https callback.
+		scheme := requestScheme(ctx.Request)
 		redirectURL = fmt.Sprintf("%s://%s%s", scheme, ctx.Host(), oauth2CallbackPath)
 	}
 
@@ -188,6 +261,19 @@ func (s *Service) newOAuth2Client(ctx *zoox.Context, cfg *OAuth2Auth) (gozooxoau
 	}
 
 	return create.Create(cfg.Provider, oauth2Cfg)
+}
+
+// requestScheme reports whether the inbound request is HTTPS, honoring a
+// TLS-terminating reverse proxy via X-Forwarded-Proto (same heuristic as the
+// HTTP->HTTPS redirect logic elsewhere in ingress).
+func requestScheme(req *http.Request) string {
+	if req.TLS != nil {
+		return "https"
+	}
+	if strings.EqualFold(strings.TrimSpace(req.Header.Get("X-Forwarded-Proto")), "https") {
+		return "https"
+	}
+	return "http"
 }
 
 // ---------------------------------------------------------------------------
