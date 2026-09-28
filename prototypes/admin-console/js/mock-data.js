@@ -77,7 +77,7 @@ const MOCK = {
       path: "/",
       pathType: "prefix",
       backendType: "redirect",
-      target: "https://www.example.com$request_uri",
+      target: "https://www.example.com",
       waf: "inherit",
       cache: false,
     },

@@ -226,7 +226,7 @@ rules:
     backend:
       type: redirect
       redirect:
-        url: https://www.example.com$request_uri
+        url: https://www.example.com
         permanent: true
       cache:
         enabled: true
