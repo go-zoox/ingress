@@ -345,7 +345,7 @@ rules:
 | `mode` | string | Legacy: `internal` / `external` for **service** upstream `Host` defaults. Prefer **`service.mode`**; if **`backend.service.mode`** is set, it wins when both match or when **`backend.mode`** is empty | `internal` |
 | `service` | object | Upstream when type is `service` | - |
 | `handler` | object | Handler when type is `handler` | - |
-| `redirect` | object | Redirect when type is `redirect` | - |
+| `redirect` | object | Redirect when type is `redirect` — `url`, `duration`, `preserve_request`, and (`paths[]` only) `preserve_path`; see the [Routing guide](routing.md#redirects) | - |
 | `cache` | object | Optional HTTP response cache for **service**, **handler**, and **redirect** backends; see below | off |
 
 Effective **`internal` / `external`** for **`Host`** rewrite is **`backend.service.mode`** if set, else legacy **`backend.mode`**. They must not disagree if both are non-empty. Applies per backend block (host-level or path-level) for **proxy** backends only; **`handler`** / **`redirect`** must not set **`service.mode`**.

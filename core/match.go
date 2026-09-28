@@ -370,18 +370,32 @@ func redirectLegacyHostPattern(rule *rule.Rule) string {
 }
 
 // finalizeRedirectURL builds the redirect Location after template expansion.
-// Host-only values (no scheme) become scheme://host{path}?{query}.
-// Full http(s) URLs without an explicit path (empty or "/") keep the request path and query for whole-site redirects.
-func finalizeRedirectURL(redirectURL, scheme, path, rawQuery string) string {
+//
+// preservePath true (host-level / fallback redirects, and paths[].backend.redirect with preserve_path: true):
+// host-only values (no scheme) become scheme://host{path}?{query}, and full http(s) URLs without an explicit
+// path (empty or "/") keep the request path and query for whole-site redirects.
+//
+// preservePath false (default for paths[].backend.redirect): the url is used exactly as configured, except
+// that a scheme-less value is still resolved against the incoming request scheme. The request path and
+// query are not appended.
+func finalizeRedirectURL(redirectURL, scheme, path, rawQuery string, preservePath bool) string {
 	if redirectURL == "" {
 		return redirectURL
 	}
 	if !strings.HasPrefix(redirectURL, "http://") && !strings.HasPrefix(redirectURL, "https://") {
-		loc := fmt.Sprintf("%s://%s%s", scheme, redirectURL, path)
+		loc := fmt.Sprintf("%s://%s", scheme, redirectURL)
+		if !preservePath {
+			return loc
+		}
+		loc += path
 		if rawQuery != "" {
 			loc = fmt.Sprintf("%s?%s", loc, rawQuery)
 		}
 		return loc
+	}
+
+	if !preservePath {
+		return redirectURL
 	}
 
 	u, err := url.Parse(redirectURL)

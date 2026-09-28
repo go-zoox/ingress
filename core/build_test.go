@@ -1325,6 +1325,125 @@ func TestBuild_PathRedirect_RegexPatterns(t *testing.T) {
 	}
 }
 
+// Path-level redirects default to the configured url as written; preserve_path restores whole-site semantics.
+func TestBuild_PathRedirect_RequestPathHandling(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "legacy.example.com",
+				Paths: []rule.Path{
+					{
+						Path: `/fixed/`,
+						Backend: rule.Backend{
+							Redirect: rule.Redirect{
+								URL: "https://new.example.com",
+							},
+						},
+					},
+					{
+						Path: `/fixed-root/`,
+						Backend: rule.Backend{
+							Redirect: rule.Redirect{
+								URL: "https://new.example.com/",
+							},
+						},
+					},
+					{
+						Path: `/scheme-less/`,
+						Backend: rule.Backend{
+							Redirect: rule.Redirect{
+								URL: "new.example.com:8443",
+							},
+						},
+					},
+					{
+						Path: `/keep/`,
+						Backend: rule.Backend{
+							Redirect: rule.Redirect{
+								URL:          "https://new.example.com",
+								PreservePath: true,
+							},
+						},
+					},
+					{
+						Path: `/keep-explicit/`,
+						Backend: rule.Backend{
+							Redirect: rule.Redirect{
+								URL:          "https://new.example.com/landing",
+								PreservePath: true,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		requestPath string
+		host        string
+		want        string
+	}{
+		{
+			name:        "no preserve_path drops request path and query",
+			requestPath: "/fixed/guide?lang=en",
+			host:        "legacy.example.com",
+			want:        "https://new.example.com",
+		},
+		{
+			name:        "no preserve_path drops request path for root url",
+			requestPath: "/fixed-root/guide?lang=en",
+			host:        "legacy.example.com",
+			want:        "https://new.example.com/",
+		},
+		{
+			name:        "no preserve_path resolves scheme-less url against request scheme",
+			requestPath: "/scheme-less/guide?lang=en",
+			host:        "legacy.example.com",
+			want:        "http://new.example.com:8443",
+		},
+		{
+			name:        "preserve_path keeps request path and query",
+			requestPath: "/keep/guide?lang=en",
+			host:        "legacy.example.com",
+			want:        "https://new.example.com/keep/guide?lang=en",
+		},
+		{
+			name:        "preserve_path still respects explicit url path",
+			requestPath: "/keep-explicit/guide?lang=en",
+			host:        "legacy.example.com",
+			want:        "https://new.example.com/landing",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "http://"+tt.host+tt.requestPath, nil)
+			rec := httptest.NewRecorder()
+			ins.app.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusFound {
+				t.Fatalf("expected status code 302, got %d", rec.Code)
+			}
+			if location := rec.Header().Get("Location"); location != tt.want {
+				t.Fatalf("expected Location %q, got %q", tt.want, location)
+			}
+		})
+	}
+}
+
 func TestCompileRouterIndex_InvalidPathRedirectRegex(t *testing.T) {
 	rules := []rule.Rule{
 		{

@@ -175,9 +175,13 @@ func (c *core) build() error {
 		var redirectURL string
 		var redirectBehavior RedirectBehavior
 		var hasRedirect bool
+		// Host-level (and fallback) redirects keep the request path and query for whole-site moves.
+		// paths[].backend.redirect defaults to the configured url as-is unless preserve_path is set.
+		preserveRedirectPath := true
 
 		if pathBackend != nil && pathBackend.Redirect.URL != "" {
 			redirectURL = pathBackend.Redirect.URL
+			preserveRedirectPath = pathBackend.Redirect.PreservePath
 			behavior, err := effectiveRuleRedirectBehavior(pathBackend.Redirect)
 			if err != nil {
 				return false, true, err
@@ -229,7 +233,7 @@ func (c *core) build() error {
 			if ctx.Request.TLS != nil || strings.EqualFold(ctx.Request.Header.Get(headerXForwardedProto), schemeHTTPS) {
 				scheme = schemeHTTPS
 			}
-			redirectURL = finalizeRedirectURL(redirectURL, scheme, path, ctx.Request.URL.RawQuery)
+			redirectURL = finalizeRedirectURL(redirectURL, scheme, path, ctx.Request.URL.RawQuery, preserveRedirectPath)
 
 			if mayStoreRedirect && policyRedirect != nil && redirectCacheKey != "" {
 				code := redirectStatusCode(redirectBehavior)

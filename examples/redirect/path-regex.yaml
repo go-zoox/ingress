@@ -8,12 +8,26 @@ rules:
         url: https://new.example.com
         permanent: true
     paths:
+      # Path-level redirects use redirect.url as configured: the request path/query are not appended.
       # Prefix match: /legacy/* → fixed archive URL (explicit path in url).
       - path: /legacy/
         backend:
           redirect:
             url: https://archive.example.com/docs
             permanent: true
+      # Path-level default: url has no path → Location is exactly https://landing.example.com
+      # (the /root-only/... request path and query are dropped).
+      - path: /root-only/
+        backend:
+          redirect:
+            url: https://landing.example.com
+      # preserve_path: true restores the host-level whole-site semantics for this path:
+      # /mirror/docs?lang=en → https://mirror.example.com/mirror/docs?lang=en
+      - path: /mirror/
+        backend:
+          redirect:
+            url: https://mirror.example.com
+            preserve_path: true
       # Regex capture: /go/{segment} → templated host from ${path.1}.
       - path: /go/([^/]+)$
         backend:

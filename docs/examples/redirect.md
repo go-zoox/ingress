@@ -23,11 +23,11 @@ Each host in the sample returns a different status on GET. **`preserve_request: 
 
 ## Path regex redirect
 
-`paths[].path` is a Go regexp (compiled with an implicit leading `^`). Path-level **`backend.redirect`** uses the same matcher as service/handler paths. Use **`${path.N}`** for capture groups in `redirect.url`; add **`$`** when you need an exact path match.
+`paths[].path` is a Go regexp (compiled with an implicit leading `^`). Path-level **`backend.redirect`** uses the same matcher as service/handler paths. Use **`${path.N}`** for capture groups in `redirect.url`; add **`$`** when you need an exact path match. A path-level `url` is used **as configured**, so trailing request path/query are dropped unless the path backend sets **`preserve_path: true`** (host-level redirects always keep them).
 
 <<< @/../examples/redirect/path-regex.yaml
 
-Prefix `/legacy/` sends matching traffic to a fixed URL; `/go/([^/]+)$` expands `${path.1}`; `/promo$` matches only `/promo` and redirects to an explicit landing path. Unmatched paths fall back to the host-level redirect (preserving path and query).
+Prefix `/legacy/` sends matching traffic to a fixed URL; `/root-only/` shows the default path-level behaviour (the `Location` is the bare `url`); `/mirror/` opts back in with `preserve_path: true`; `/go/([^/]+)$` expands `${path.1}`; `/promo$` matches only `/promo` and redirects to an explicit landing path. Unmatched paths fall back to the host-level redirect (preserving path and query).
 
 ## Regex host with captures in `redirect.url`
 

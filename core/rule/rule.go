@@ -68,6 +68,13 @@ type Redirect struct {
 	Duration string `config:"duration"`
 	// PreserveRequest uses HTTP 307/308 so clients keep the original method and body.
 	PreserveRequest bool `config:"preserve_request"`
+	// PreservePath keeps the incoming request path and query when the redirect url has no path of its own.
+	//
+	// Only meaningful on paths[].backend.redirect: a path-level redirect without preserve_path jumps to the
+	// configured url as written (no request path/query appended); set preserve_path: true to restore the
+	// whole-site behaviour. Host-level (rules[].backend.redirect) and fallback redirects always preserve
+	// the request path and query, so preserve_path: true there has no effect and validate rejects it.
+	PreservePath bool `config:"preserve_path"`
 	// Permanent selects 301/308 vs 302/307 when Duration is empty (legacy).
 	Permanent bool `config:"permanent"`
 	// WithOriginMethodAndBody is a legacy alias for preserve_request (deprecated).

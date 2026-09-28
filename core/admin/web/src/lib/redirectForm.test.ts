@@ -11,6 +11,7 @@ describe('redirectForm', () => {
       redirect_url: 'https://new.example.com',
       redirect_duration: 'permanent',
       redirect_preserve_request: true,
+      redirect_preserve_path: false,
     })).toEqual({
       url: 'https://new.example.com',
       duration: 'permanent',
@@ -23,7 +24,29 @@ describe('redirectForm', () => {
       redirect_url: 'https://new.example.com',
       redirect_duration: 'temporary',
       redirect_preserve_request: false,
+      redirect_preserve_path: false,
     })).toEqual({ url: 'https://new.example.com' })
+  })
+
+  it('writes preserve_path only when requested', () => {
+    expect(redirectToYAML({
+      redirect_url: 'https://new.example.com',
+      redirect_duration: 'temporary',
+      redirect_preserve_request: false,
+      redirect_preserve_path: true,
+    })).toEqual({
+      url: 'https://new.example.com',
+      preserve_path: true,
+    })
+  })
+
+  it('reads preserve_path from yaml', () => {
+    const form = redirectFromYAML({
+      url: 'https://new.example.com',
+      preserve_path: true,
+    })
+    expect(form.redirect_preserve_path).toBe(true)
+    expect(redirectFromYAML({ url: 'https://new.example.com' }).redirect_preserve_path).toBe(false)
   })
 
   it('reads legacy permanent and with_origin_method_and_body', () => {

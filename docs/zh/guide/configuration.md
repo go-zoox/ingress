@@ -320,7 +320,7 @@ rules:
 | `mode` | string | 兼容字段：与 **`backend.service.mode`** 相同语义；优先读 **`service.mode`**；两者非空时必须一致 | `internal` |
 | `service` | object | `service` 型时的上联配置 | - |
 | `handler` | object | `handler` 型 | - |
-| `redirect` | object | `redirect` 型 | - |
+| `redirect` | object | `redirect` 型：`url`、`duration`、`preserve_request`，以及仅 `paths[]` 可用的 `preserve_path`；详见 [路由指南](routing.md#重定向) | - |
 | `cache` | object | 可选 HTTP 响应缓存，适用于 **service** / **handler** / **redirect**；见下文 | 关闭 |
 
 **Host 上游** 的 **`internal` / `external`** 以 **`backend.service.mode`** 为准（若未设置则回退 **`backend.mode`**）；两者不能设为不同值。**handler** / **redirect** 不得写 **`service.mode`**。

@@ -4,6 +4,11 @@ export type RedirectFormSlice = {
   redirect_url: string
   redirect_duration: RedirectDuration
   redirect_preserve_request: boolean
+  /**
+   * paths[].backend.redirect only: keep the incoming request path and query when
+   * redirect_url has no path of its own. Host-level redirects always keep them.
+   */
+  redirect_preserve_path: boolean
 }
 
 function str(v: unknown): string {
@@ -23,6 +28,7 @@ export function emptyRedirectFormSlice(): RedirectFormSlice {
     redirect_url: '',
     redirect_duration: 'temporary',
     redirect_preserve_request: false,
+    redirect_preserve_path: false,
   }
 }
 
@@ -50,6 +56,7 @@ export function redirectFromYAML(redirectRaw: Record<string, unknown>): Redirect
     redirect_url: str(redirect.url),
     redirect_duration,
     redirect_preserve_request,
+    redirect_preserve_path: bool(redirect.preserve_path),
   }
 }
 
@@ -64,10 +71,15 @@ export function redirectBehaviorToYAML(
 }
 
 export function redirectToYAML(
-  form: Pick<RedirectFormSlice, 'redirect_url' | 'redirect_duration' | 'redirect_preserve_request'>,
+  form: Pick<
+    RedirectFormSlice,
+    'redirect_url' | 'redirect_duration' | 'redirect_preserve_request' | 'redirect_preserve_path'
+  >,
 ): Record<string, unknown> {
   const redirect: Record<string, unknown> = { url: form.redirect_url.trim() }
   if (form.redirect_duration === 'permanent') redirect.duration = 'permanent'
   if (form.redirect_preserve_request) redirect.preserve_request = true
+  // Only emitted when true: host-level redirects ignore the key and validate rejects it there.
+  if (form.redirect_preserve_path) redirect.preserve_path = true
   return redirect
 }

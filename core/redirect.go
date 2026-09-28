@@ -52,9 +52,15 @@ func effectiveHTTPRedirectBehavior(r RedirectFromHTTP) (RedirectBehavior, error)
 	return effectiveRedirectBehavior(r.Duration, r.PreserveRequest, r.Permanent, r.WithOriginMethodAndBody)
 }
 
-func validateRuleRedirect(r rule.Redirect, loc string) error {
+// validateRuleRedirect checks one backend.redirect block. pathLevel marks a paths[].backend.redirect:
+// preserve_path only exists there, because host-level and fallback redirects always keep the request
+// path and query for whole-site moves.
+func validateRuleRedirect(r rule.Redirect, loc string, pathLevel bool) error {
 	if strings.TrimSpace(r.URL) == "" {
 		return nil
+	}
+	if r.PreservePath && !pathLevel {
+		return fmt.Errorf("%s: preserve_path is only supported on paths[].backend.redirect (host-level redirects always keep the request path and query)", loc)
 	}
 	if _, err := effectiveRuleRedirectBehavior(r); err != nil {
 		return fmt.Errorf("%s: %w", loc, err)

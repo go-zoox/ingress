@@ -70,7 +70,7 @@ func ValidateConfig(cfg *Config) error {
 		if err := validateRateLimit(r.RateLimit, fmt.Sprintf("rules[%d]", i)); err != nil {
 			return err
 		}
-		if err := validateBackend(r.Backend, i, r.Host, "/"); err != nil {
+		if err := validateBackend(r.Backend, i, r.Host, "/", false); err != nil {
 			return err
 		}
 
@@ -80,14 +80,14 @@ func ValidateConfig(cfg *Config) error {
 			if pathPattern == "" {
 				pathPattern = "paths[" + strconv.Itoa(j) + "]"
 			}
-			if err := validateBackend(p.Backend, i, r.Host, pathPattern); err != nil {
+			if err := validateBackend(p.Backend, i, r.Host, pathPattern, true); err != nil {
 				return err
 			}
 		}
 	}
 
 	if strings.TrimSpace(cfg.Fallback.Service.Name) != "" {
-		if err := validateBackend(cfg.Fallback, -1, "", "/"); err != nil {
+		if err := validateBackend(cfg.Fallback, -1, "", "/", false); err != nil {
 			return err
 		}
 	}
@@ -115,9 +115,10 @@ func ValidateConfig(cfg *Config) error {
 // validateBackend checks one backend under a rule.
 // host is the rule's host pattern; pathPattern is paths[].path from config for path backends,
 // "/" for the rule-level backend. If paths[].path is empty, messages use paths[index] as fallback.
+// pathLevel is true only for paths[].backend entries (host-level and fallback backends are not path-level).
 //
 // Expected backend.Type values (after inferBackendTypes): "service", "handler", or "redirect".
-func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string) error {
+func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string, pathLevel bool) error {
 	svcMode := strings.TrimSpace(backend.Service.Mode)
 	bkMode := strings.TrimSpace(backend.Mode)
 	if svcMode != "" && bkMode != "" && svcMode != bkMode {
@@ -157,7 +158,7 @@ func validateBackend(backend rule.Backend, ruleIdx int, host, pathPattern string
 	hs := servicePopulated(backend.Service)
 	hh := handlerPopulated(backend.Handler)
 	if hr {
-		if err := validateRuleRedirect(backend.Redirect, ruleBackendLoc(ruleIdx, host, pathPattern)+".redirect"); err != nil {
+		if err := validateRuleRedirect(backend.Redirect, ruleBackendLoc(ruleIdx, host, pathPattern)+".redirect", pathLevel); err != nil {
 			return err
 		}
 	}

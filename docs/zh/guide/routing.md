@@ -282,9 +282,12 @@ rules:
 
 字段说明：
 
-- **`url`**：跳转地址。若非 `http://` / `https://` 开头，则视为主机（可含端口），Ingress 会用当前请求的协议，并保留原始 path 与 query 拼出完整 URL。完整的 `http://` / `https://` URL 若**未指定路径**（仅 host，或以 `/` 结尾）同样会保留请求的 path 与 query；若希望所有请求都跳到同一地址，请在 `url` 中写出明确路径（例如 `https://new.example.com/landing`）。
+- **`url`**：跳转地址。若非 `http://` / `https://` 开头，则视为主机（可含端口），并按当前请求的协议补全。
+  - **Host 级 redirect**（`rules[].backend.redirect` 与全局 `fallback`）：当 `url` 本身没有路径（仅 host，或以 `/` 结尾）时会**保留请求的 path 与 query**，即整站迁移语义；若希望所有请求都跳到同一地址，请在 `url` 中写出明确路径（例如 `https://new.example.com/landing`）。
+  - **Path 级 redirect**（`paths[].backend.redirect`）：默认相反——**`Location` 就是配置的 `url` 本身**，请求的 path / query 不再追加；需要保留时在该 path backend 上写 **`preserve_path: true`**。
 - **`duration`**：`temporary`（默认）或 `permanent` — 临时或永久跳转（SEO / 规范 URL）。
 - **`preserve_request`**：为 `true` 时使用 **307** / **308**，保留原 HTTP 方法与请求体；为 `false`（默认）时使用 **302** / **301**，浏览器可能将非 GET 改为 GET。
+- **`preserve_path`**：**仅用于 `paths[].backend.redirect`**。为 `true` 时，若 `url` 自身没写路径，则保留请求的 path 与 query（等价于 host 级整站语义）；默认 `false`，即按配置的 `url` 原样跳转。`url` 中已写出路径时，无论是否 `preserve_path` 都以该路径为准。Host 级与 fallback redirect 始终保留请求 path，对其写 `preserve_path: true` 会被校验拒绝。
 - **`permanent`** / **`with_origin_method_and_body`**：旧版布尔字段，仍兼容；请优先使用 **`duration`** 与 **`preserve_request`**。若 `duration: temporary` 与 `permanent: true` 同时出现，校验会报错。
 
 | duration | preserve_request | 状态码 |
@@ -326,6 +329,8 @@ rules:
 - **捕获组** — 在 `redirect.url` 中使用 **`${path.N}`**（规则同 `service.name`）。
 - **精确 path** — 末尾加 **`$`**，如 `/promo$` 仅匹配 `/promo`。
 
+Path 级 `redirect.url` 默认**按配置原样使用**：下例中 `/legacy/release-notes` 得到的是 `Location: https://archive.example.com/docs`，而不是 `…/docs/legacy/release-notes`。需要像 host 级 fallback 一样保留请求 path 与 query 时，在该 path 上写 **`preserve_path: true`**。
+
 ```yaml
 rules:
   - host: redirect.example.com
@@ -341,6 +346,11 @@ rules:
         backend:
           redirect:
             url: https://campaign.example.com/special
+      - path: /mirror/
+        backend:
+          redirect:
+            url: https://mirror.example.com
+            preserve_path: true   # /mirror/docs → https://mirror.example.com/mirror/docs
 ```
 
 可运行示例：**`examples/redirect/path-regex.yaml`**。另见 [重定向示例](/zh/examples/redirect)。

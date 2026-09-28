@@ -23,11 +23,11 @@
 
 ## 路径正则 redirect
 
-`paths[].path` 为 Go 正则（编译时隐式加前缀 `^`）。path 级 **`backend.redirect`** 与 service/handler 共用同一套匹配；在 `redirect.url` 中用 **`${path.N}`** 引用捕获组，需要精确匹配时在 pattern 末尾加 **`$`**。
+`paths[].path` 为 Go 正则（编译时隐式加前缀 `^`）。path 级 **`backend.redirect`** 与 service/handler 共用同一套匹配；在 `redirect.url` 中用 **`${path.N}`** 引用捕获组，需要精确匹配时在 pattern 末尾加 **`$`**。Path 级 `url` 默认**按配置原样使用**（不追加请求的 path/query），需要保留时在该 path backend 上写 **`preserve_path: true`**；host 级 redirect 始终保留。
 
 <<< @/../examples/redirect/path-regex.yaml
 
-`/legacy/` 为前缀匹配并跳到固定 URL；`/go/([^/]+)$` 用 `${path.1}` 展开；`/promo$` 仅匹配 `/promo` 并跳到明确 landing path。未命中任何 path 时回退到 host 级 redirect（保留 path 与 query）。
+`/legacy/` 为前缀匹配并跳到固定 URL；`/root-only/` 演示 path 级默认行为（`Location` 就是配置的 `url`）；`/mirror/` 用 `preserve_path: true` 找回保留语义；`/go/([^/]+)$` 用 `${path.1}` 展开；`/promo$` 仅匹配 `/promo` 并跳到明确 landing path。未命中任何 path 时回退到 host 级 redirect（保留 path 与 query）。
 
 ## 正则 host：`redirect.url` 中的捕获
 

@@ -27,6 +27,25 @@ describe('configEntities redirect roundtrip', () => {
     expect(out.type).toBe('redirect')
   })
 
+  it('roundtrips preserve_path for path-level redirects', () => {
+    const original = {
+      type: 'redirect',
+      redirect: {
+        url: 'https://new.example.com',
+        preserve_path: true,
+      },
+    }
+
+    const form = backendToForm(original)
+    expect(form.redirect_preserve_path).toBe(true)
+
+    const out = formToBackend(form, original)
+    expect(out.redirect).toEqual({
+      url: 'https://new.example.com',
+      preserve_path: true,
+    })
+  })
+
   it('drops legacy permanent when admin writes duration', () => {
     const original = {
       redirect: {

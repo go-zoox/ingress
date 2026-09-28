@@ -434,49 +434,95 @@ func TestExpandRedirectURL_RegexHostCaptures(t *testing.T) {
 
 func TestFinalizeRedirectURL(t *testing.T) {
 	tests := []struct {
-		name       string
-		redirect   string
-		scheme     string
-		path       string
-		rawQuery   string
-		want       string
+		name         string
+		redirect     string
+		scheme       string
+		path         string
+		rawQuery     string
+		preservePath bool
+		want         string
 	}{
 		{
-			name:     "host only",
-			redirect: "new.example.com",
-			scheme:   "https",
-			path:     "/docs/guide",
-			rawQuery: "lang=en",
-			want:     "https://new.example.com/docs/guide?lang=en",
+			name:         "host level: host only keeps request path and query",
+			redirect:     "new.example.com",
+			scheme:       "https",
+			path:         "/docs/guide",
+			rawQuery:     "lang=en",
+			preservePath: true,
+			want:         "https://new.example.com/docs/guide?lang=en",
 		},
 		{
-			name:     "full url without path",
+			name:         "host level: full url without path keeps request path and query",
+			redirect:     "https://new.example.com",
+			scheme:       "https",
+			path:         "/docs/guide",
+			rawQuery:     "lang=en",
+			preservePath: true,
+			want:         "https://new.example.com/docs/guide?lang=en",
+		},
+		{
+			name:         "host level: full url root path keeps request path",
+			redirect:     "https://new.example.com/",
+			scheme:       "https",
+			path:         "/api/v1",
+			preservePath: true,
+			want:         "https://new.example.com/api/v1",
+		},
+		{
+			name:         "explicit redirect path unchanged",
+			redirect:     "https://new.example.com/welcome",
+			scheme:       "https",
+			path:         "/any/path",
+			rawQuery:     "x=1",
+			preservePath: true,
+			want:         "https://new.example.com/welcome",
+		},
+		{
+			name:     "path level: full url without path used as configured",
 			redirect: "https://new.example.com",
 			scheme:   "https",
 			path:     "/docs/guide",
 			rawQuery: "lang=en",
-			want:     "https://new.example.com/docs/guide?lang=en",
+			want:     "https://new.example.com",
 		},
 		{
-			name:     "full url root path",
+			name:     "path level: root path url used as configured",
 			redirect: "https://new.example.com/",
 			scheme:   "https",
 			path:     "/api/v1",
-			want:     "https://new.example.com/api/v1",
+			rawQuery: "x=1",
+			want:     "https://new.example.com/",
 		},
 		{
-			name:     "explicit redirect path unchanged",
-			redirect: "https://new.example.com/welcome",
+			name:     "path level: scheme-less value resolved against request scheme",
+			redirect: "new.example.com:8443",
+			scheme:   "http",
+			path:     "/docs/guide",
+			rawQuery: "lang=en",
+			want:     "http://new.example.com:8443",
+		},
+		{
+			name:     "path level: explicit path and query kept as configured",
+			redirect: "https://new.example.com/landing?a=1",
 			scheme:   "https",
 			path:     "/any/path",
 			rawQuery: "x=1",
-			want:     "https://new.example.com/welcome",
+			want:     "https://new.example.com/landing?a=1",
+		},
+		{
+			name:         "path level with preserve_path keeps request path and query",
+			redirect:     "https://new.example.com",
+			scheme:       "https",
+			path:         "/docs/guide",
+			rawQuery:     "lang=en",
+			preservePath: true,
+			want:         "https://new.example.com/docs/guide?lang=en",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := finalizeRedirectURL(tt.redirect, tt.scheme, tt.path, tt.rawQuery)
+			got := finalizeRedirectURL(tt.redirect, tt.scheme, tt.path, tt.rawQuery, tt.preservePath)
 			if got != tt.want {
 				t.Fatalf("got %q want %q", got, tt.want)
 			}

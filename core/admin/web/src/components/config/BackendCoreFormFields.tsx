@@ -121,6 +121,7 @@ export function BackendCoreFormFields<T extends BackendForm>({
         <RedirectFormFields
           form={form}
           idPrefix={idPrefix}
+          showPreservePath={variant === 'path'}
           patch={(fn) => patch(fn)}
         />
       )}

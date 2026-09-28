@@ -105,15 +105,27 @@ func TestEffectiveRedirectBehavior(t *testing.T) {
 }
 
 func TestValidateRuleRedirect(t *testing.T) {
-	if err := validateRuleRedirect(rule.Redirect{URL: "https://x.example/"}, "rules[0].backend.redirect"); err != nil {
+	if err := validateRuleRedirect(rule.Redirect{URL: "https://x.example/"}, "rules[0].backend.redirect", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateRuleRedirect(rule.Redirect{
 		URL:       "https://x.example/",
 		Duration:  redirectDurationTemporary,
 		Permanent: true,
-	}, "rules[0].backend.redirect"); err == nil {
+	}, "rules[0].backend.redirect", false); err == nil {
 		t.Fatal("expected conflict error")
+	}
+	if err := validateRuleRedirect(rule.Redirect{
+		URL:          "https://x.example/",
+		PreservePath: true,
+	}, "rules[0].backend.redirect", false); err == nil {
+		t.Fatal("expected host-level preserve_path error")
+	}
+	if err := validateRuleRedirect(rule.Redirect{
+		URL:          "https://x.example/",
+		PreservePath: true,
+	}, "rules[0].paths[0].backend.redirect", true); err != nil {
+		t.Fatalf("path-level preserve_path must be accepted: %v", err)
 	}
 }
 

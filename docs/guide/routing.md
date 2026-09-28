@@ -282,9 +282,12 @@ Runnable twin-host sample: **`examples/ssl-tls/route-redirect.yaml`**.
 
 Fields:
 
-- **`url`**: Target URL. If it does not start with `http://` or `https://`, Ingress treats the value as a host (optional port) and builds the full URL with the incoming request’s scheme, original path, and query string. Full `http://` / `https://` URLs **without an explicit path** (host only, or trailing `/`) also preserve the request path and query—use a path in `url` (e.g. `https://new.example.com/landing`) when every request should go to the same destination.
+- **`url`**: Target URL. If it does not start with `http://` or `https://`, Ingress treats the value as a host (optional port) and resolves it against the incoming request’s scheme.
+  - **Host-level redirects** (`rules[].backend.redirect` and the global `fallback`) keep the request path and query whenever `url` has no path of its own (host only, or trailing `/`) — that is the whole-site move behaviour. Write a path in `url` (e.g. `https://new.example.com/landing`) when every request should go to that same destination.
+  - **Path-level redirects** (`paths[].backend.redirect`) default to the opposite: the **`Location` is the `url` exactly as configured**, and the request path/query are dropped. Set **`preserve_path: true`** on that path backend to keep the request path and query instead.
 - **`duration`**: `temporary` (default) or `permanent` — whether the redirect is meant to be cached long-term (SEO / canonical move).
 - **`preserve_request`**: When `true`, uses **307** / **308** so clients keep the original HTTP method and body. When `false` (default), uses **302** / **301**, where browsers may rewrite non-GET requests to GET.
+- **`preserve_path`**: **`paths[].backend.redirect` only.** When `true`, a `url` without its own path keeps the incoming request path and query (the host-level whole-site behaviour). Default `false`: the `url` is used as configured. A `url` that already contains a path is always used as written, with or without `preserve_path`. Validation rejects `preserve_path: true` on host-level and fallback redirects, which always keep the request path.
 - **`permanent`** / **`with_origin_method_and_body`**: Legacy booleans; still accepted. Prefer **`duration`** and **`preserve_request`**. Validation fails when `duration: temporary` conflicts with `permanent: true`.
 
 | duration | preserve_request | Status |
@@ -326,6 +329,8 @@ For host-level redirect combined with path-specific proxies or path-only redirec
 - **Capture groups** — use **`${path.N}`** in `redirect.url` (same as `service.name`).
 - **Exact paths** — add a **`$` suffix**, e.g. `/promo$` matches only `/promo`.
 
+Path-level `redirect.url` is used **as configured** by default: a request to `/legacy/release-notes` on the rule below gets `Location: https://archive.example.com/docs`, not `…/docs/legacy/release-notes`. Add **`preserve_path: true`** when a path entry should keep the request path and query, like the host-level fallback does.
+
 ```yaml
 rules:
   - host: redirect.example.com
@@ -341,6 +346,11 @@ rules:
         backend:
           redirect:
             url: https://campaign.example.com/special
+      - path: /mirror/
+        backend:
+          redirect:
+            url: https://mirror.example.com
+            preserve_path: true   # /mirror/docs → https://mirror.example.com/mirror/docs
 ```
 
 Runnable sample: **`examples/redirect/path-regex.yaml`**. See also [Redirect examples](/examples/redirect).

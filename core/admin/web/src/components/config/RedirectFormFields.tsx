@@ -16,12 +16,15 @@ export function RedirectFormFields({
   patch,
   idPrefix = '',
   showURL = true,
+  showPreservePath = false,
 }: {
   form: RedirectFormSlice
   patch: PatchFn
   idPrefix?: string
   /** When false, only duration / preserve_request (e.g. https.redirect_from_http). */
   showURL?: boolean
+  /** paths[].backend.redirect only: hosts always keep the request path, so the toggle is hidden elsewhere. */
+  showPreservePath?: boolean
 }) {
   const status = redirectStatusLabel(form.redirect_duration, form.redirect_preserve_request)
 
@@ -34,6 +37,20 @@ export function RedirectFormFields({
           value={form.redirect_url}
           onChange={(e) => patch((n) => { n.redirect_url = e.target.value })}
         />
+      )}
+      {showPreservePath && (
+        <>
+          <FormCheckbox
+            label="保留原请求路径与 query (preserve_path)"
+            checked={form.redirect_preserve_path}
+            onChange={(v) => patch((n) => { n.redirect_preserve_path = v })}
+          />
+          <p className="form-hint form-item--full">
+            关闭（默认）：Location 就是上面填的 URL 本身，不追加请求的 path/query；
+            勾选后：URL 未写路径时沿用请求的 path 与 query（整站迁移语义）。
+            URL 里写了路径时始终以该路径为准。
+          </p>
+        </>
       )}
       <FormSelectField
         label="时效 (duration)"
