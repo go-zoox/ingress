@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/ratelimit"
+	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/security"
 	"github.com/go-zoox/ingress/core/service"
 	"github.com/go-zoox/ingress/core/waf"
@@ -57,6 +57,22 @@ func (c *core) build() error {
 		cfg.Config.TrustProxy = c.cfg.Proxy.TrustProxy
 
 		reqStart := time.Now()
+
+		// CONNECT is a proxy-protocol method. Match it by TLS SNI, not by the
+		// destination authority in HTTP Host, and hand it to the dedicated tunnel path.
+		if ctx.Method == http.MethodConnect {
+			return c.handleConnectProxy(ctx)
+		}
+
+		// An HTTPS proxy can also receive plain-HTTP targets in absolute-form
+		// (GET http://target/...). Route those by SNI to the same upstream proxy
+		// instead of treating the target host as a normal ingress request.
+		if ctx.Request.URL != nil && ctx.Request.URL.IsAbs() && ctx.Request.TLS != nil {
+			if _, _, _, err := c.matchConnectProxy(strings.ToLower(ctx.Request.TLS.ServerName)); err == nil {
+				return c.handleHTTPProxy(ctx)
+			}
+		}
+
 		hostname := ctx.Hostname()
 		method := ctx.Method
 		path := ctx.Path
@@ -256,9 +272,9 @@ func (c *core) build() error {
 			c.logAccess(ctx, hostname, "redirect", method, path, ctx.Request.Proto, rdCode, time.Since(redirectCacheStart), accessLogMeta{
 				UpstreamStatus:         rdCode,
 				UpstreamResponseLength: -1,
-				})
+			})
 
-				return false, true, nil
+			return false, true, nil
 		}
 
 		// handler: check path-level backend first, then host-level backend
@@ -410,9 +426,9 @@ func (c *core) build() error {
 				UpstreamStatus:         handlerStatusCode,
 				UpstreamResponseLength: respLen,
 				UpstreamResponseTime:   handlerDuration,
-				})
+			})
 
-				return false, true, nil
+			return false, true, nil
 		}
 
 		// If there's only redirect config but no service, skip validation

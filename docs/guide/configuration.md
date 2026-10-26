@@ -337,6 +337,10 @@ rules:
               {"ok": true}
 ```
 
+### Forward proxy (`rules[].connect_proxy`)
+
+A rule can also act as an HTTPS forward proxy after ingress terminates TLS. It handles both `CONNECT host:port` (HTTPS targets) and absolute-form `GET http://host/...` (HTTP targets), matching by TLS SNI. Configure an independent `connect_proxy.upstream` proxy hop, optional `allowed_targets` full-string regexes, and `connect_timeout` / `response_timeout` / `idle_timeout` / `max_connections`. See [Forward proxy](forward-proxy.md).
+
 ### `rules[].backend` and `paths[].backend` fields
 
 | Field | Type | Description | Default |

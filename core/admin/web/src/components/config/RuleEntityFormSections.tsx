@@ -3,6 +3,7 @@ import { AuthFormFields } from './AuthFormFields'
 import { BackendCacheFormFields } from './BackendCacheFormFields'
 import { BackendCoreFormFields } from './BackendCoreFormFields'
 import { BackendTypeTabs } from './BackendTypeTabs'
+import { ConnectProxyFormFields } from './ConnectProxyFormFields'
 import { EntityFormLayout, EntityFormUnavailable, type EntityFormSection } from './EntityFormLayout'
 import { HealthCheckFormFields } from './HealthCheckFormFields'
 import { RateLimitFormFields } from './RateLimitFormFields'
@@ -16,6 +17,7 @@ import type { ServiceForm } from '../../lib/services'
 export type RuleEntitySectionId =
   | 'basic'
   | 'backend'
+  | 'connect_proxy'
   | 'paths'
   | 'health'
   | 'auth'
@@ -33,6 +35,10 @@ const SECTION_COPY: Record<RuleEntitySectionId, { label: string; description: st
   backend: {
     label: 'Backend',
     description: 'Host 级默认 upstream / handler / redirect 配置。',
+  },
+  connect_proxy: {
+    label: '正向代理',
+    description: 'CONNECT（HTTPS 目标）与 absolute-form（HTTP 目标）的独立上游、目标白名单和资源限制。',
   },
   paths: {
     label: 'Path 规则',
@@ -74,7 +80,7 @@ function serviceOnly(form: BackendForm): boolean {
 
 function ruleSections(form: BackendForm & { paths?: PathForm[] }, includePaths: boolean): EntityFormSection[] {
   const ids: RuleEntitySectionId[] = includePaths
-    ? ['basic', 'backend', 'paths', 'health', 'auth', 'maintenance', 'upstream', 'cache', 'security', 'rate_limit']
+    ? ['basic', 'backend', 'connect_proxy', 'paths', 'health', 'auth', 'maintenance', 'upstream', 'cache', 'security', 'rate_limit']
     : ['basic', 'backend', 'health', 'auth', 'maintenance', 'upstream', 'cache', 'security']
 
   return ids.map((id) => {
@@ -95,6 +101,9 @@ function ruleSections(form: BackendForm & { paths?: PathForm[] }, includePaths: 
     }
     if (id === 'health' && form.health_check_enable) section.badge = '开'
     if (id === 'upstream' && serviceRequestConfigured(form)) section.badge = '已配'
+    if (id === 'connect_proxy' && 'connect_proxy_enabled' in form && form.connect_proxy_enabled) {
+      section.badge = 'PROXY'
+    }
     if (id === 'security' && 'security_override' in form) {
       section.badge = securityLayerBadge(form as RuleForm)
     }
@@ -295,6 +304,12 @@ export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
                 <option value="wildcard">wildcard</option>
                 <option value="regex">regex</option>
               </FormSelectField>
+            </FormGrid>
+          )
+        case 'connect_proxy':
+          return (
+            <FormGrid columns={1}>
+              <ConnectProxyFormFields form={ruleForm} onChange={setRuleForm} />
             </FormGrid>
           )
         case 'paths':

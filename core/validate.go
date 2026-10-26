@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/go-zoox/ingress/core/ratelimit"
-	"github.com/go-zoox/ingress/core/security"
 	"github.com/go-zoox/ingress/core/rule"
+	"github.com/go-zoox/ingress/core/security"
 	"github.com/go-zoox/ingress/core/waf"
 )
 
@@ -21,6 +21,10 @@ func ValidateConfig(cfg *Config) error {
 
 	if _, err := compileRouterIndex(cfg.Rules, cfg.Fallback); err != nil {
 		return fmt.Errorf("router rules: %w", err)
+	}
+
+	if _, err := compileConnectProxyRules(cfg); err != nil {
+		return fmt.Errorf("connect proxy: %w", err)
 	}
 
 	if _, _, err := waf.CompileIngress(cfg.WAF, cfg.Rules); err != nil {
@@ -72,6 +76,25 @@ func ValidateConfig(cfg *Config) error {
 		}
 		if err := validateBackend(r.Backend, i, r.Host, "/", false); err != nil {
 			return err
+		}
+		if r.ConnectProxy.Enabled {
+			if cfg.HTTPS.Port == 0 || len(cfg.HTTPS.SSL) == 0 {
+				return fmt.Errorf("rules[%d].connect_proxy: HTTPS TLS termination is required", i)
+			}
+			if r.ConnectProxy.Upstream.Name != "" {
+				if err := r.ConnectProxy.Upstream.Validate(); err != nil {
+					return fmt.Errorf("rules[%d].connect_proxy.upstream: %w", i, err)
+				}
+				protocol := strings.ToLower(strings.TrimSpace(r.ConnectProxy.Upstream.Protocol))
+				if protocol != "" && protocol != "http" && protocol != "https" {
+					return fmt.Errorf("rules[%d].connect_proxy.upstream.protocol: unsupported protocol %q", i, r.ConnectProxy.Upstream.Protocol)
+				}
+			} else if getBackendType(r.Backend) != backendTypeService {
+				return fmt.Errorf("rules[%d].connect_proxy: upstream or a service backend is required", i)
+			}
+			if r.ConnectProxy.ConnectTimeout < 0 || r.ConnectProxy.ResponseTimeout < 0 || r.ConnectProxy.IdleTimeout < 0 || r.ConnectProxy.MaxConnections < 0 {
+				return fmt.Errorf("rules[%d].connect_proxy: timeout and max_connections must not be negative", i)
+			}
 		}
 
 		for j := range r.Paths {

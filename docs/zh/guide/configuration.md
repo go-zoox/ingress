@@ -312,6 +312,10 @@ rules:
               {"ok": true}
 ```
 
+### 正向代理（`rules[].connect_proxy`）
+
+规则可作为 HTTPS 正向代理：ingress 终止 TLS 后，同时处理 `CONNECT host:port`（HTTPS 目标）和 absolute-form `GET http://host/...`（HTTP 目标），按 TLS SNI 匹配。可配置独立的 `connect_proxy.upstream` 代理上游、可选 `allowed_targets` 整串正则，以及 `connect_timeout` / `response_timeout` / `idle_timeout` / `max_connections`。详见 [正向代理](forward-proxy.md)。
+
 ### `rules[].backend` 与 `paths[].backend` 字段
 
 | 字段 | 类型 | 描述 | 默认值 |

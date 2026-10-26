@@ -21,6 +21,36 @@ type Rule struct {
 	HostType string `config:"host_type"`
 	// Enabled controls whether the rule participates in routing. Omitted or true = enabled.
 	Enabled *bool `config:"enabled"`
+	// ConnectProxy enables forward-proxy handling for this proxy hostname:
+	// both CONNECT (HTTPS targets) and absolute-form HTTP requests
+	// (GET http://target/...). For both forms the HTTP Host is the destination,
+	// so routing uses the TLS SNI hostname after ingress terminates TLS.
+	// The normal rule backend points to the next plain-HTTP proxy hop
+	// (for example anchor-backend:3128).
+	ConnectProxy ConnectProxy `config:"connect_proxy"`
+}
+
+// ConnectProxy configures CONNECT tunnelling for a TLS-terminated proxy hostname.
+type ConnectProxy struct {
+	// Enabled turns this rule into a forward-proxy route matched by TLS SNI.
+	Enabled bool `config:"enabled"`
+	// AllowedTargets contains optional regular expressions matched against the
+	// canonical destination authority. CONNECT supplies host:port directly;
+	// HTTP absolute-form targets get an implicit :80. Empty means all targets
+	// are allowed. Patterns are full-string matches.
+	AllowedTargets []string `config:"allowed_targets"`
+	// Upstream is the next HTTP proxy hop for CONNECT/absolute-form requests.
+	// When empty, the rule backend.service is used for backward compatibility.
+	Upstream service.Service `config:"upstream"`
+	// ConnectTimeout is the dial/HTTP CONNECT write timeout in seconds. Default 10.
+	ConnectTimeout int64 `config:"connect_timeout"`
+	// ResponseTimeout is the upstream CONNECT response header timeout in seconds. Default 10.
+	ResponseTimeout int64 `config:"response_timeout"`
+	// IdleTimeout is the tunnel idle timeout in seconds. Default 600; 0 uses the default.
+	IdleTimeout int64 `config:"idle_timeout"`
+	// MaxConnections caps concurrent CONNECT/HTTP proxy requests for this route.
+	// 0 means unlimited.
+	MaxConnections int64 `config:"max_connections"`
 }
 
 // Backend describes what to do for a matched host or path (rules[].backend or paths[].backend;

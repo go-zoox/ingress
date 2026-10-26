@@ -48,6 +48,15 @@ func (c *core) prepare() error {
 		return fmt.Errorf("compile router: %w", err)
 	}
 
+	c.connectProxyRules, err = compileConnectProxyRules(c.cfg)
+	if err != nil {
+		return fmt.Errorf("compile connect proxy: %w", err)
+	}
+	if c.httpProxyTransport != nil {
+		c.httpProxyTransport.CloseIdleConnections()
+	}
+	c.httpProxyTransport = newConnectHTTPProxyTransport()
+
 	if err := compileAllBackendCachePathRules(c.cfg); err != nil {
 		return fmt.Errorf("compile backend.cache paths: %w", err)
 	}

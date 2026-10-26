@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ingress Console · 正向代理（CONNECT + HTTP）</title>
+<style>
+:root{
+  --bg:#0c0f14; --bg-elevated:#12171f; --bg-panel:#12171f; --bg-hover:#1a2230;
+  --border:#2a3548; --text:#e8edf5; --text-muted:#8b9bb4; --text-placeholder:rgba(139,155,180,.38);
+  --accent:#3dd6c6; --accent-dim:#2a9d90; --warn:#e8b84a; --danger:#f07178; --ok:#7fd99a;
+  --radius:8px; --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  --font:"IBM Plex Sans","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.5 var(--font)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+a{color:var(--accent)}
+.layout{display:flex;height:100vh;min-height:720px}
+.sidebar{width:220px;flex-shrink:0;background:var(--bg-elevated);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.brand{padding:20px 16px 12px;font-weight:600;font-size:15px;letter-spacing:-.02em}
+.brand-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.brand-title{font-size:15px;font-weight:600;white-space:nowrap}
+.brand-version{font-size:10px;font-weight:600;font-family:var(--mono);padding:2px 6px;border-radius:999px;background:var(--bg-hover);border:1px solid var(--border);color:var(--text-muted)}
+.brand-sub{display:block;font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px}
+.nav{flex:1;padding:8px;overflow-y:auto}
+.nav-group{margin-bottom:12px}
+.nav-group-label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);padding:4px 12px 6px}
+.nav button{width:100%;text-align:left;border:none;background:transparent;color:var(--text-muted);padding:10px 12px;border-radius:var(--radius);display:flex;align-items:center;gap:10px;transition:.15s}
+.nav button:hover{background:var(--bg-hover);color:var(--text)}
+.nav button.active{background:rgba(61,214,198,.12);color:var(--accent)}
+.nav .ico{width:20px;height:20px;flex:0 0 20px;display:grid;place-items:center;opacity:.85}
+.nav .label{flex:1}
+.nav .count{font-size:10px;padding:1px 6px;border-radius:999px;background:var(--bg-hover);border:1px solid var(--border)}
+.sidebar-footer{padding:12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted)}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px;box-shadow:0 0 0 3px rgba(127,217,154,.1)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:48px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 22px;flex-shrink:0}
+.crumb{display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:12px}
+.crumb strong{color:var(--text);font-weight:500}
+.top-actions{display:flex;align-items:center;gap:10px}
+.runtime-pill{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:999px;color:var(--text-muted);font-size:11px;border:1px solid var(--border);background:var(--bg-elevated)}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3dd6c6,#4c7ef3);display:grid;place-items:center;font-size:11px;font-weight:700;color:#032b2b}
+.page{flex:1;overflow:auto;padding:24px}
+.page-inner{max-width:1240px;margin:0 auto}
+.page-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:18px}
+h1{font-size:22px;line-height:1.25;letter-spacing:-.02em;margin:0 0 6px;font-weight:600}
+.sub{color:var(--text-muted);font-size:13px;margin:0;max-width:760px}
+.actions{display:flex;gap:8px;flex-shrink:0}
+.btn{border:1px solid var(--border);background:var(--bg-elevated);color:var(--text);padding:8px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.btn:hover{border-color:#46536c;background:var(--bg-hover)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#032b2b;font-weight:600}
+.btn.primary:hover{background:#52e4d4}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:5px 9px;font-size:12px}
+.btn.link{border:none;background:transparent;padding:4px 0;color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{border:0;background:transparent;color:var(--text-muted);padding:10px 13px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab .badge{margin-left:6px}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:4px;font-size:10px;font-weight:600;border:1px solid var(--border);color:var(--text-muted);background:var(--bg-hover)}
+.badge.ok{color:var(--ok);border-color:rgba(127,217,154,.26);background:rgba(127,217,154,.08)}
+.badge.warn{color:var(--warn);border-color:rgba(232,184,74,.26);background:rgba(232,184,74,.08)}
+.badge.danger{color:var(--danger);border-color:rgba(240,113,120,.26);background:rgba(240,113,120,.08)}
+.badge.accent{color:var(--accent);border-color:rgba(61,214,198,.3);background:rgba(61,214,198,.08)}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;min-width:0}
+.card-label{font-size:11px;color:var(--text-muted);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.card-value{font-size:23px;font-family:var(--mono);font-weight:600;letter-spacing:-.03em;line-height:1.1}
+.card-note{font-size:11px;color:var(--text-muted);margin-top:7px}
+.card-note .up{color:var(--ok)}
+.card-note .down{color:var(--danger)}
+.panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);gap:12px}
+.panel-title{font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px}
+.panel-sub{color:var(--text-muted);font-size:11px;font-weight:400}
+.panel-body{padding:16px}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.055em;color:var(--text-muted);font-weight:500;text-align:left;padding:9px 14px;background:rgba(0,0,0,.12);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid rgba(42,53,72,.7);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tr.row-hover:hover td{background:rgba(26,34,48,.55)}
+.host{font-family:var(--mono);font-size:12px;color:var(--text)}
+.host small{display:block;color:var(--text-muted);font-family:var(--font);font-size:10px;margin-top:2px}
+.route-kind{display:flex;align-items:center;gap:7px}
+.kind-icon{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;background:rgba(61,214,198,.1);color:var(--accent);border:1px solid rgba(61,214,198,.18);flex-shrink:0}
+.kind-icon.normal{background:rgba(139,155,180,.08);color:var(--text-muted);border-color:rgba(139,155,180,.16)}
+.backend{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+.targets{display:flex;gap:4px;flex-wrap:wrap;max-width:220px}
+.chip{font-family:var(--mono);font-size:10px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);background:rgba(0,0,0,.12);white-space:nowrap}
+.health{display:flex;align-items:center;gap:7px;font-size:12px}
+.health .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(127,217,154,.08)}
+.health.warn .dot{background:var(--warn)}
+.ops{display:flex;gap:4px;justify-content:flex-end;white-space:nowrap}
+.icon-btn{width:27px;height:27px;border:1px solid transparent;background:transparent;border-radius:5px;color:var(--text-muted);display:grid;place-items:center}
+.icon-btn:hover{background:var(--bg-hover);color:var(--text);border-color:var(--border)}
+.inline-alert{display:flex;gap:11px;align-items:flex-start;border:1px solid rgba(61,214,198,.22);background:rgba(61,214,198,.055);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;color:var(--text-muted);font-size:12px}
+.inline-alert .alert-icon{color:var(--accent);flex-shrink:0;margin-top:1px}
+.inline-alert strong{color:var(--text);font-weight:600}
+.inline-alert code{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.inline-alert.warn{border-color:rgba(232,184,74,.24);background:rgba(232,184,74,.05)}
+.inline-alert.warn .alert-icon{color:var(--warn)}
+.topology{display:grid;grid-template-columns:1fr 26px 1fr 26px 1fr 26px 1fr;align-items:center;gap:8px;padding:18px 20px 20px}
+.topo-node{border:1px solid var(--border);border-radius:7px;background:rgba(0,0,0,.12);padding:12px;min-width:0}
+.topo-node .topo-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:5px}
+.topo-node .topo-name{font-size:12px;font-weight:600;word-break:break-all}
+.topo-node .topo-meta{font-size:10px;color:var(--text-muted);margin-top:4px;font-family:var(--mono);word-break:break-all}
+.topo-node.highlight{border-color:rgba(61,214,198,.35);background:rgba(61,214,198,.045)}
+.topo-node.target{border-style:dashed}
+.topo-arrow{text-align:center;color:var(--text-muted);font-size:18px}
+.flow-label{display:flex;flex-direction:column;align-items:center;gap:3px}
+.flow-label span{font-size:9px;color:var(--text-muted);white-space:nowrap}
+.proxy-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px}
+.kv{display:grid;grid-template-columns:138px 1fr;gap:9px 14px;font-size:12px}
+.kv dt{color:var(--text-muted)}
+.kv dd{margin:0;color:var(--text);min-width:0;word-break:break-word}
+.kv code{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.section-title{font-size:12px;font-weight:600;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.section-title .muted{font-weight:400;color:var(--text-muted);font-size:11px}
+.allowed-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px dashed rgba(42,53,72,.8)}
+.allowed-row:last-child{border-bottom:0}
+.allowed-row code{font-family:var(--mono);font-size:11px;color:var(--text)}
+.allowed-row .desc{font-size:10px;color:var(--text-muted);margin-top:3px}
+.filterbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border)}
+.filterbar select,.filterbar input{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 8px;font-size:12px;outline:none}
+.filterbar input{width:220px}
+.filterbar input:focus,.filterbar select:focus{border-color:var(--accent-dim)}
+.log-status{font-family:var(--mono);font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--border)}
+.log-status.ok{color:var(--ok);border-color:rgba(127,217,154,.22);background:rgba(127,217,154,.07)}
+.log-status.warn{color:var(--warn);border-color:rgba(232,184,74,.22);background:rgba(232,184,74,.07)}
+.log-status.danger{color:var(--danger);border-color:rgba(240,113,120,.22);background:rgba(240,113,120,.07)}
+.empty{padding:42px 20px;text-align:center;color:var(--text-muted);font-size:12px}
+.toast{position:fixed;z-index:120;right:24px;bottom:24px;display:flex;align-items:flex-start;gap:10px;background:#17231f;border:1px solid rgba(127,217,154,.32);color:var(--text);padding:12px 14px;border-radius:8px;box-shadow:0 12px 36px rgba(0,0,0,.36);max-width:380px;transform:translateY(18px);opacity:0;pointer-events:none;transition:.22s}
+.toast.show{transform:none;opacity:1}
+.toast.error{background:#241718;border-color:rgba(240,113,120,.36)}
+.toast .toast-title{font-weight:600;font-size:12px}
+.toast .toast-desc{font-size:11px;color:var(--text-muted);margin-top:2px}
+/* Drawer */
+.drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(1px);z-index:50;opacity:0;pointer-events:none;transition:.18s}
+.drawer-backdrop.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;z-index:51;top:0;right:0;height:100vh;width:min(860px,100vw);background:var(--bg-elevated);border-left:1px solid var(--border);box-shadow:-24px 0 70px rgba(0,0,0,.38);transform:translateX(102%);transition:transform .22s ease;display:flex;flex-direction:column}
+.drawer.open{transform:none}
+.drawer-head{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-shrink:0}
+.drawer-kicker{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.drawer-title{font-size:17px;font-weight:600;font-family:var(--mono);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.drawer-sub{font-size:11px;color:var(--text-muted);margin-top:5px}
+.close-btn{border:1px solid var(--border);background:transparent;color:var(--text-muted);width:30px;height:30px;border-radius:6px;display:grid;place-items:center}
+.close-btn:hover{color:var(--text);background:var(--bg-hover)}
+.drawer-main{display:flex;flex:1;min-height:0}
+.drawer-sections{width:168px;border-right:1px solid var(--border);padding:12px 8px;overflow-y:auto;flex-shrink:0}
+.drawer-section{border:0;background:transparent;color:var(--text-muted);text-align:left;width:100%;padding:9px 10px;border-radius:6px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px}
+.drawer-section:hover{background:var(--bg-hover);color:var(--text)}
+.drawer-section.active{background:rgba(61,214,198,.1);color:var(--accent)}
+.drawer-content{flex:1;padding:20px 22px;overflow-y:auto;min-width:0}
+.drawer-foot{border-top:1px solid var(--border);padding:12px 22px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;background:rgba(18,23,31,.95)}
+.drawer-foot .hint{font-size:11px;color:var(--text-muted)}
+.drawer-foot .buttons{display:flex;gap:8px}
+.form-section{display:none}
+.form-section.active{display:block}
+.form-section h3{font-size:13px;margin:0 0 4px;font-weight:600}
+.form-section > .desc{font-size:11px;color:var(--text-muted);margin:0 0 18px}
+.field{margin-bottom:16px}
+.field label{font-size:11px;color:var(--text-muted);display:block;margin-bottom:6px}
+.field .required{color:var(--warn);margin-left:2px}
+.field input[type=text],.field input[type=number],.field input[type=password],.field select,.field textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent-dim);box-shadow:0 0 0 2px rgba(61,214,198,.08)}
+.field textarea{resize:vertical;font-family:var(--mono);font-size:11px;line-height:1.55}
+.field .hint{font-size:10px;color:var(--text-muted);margin-top:5px;line-height:1.5}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.toggle-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;border:1px solid var(--border);background:rgba(0,0,0,.1);border-radius:7px;padding:12px 14px;margin-bottom:16px}
+.toggle-row .t-title{font-size:12px;font-weight:600;margin-bottom:3px}
+.toggle-row .t-desc{font-size:10px;color:var(--text-muted);line-height:1.5}
+.switch{position:relative;display:inline-flex;flex-shrink:0;width:38px;height:21px;margin-top:2px}
+.switch input{opacity:0;width:0;height:0}
+.switch .slider{position:absolute;inset:0;border-radius:999px;background:#2d394c;border:1px solid #3b4a61;transition:.18s}
+.switch .slider::before{content:"";position:absolute;width:15px;height:15px;left:2px;top:2px;border-radius:50%;background:#9aa8bb;transition:.18s}
+.switch input:checked + .slider{background:rgba(61,214,198,.22);border-color:rgba(61,214,198,.55)}
+.switch input:checked + .slider::before{transform:translateX(17px);background:var(--accent)}
+.check-row{display:flex;align-items:flex-start;gap:9px;font-size:11px;color:var(--text-muted);margin:9px 0}
+.check-row input{accent-color:var(--accent);margin-top:1px}
+.check-row strong{color:var(--text);font-weight:500}
+.radio-cards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.radio-card{border:1px solid var(--border);border-radius:7px;padding:11px 12px;background:rgba(0,0,0,.1);display:flex;gap:9px;align-items:flex-start;cursor:pointer}
+.radio-card:hover{border-color:#46536c}
+.radio-card.selected{border-color:rgba(61,214,198,.5);background:rgba(61,214,198,.05)}
+.radio-card input{accent-color:var(--accent);margin-top:2px}
+.radio-card .rc-title{display:block;font-size:11px;font-weight:600;color:var(--text)}
+.radio-card .rc-desc{display:block;font-size:10px;color:var(--text-muted);line-height:1.45;margin-top:2px}
+.chip-input{display:flex;gap:6px;flex-wrap:wrap;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
+.chip-input .chip{display:flex;align-items:center;gap:5px;padding:3px 7px;color:var(--text)}
+.chip-input .chip button{border:0;background:transparent;color:var(--text-muted);padding:0;line-height:1}
+.chip-input .chip button:hover{color:var(--danger)}
+.chip-input input{flex:1;min-width:160px;border:0;background:transparent;color:var(--text);outline:none;font-family:var(--mono);font-size:11px;padding:4px}
+.preview-yaml{background:#090c11;border:1px solid var(--border);border-radius:7px;padding:14px;overflow:auto;font-family:var(--mono);font-size:11px;line-height:1.65;color:#c9d5e6;white-space:pre}
+.preview-yaml .k{color:#7fb6ff}.preview-yaml .s{color:#a8d8a0}.preview-yaml .c{color:#66758c}
+.test-panel{border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,.1);padding:14px;margin-top:14px}
+.test-panel .test-log{background:#090c11;border:1px solid var(--border);border-radius:6px;padding:12px;min-height:170px;max-height:260px;overflow:auto;font-family:var(--mono);font-size:11px;line-height:1.7;color:#c9d5e6;white-space:pre-wrap}
+.test-panel .test-log .ok{color:var(--ok)}.test-panel .test-log .warn{color:var(--warn)}.test-panel .test-log .muted{color:#66758c}.test-panel .test-log .err{color:var(--danger)}
+.test-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.spinner{width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:#032b2b;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.modal-note{font-size:10px;color:var(--text-muted);line-height:1.5;margin-top:8px}
+@media(max-width:900px){
+  .sidebar{width:64px}.brand-sub,.nav .label,.nav .count,.nav-group-label,.brand-title,.brand-version{display:none}.brand{padding:16px 10px}.brand-top{justify-content:center}.nav button{justify-content:center;padding:11px}.nav .ico{width:24px}
+  .cards{grid-template-columns:1fr 1fr}.proxy-grid{grid-template-columns:1fr}.topology{grid-template-columns:1fr;gap:6px}.topo-arrow{transform:rotate(90deg)}.page{padding:16px}.drawer-sections{width:130px}
+}
+@media(max-width:640px){
+  .sidebar{display:none}.page-inner{max-width:none}.page-head{flex-direction:column}.actions{width:100%}.cards{grid-template-columns:1fr 1fr}.field-row{grid-template-columns:1fr}.drawer-main{display:block}.drawer-sections{width:100%;display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);padding:8px}.drawer-section{white-space:nowrap;width:auto;margin-right:3px}.drawer-content{padding:16px}.drawer{width:100vw}.topbar{padding:0 14px}.runtime-pill{display:none}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-top"><span class="brand-title">Ingress Console</span><span class="brand-version">v1.21.16</span></div>
+      <span class="brand-sub">运维控制台</span>
+    </div>
+    <nav class="nav">
+      <div class="nav-group"><div class="nav-group-label">概览</div>
+        <button><span class="ico">▦</span><span class="label">总览</span></button>
+        <button><span class="ico">◈</span><span class="label">拓扑</span></button>
+        <button><span class="ico">⌁</span><span class="label">健康</span><span class="count">2</span></button>
+      </div>
+      <div class="nav-group"><div class="nav-group-label">流量</div>
+        <button class="active"><span class="ico">⇄</span><span class="label">路由与代理</span></button>
+        <button><span class="ico">≋</span><span class="label">访问日志</span></button>
+        <button><span class="ico">◌</span><span class="label">连接诊断</span></button>
+      </div>
+      <div class="nav-group"><div class="nav-group-label">配置</div>
+        <button><span class="ico">◇</span><span class="label">TLS 证书</span></button>
+        <button><span class="ico">⌘</span><span class="label">场景</span></button>
+      </div>
+    </nav>
+    <div class="sidebar-footer"><span class="status-dot"></span>运行中 · reload 就绪</div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="crumb">Ingress Console <span>/</span> 流量 <span>/</span> <strong>路由与代理</strong></div>
+      <div class="top-actions">
+        <div class="runtime-pill"><span class="status-dot"></span>配置与运行时一致</div>
+        <button class="btn sm ghost" title="刷新">↻</button>
+        <div class="avatar">AD</div>
+      </div>
+    </header>
+    <div class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <h1>路由与正向代理</h1>
+            <p class="sub">普通 HTTPS 路由和正向代理共用 SNI 规则：HTTPS 目标走 CONNECT，HTTP 目标走 absolute-form；两种请求的 HTTP Host 都是目标站，路由匹配使用 TLS SNI。</p>
+          </div>
+          <div class="actions">
+            <button class="btn">配置中心</button>
+            <button class="btn primary" id="newRouteBtn">＋ 新建规则</button>
+          </div>
+        </div>
+
+        <div class="inline-alert">
+          <span class="alert-icon">◉</span>
+          <div><strong>正向代理已启用</strong> · <code>anchor.yss.yestargroup.com</code> 的 TLS 在 ingress 443 终止；CONNECT（HTTPS）和 absolute-form（HTTP）都以明文转发到独立上游 <code>anchor-backend:3128</code>。3128 不需要对外开放。<br>认证由下游代理校验 <code>Proxy-Authorization</code>；ingress 只负责 SNI 路由、ACL、限流和隧道。</div>
+        </div>
+
+        <div class="cards">
+          <div class="card"><div class="card-label">路由规则</div><div class="card-value">12</div><div class="card-note"><span class="up">11</span> 正常 · <span class="up">1</span> CONNECT</div></div>
+          <div class="card"><div class="card-label">活跃代理连接</div><div class="card-value" id="activeTunnels">12</div><div class="card-note"><span class="up">↑ 4</span> 较 1 小时前</div></div>
+          <div class="card"><div class="card-label">24h 代理请求</div><div class="card-value">1,284</div><div class="card-note">407 挑战 23 · 失败 2</div></div>
+          <div class="card"><div class="card-label">上游握手 P95</div><div class="card-value">38<span style="font-size:12px;color:var(--text-muted)"> ms</span></div><div class="card-note">anchor-backend:3128</div></div>
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-page-tab="routes">路由列表 <span class="badge">12</span></button>
+          <button class="tab" data-page-tab="proxy">正向代理运行 <span class="badge accent">PROXY</span></button>
+          <button class="tab" data-page-tab="logs">访问日志 <span class="badge">24h</span></button>
+        </div>
+
+        <section id="tab-routes" class="tab-panel">
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">规则列表 <span class="panel-sub">按顺序匹配，首条命中生效</span></div><div class="panel-sub">展示 5 / 12 条</div></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Host / SNI</th><th>类型</th><th>上游 Backend</th><th>代理目标白名单</th><th>状态</th><th style="text-align:right">操作</th></tr></thead>
+                <tbody id="routeRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-proxy" class="tab-panel" hidden>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">正向代理链路 <span class="panel-sub">TLS 终止 · CONNECT / absolute-form</span></div><span class="badge ok">运行正常</span></div>
+            <div class="topology">
+              <div class="topo-node"><div class="topo-kicker">Client</div><div class="topo-name">curl / SDK</div><div class="topo-meta">Proxy-Authorization: Basic …</div></div>
+              <div class="topo-arrow"><div class="flow-label"><span>TLS</span>→</div></div>
+              <div class="topo-node highlight"><div class="topo-kicker">Ingress · 本机</div><div class="topo-name">TLS 443 / SNI 路由</div><div class="topo-meta">CONNECT + absolute-form</div></div>
+              <div class="topo-arrow"><div class="flow-label"><span>CONNECT</span>→</div></div>
+              <div class="topo-node"><div class="topo-kicker">代理上游</div><div class="topo-name">Anchor HTTP proxy</div><div class="topo-meta">anchor-backend:3128 · 内网</div></div>
+              <div class="topo-arrow"><div class="flow-label"><span>TCP</span>→</div></div>
+              <div class="topo-node target"><div class="topo-kicker">目标站</div><div class="topo-name" id="topoTarget">httpbin.zcorky.com</div><div class="topo-meta">HTTPS :443 / HTTP :80</div></div>
+            </div>
+          </div>
+          <div class="proxy-grid">
+            <div class="panel"><div class="panel-head"><div class="panel-title">代理配置</div><button class="btn sm ghost" id="editProxyBtn">编辑</button></div><div class="panel-body">
+              <dl class="kv">
+                <dt>规则 Host / SNI</dt><dd><code>anchor.yss.yestargroup.com</code></dd>
+                <dt>普通 Backend</dt><dd><code>anchor-frontend:8080</code> <span class="badge">保留</span></dd>
+                <dt>支持请求</dt><dd><code>CONNECT</code> + <code>absolute-form</code></dd>
+                <dt>代理上游</dt><dd><code>anchor-backend:3128</code> <span class="badge accent">独立</span></dd>
+                <dt>认证方式</dt><dd>下游代理校验 Proxy-Authorization</dd>
+                <dt>TLS 证书</dt><dd><span class="badge ok">已配置</span> *.yss.yestargroup.com</dd>
+                <dt>连接超时</dt><dd>10s</dd>
+                <dt>上游响应超时</dt><dd>10s</dd>
+                <dt>空闲断开</dt><dd>600s</dd>
+                <dt>最大连接</dt><dd>500 / 实例</dd>
+                <dt>限流</dt><dd>继承全局 · 600 req/min / IP</dd>
+              </dl>
+            </div></div>
+            <div class="panel"><div class="panel-head"><div class="panel-title">代理目标白名单</div><span class="badge">2 条</span></div><div class="panel-body">
+              <div class="allowed-row"><div><code>^.+:(80|443)$</code><div class="desc">HTTPS CONNECT 与 HTTP absolute-form</div></div><span class="badge ok">启用</span></div>
+              <div class="allowed-row"><div><code>^db\.internal:5432$</code><div class="desc">运维例外 · 内网数据库</div></div><span class="badge warn">显式</span></div>
+              <p class="field hint" style="margin:12px 0 0">白名单采用整串匹配；HTTP 目标未写端口时按 :80 归一化。未命中返回 403，不会把任意目标交给 Anchor。</p>
+            </div></div>
+          </div>
+          <div class="panel"><div class="panel-head"><div class="panel-title">最近连接</div><span class="panel-sub">实时采样</span></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>客户端</th><th>SNI</th><th>CONNECT 目标</th><th>结果</th><th>耗时</th></tr></thead><tbody>
+            <tr><td>14:49:57</td><td class="backend">127.0.0.1</td><td class="backend">anchor.yss.yestargroup.com</td><td class="backend">httpbin.zcorky.com:443</td><td><span class="log-status ok">200 隧道建立</span></td><td class="backend">4ms</td></tr>
+            <tr><td>14:48:12</td><td class="backend">10.0.0.21</td><td class="backend">anchor.yss.yestargroup.com</td><td class="backend">httpbin.zcorky.com:443</td><td><span class="log-status warn">407 认证挑战</span></td><td class="backend">3ms</td></tr>
+            <tr><td>14:47:40</td><td class="backend">10.0.0.21</td><td class="backend">anchor.yss.yestargroup.com</td><td class="backend">api.github.com:443</td><td><span class="log-status ok">200 隧道建立</span></td><td class="backend">41ms</td></tr>
+            <tr><td>14:46:09</td><td class="backend">10.0.0.15</td><td class="backend">anchor.yss.yestargroup.com</td><td class="backend">db.internal:5432</td><td><span class="log-status ok">200 隧道建立</span></td><td class="backend">12ms</td></tr>
+            <tr><td>14:44:51</td><td class="backend">10.0.0.19</td><td class="backend">anchor.yss.yestargroup.com</td><td class="backend">untrusted.example:443</td><td><span class="log-status danger">403 target denied</span></td><td class="backend">1ms</td></tr>
+          </tbody></table></div></div>
+        </section>
+
+        <section id="tab-logs" class="tab-panel" hidden>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">代理访问日志 <span class="panel-sub">CONNECT 隧道也记录挑战与失败</span></div><button class="btn sm ghost">导出</button></div>
+            <div class="filterbar"><select><option>全部结果</option><option>200</option><option>407</option><option>4xx/5xx</option></select><input placeholder="过滤 host / target / client IP" /><button class="btn sm">筛选</button><span class="panel-sub" style="margin-left:auto">最近 24h</span></div>
+            <div class="table-wrap"><table><thead><tr><th>时间</th><th>客户端</th><th>Host / SNI</th><th>方法 / 目标</th><th>状态</th><th>上游</th><th>耗时</th></tr></thead><tbody>
+              <tr class="log-row"><td>14:49:57</td><td class="backend">127.0.0.1</td><td class="backend">anchor.yss.yestargroup.com</td><td class="backend">CONNECT httpbin.zcorky.com:443</td><td><span class="log-status ok">200</span></td><td class="backend">anchor-backend:3128</td><td class="backend">4ms</td></tr>
+              <tr class="log-row"><td>14:48:12</td><td class="backend">10.0.0.21</td><td class="backend">anchor.yss.yestargroup.com</td><td class="backend">CONNECT httpbin.zcorky.com:443</td><td><span class="log-status warn">407</span></td><td class="backend">anchor-backend:3128</td><td class="backend">3ms</td></tr>
+              <tr class="log-row"><td>14:44:51</td><td class="backend">10.0.0.19</td><td class="backend">anchor.yss.yestargroup.com</td><td class="backend">CONNECT untrusted.example:443</td><td><span class="log-status danger">403</span></td><td class="backend">-</td><td class="backend">1ms</td></tr>
+              <tr class="log-row"><td>14:43:20</td><td class="backend">10.0.0.22</td><td class="backend">anchor.yss.yestargroup.com</td><td class="backend">CONNECT github.com:443</td><td><span class="log-status danger">502</span></td><td class="backend">anchor-backend:3128</td><td class="backend">10.0s</td></tr>
+            </tbody></table></div>
+          </div>
+          <div class="inline-alert warn"><span class="alert-icon">!</span><div>失败请求也会进入访问日志：区分 <code>407 认证挑战</code>、<code>403 目标拒绝</code> 与 <code>502 上游不可用</code>，避免上线后只能看到客户端 EOF。</div></div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div><div class="drawer-kicker">编辑路由 / 正向代理</div><div class="drawer-title"><span id="drawerHost">anchor.yss.yestargroup.com</span><span class="badge accent" id="drawerBadge">PROXY</span></div><div class="drawer-sub">按 TLS SNI 匹配；普通 Backend 与正向代理上游可分别配置。</div></div>
+    <button class="close-btn" id="closeDrawer" aria-label="关闭">✕</button>
+  </div>
+  <div class="drawer-main">
+    <nav class="drawer-sections" id="drawerSections">
+      <button class="drawer-section active" data-section="basic">基础信息</button>
+      <button class="drawer-section" data-section="proxy">CONNECT 代理</button>
+      <button class="drawer-section" data-section="limits">认证与限制</button>
+      <button class="drawer-section" data-section="test">连接测试</button>
+      <button class="drawer-section" data-section="yaml">YAML 预览</button>
+    </nav>
+    <div class="drawer-content">
+      <section class="form-section active" data-section-panel="basic">
+        <h3>基础信息</h3><p class="desc">Host / SNI 是代理入口，按列表顺序匹配；CONNECT 请求的 Host 是目标站，因此必须用 SNI。</p>
+        <div class="field"><label>Host / SNI <span class="required">*</span></label><input type="text" id="fieldHost" value="anchor.yss.yestargroup.com"></div>
+        <div class="field-row"><div class="field"><label>TLS 证书</label><select><option>*.yss.yestargroup.com（已配置）</option></select><div class="hint">证书在 ingress 443 终止时使用，CONNECT 本身不携带证书。</div></div><div class="field"><label>规则状态</label><select><option>启用</option><option>停用</option></select></div></div>
+        <div class="field"><label>普通 HTTPS Backend（非 CONNECT）</label><input type="text" value="anchor-frontend:8080"></div>
+        <div class="field"><label>备注</label><textarea rows="2">Anchor 对外 HTTPS 正向代理入口；3128 仅内网。</textarea></div>
+      </section>
+      <section class="form-section" data-section-panel="proxy">
+        <h3>正向代理</h3><p class="desc">同时支持 TLS 终止后的 CONNECT（HTTPS 目标）和 absolute-form（HTTP 目标）；普通 HTTPS 请求仍走普通 Backend。</p>
+        <div class="toggle-row"><div><div class="t-title">启用正向代理</div><div class="t-desc">开启后，命中该 SNI 的 CONNECT 和 absolute-form 请求进入独立上游；普通 HTTPS 请求不受影响。</div></div><label class="switch"><input type="checkbox" id="connectEnabled" checked><span class="slider"></span></label></div>
+        <div id="connectFields">
+          <div class="field"><label>代理上游服务 <span class="required">*</span></label><div class="field-row"><input type="text" id="connectService" value="anchor-backend"><div style="display:flex;gap:6px"><input type="number" id="connectPort" value="3128" style="width:110px"><select id="connectProtocol"><option>http</option><option>https</option></select></div></div><div class="hint">与普通 Backend 独立。推荐保留 <code>anchor-frontend:8080</code> 给浏览器访问，<code>anchor-backend:3128</code> 只给正向代理。</div></div>
+          <div class="field"><label>目标白名单 <span class="required">*</span></label><div class="chip-input" id="targetChips"><span class="chip">^.+:(80|443)$<button title="移除">×</button></span><span class="chip">^db\\.internal:5432$<button title="移除">×</button></span><input id="targetInput" placeholder="输入正则后回车，如 ^api\\.example\\.com:443$"></div><div class="hint">整串匹配，拒绝的代理请求返回 403；HTTP 目标默认端口按 :80 归一化。空列表不建议上线。</div></div>
+          <div class="field"><label>认证方式</label><div class="toggle-row" style="margin-bottom:0"><div><div class="t-title">下游代理校验 Proxy-Authorization</div><div class="t-desc">Ingress 原样透传认证头；Anchor 返回 407 时客户端能看到 Proxy-Authenticate。本版本不在 ingress 重复保存代理密码。</div></div><span class="badge accent">固定</span></div></div>
+        </div>
+      </section>
+      <section class="form-section" data-section-panel="limits">
+        <h3>认证与资源限制</h3><p class="desc">代理隧道是长连接，必须有超时、连接上限，并继承限流；否则慢连接会长期占用 goroutine 和文件描述符。</p>
+        <div class="check-row"><input type="checkbox" checked id="inheritRate"><span><strong>继承全局/规则限流</strong><br>已解析：全局 600 req/min / IP，规则 120 req/min</span></div>
+        <div class="field-row"><div class="field"><label>连接超时（秒）</label><input type="number" id="limitConnectTimeout" value="10"></div><div class="field"><label>上游响应超时（秒）</label><input type="number" id="limitResponseTimeout" value="10"></div></div>
+        <div class="field-row"><div class="field"><label>空闲断开（秒）</label><input type="number" id="limitIdleTimeout" value="600"></div><div class="field"><label>最大连接数 / 实例</label><input type="number" id="limitMaxConnections" value="500"></div></div>
+        <div class="field"><label>认证失败处理</label><select><option>原样转发 407 Proxy-Authenticate</option><option>记录并统一返回 407</option></select><div class="hint">不要把认证失败吞成 502；客户端需要拿到 Proxy-Authenticate 才能重新输入密码。</div></div>
+      </section>
+      <section class="form-section" data-section-panel="test">
+        <h3>连接测试</h3><p class="desc">测试会从当前 ingress 实例发起到配置的代理上游，再访问目标；认证信息只用于本次测试。</p>
+        <div class="field"><label>代理请求形态</label><select id="testMode"><option value="https">HTTPS 目标 · CONNECT</option><option value="http">HTTP 目标 · absolute-form</option></select></div>
+        <div class="field"><label>测试目标</label><input type="text" id="testTarget" value="https://httpbin.zcorky.com/ip"></div>
+        <div class="field-row"><div class="field"><label>代理账号</label><input type="text" value="mp_wecom"></div><div class="field"><label>代理密码</label><input type="password" id="testPassword" value="demo-password"></div></div>
+        <div class="check-row"><input type="checkbox" id="wrongPassword"><span>使用错误密码（验证 407 透传）</span></div>
+        <div class="test-panel"><div class="test-log" id="testLog"><span class="muted">等待测试…</span></div><div class="test-actions"><button class="btn primary" id="runTest">开始测试</button><button class="btn ghost" id="copyCurl">复制 curl</button></div><div class="modal-note">生产环境不会在日志/响应里回显密码。</div></div>
+      </section>
+      <section class="form-section" data-section-panel="yaml">
+        <h3>YAML 预览</h3><p class="desc">保存前预览最终写入配置的片段。CONNECT 上游与普通 Backend 分开，避免影响普通 HTTPS 访问。</p>
+        <pre class="preview-yaml" id="yamlPreview"></pre>
+        <button class="btn sm ghost" id="copyYaml" style="margin-top:10px">复制 YAML</button>
+      </section>
+    </div>
+  </div>
+  <div class="drawer-foot"><div class="hint">保存后需 reload；变更会写入配置中心。</div><div class="buttons"><button class="btn" id="cancelDrawer">取消</button><button class="btn primary" id="saveConfig">保存并发布</button></div></div>
+</aside>
+
+<div class="toast" id="toast"><div class="toast-icon">✓</div><div><div class="toast-title" id="toastTitle">已保存</div><div class="toast-desc" id="toastDesc">配置已写入，reload 成功</div></div></div>
+
+<script>
+const state = {
+  route: {
+    host: 'anchor.yss.yestargroup.com',
+    kind: 'connect',
+    normalBackend: 'anchor-frontend:8080',
+    connectBackend: 'anchor-backend:3128',
+    protocol: 'http',
+    targets: ['^.+:(80|443)$', '^db\\.internal:5432$'],
+    enabled: true,
+    connectTimeout: 10,
+    responseTimeout: 10,
+    idleTimeout: 600,
+    maxConnections: 500,
+    inheritRate: true,
+    status: 'healthy'
+  }
+};
+
+const $ = (s, root=document) => root.querySelector(s);
+const $$ = (s, root=document) => [...root.querySelectorAll(s)];
+
+const routes = [
+  { host:'anchor.yss.yestargroup.com', kind:'connect', backend:'anchor-backend:3128', normal:'anchor-frontend:8080', targets:'^.+:(80|443)$', status:'healthy', note:'CONNECT + HTTP · TLS SNI' },
+  { host:'anchor-admin.yss.yestargroup.com', kind:'normal', backend:'anchor-connect:8080', targets:'—', status:'healthy', note:'管理后台 · OAuth' },
+  { host:'anchor-web.yss.yestargroup.com', kind:'normal', backend:'anchor-frontend:8080', targets:'—', status:'healthy', note:'普通 HTTPS · 示例' },
+  { host:'*.api.yestargroup.com', kind:'normal', backend:'api-gateway:8080', targets:'—', status:'healthy', note:'通配 Host' },
+  { host:'legacy.yss.yestargroup.com', kind:'normal', backend:'legacy:8080', targets:'—', status:'warn', note:'证书 14 天后过期' }
+];
+
+function iconSvg(kind){
+  if (kind === 'connect') return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 7h8M8 17h8M5 12h14"/><path d="m15 4 3 3-3 3M9 14l-3 3 3 3"/></svg>';
+  return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.4 11 15.6 7M8.4 13l7.2 4"/></svg>';
+}
+
+function renderRoutes(){
+  $('#routeRows').innerHTML = routes.map((r, i) => `
+    <tr class="row-hover" data-route-index="${i}">
+      <td><div class="host">${r.host}<small>${r.note}</small></div></td>
+      <td><div class="route-kind"><span class="kind-icon ${r.kind==='connect'?'':'normal'}">${iconSvg(r.kind)}</span><span>${r.kind==='connect'?'CONNECT 代理':'普通反向代理'}</span></div></td>
+      <td><span class="backend">${r.backend}</span>${r.kind==='connect' && r.normal ? `<div style="font-size:10px;color:var(--text-muted);margin-top:3px">普通 Backend ${r.normal}</div>`:''}</td>
+      <td><div class="targets">${r.targets==='—'?'<span class="chip">—</span>': `<span class="chip">${r.targets}</span>${r.kind==='connect'?'<span class="chip">+1</span>':''}`}</div></td>
+      <td><div class="health ${r.status==='warn'?'warn':''}"><span class="dot"></span>${r.status==='warn'?'需关注':'健康'}</div></td>
+      <td><div class="ops"><button class="icon-btn" title="试匹配" data-action="match" data-i="${i}">⌕</button><button class="icon-btn" title="编辑" data-action="edit" data-i="${i}">✎</button><button class="icon-btn" title="更多">⋯</button></div></td>
+    </tr>`).join('');
+}
+
+function setPageTab(name){
+  $$('.tab[data-page-tab]').forEach(t => t.classList.toggle('active', t.dataset.pageTab === name));
+  $$('.tab-panel').forEach(p => p.hidden = p.id !== 'tab-'+name);
+}
+
+function openDrawer(section='basic'){
+  $('#drawer').classList.add('open');
+  $('#drawer').setAttribute('aria-hidden','false');
+  $('#drawerBackdrop').classList.add('open');
+  switchSection(section);
+  renderYaml();
+  updateProxyFields();
+}
+function closeDrawer(){
+  $('#drawer').classList.remove('open');
+  $('#drawer').setAttribute('aria-hidden','true');
+  $('#drawerBackdrop').classList.remove('open');
+}
+function switchSection(name){
+  $$('.drawer-section').forEach(b=>b.classList.toggle('active', b.dataset.section===name));
+  $$('.form-section').forEach(p=>p.classList.toggle('active', p.dataset.sectionPanel===name));
+}
+function toast(title, desc, error=false){
+  const t=$('#toast'); $('#toastTitle').textContent=title; $('#toastDesc').textContent=desc;
+  t.classList.toggle('error', error); t.classList.add('show');
+  clearTimeout(toast.timer); toast.timer=setTimeout(()=>t.classList.remove('show'),3200);
+}
+function updateProxyFields(){
+  const on=$('#connectEnabled').checked;
+  $('#connectFields').style.display = on ? '' : 'none';
+  $('#drawerBadge').textContent = on ? 'PROXY' : '普通';
+  $('#drawerBadge').className = 'badge ' + (on?'accent':'');
+}
+function buildYaml(){
+  const enabled=$('#connectEnabled').checked;
+  const svc=$('#connectService').value.trim() || 'anchor-backend';
+  const port=$('#connectPort').value.trim() || '3128';
+  const proto=$('#connectProtocol').value;
+  const targets=[...document.querySelectorAll('#targetChips .chip')].map(c=>c.textContent.replace('×','').trim()).filter(Boolean);
+  const targetLines = targets.map(t=>`        - '${t.replaceAll("'", "''")}'`).join('\n');
+  return `rules:\n  - host: ${$('#fieldHost').value.trim()}\n    host_type: exact\n    connect_proxy:\n      enabled: ${enabled}\n      allowed_targets:\n${targetLines || "        - '^.+:(80|443)$'"}\n      upstream:\n        name: ${svc}\n        port: ${port}\n        protocol: ${proto}\n      connect_timeout: ${Number($('#limitConnectTimeout').value) || 10}\n      response_timeout: ${Number($('#limitResponseTimeout').value) || 10}\n      idle_timeout: ${Number($('#limitIdleTimeout').value) || 600}\n      max_connections: ${Number($('#limitMaxConnections').value) || 0}\n    backend:\n      service:\n        name: anchor-frontend\n        port: 8080\n        protocol: http\n`;
+}
+function renderYaml(){
+  $('#yamlPreview').textContent=buildYaml();
+}
+
+// page tabs
+$$('.tab[data-page-tab]').forEach(btn=>btn.addEventListener('click',()=>setPageTab(btn.dataset.pageTab)));
+// row actions
+$('#routeRows').addEventListener('click', e=>{
+  const btn=e.target.closest('button');
+  const row=e.target.closest('tr');
+  if(btn && btn.dataset.action==='edit') openDrawer('proxy');
+  else if(btn && btn.dataset.action==='match') { setPageTab('proxy'); toast('试匹配','CONNECT 示例：anchor.yss.yestargroup.com → allow target → anchor-backend:3128'); }
+  else if(row && row.dataset.routeIndex==='0') openDrawer('basic');
+});
+$('#newRouteBtn').addEventListener('click',()=>{ openDrawer('basic'); toast('新建规则','演示：请先选择普通反向代理或 CONNECT 代理'); });
+$('#editProxyBtn').addEventListener('click',()=>openDrawer('proxy'));
+$$('.drawer-section').forEach(b=>b.addEventListener('click',()=>switchSection(b.dataset.section)));
+$('#closeDrawer').addEventListener('click',closeDrawer);
+$('#cancelDrawer').addEventListener('click',closeDrawer);
+$('#drawerBackdrop').addEventListener('click',closeDrawer);
+$('#connectEnabled').addEventListener('change',()=>{ state.route.enabled=$('#connectEnabled').checked; updateProxyFields(); renderYaml(); });
+$('#connectService').addEventListener('input',renderYaml); $('#connectPort').addEventListener('input',renderYaml); $('#connectProtocol').addEventListener('change',renderYaml); $('#fieldHost').addEventListener('input',renderYaml); ['limitConnectTimeout','limitResponseTimeout','limitIdleTimeout','limitMaxConnections'].forEach(id=>$('#'+id).addEventListener('input',renderYaml));
+$('#targetInput').addEventListener('keydown',e=>{
+  if(e.key!=='Enter') return;
+  e.preventDefault(); const v=e.target.value.trim(); if(!v) return;
+  if(![...document.querySelectorAll('#targetChips .chip')].some(c=>c.textContent.replace('×','').trim()===v)){
+    const chip=document.createElement('span'); chip.className='chip'; chip.innerHTML=`${v}<button title="移除">×</button>`; $('#targetChips').insertBefore(chip,$('#targetInput'));
+  }
+  e.target.value=''; bindChipRemove(); renderYaml();
+});
+function bindChipRemove(){ $$('#targetChips .chip button').forEach(b=>b.onclick=()=>{b.closest('.chip').remove(); renderYaml();}); }
+bindChipRemove();
+$('#saveConfig').addEventListener('click',()=>{
+  state.route.host=$('#fieldHost').value.trim(); state.route.connectBackend=$('#connectService').value.trim()+':'+$('#connectPort').value.trim();
+  state.route.enabled=$('#connectEnabled').checked;
+  routes[0].host=state.route.host; routes[0].backend=state.route.connectBackend; routes[0].kind=state.route.enabled?'connect':'normal';
+  renderRoutes(); closeDrawer(); toast('已保存并发布', `${state.route.host} → CONNECT ${state.route.enabled?'已启用':'已停用'}，reload 成功`);
+});
+$('#copyYaml').addEventListener('click',()=>navigator.clipboard?.writeText(buildYaml()).then(()=>toast('已复制','YAML 已复制到剪贴板')));
+$('#testMode').addEventListener('change',()=>{
+  $('#testTarget').value = $('#testMode').value === 'http' ? 'http://httpbin.zcorky.com/get' : 'https://httpbin.zcorky.com/ip';
+});
+function targetParts(raw){
+  const u = new URL(raw);
+  const scheme = u.protocol.replace(':','');
+  const host = u.host;
+  return { scheme, host, authority: host.includes(':') ? host : host + ':' + (scheme === 'https' ? '443' : '80') };
+}
+$('#copyCurl').addEventListener('click',()=>{
+  const mode=$('#testMode').value;
+  const t=targetParts($('#testTarget').value.trim());
+  const cmd=`curl -x "https://${$('#fieldHost').value.trim()}" -U "mp_wecom:****" "${mode==='http'?'http':'https'}://${t.host}/"`;
+  navigator.clipboard?.writeText(cmd).then(()=>toast('已复制','curl 命令已复制；生产密码请使用环境变量'));
+});
+$('#runTest').addEventListener('click',()=>{
+  const log=$('#testLog'); const wrong=$('#wrongPassword').checked; const mode=$('#testMode').value;
+  const t=targetParts($('#testTarget').value.trim());
+  const curlTarget = mode === 'http' ? 'http://'+t.host+'/' : 'https://'+t.host+'/';
+  log.innerHTML=`<span class="muted">$ curl -x https://${$('#fieldHost').value.trim()} -U mp_wecom:**** ${curlTarget}</span>\n<span class="muted">→ TLS 握手，SNI=${$('#fieldHost').value.trim()}</span>\n<span class="muted">→ ${mode === 'http' ? 'GET '+t.host+'/ · absolute-form' : 'CONNECT '+t.authority}</span>`;
+  $('#runTest').disabled=true; $('#runTest').innerHTML='<span class="spinner"></span> 测试中…';
+  setTimeout(()=>{
+    if(wrong){
+      log.innerHTML += `\n<span class="warn">← HTTP/1.1 407 Proxy Authentication Required</span>\n<span class="warn">← Proxy-Authenticate: Basic realm="anchor"</span>\n<span class="err">结果：认证挑战已原样透传，客户端可重新输入密码。</span>`;
+    }else if(mode === 'http'){
+      log.innerHTML += `\n<span class="ok">← HTTP/1.1 200 OK</span>\n<span class="muted">→ Anchor 收到绝对 URI：GET http://${t.host}/</span>\n<span class="ok">→ HTTP 目标转发成功 (22ms)</span>\n<span class="muted">access_log: GET 200 upstream=anchor-backend:3128</span>`;
+    }else{
+      log.innerHTML += `\n<span class="ok">← HTTP/1.1 200 Connection Established</span>\n<span class="muted">→ TLS handshake with ${t.host}</span>\n<span class="ok">→ GET /ip 200 · 隧道建立成功 (38ms)</span>\n<span class="muted">access_log: CONNECT 200 upstream=anchor-backend:3128</span>`;
+    }
+    $('#runTest').disabled=false; $('#runTest').textContent='重新测试';
+  },900);
+});
+// initial
+renderRoutes();
+renderYaml();
+const params = new URLSearchParams(location.search);
+const initialView = params.get('view');
+if (initialView === 'proxy' || initialView === 'logs') setPageTab(initialView);
+if (params.get('drawer')) openDrawer(params.get('section') || 'proxy');
+if (params.get('mode') === 'http') { $('#testMode').value = 'http'; $('#testTarget').value = 'http://httpbin.zcorky.com/get'; }
+if (params.get('wrong') === '1') $('#wrongPassword').checked = true;
+if (params.get('test') === '1') setTimeout(() => $('#runTest').click(), 250);
+</script>
+</body>
+</html>

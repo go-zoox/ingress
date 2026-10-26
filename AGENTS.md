@@ -18,6 +18,17 @@ Context for humans and coding agents working on this repository.
 - **Default upstream port**: `backend.service.port` may be omitted (`0`). `core/service/host.go` then uses **443** when `protocol` is **`https`** and **80** when **`http`** (or default/empty). First `Host()` / `Target()` call may write the chosen port back onto the loaded `Service` value.
 - **`service.protocol` omission**: Unset or empty defaults to **`http`** (`protocol,default=http` on `core/service.Service` and the same default in `Host()` / `Target()`).
 
+## Forward proxy (`rules[].connect_proxy`)
+
+- **What it handles**: after ingress terminates TLS, both `CONNECT host:port` and absolute-form `GET http://host/...` are forward-proxy requests; their HTTP Host is the destination, so they match by **TLS SNI**, not `ctx.Hostname()`.
+- **Routing**: `core/connect_proxy.go` compiles a dedicated connect-only host index. It must not reuse the normal router, otherwise an earlier wildcard/normal rule shadows the connect rule and returns 404. Rule order remains first-match within connect-enabled rules.
+- **Upstream**: `connect_proxy.upstream` is a `service.Service` for the next HTTP proxy hop (Anchor `:3128`). If omitted, it falls back to `rules[].backend.service` for backward compatibility; a normal backend can therefore be a different service.
+- **ACL**: `allowed_targets` are Go regexes matched against the **complete canonical `host:port`**. CONNECT supplies the authority directly; HTTP absolute-form uses `:80` when the URL has no port. A non-match returns 403. Empty means unrestricted.
+- **Auth**: ingress forwards `Proxy-Authorization`; the downstream proxy validates accounts and returns 407. Ingress does not store proxy credentials and the rule's normal `service.auth` is not applied to proxy requests.
+- **Limits**: `connect_timeout`, `response_timeout`, `idle_timeout`, and `max_connections` are supported. Global/rule `rate_limit` is applied before dialing. CONNECT hijack happens only after the upstream returns 2xx.
+- **Admin UI**: route editor section **正向代理** (`ConnectProxyFormFields.tsx`) serializes `connect_proxy` in `configEntities.ts`; tests: `configEntities.connectProxy.test.ts`. Go tests: `core/connect_proxy_test.go`.
+- **HTTP/2**: CONNECT currently requires HTTP/1.1 (`curl -x https` negotiates HTTP/1.1). HTTP/2 CONNECT would require zoox/h2 work and is explicitly rejected with 505.
+
 ## Common pitfalls
 
 - **`\w` in Go regex** matches `[0-9A-Za-z_]`, not `-`. Subdomains such as `custom-domain.inlets.example.com` will not match `(\w+).inlets.example.com`; use something like `([a-zA-Z0-9-]+)` or a wildcard host if appropriate.

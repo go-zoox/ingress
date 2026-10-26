@@ -7,11 +7,12 @@ package core
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 
-	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/ingress/core/ratelimit"
 	"github.com/go-zoox/ingress/core/security"
+	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/zoox"
 	"github.com/go-zoox/zoox/defaults"
 )
@@ -43,6 +44,9 @@ type core struct {
 	pidFilePath    string
 
 	router *routerIndex
+
+	connectProxyRules  []compiledConnectProxyRule
+	httpProxyTransport *http.Transport
 
 	wafByRuleIdx []*waf.Profile
 	wafFallback  *waf.Profile

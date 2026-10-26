@@ -1,0 +1,36 @@
+# HTTPS forward proxy: TLS terminates at ingress, CONNECT/absolute-form is
+# forwarded to a plain-HTTP proxy hop (Anchor on :3128).
+version: v1
+port: 8080
+
+https:
+  port: 443
+  ssl:
+    - domain: proxy.example.com
+      cert:
+        certificate: ./certs/proxy.example.com.pem
+        certificate_key: ./certs/proxy.example.com.key.pem
+
+rules:
+  - host: proxy.example.com
+    # Normal browser traffic can keep using a separate frontend backend.
+    backend:
+      service:
+        name: anchor-frontend
+        port: 8080
+        protocol: http
+    connect_proxy:
+      enabled: true
+      # Use a dedicated proxy hop instead of the normal backend above.
+      upstream:
+        name: anchor-backend
+        port: 3128
+        protocol: http
+      # Regexes are full-string matches against host:port.
+      # Omit this list to allow all targets (authentication still applies downstream).
+      allowed_targets:
+        - '^.+:(80|443)$'
+      connect_timeout: 10
+      response_timeout: 10
+      idle_timeout: 600
+      max_connections: 500

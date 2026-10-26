@@ -278,12 +278,74 @@ function cachePathRulesToForm(cache: Record<string, unknown>): CachePathRuleForm
   }))
 }
 
+export type ConnectProxyForm = {
+  connect_proxy_enabled: boolean
+  connect_proxy_allowed_targets: string
+  connect_proxy_upstream_name: string
+  connect_proxy_upstream_port: number
+  connect_proxy_upstream_protocol: string
+  connect_proxy_connect_timeout: number
+  connect_proxy_response_timeout: number
+  connect_proxy_idle_timeout: number
+  connect_proxy_max_connections: number
+}
+
+export function emptyConnectProxyForm(): ConnectProxyForm {
+  return {
+    connect_proxy_enabled: false,
+    connect_proxy_allowed_targets: '',
+    connect_proxy_upstream_name: '',
+    connect_proxy_upstream_port: 3128,
+    connect_proxy_upstream_protocol: 'http',
+    connect_proxy_connect_timeout: 10,
+    connect_proxy_response_timeout: 10,
+    connect_proxy_idle_timeout: 600,
+    connect_proxy_max_connections: 500,
+  }
+}
+
+function connectProxyToForm(cp: Record<string, unknown>): ConnectProxyForm {
+  const upstream = obj(cp.upstream)
+  return {
+    connect_proxy_enabled: bool(cp.enabled),
+    connect_proxy_allowed_targets: arr<string>(cp.allowed_targets).join('\n'),
+    connect_proxy_upstream_name: str(upstream.name),
+    connect_proxy_upstream_port: num(upstream.port, 3128),
+    connect_proxy_upstream_protocol: str(upstream.protocol, 'http'),
+    connect_proxy_connect_timeout: num(cp.connect_timeout, 10),
+    connect_proxy_response_timeout: num(cp.response_timeout, 10),
+    connect_proxy_idle_timeout: num(cp.idle_timeout, 600),
+    connect_proxy_max_connections: num(cp.max_connections, 0),
+  }
+}
+
+function buildConnectProxy(form: RuleForm): Record<string, unknown> | null {
+  if (!form.connect_proxy_enabled) return null
+  const block: Record<string, unknown> = { enabled: true }
+  const targets = splitLines(form.connect_proxy_allowed_targets)
+  if (targets.length) block.allowed_targets = targets
+  const upstreamName = form.connect_proxy_upstream_name.trim()
+  if (upstreamName) {
+    const upstream: Record<string, unknown> = {
+      name: upstreamName,
+      port: form.connect_proxy_upstream_port,
+      protocol: form.connect_proxy_upstream_protocol || 'http',
+    }
+    block.upstream = upstream
+  }
+  if (form.connect_proxy_connect_timeout > 0) block.connect_timeout = form.connect_proxy_connect_timeout
+  if (form.connect_proxy_response_timeout > 0) block.response_timeout = form.connect_proxy_response_timeout
+  if (form.connect_proxy_idle_timeout > 0) block.idle_timeout = form.connect_proxy_idle_timeout
+  if (form.connect_proxy_max_connections > 0) block.max_connections = form.connect_proxy_max_connections
+  return block
+}
+
 export type RuleForm = {
   host: string
   host_type: string
   enabled: boolean
   paths: PathForm[]
-} & BackendForm & RateLimitFormSlice & SecurityLayerFormSlice
+} & BackendForm & ConnectProxyForm & RateLimitFormSlice & SecurityLayerFormSlice
 
 export type FallbackForm = {
   backend_type: 'service' | 'redirect'
@@ -763,6 +825,7 @@ export function ruleToForm(rule: Record<string, unknown>): RuleForm {
     enabled: rule.enabled !== false,
     paths: arr<Record<string, unknown>>(rule.paths).map(pathToForm),
     ...backendToForm(obj(rule.backend)),
+    ...connectProxyToForm(obj(rule.connect_proxy)),
     ...rateLimitToForm(obj(rule.rate_limit)),
     ...securityLayerFromDoc(obj(rule.security)),
   }
@@ -775,6 +838,7 @@ export function emptyRuleForm(): RuleForm {
     enabled: true,
     paths: [],
     ...emptyBackendForm(),
+    ...emptyConnectProxyForm(),
     ...emptyRateLimitForm(),
     ...emptySecurityLayerForm(),
   }
@@ -1182,6 +1246,9 @@ export function formToRule(form: RuleForm, original?: Record<string, unknown>): 
   if (form.host_type && form.host_type !== 'auto') next.host_type = form.host_type
   else delete next.host_type
   next.backend = formToBackend(form, obj(original?.backend))
+  const cpBlock = buildConnectProxy(form)
+  if (cpBlock) next.connect_proxy = cpBlock
+  else delete next.connect_proxy
   const rlBlock = buildRateLimit(form)
   if (rlBlock) next.rate_limit = rlBlock
   else delete next.rate_limit
@@ -1300,6 +1367,14 @@ export function backendTargetLabel(backend: Record<string, unknown>): string {
 
 export function ruleSummary(rule: Record<string, unknown>): string {
   let base = backendSummary(obj(rule.backend))
+  const cp = obj(rule.connect_proxy)
+  if (bool(cp.enabled)) {
+    const upstream = obj(cp.upstream)
+    const upstreamName = str(upstream.name)
+    base = upstreamName
+      ? `PROXY → ${upstreamName}:${num(upstream.port, 3128)} · ${base}`
+      : `PROXY · ${base}`
+  }
   const rl = obj(rule.rate_limit)
   if (num(rl.requests) > 0 || rl.enabled === true) {
     base += ` · RL ${num(rl.requests)}/${num(rl.period, 1)}s`
@@ -1539,5 +1614,18 @@ export function pathSaveDisabled(form: PathForm): boolean {
 
 export function ruleSaveDisabled(form: RuleForm): boolean {
   if (!form.host.trim()) return true
+  if (form.connect_proxy_enabled) {
+    const upstreamName = form.connect_proxy_upstream_name.trim()
+    if (upstreamName && form.connect_proxy_upstream_port <= 0) return true
+    if (!upstreamName && form.backend_type !== 'service') return true
+    if (
+      form.connect_proxy_connect_timeout < 0 ||
+      form.connect_proxy_response_timeout < 0 ||
+      form.connect_proxy_idle_timeout < 0 ||
+      form.connect_proxy_max_connections < 0
+    ) {
+      return true
+    }
+  }
   return backendSaveDisabled(form)
 }

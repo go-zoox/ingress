@@ -17,6 +17,7 @@ Several files **mix explicit `backend.type` and omission on purpose** (for examp
 | `basic/` | Minimal host routing |
 | `path-routing/` | Path-based backends, **`strip_prefix: true`** |
 | `authentication/` | Basic and bearer auth |
+| `connect-proxy/` | HTTPS forward proxy: CONNECT + HTTP absolute-form, dedicated upstream, ACL and limits |
 | `ssl-tls/` | HTTPS, certs, global redirect |
 | `advanced/` | Regex hosts, rewrites, health, **`service.mode`**, **`backend.cache`** (+ optional **`skip_vary`**), Redis |
 | `redirect/` | Backend redirects, path regex, `duration`/`preserve_request` status codes |
