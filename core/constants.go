@@ -59,13 +59,6 @@ const (
 	authChallengeBasic  = "Basic realm=\"Restricted\""
 	authChallengeBearer = "Bearer"
 
-	// OAuth2 callback path and session keys
-	oauth2CallbackPath           = "/oauth2/callback"
-	oauth2SessionState           = "ingress_oauth2_state"
-	oauth2SessionToken           = "ingress_oauth2_token"
-	oauth2SessionUser            = "ingress_oauth2_user"
-	oauth2SessionRedirect        = "ingress_oauth2_redirect"
-
 	// Built-in ingress introspection (handled before route proxy).
 	ingressStatusPathDefault = "/_/ingress/status"
 
@@ -76,13 +69,13 @@ const (
 	ingressMaintenanceHeaderVal    = "1"
 
 	// HTTP response cache hits (backend.cache).
-	headerXIngressCache     = "X-Ingress-Cache"
+	headerXIngressCache      = "X-Ingress-Cache"
 	ingressCacheHitHeaderVal = "hit"
 
 	// Rate limit quota and block indicator (rate_limit / rules[].rate_limit).
-	headerXRateLimitLimit      = "X-RateLimit-Limit"
-	headerXRateLimitRemaining  = "X-RateLimit-Remaining"
-	headerXRateLimitReset      = "X-RateLimit-Reset"
-	headerXIngressRateLimit    = "X-Ingress-RateLimit"
+	headerXRateLimitLimit          = "X-RateLimit-Limit"
+	headerXRateLimitRemaining      = "X-RateLimit-Remaining"
+	headerXRateLimitReset          = "X-RateLimit-Reset"
+	headerXIngressRateLimit        = "X-Ingress-RateLimit"
 	ingressRateLimitBlockHeaderVal = "1"
 )

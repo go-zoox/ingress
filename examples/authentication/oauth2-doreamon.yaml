@@ -44,6 +44,11 @@ rules:
             # redirect_url: "https://oauth2-doreamon.example.com/oauth2/callback"
             #
             # redirect_url: "http://oauth2-doreamon.example.com:8080/oauth2/callback"
+            #
+            # The callback path defaults to /oauth2/callback. When redirect_url is
+            # set, its path is used as the callback path too, so a provider that
+            # requires a specific callback path works as-is, e.g.:
+            # redirect_url: "https://oauth2-doreamon.example.com/login/doreamon/callback"
 
             # Optional: connect JWT headers for upstream user identification.
             # connect:

@@ -100,7 +100,7 @@ require (
 	github.com/go-zoox/pubsub v1.2.3 // indirect
 	github.com/go-zoox/random v1.0.4 // indirect
 	github.com/go-zoox/safe v1.2.0 // indirect
-	github.com/go-zoox/session v1.2.0 // indirect
+	github.com/go-zoox/session v1.2.1 // indirect
 	github.com/go-zoox/tag v1.3.5 // indirect
 	github.com/go-zoox/uuid v0.0.1 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect

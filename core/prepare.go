@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/go-zoox/ingress/core/ratelimit"
 	"github.com/go-zoox/ingress/core/security"
@@ -32,6 +33,14 @@ func (c *core) prepare() error {
 		c.app.Config.Logger = c.cfg.Logging.Zoox()
 	}
 	c.app.Config.Logger.Middleware.Disabled = true
+
+	// Log the session-key state only after logging is configured: zoox caches the
+	// logger on first use, so logging before this point would silently disable the
+	// configured transports (file logging).
+	if SessionSecretKey(c.cfg) == "" {
+		c.app.Logger().Infof("session key: no secret_key/SECRET_KEY configured, using a per-process key " +
+			"(a restart logs users out; set secret_key for load-balanced deployments)")
+	}
 
 	// prepare cache
 	c.prepareCache()
@@ -108,17 +117,28 @@ func (c *core) prepare() error {
 	return nil
 }
 
+// SessionSecretKey returns the session encryption key shared by the gateway
+// (OAuth2/OIDC) and the admin console session cookies.
+// Precedence: SECRET_KEY env > config secret_key > "" (callers then fall back to
+// the zoox per-process default). Every replica must use the same value for
+// OAuth2 to survive load-balanced callbacks.
+func SessionSecretKey(cfg *Config) string {
+	if v := os.Getenv(zoox.BuiltInEnvSecretKey); v != "" {
+		return v
+	}
+	if cfg == nil {
+		return ""
+	}
+	return strings.TrimSpace(cfg.SecretKey)
+}
+
 // applySecretKey sets the session encryption key used for OAuth2/OIDC session cookies.
 // The SECRET_KEY env var takes precedence over the config value, so operators can rotate
 // the secret without editing the config file, and so the same value can be shared across
 // every replica (required for OAuth2 to survive load-balanced callbacks). When both are
 // absent we leave app.Config.SecretKey empty and let zoox use its per-process random key.
 func (c *core) applySecretKey() {
-	secretKey := c.cfg.SecretKey
-	if v := os.Getenv(zoox.BuiltInEnvSecretKey); v != "" {
-		secretKey = v
-	}
-	if secretKey != "" {
+	if secretKey := SessionSecretKey(c.cfg); secretKey != "" {
 		c.app.Config.SecretKey = secretKey
 	}
 }

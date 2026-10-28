@@ -7,14 +7,14 @@ import (
 	"os"
 	"time"
 
+	ingcore "github.com/go-zoox/ingress/core"
+	adminauth "github.com/go-zoox/ingress/core/admin/auth"
 	"github.com/go-zoox/ingress/core/admin/bootstrap"
 	"github.com/go-zoox/ingress/core/admin/config"
-	adminauth "github.com/go-zoox/ingress/core/admin/auth"
 	"github.com/go-zoox/ingress/core/admin/handler"
 	"github.com/go-zoox/ingress/core/admin/service"
 	"github.com/go-zoox/ingress/core/admin/service/rbac"
 	"github.com/go-zoox/ingress/core/admin/static"
-	ingcore "github.com/go-zoox/ingress/core"
 	"github.com/go-zoox/logger"
 	"github.com/go-zoox/zoox"
 	"github.com/go-zoox/zoox/defaults"
@@ -156,6 +156,14 @@ func Run(app *zoox.Application, cfg *config.Config) error {
 func applyServeDefaults(app *zoox.Application) {
 	if app == nil {
 		return
+	}
+	// Use a dedicated session cookie name for the admin console. The gateway runs
+	// in the same process on the same hostname (different port) and cookies ignore
+	// ports, so a shared "gsession" value made the two apps overwrite each other's
+	// session: admin logout logged users out of every OAuth2-protected app, and the
+	// admin console payload counted against the gateway's ~4KB cookie budget.
+	if app.Config.Session.Key == "" {
+		app.Config.Session.Key = "ingress_admin_session"
 	}
 	if app.Config.SecretKey == "" {
 		if v := os.Getenv(zoox.BuiltInEnvSecretKey); v != "" {

@@ -3,9 +3,11 @@ package core
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-zoox/jwt"
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/ingress/core/service"
+	"github.com/go-zoox/jwt"
 )
 
 func TestBuild_RequestDelay(t *testing.T) {
@@ -1985,7 +1987,7 @@ func TestBuild_OAuth2_Callback_MissingCode_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestBuild_OAuth2_Callback_StateMismatch_ReturnsError(t *testing.T) {
+func TestBuild_OAuth2_Callback_StateMismatch_SelfHealsThenFails(t *testing.T) {
 	cfg := buildOAuth2Config("oauth2.example.com", "github")
 
 	c, err := New("test-version", cfg)
@@ -1997,12 +1999,24 @@ func TestBuild_OAuth2_Callback_StateMismatch_ReturnsError(t *testing.T) {
 		t.Fatalf("build: %v", err)
 	}
 
+	// First stale-state callback: clear the unusable session and restart the login
+	// flow instead of returning a 401 that used to require an ingress restart.
 	req := httptest.NewRequest(http.MethodGet, "http://oauth2.example.com/oauth2/callback?code=abc123&state=badstate", nil)
 	rec := httptest.NewRecorder()
 	ins.app.ServeHTTP(rec, req)
 
+	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/?_ingress_oauth2_retry=1" {
+		t.Fatalf("expected 302 to the bounded retry URL, got %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+
+	// Second attempt in a row (state marked by the retry): answer 401 instead of looping.
+	req = httptest.NewRequest(http.MethodGet,
+		"http://oauth2.example.com/oauth2/callback?code=abc123&state="+url.QueryEscape("r1.badstate"), nil)
+	rec = httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 for state mismatch, got %d", rec.Code)
+		t.Fatalf("expected 401 for a repeated state mismatch, got %d", rec.Code)
 	}
 }
 
@@ -2188,7 +2202,7 @@ func TestBuild_GlobalRateLimit_Returns429(t *testing.T) {
 			{
 				Host: "open.example.com",
 				Backend: rule.Backend{
-					Type: backendTypeHandler,
+					Type:    backendTypeHandler,
 					Handler: rule.Handler{Body: "ok"},
 				},
 			},
@@ -2306,5 +2320,294 @@ func TestBuild_JWTAuth_InvalidToken_Returns401(t *testing.T) {
 	ins.app.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 without token, got %d", rec.Code)
+	}
+}
+
+// TestBuild_OAuth2_CustomRedirectURLCallback covers a redirect_url whose path is
+// not the default /oauth2/callback (e.g. a provider-registered
+// /login/doreamon/callback): the callback must be handled by ingress instead of
+// being treated as a protected page (which caused an /authorize <-> /callback loop).
+func TestBuild_OAuth2_CustomRedirectURLCallback(t *testing.T) {
+	cfg := buildOAuth2Config("oauth2.example.com", "doreamon")
+	cfg.Rules[0].Backend.Service.Auth.OAuth2.RedirectURL = "http://oauth2.example.com/login/doreamon/callback"
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet,
+		"http://oauth2.example.com/login/doreamon/callback?code=abc123&state=deadbeef", nil)
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/?_ingress_oauth2_retry=1" {
+		t.Fatalf("expected the custom callback path to be handled (302 to the retry URL), got %d %q",
+			rec.Code, rec.Header().Get("Location"))
+	}
+	if strings.Contains(rec.Header().Get("Location"), "login.zcorky.com") {
+		t.Fatal("custom callback path was treated as a protected page and bounced to /authorize")
+	}
+
+	// The same path without code/state is still the callback (and fails), it must
+	// not be proxied to the upstream.
+	req = httptest.NewRequest(http.MethodGet, "http://oauth2.example.com/login/doreamon/callback", nil)
+	rec = httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for a callback without code/state, got %d", rec.Code)
+	}
+}
+
+// oauth2FakeProviderTransport intercepts the provider token/user HTTP calls so the
+// full OAuth2 callback path can be tested without network access.
+type oauth2FakeProviderTransport struct {
+	tokenStatus int
+	tokenBody   string
+	tokenErr    error
+}
+
+func (f *oauth2FakeProviderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	body := ""
+	status := http.StatusOK
+	switch req.URL.Path {
+	case "/token":
+		if f.tokenErr != nil {
+			return nil, f.tokenErr
+		}
+		status = f.tokenStatus
+		if status == 0 {
+			status = http.StatusOK
+		}
+		body = f.tokenBody
+		if body == "" {
+			body = `{"access_token":"fake-access-token","refresh_token":"fake-refresh-token","expires_in":3600,"token_type":"Bearer"}`
+		}
+	case "/user":
+		body = `{"id":"1","username":"alice","email":"alice@example.com","nickname":"Alice",` +
+			`"avatar":"https://example.com/avatar.png","permissions":["p1","p2"],"groups":["g1"]}`
+	default:
+		return nil, fmt.Errorf("unexpected provider request: %s", req.URL.String())
+	}
+
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
+	}, nil
+}
+
+// findSessionCookie returns the *last* gsession cookie written: a single response
+// can flush the session several times (flow updates, user, token cleanup) and the
+// last Set-Cookie wins in the browser.
+func findSessionCookie(rec *httptest.ResponseRecorder) *http.Cookie {
+	var found *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "gsession" {
+			found = c
+		}
+	}
+	return found
+}
+
+// startOAuth2Login performs the unauthenticated request and returns the CSRF state
+// plus the session cookie carrying the in-flight flow.
+func startOAuth2Login(t *testing.T, ins *core) (string, *http.Cookie) {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://oauth2.example.com/protected?tab=1", nil))
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302 to provider, got %d", rec.Code)
+	}
+	loginURL, err := url.Parse(rec.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("parse provider URL: %v", err)
+	}
+	state := loginURL.Query().Get("state")
+	if state == "" {
+		t.Fatal("expected a CSRF state in the provider URL")
+	}
+	cookie := findSessionCookie(rec)
+	if cookie == nil {
+		t.Fatal("expected a session cookie with the in-flight flow")
+	}
+	return state, cookie
+}
+
+func serveOAuth2Callback(ins *core, callbackPath, state string, cookie *http.Cookie) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet,
+		"http://oauth2.example.com"+callbackPath+"?code=fake-code&state="+url.QueryEscape(state), nil)
+	if cookie != nil {
+		req.AddCookie(&http.Cookie{Name: cookie.Name, Value: cookie.Value})
+	}
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+	return rec
+}
+
+// newOAuth2TestCore builds an ingress core with a doreamon OAuth2 route and a
+// stable session key so session cookies round-trip across requests.
+func newOAuth2TestCore(t *testing.T) *core {
+	t.Helper()
+	cfg := buildOAuth2Config("oauth2.example.com", "doreamon")
+	cfg.SecretKey = "test-secret"
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	return ins
+}
+
+// TestBuild_OAuth2_Callback_Success exercises the full callback: state validation,
+// provider token/user exchange, session persistence and redirect back to the
+// original URL.
+func TestBuild_OAuth2_Callback_Success(t *testing.T) {
+	orig := http.DefaultTransport
+	http.DefaultTransport = &oauth2FakeProviderTransport{}
+	t.Cleanup(func() { http.DefaultTransport = orig })
+
+	ins := newOAuth2TestCore(t)
+
+	// 1. Protected page -> redirect to provider with a CSRF state.
+	state, sessionCookie := startOAuth2Login(t, ins)
+
+	// 2. Callback with the code -> token exchange (faked) -> redirect back.
+	rec := serveOAuth2Callback(ins, "/oauth2/callback", state, sessionCookie)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302 after a successful login, got %d", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasSuffix(loc, "/protected?tab=1") {
+		t.Fatalf("expected redirect back to the original URL, got %q", loc)
+	}
+	sessionCookie = findSessionCookie(rec)
+	if sessionCookie == nil {
+		t.Fatal("expected the authenticated session cookie to be written")
+	}
+
+	// 3. The following request is authenticated: no more redirect to the provider.
+	req := httptest.NewRequest(http.MethodGet, "http://oauth2.example.com/protected", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookie.Name, Value: sessionCookie.Value})
+	rec = httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, req)
+	if rec.Code == http.StatusUnauthorized {
+		t.Fatalf("authenticated request must not be rejected, got %d", rec.Code)
+	}
+	if rec.Code == http.StatusFound && strings.Contains(rec.Header().Get("Location"), "login.zcorky.com") {
+		t.Fatal("authenticated request was redirected to the provider again")
+	}
+}
+
+// TestBuild_OAuth2_Callback_ExchangeFailureRetryable verifies the flow state is not
+// consumed before the token exchange: a reload of the same callback URL retries
+// instead of permanently failing with "state mismatch".
+func TestBuild_OAuth2_Callback_ExchangeFailureRetryable(t *testing.T) {
+	fake := &oauth2FakeProviderTransport{tokenErr: fmt.Errorf("connection refused")}
+	orig := http.DefaultTransport
+	http.DefaultTransport = fake
+	t.Cleanup(func() { http.DefaultTransport = orig })
+
+	ins := newOAuth2TestCore(t)
+	state, sessionCookie := startOAuth2Login(t, ins)
+
+	// First attempt: the provider token endpoint is unreachable -> 401, flow survives
+	// (the browser keeps the cookie from the login redirect, nothing is consumed).
+	rec := serveOAuth2Callback(ins, "/oauth2/callback", state, sessionCookie)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 when the exchange fails, got %d", rec.Code)
+	}
+	// Provider recovers; reloading the same callback URL must now complete the login
+	// (if the failed attempt had consumed the state, this would be a stale-state
+	// self-heal redirect instead of the original URL).
+	fake.tokenErr = nil
+	rec = serveOAuth2Callback(ins, "/oauth2/callback", state, sessionCookie)
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected the reloaded callback to succeed, got %d", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasSuffix(loc, "/protected?tab=1") {
+		t.Fatalf("reloaded callback did not complete the login, redirected to %q", loc)
+	}
+}
+
+// TestBuild_OAuth2_Callback_ProviderErrorJSON_NoPanic covers providers that answer
+// /token with HTTP 200 and a JSON body carrying a non-zero `code` (go-zoox/oauth2
+// dereferences a nil error there): the request must fail as 401, not panic into 500.
+func TestBuild_OAuth2_Callback_ProviderErrorJSON_NoPanic(t *testing.T) {
+	orig := http.DefaultTransport
+	http.DefaultTransport = &oauth2FakeProviderTransport{
+		tokenStatus: http.StatusOK,
+		tokenBody:   `{"code":5003001,"message":"invalid grant"}`,
+	}
+	t.Cleanup(func() { http.DefaultTransport = orig })
+
+	ins := newOAuth2TestCore(t)
+	state, sessionCookie := startOAuth2Login(t, ins)
+
+	rec := serveOAuth2Callback(ins, "/oauth2/callback", state, sessionCookie)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for a provider error payload, got %d", rec.Code)
+	}
+}
+
+// TestBuild_OAuth2_CustomRedirectURLCallback_Success covers the exact reported
+// scenario end to end: redirect_url points at a provider-specific callback path,
+// the provider calls that path back, and the login completes (no /authorize loop).
+func TestBuild_OAuth2_CustomRedirectURLCallback_Success(t *testing.T) {
+	orig := http.DefaultTransport
+	http.DefaultTransport = &oauth2FakeProviderTransport{}
+	t.Cleanup(func() { http.DefaultTransport = orig })
+
+	cfg := buildOAuth2Config("oauth2.example.com", "doreamon")
+	cfg.SecretKey = "test-secret"
+	cfg.Rules[0].Backend.Service.Auth.OAuth2.RedirectURL = "http://oauth2.example.com/login/doreamon/callback"
+
+	c, err := New("test-version", cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ins := c.(*core)
+	if err := ins.build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	// 1. Protected page -> provider login URL carrying the custom redirect_uri.
+	rec := httptest.NewRecorder()
+	ins.app.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://oauth2.example.com/protected?tab=1", nil))
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302 to provider, got %d", rec.Code)
+	}
+	loginURL, err := url.Parse(rec.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("parse provider URL: %v", err)
+	}
+	if got := loginURL.Query().Get("redirect_uri"); got != "http://oauth2.example.com/login/doreamon/callback" {
+		t.Fatalf("expected the custom redirect_uri, got %q", got)
+	}
+	state := loginURL.Query().Get("state")
+	cookie := findSessionCookie(rec)
+	if state == "" || cookie == nil {
+		t.Fatal("expected state and session cookie from the login redirect")
+	}
+
+	// 2. Provider calls the custom callback path -> login completes.
+	rec = serveOAuth2Callback(ins, "/login/doreamon/callback", state,
+		&http.Cookie{Name: cookie.Name, Value: cookie.Value})
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected the custom callback to complete the login, got %d", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasSuffix(loc, "/protected?tab=1") {
+		t.Fatalf("expected redirect back to the original URL, got %q", loc)
+	}
+	if strings.Contains(rec.Header().Get("Location"), "authorize") {
+		t.Fatal("custom callback was treated as a protected page (login loop)")
 	}
 }

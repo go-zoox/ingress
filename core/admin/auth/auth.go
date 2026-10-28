@@ -3,7 +3,6 @@ package auth
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -67,10 +66,10 @@ type UserInfo struct {
 
 // ConfigView is returned to the frontend login/bootstrap flow.
 type ConfigView struct {
-	Type            string    `json:"type"`
-	Authenticated   bool      `json:"authenticated"`
-	User            *UserInfo `json:"user,omitempty"`
-	OAuthLoginURL   string    `json:"oauth_login_url,omitempty"`
+	Type          string    `json:"type"`
+	Authenticated bool      `json:"authenticated"`
+	User          *UserInfo `json:"user,omitempty"`
+	OAuthLoginURL string    `json:"oauth_login_url,omitempty"`
 }
 
 // Service implements Admin Console authentication.
@@ -294,8 +293,11 @@ func (s *Service) HandleOAuthCallback(ctx *zoox.Context) (bool, error) {
 		}
 		username := oauthUsername(user)
 		displayName := oauthDisplayName(user, username)
-		userBytes, _ := json.Marshal(user)
-		ctx.Session().Set(sessOAuth2User, string(userBytes))
+		// The full provider profile is not needed (only username/display name are
+		// used) and the admin session is a client-side cookie: keep it small.
+		if ctx.Session().Get(sessOAuth2User) != "" {
+			ctx.Session().Del(sessOAuth2User)
+		}
 		ctx.Session().Del(sessOAuth2State)
 		s.setSessionUser(ctx, &UserInfo{Username: username, DisplayName: displayName})
 

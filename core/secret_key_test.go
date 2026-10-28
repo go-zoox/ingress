@@ -72,3 +72,33 @@ func TestApplySecretKey_EmptyByDefault(t *testing.T) {
 		t.Fatalf("expected empty app secret when unset, got %q", got)
 	}
 }
+
+// TestSessionSecretKey_Resolution verifies the shared resolver used by both the
+// gateway and the admin console (they share the "gsession" cookie per host, so a
+// key mismatch would make them invalidate each other's sessions).
+func TestSessionSecretKey_Resolution(t *testing.T) {
+	cases := []struct {
+		name   string
+		env    string
+		config string
+		want   string
+	}{
+		{name: "config", env: "", config: "config-secret", want: "config-secret"},
+		{name: "env wins", env: "env-secret", config: "config-secret", want: "env-secret"},
+		{name: "trimmed config", env: "", config: "  config-secret  ", want: "config-secret"},
+		{name: "empty", env: "", config: "", want: ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(zoox.BuiltInEnvSecretKey, tc.env)
+			cfg := &Config{SecretKey: tc.config}
+			if got := SessionSecretKey(cfg); got != tc.want {
+				t.Fatalf("SessionSecretKey() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+
+	if got := SessionSecretKey(nil); got != "" {
+		t.Fatalf("SessionSecretKey(nil) = %q, want empty", got)
+	}
+}

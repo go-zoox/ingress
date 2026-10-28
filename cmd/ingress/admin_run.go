@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/go-zoox/ingress/core"
 	adminapp "github.com/go-zoox/ingress/core/admin/app"
 	admincfg "github.com/go-zoox/ingress/core/admin/config"
 	"github.com/go-zoox/logger"
+	"github.com/go-zoox/zoox"
 )
 
 func startAdmin(ingressApp core.Core, ingressCfg *core.Config, configFilePath, pidFilePath string) error {
@@ -17,6 +19,16 @@ func startAdmin(ingressApp core.Core, ingressCfg *core.Config, configFilePath, p
 	adminApp, err := adminapp.New(adminCfg)
 	if err != nil {
 		return fmt.Errorf("admin: %w", err)
+	}
+	// The admin console now has its own session cookie, but it must still use the
+	// same session key as the gateway: otherwise a multi-replica deployment would
+	// derive admin sessions from the per-process default key while the gateway uses
+	// ingress.yaml secret_key, and admin sessions would not survive replica changes.
+	// The admin app only knows SECRET_KEY/env; align it with the gateway config here.
+	if os.Getenv(zoox.BuiltInEnvSecretKey) == "" {
+		if key := core.SessionSecretKey(ingressCfg); key != "" {
+			adminApp.Config.SecretKey = key
+		}
 	}
 	go func() {
 		if err := adminapp.Run(adminApp, adminCfg); err != nil {
@@ -33,12 +45,12 @@ func buildAdminConfig(ingressApp core.Core, ingressCfg *core.Config, ingressConf
 		accessLog, errorLog = ingressCfg.Logging.FileLogPaths()
 	}
 	cfg := &admincfg.Config{
-		Enabled:           a.Enabled,
-		Port:              a.Port,
-		Database:          admincfg.Database{Driver: a.Database.Driver, DSN: a.Database.DSN},
-		Web:               admincfg.Web{DevProxy: a.Web.DevProxy},
-		AccessLogPath:     a.AccessLogPath,
-		ErrorLogPath:      a.ErrorLogPath,
+		Enabled:       a.Enabled,
+		Port:          a.Port,
+		Database:      admincfg.Database{Driver: a.Database.Driver, DSN: a.Database.DSN},
+		Web:           admincfg.Web{DevProxy: a.Web.DevProxy},
+		AccessLogPath: a.AccessLogPath,
+		ErrorLogPath:  a.ErrorLogPath,
 		GeoIP: admincfg.GeoIP{
 			Database:     a.GeoIP.Database,
 			IngressLat:   a.GeoIP.IngressLat,

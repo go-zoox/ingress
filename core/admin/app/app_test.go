@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	admincfg "github.com/go-zoox/ingress/core/admin/config"
 	"github.com/go-zoox/gormx"
+	admincfg "github.com/go-zoox/ingress/core/admin/config"
 	"github.com/go-zoox/ingress/core/admin/model"
 	"github.com/go-zoox/ingress/core/admin/service/rbac"
 	"github.com/go-zoox/zoox"
@@ -340,5 +340,19 @@ func TestAdminDefaultOpenModeNoLogin(t *testing.T) {
 	if menuResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(menuResp.Body)
 		t.Fatalf("menus should be public when auth is none, status=%d body=%s", menuResp.StatusCode, body)
+	}
+}
+
+// TestApplyServeDefaults_AdminSessionCookieIsolated verifies the admin console uses
+// its own session cookie instead of sharing the gateway's "gsession" value (same
+// hostname, cookies ignore ports).
+func TestApplyServeDefaults_AdminSessionCookieIsolated(t *testing.T) {
+	app := zoox.New()
+	applyServeDefaults(app)
+	if got := app.Config.Session.Key; got != "ingress_admin_session" {
+		t.Fatalf("admin session cookie key = %q, want %q", got, "ingress_admin_session")
+	}
+	if app.Config.SecretKey == "" {
+		t.Fatal("expected a stable session secret key to be set")
 	}
 }
