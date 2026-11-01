@@ -1,0 +1,22 @@
+# Behind a load balancer: trust X-Forwarded-For only from proxy networks.
+# The client IP is the rightmost XFF hop that is not itself a trusted proxy.
+version: v1
+port: 8080
+
+waf:
+  trusted_proxies:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+
+rules:
+  - host: admin.example.com
+    backend:
+      service:
+        name: admin-console
+        port: 8080
+        protocol: http
+    waf:
+      enabled: true
+      disable_builtin: true
+      allow:
+        - 203.0.113.0/24

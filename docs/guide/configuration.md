@@ -76,7 +76,7 @@ rules:
 | `healthcheck` | object | Health check configuration | - |
 | `fallback` | object | Fallback backend | - |
 | `rules` | array | Routing rules | `[]` |
-| `waf` | object | Optional WAF baseline; route patches use **`rules[].waf`** YAML maps ([WAF guide](waf.md)) | _(inactive when omitted or `enabled: false`)_ |
+| `waf` | object | Optional WAF baseline; route patches use **`rules[].waf`** YAML maps, including the per-route IP allowlist (`allow` / `deny`) ([WAF guide](waf.md)) | _(inactive when omitted or `enabled: false`)_ |
 | `rate_limit` | object | Optional global request throttling; per-route overrides use **`rules[].rate_limit`** | off when omitted |
 | `proxy` | object | Reverse-proxy forwarding behavior (`trust_proxy` for X-Forwarded-* chain headers only) | default off |
 | `security` | object | Profile-based security response headers (HSTS, frame, CSP, CORS); per-route **`rules[].security`** | off when omitted |
@@ -188,6 +188,7 @@ Optional **overlay scenes** merged at load/reload when `scenarios.active` is not
 | `enabled` | bool | Master switch (`false` or omitted baseline keeps WAF off unless a route sets `enabled: true`). |
 | `trust_proxy` | bool | Use `X-Forwarded-For` for client IP (default direct `RemoteAddr`). |
 | `xff_index` | int | Segment index (`0` = leftmost IP; negatives count from the right). |
+| `trusted_proxies` | string array | CIDRs of reverse proxies whose `X-Forwarded-For` is trusted (rightmost non-trusted hop becomes the client). Empty ⇒ only the real TCP peer. `0.0.0.0/0` / `::/0` are rejected. |
 | `log_only` | bool | Global audit — `[waf audit]` logs, no blocking. |
 | `block_status_code` | int | Status on block (unset/`0` → `403`). |
 | `block_content_type` | string | Response header when blocking (`text/plain; charset=utf-8` default). |

@@ -44,6 +44,10 @@ export function wafAllowHostsList(doc: Record<string, unknown>): string[] {
   return arr<string>(obj(doc.waf).allow_hosts)
 }
 
+export function wafTrustedProxiesList(doc: Record<string, unknown>): string[] {
+  return arr<string>(obj(doc.waf).trusted_proxies)
+}
+
 export function patchWafDeny(doc: Record<string, unknown>, items: string[]): Record<string, unknown> {
   const filtered = items
     .map((s) => s.trim())
@@ -79,6 +83,22 @@ export function patchWafAllowHosts(doc: Record<string, unknown>, items: string[]
     waf.allow_hosts = filtered
   } else {
     delete waf.allow_hosts
+  }
+  return { waf }
+}
+
+export function patchWafTrustedProxies(
+  doc: Record<string, unknown>,
+  items: string[],
+): Record<string, unknown> {
+  const filtered = items
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const waf = { ...obj(doc.waf) }
+  if (filtered.length > 0) {
+    waf.trusted_proxies = filtered
+  } else {
+    delete waf.trusted_proxies
   }
   return { waf }
 }

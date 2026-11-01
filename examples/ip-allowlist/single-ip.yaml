@@ -1,0 +1,16 @@
+# Exact single-IP allowlist (a bare IP is treated as /32 or /128).
+version: v1
+port: 8080
+
+rules:
+  - host: ops.example.com
+    backend:
+      service:
+        name: ops-console
+        port: 8080
+        protocol: http
+    waf:
+      enabled: true
+      disable_builtin: true
+      allow:
+        - 203.0.113.7

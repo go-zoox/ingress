@@ -440,7 +440,7 @@ func TestClientIP_remoteAddrBareIP_noPort(t *testing.T) {
 	t.Parallel()
 	r := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	r.RemoteAddr = "198.51.100.51"
-	got := clientIP(r, false, 0)
+	got := clientIP(r, false, 0, nil)
 	if got == nil || got.String() != "198.51.100.51" {
 		t.Fatalf("got %v", got)
 	}
@@ -451,7 +451,7 @@ func TestClientIP_trustQuotedXFF_and_outOfRangeFallsBack(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	r.RemoteAddr = "127.0.0.1:9"
 	r.Header.Set(headerXForwardedFor, `"203.0.113.61", unknown, 203.0.113.61`)
-	got := clientIP(r, true, 0).String()
+	got := clientIP(r, true, 0, nil).String()
 	if got != "203.0.113.61" {
 		t.Fatalf("first hop %q", got)
 	}
@@ -459,14 +459,14 @@ func TestClientIP_trustQuotedXFF_and_outOfRangeFallsBack(t *testing.T) {
 	r2 := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	r2.RemoteAddr = "198.51.100.61:444"
 	r2.Header.Set(headerXForwardedFor, "203.0.113.71")
-	got2 := clientIP(r2, true, 5).String()
+	got2 := clientIP(r2, true, 5, nil).String()
 	if got2 != "198.51.100.61" {
 		t.Fatalf("OOB idx should fallback to RemoteAddr, got %q", got2)
 	}
 
 	r3 := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	r3.RemoteAddr = "10.44.44.44:1"
-	got3 := clientIP(r3, true, 0).String()
+	got3 := clientIP(r3, true, 0, nil).String()
 	if got3 != "10.44.44.44" {
 		t.Fatalf("empty XFF uses direct addr: %q", got3)
 	}
@@ -477,7 +477,7 @@ func TestClientIP_XFF_emptyChunks_skipped(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "http://x/", nil)
 	r.RemoteAddr = "10.0.0.2:1"
 	r.Header.Set(headerXForwardedFor, " , , 10.0.0.1 ")
-	if clientIP(r, true, 0).String() != "10.0.0.1" {
+	if clientIP(r, true, 0, nil).String() != "10.0.0.1" {
 		t.Fatal("empty XFF segments should be skipped")
 	}
 }

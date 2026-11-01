@@ -1,4 +1,5 @@
 import { arr, obj, str, num, bool } from './ingressModuleForms'
+import { ipAllowlistEntriesValid } from './ipAllowlist'
 import {
   maintenanceHostEntriesFromYAML,
   maintenanceHostEntriesToYAML,
@@ -340,12 +341,97 @@ function buildConnectProxy(form: RuleForm): Record<string, unknown> | null {
   return block
 }
 
+/** Per-route IP allowlist, stored as rules[].waf.allow/deny (WAF IP phase). */
+export type IPAllowlistFormSlice = {
+  waf_ip_enabled: boolean
+  waf_ip_allow: string[]
+  waf_ip_deny: string[]
+  waf_ip_signatures: boolean
+}
+
+export function emptyIPAllowlistForm(): IPAllowlistFormSlice {
+  return {
+    waf_ip_enabled: false,
+    waf_ip_allow: [],
+    waf_ip_deny: [],
+    waf_ip_signatures: false,
+  }
+}
+
+/** Parses rules[].waf into the IP allowlist form slice. */
+export function ipAllowlistFromDoc(waf: Record<string, unknown>): IPAllowlistFormSlice {
+  const allow = arr<string>(waf.allow).map((s) => String(s).trim()).filter(Boolean)
+  const deny = arr<string>(waf.deny).map((s) => String(s).trim()).filter(Boolean)
+  return {
+    waf_ip_enabled: allow.length > 0 || deny.length > 0,
+    waf_ip_allow: allow,
+    waf_ip_deny: deny,
+    // Explicit opt-in only: absent disable_builtin means the IP-only default
+    // (the editor writes disable_builtin: true unless this is checked).
+    waf_ip_signatures: waf.disable_builtin === false,
+  }
+}
+
+const WAF_IP_MANAGED_KEYS = ['enabled', 'disable_builtin', 'allow', 'deny', 'block_status_code']
+
+/**
+ * Merges the IP allowlist form into the original rules[].waf map.
+ * Only keys managed by this feature are touched; custom signatures / builtin
+ * overrides / allow_hosts are preserved.
+ */
+export function buildIPAllowlistWaf(
+  form: IPAllowlistFormSlice,
+  originalWaf: Record<string, unknown>,
+): Record<string, unknown> {
+  const waf: Record<string, unknown> = { ...originalWaf }
+  const hadAllowlist =
+    arr<string>(originalWaf.allow).length > 0 || arr<string>(originalWaf.deny).length > 0
+
+  if (form.waf_ip_enabled) {
+    const allow = form.waf_ip_allow.map((s) => s.trim()).filter(Boolean)
+    const deny = form.waf_ip_deny.map((s) => s.trim()).filter(Boolean)
+    waf.enabled = true
+    waf.block_status_code = 403
+    if (form.waf_ip_signatures) delete waf.disable_builtin
+    else waf.disable_builtin = true
+    if (allow.length > 0) waf.allow = allow
+    else delete waf.allow
+    if (deny.length > 0) waf.deny = deny
+    else delete waf.deny
+    return waf
+  }
+
+  // IP allowlist not enabled and was not configured before: leave WAF untouched.
+  if (!hadAllowlist) return waf
+
+  // Turning it off: drop the list keys, then clean up IP-only leftovers.
+  delete waf.allow
+  delete waf.deny
+  const keys = Object.keys(waf)
+  const onlyManaged = keys.every((k) => WAF_IP_MANAGED_KEYS.includes(k))
+  const ipOnlyShape =
+    waf.disable_builtin === true &&
+    (waf.enabled === undefined || waf.enabled === true) &&
+    (waf.block_status_code === undefined || Number(waf.block_status_code) === 403)
+  if (onlyManaged && ipOnlyShape) return {}
+  return waf
+}
+
+/** Route-list label for the per-route IP allowlist, or null when unrestricted. */
+export function ruleIPAllowlistLabel(rule: Record<string, unknown>): string | null {
+  const waf = obj(rule.waf)
+  const allow = arr<string>(waf.allow).length
+  const deny = arr<string>(waf.deny).length
+  if (allow === 0 && deny === 0) return null
+  return deny > 0 ? `allow ${allow} · deny ${deny}` : `allow ${allow}`
+}
+
 export type RuleForm = {
   host: string
   host_type: string
   enabled: boolean
   paths: PathForm[]
-} & BackendForm & ConnectProxyForm & RateLimitFormSlice & SecurityLayerFormSlice
+} & BackendForm & ConnectProxyForm & RateLimitFormSlice & SecurityLayerFormSlice & IPAllowlistFormSlice
 
 export type FallbackForm = {
   backend_type: 'service' | 'redirect'
@@ -828,6 +914,7 @@ export function ruleToForm(rule: Record<string, unknown>): RuleForm {
     ...connectProxyToForm(obj(rule.connect_proxy)),
     ...rateLimitToForm(obj(rule.rate_limit)),
     ...securityLayerFromDoc(obj(rule.security)),
+    ...ipAllowlistFromDoc(obj(rule.waf)),
   }
 }
 
@@ -841,6 +928,7 @@ export function emptyRuleForm(): RuleForm {
     ...emptyConnectProxyForm(),
     ...emptyRateLimitForm(),
     ...emptySecurityLayerForm(),
+    ...emptyIPAllowlistForm(),
   }
 }
 
@@ -1255,6 +1343,9 @@ export function formToRule(form: RuleForm, original?: Record<string, unknown>): 
   const secBlock = buildSecurityLayer(form)
   if (secBlock) next.security = secBlock
   else delete next.security
+  const wafBlock = buildIPAllowlistWaf(form, obj(original?.waf))
+  if (Object.keys(wafBlock).length > 0) next.waf = wafBlock
+  else delete next.waf
   const origPaths = arr<Record<string, unknown>>(original?.paths)
   next.paths = form.paths.map((p, i) => formToPath(p, origPaths[i]))
   return next
@@ -1614,6 +1705,13 @@ export function pathSaveDisabled(form: PathForm): boolean {
 
 export function ruleSaveDisabled(form: RuleForm): boolean {
   if (!form.host.trim()) return true
+  if (form.waf_ip_enabled && form.waf_ip_allow.length === 0 && form.waf_ip_deny.length === 0) return true
+  if (
+    form.waf_ip_enabled &&
+    (!ipAllowlistEntriesValid(form.waf_ip_allow) || !ipAllowlistEntriesValid(form.waf_ip_deny))
+  ) {
+    return true
+  }
   if (form.connect_proxy_enabled) {
     const upstreamName = form.connect_proxy_upstream_name.trim()
     if (upstreamName && form.connect_proxy_upstream_port <= 0) return true

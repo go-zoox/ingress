@@ -25,6 +25,8 @@ import {
   wafAllowList,
   wafAllowHostsList,
   wafDenyList,
+  wafTrustedProxiesList,
+  patchWafTrustedProxies,
   wafRuleSaveDisabled,
   wafRuleAllowHosts,
   wafRuleToForm,
@@ -570,6 +572,7 @@ export function WafRulesEditor({
   const denyList = wafDenyList(doc)
   const allowList = wafAllowList(doc)
   const allowHostsList = wafAllowHostsList(doc)
+  const trustedProxiesList = wafTrustedProxiesList(doc)
   const disableAllBuiltin = !defaultBuiltinEnabled(doc)
   const globalLogOnly = bool(obj(doc.waf).log_only)
   const [modalOpen, setModalOpen] = useState(false)
@@ -723,6 +726,20 @@ export function WafRulesEditor({
         editTitle="编辑域名白名单"
         hint="精确域名、*.wildcard.example.com，或 Go 正则（含 ( ) [ ] ^ $ 等时自动识别）"
         onChange={(items) => onChange(patchWafAllowHosts(doc, items))}
+      />
+
+      <EditableStringList
+        title="受信代理 trusted_proxies"
+        showCount
+        items={trustedProxiesList}
+        valueLabel="IP / CIDR"
+        fieldKeyName="waf.trusted_proxies[]"
+        emptyHint="未配置：只认 TCP RemoteAddr（推荐默认）"
+        placeholder="10.0.0.0/8"
+        addTitle="添加受信代理网段"
+        editTitle="编辑受信代理网段"
+        hint="仅当请求来自这些网段时才采信 X-Forwarded-For，并取右起第一个非受信地址；0.0.0.0/0 与 ::/0 会被拒绝（等于信任所有来源）"
+        onChange={(items) => onChange(patchWafTrustedProxies(doc, items))}
       />
 
       <section className="waf-list-editor">

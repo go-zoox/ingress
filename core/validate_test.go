@@ -407,3 +407,48 @@ func TestValidateConfig_ModeConflict(t *testing.T) {
 		t.Fatalf("expected conflict error, got %v", err)
 	}
 }
+
+func TestValidateConfig_RouteIPAllowlistRequiresWAFEnabled(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Rules: []rule.Rule{
+			{
+				Host: "admin.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{Name: "admin-svc", Port: 8080, Protocol: "http"},
+				},
+				WAFPatch: map[string]any{"allow": []any{"10.0.0.0/8"}},
+			},
+		},
+	}
+
+	err := ValidateConfig(cfg)
+	if err == nil || !strings.Contains(err.Error(), "allow/deny is set but WAF is not enabled") {
+		t.Fatalf("expected silent-no-op guard, got: %v", err)
+	}
+
+	cfg.Rules[0].WAFPatch["enabled"] = true
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatalf("expected per-route allowlist with enabled=true to validate, got: %v", err)
+	}
+}
+
+func TestValidateConfig_TrustedProxiesAllAddressesRejected(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		WAF:  rule.WAF{TrustedProxies: []string{"0.0.0.0/0"}},
+		Rules: []rule.Rule{
+			{
+				Host: "app.example.com",
+				Backend: rule.Backend{
+					Service: service.Service{Name: "app-svc", Port: 8080, Protocol: "http"},
+				},
+			},
+		},
+	}
+
+	err := ValidateConfig(cfg)
+	if err == nil || !strings.Contains(err.Error(), "trusts every source") {
+		t.Fatalf("expected /0 trusted proxy rejection, got: %v", err)
+	}
+}

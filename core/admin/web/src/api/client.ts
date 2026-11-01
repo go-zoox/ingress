@@ -864,6 +864,17 @@ export type RouteDetail = {
     log_only: boolean
     patched: boolean
   } | null
+  ip_allowlist: {
+    enabled: boolean
+    allow: string[]
+    deny: string[]
+    allow_count: number
+    deny_count: number
+    block_status: number
+    signatures: boolean
+    client_ip_mode?: 'remote' | 'trusted_proxies' | 'trust_proxy' | string
+    trusted_proxies?: string[]
+  } | null
 }
 
 export type MetricsTimelineBucket = {

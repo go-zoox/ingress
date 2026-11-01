@@ -3,6 +3,7 @@
 Ingress 在 **路由匹配完成之后**、**重定向 / 静态处理 / 回源代理之前**，对请求执行第一代 WAF：
 
 - **IP**：`deny` 先于 `allow`；若配置了非空 `allow`，则仅列表内网段可通过 IP 阶段。
+- **域名级 IP 白名单**：`rules[].waf.allow` 按域名限制来源 IP，复用 WAF IP 阶段（见下文「域名级 IP 白名单」）。
 - **域名白名单**：`allow_hosts` 中的 Host 跳过全部 WAF 阶段（IP 与特征均不检查）。
 - **单条规则域名白名单**：`rules[].allow_hosts` 中的 Host 仅跳过**该条规则**，其余规则照常评估。
 - **特征**：针对 `path`、`query`、`uri`（path + raw query）、`headers`（所有头拼接）或 `header:Name` 做单次匹配；支持 `regex` / `contains`。
@@ -12,7 +13,60 @@ Ingress 在 **路由匹配完成之后**、**重定向 / 静态处理 / 回源�
 
 顶层 **`waf:`** 为类型化基线；**`rules[].waf`** 为 **局部 YAML map**，在 `config.Load` 之后由 **`waf.ApplyRulePatchesFromYAML`**（`core/waf/yaml.go`）按字段合并（解码器无法用同一流程表达“只覆盖部分字段”）。
 
-评估顺序：**合并策略 → enabled → allow_hosts（全局域名白名单）→ 客户端 IP → deny/allow → 特征**（每条特征前检查该规则的 `allow_hosts`）。`trust_proxy` 为真时用 **`X-Forwarded-For`**，**`xff_index`** 选段（0 为最左一段，负数从末尾倒数）。
+评估顺序：**合并策略 → enabled → allow_hosts（全局域名白名单）→ 客户端 IP → deny/allow → 特征**（每条特征前检查该规则的 `allow_hosts`）。客户端 IP 判定优先级：**`trusted_proxies`** → **`trust_proxy` + `xff_index`** → TCP 对端。配置 `trusted_proxies` 后，仅当 TCP 对端命中受信网段时才采信 `X-Forwarded-For`，并取**右起第一个非受信地址**；WAF 始终从真实 TCP 对端出发，不会使用被转发头改写过的 `RemoteAddr`。
+
+## 域名级 IP 白名单
+
+用 **`rules[].waf.allow`** 把单个域名限制为内网或指定来源 IP。它复用 WAF 的 IP 阶段，不新增独立模块。
+
+```yaml
+rules:
+  - host: admin.example.com
+    backend:
+      service:
+        name: admin-console
+        port: 8080
+    waf:
+      enabled: true            # 必须：该路由的 WAF 要启用
+      disable_builtin: true    # 仅 IP 准入（不跑攻击签名）
+      allow:
+        - 10.0.0.0/8
+        - 192.168.0.0/16
+        - 203.0.113.7/32
+      # deny:                  # 可选，优先于 allow
+      #   - 203.0.113.66/32
+```
+
+语义：
+
+| 配置 | 行为 |
+|---|---|
+| 没有 `waf`，或 `allow`/`deny` 都为空 | 不限制（**默认**，与现状一致） |
+| `allow` 非空 | 仅命中 `allow` 的来源放行，其余返回 **403** |
+| `deny` 非空 | 命中即拒绝（即使也在 `allow` 中） |
+| `allow` 空 + `deny` 非空 | 纯黑名单（高级用法） |
+| 配了 `allow`/`deny` 但该路由 WAF 未启用 | `ingress validate` 直接报错，避免安全配置静默失效 |
+
+客户端 IP 判定（安全关键）：
+
+- **默认**：只认真实 TCP 对端。ingress 会在 zoox `realip` 中间件用 `X-Forwarded-For` / `X-Real-IP` / `True-Client-IP` 改写 `RemoteAddr` **之前**捕获对端地址，客户端无法伪造来源。
+- **`waf.trusted_proxies`**（全局）：填写 LB / Ingress Controller 的网段。仅当 TCP 对端命中受信网段时才采信 `X-Forwarded-For`，取**右起第一个非受信地址**。
+- **`trust_proxy` + `xff_index`**（旧配置）：保留兼容；新部署建议用 `trusted_proxies`。`trusted_proxies` 里的 `0.0.0.0/0`、`::/0` 会在校验阶段被拒绝。
+
+拦截与可观测性：
+
+- 拦截返回 **403**，复用 [`error_pages`](./configuration.md) 的 403 页面。
+- 访问日志：`waf_block=1`。
+- WAF 日志：`[waf block] phase=ip allow`（或 `phase=ip deny`），带判定后的 `client_ip`。
+- WAF 事件：`rule=ip allow` / `rule=ip deny`（Admin 控制台可筛选）。
+
+Admin 控制台：
+
+- **路由编辑 → IP 白名单**：允许/拒绝列表、继承全局受信代理、403 响应说明，以及**拦截试算**（输入 `RemoteAddr` + `X-Forwarded-For`，给出放行/拒绝与依据）。
+- **WAF 模块**：`trusted_proxies` 编辑与「右起第一个非受信地址」算法说明。
+- 路由列表与详情展示白名单状态（`allow n` / `未限制`）。
+
+可运行样例：`examples/ip-allowlist/`。
 
 ## 内置 starter 规则
 

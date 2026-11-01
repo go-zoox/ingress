@@ -75,7 +75,7 @@ rules:
 | `healthcheck` | object | 健康检查配置 | - |
 | `fallback` | object | 回退后端 | - |
 | `rules` | array | 路由规则 | `[]` |
-| `waf` | object | WAF 基线；路由级补丁为 **`rules[].waf`** 映射（参见 [WAF](waf.md)） | 省略或 `enabled: false` 时不启用 |
+| `waf` | object | WAF 基线；路由级补丁为 **`rules[].waf`** 映射（含域名级 IP 白名单 `allow` / `deny`，参见 [WAF](waf.md)） | 省略或 `enabled: false` 时不启用 |
 | `proxy` | object | 反向代理转发行为（仅控制 X-Forwarded-* 链路头 `trust_proxy`） | 默认关闭 |
 | `security` | object | 安全响应头预设（HSTS / frame / CSP / CORS）；路由级 **`rules[].security`** | 省略或 `profile: off` 时不启用 |
 | `maintenance` | object | 全局维护域名列表与默认 503 设置（参见 [维护模式](maintenance.md)） | 省略时不启用 |
@@ -150,6 +150,7 @@ rules:
 | `enabled` | bool | 总开关 |
 | `trust_proxy` | bool | 是否从 `X-Forwarded-For` 解析客户端 IP |
 | `xff_index` | int | 选第几段（`0`=最左；负数从右数） |
+| `trusted_proxies` | string 数组 | 受信代理网段：仅当 TCP 对端命中这些网段时才采信 `X-Forwarded-For`，取右起第一个非受信地址；留空则只认真实 TCP 对端。`0.0.0.0/0` / `::/0` 会被拒绝 |
 | `log_only` | bool | 全局仅审计不打断请求 |
 | `block_status_code` | int | 拦截时 HTTP 状态码（默认 403，`0` 表示默认） |
 | `block_content_type` | string | 拦截响应 `Content-Type` |

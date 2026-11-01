@@ -6,8 +6,9 @@ import (
 	"strings"
 
 	"github.com/go-zoox/ingress/core/admin/service"
-	coresvc "github.com/go-zoox/ingress/core/service"
 	"github.com/go-zoox/ingress/core/rule"
+	coresvc "github.com/go-zoox/ingress/core/service"
+	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/zoox"
 )
 
@@ -63,7 +64,7 @@ func (h *RouteDetailHandler) GetDetail(ctx *zoox.Context) {
 		pathStr = p.Path
 	}
 
-	detail := buildRouteDetail(ri, pi, r, pathStr, b, h.health)
+	detail := buildRouteDetail(ri, pi, r, pathStr, b, h.health, cfg.WAF)
 	ok(ctx, detail)
 }
 
@@ -151,21 +152,21 @@ func (e *indexError) Error() string {
 }
 
 // buildRouteDetail constructs a RouteDetail response from config data.
-func buildRouteDetail(ri, pi int, r *rule.Rule, path string, b rule.Backend, healthSvc *service.HealthCheckService) zoox.H {
+func buildRouteDetail(ri, pi int, r *rule.Rule, path string, b rule.Backend, healthSvc *service.HealthCheckService, globalWAF rule.WAF) zoox.H {
 	host := r.Host
 	bt := getBackendTypeLabel(b)
 	target := getBackendTarget(b)
 
 	detail := zoox.H{
-		"rule_index":  ri,
-		"path_index":  pi,
-		"host":        host,
-		"path":        path,
+		"rule_index": ri,
+		"path_index": pi,
+		"host":       host,
+		"path":       path,
 		"backend": zoox.H{
-			"type":            bt,
-			"target":         target,
-			"service_name":   b.Service.Name,
-			"service_port":   b.Service.Port,
+			"type":             bt,
+			"target":           target,
+			"service_name":     b.Service.Name,
+			"service_port":     b.Service.Port,
 			"service_protocol": b.Service.Protocol,
 		},
 	}
@@ -213,13 +214,50 @@ func buildRouteDetail(ri, pi int, r *rule.Rule, path string, b rule.Backend, hea
 		detail["health_check"] = nil
 	}
 
-	// WAF info
+	// WAF info (merged route patch over the global baseline)
+	mergedWAF, wafErr := waf.MergePatch(globalWAF, r.WAFPatch, ri)
 	wafDetail := zoox.H{
 		"enabled":  false,
 		"log_only": false,
 		"patched":  len(r.WAFPatch) > 0,
 	}
+	ipAllowlist := zoox.H{
+		"enabled":      false,
+		"allow":        []string{},
+		"deny":         []string{},
+		"allow_count":  0,
+		"deny_count":   0,
+		"block_status": 403,
+		"signatures":   true,
+	}
+	if wafErr == nil {
+		wafDetail["enabled"] = mergedWAF.Enabled
+		wafDetail["log_only"] = mergedWAF.LogOnly
+		blockStatus := int(mergedWAF.BlockStatusCode)
+		if blockStatus <= 0 {
+			blockStatus = 403
+		}
+		ipAllowlist["enabled"] = mergedWAF.Enabled && (len(mergedWAF.Allow) > 0 || len(mergedWAF.Deny) > 0)
+		if mergedWAF.Allow != nil {
+			ipAllowlist["allow"] = mergedWAF.Allow
+		}
+		if mergedWAF.Deny != nil {
+			ipAllowlist["deny"] = mergedWAF.Deny
+		}
+		ipAllowlist["allow_count"] = len(mergedWAF.Allow)
+		ipAllowlist["deny_count"] = len(mergedWAF.Deny)
+		ipAllowlist["block_status"] = blockStatus
+		ipAllowlist["signatures"] = !mergedWAF.DisableBuiltin
+		ipAllowlist["client_ip_mode"] = "remote"
+		if len(mergedWAF.TrustedProxies) > 0 {
+			ipAllowlist["client_ip_mode"] = "trusted_proxies"
+		} else if mergedWAF.TrustProxy {
+			ipAllowlist["client_ip_mode"] = "trust_proxy"
+		}
+		ipAllowlist["trusted_proxies"] = mergedWAF.TrustedProxies
+	}
 	detail["waf"] = wafDetail
+	detail["ip_allowlist"] = ipAllowlist
 
 	// If we have health check results, include the status
 	if healthSvc != nil && b.Service.HealthCheck.Enable {

@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-zoox/ingress/core/admin/service"
 	ingcore "github.com/go-zoox/ingress/core"
+	"github.com/go-zoox/ingress/core/admin/service"
 	"github.com/go-zoox/ingress/core/rule"
 	"github.com/go-zoox/zoox"
 )
@@ -86,7 +86,7 @@ func (a *API) Investigate(ctx *zoox.Context) {
 			b = r.Paths[usePI].Backend
 			pathStr = r.Paths[usePI].Path
 		}
-		route = buildRouteDetail(useRI, usePI, r, pathStr, b, a.health)
+		route = buildRouteDetail(useRI, usePI, r, pathStr, b, a.health, icfg.WAF)
 		if preview != nil && preview.Matched {
 			preview.BackendType = getBackendTypeLabel(b)
 			preview.Target = getBackendTarget(b)
@@ -152,11 +152,11 @@ func (a *API) Investigate(ctx *zoox.Context) {
 			"path":   path,
 			"method": method,
 		},
-		"match":       preview,
-		"route":       route,
-		"samples":     samples,
-		"stats":       stats,
-		"waf_recent":  wafRows,
+		"match":         preview,
+		"route":         route,
+		"samples":       samples,
+		"stats":         stats,
+		"waf_recent":    wafRows,
 		"health_checks": healthChecks,
 	})
 }

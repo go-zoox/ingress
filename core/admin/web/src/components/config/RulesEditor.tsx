@@ -14,12 +14,14 @@ import {
 import {
   emptyRuleForm,
   formToRule,
+  ruleIPAllowlistLabel,
   ruleSaveDisabled,
   ruleSummary,
   ruleToForm,
   rulesFromDoc,
   type RuleForm,
 } from '../../lib/configEntities'
+import { trustedProxiesFromDoc } from '../../lib/ipAllowlist'
 import { arr, str } from '../../lib/ingressModuleForms'
 import { moveToIndex, remapIndexAfterMove } from '../../lib/arrayMove'
 import { useListDragReorder } from '../../hooks/useListDragReorder'
@@ -53,6 +55,7 @@ export const RulesEditor = forwardRef<
   ref,
 ) {
   const rules = rulesFromDoc(doc)
+  const trustedProxies = trustedProxiesFromDoc(doc)
   const [modalOpen, setModalOpen] = useState(false)
   const [pathsModalIndex, setPathsModalIndex] = useState<number | null>(null)
   const [editIndex, setEditIndex] = useState<number | null>(null)
@@ -141,6 +144,7 @@ export const RulesEditor = forwardRef<
             <th>Host</th>
             <th>类型</th>
             <th>Backend</th>
+            <th>IP 白名单</th>
             <th>Paths</th>
             <th>操作</th>
           </tr>
@@ -148,7 +152,7 @@ export const RulesEditor = forwardRef<
         <tbody>
           {rules.length === 0 ? (
             <tr>
-              <td colSpan={8} className="empty-hint">
+              <td colSpan={9} className="empty-hint">
                 无路由规则，点击「添加」
               </td>
             </tr>
@@ -194,6 +198,18 @@ export const RulesEditor = forwardRef<
                   </td>
                   <td>{str(rule.host_type, 'auto')}</td>
                   <td>{ruleSummary(rule)}</td>
+                  <td>
+                    {(() => {
+                      const label = ruleIPAllowlistLabel(rule)
+                      return label ? (
+                        <span className="badge badge-wildcard" title="IP 白名单（WAF IP 阶段）">
+                          {label}
+                        </span>
+                      ) : (
+                        <span className="badge badge-audit">未限制</span>
+                      )
+                    })()}
+                  </td>
                   <td>
                     <button
                       type="button"
@@ -242,6 +258,7 @@ export const RulesEditor = forwardRef<
           variant="rule"
           serviceCatalog={serviceCatalog}
           serviceFieldMode={serviceFieldMode}
+          trustedProxies={trustedProxies}
         />
       </ConfigEntityModal>
 

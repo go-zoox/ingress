@@ -143,7 +143,7 @@ func (c *core) build() error {
 		if ruleIdx >= 0 && ruleIdx < len(c.wafByRuleIdx) {
 			wafProf = c.wafByRuleIdx[ruleIdx]
 		}
-		if wafProf != nil && c.IsWAFEnabled() && waf.CheckRequest(wafProf, ctx.Request, hostname, path, method, func(action, rule, clientIP string) {
+		if c.isWAFProfileActive(wafProf) && waf.CheckRequest(wafProf, ctx.Request, hostname, path, method, func(action, rule, clientIP string) {
 			if c.wafCallback != nil {
 				ua := ""
 				if ctx.Request != nil {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-zoox/ingress/core/peerip"
 	"github.com/go-zoox/logger"
 )
 
@@ -19,7 +20,7 @@ func CheckRequest(p *Profile, r *http.Request, hostname, path, method string, re
 		return false
 	}
 
-	cli := clientIP(r, p.TrustProxy, p.XFFIndex)
+	cli := clientIP(r, p.TrustProxy, p.XFFIndex, p.trustedNets)
 
 	if len(p.denyNet) > 0 && ipMatchesNets(cli, p.denyNet) {
 		stop := !p.GlobalLogOnly
@@ -149,42 +150,91 @@ func matchBlob(sr *sigRule, s string) bool {
 	return sr.re.MatchString(s)
 }
 
-func clientIP(r *http.Request, trust bool, idx int) net.IP {
-	parseDirect := func() net.IP {
-		hostPort := strings.TrimSpace(r.RemoteAddr)
-		ipStr := hostPort
-		if hop, _, err := net.SplitHostPort(hostPort); err == nil {
-			ipStr = hop
-		}
-		return net.ParseIP(ipStr)
+// clientIP resolves the client address used by the WAF IP phase.
+//
+// Precedence:
+//  1. trustedNets non-empty -> trusted-proxy algorithm: only a request whose
+//     TCP peer is a trusted proxy may supply X-Forwarded-For; the client is the
+//     rightmost XFF hop that is not itself a trusted proxy.
+//  2. trust (legacy trust_proxy) -> X-Forwarded-For[xff_index].
+//  3. RemoteAddr only (default, strict).
+func clientIP(r *http.Request, trust bool, idx int, trustedNets []*net.IPNet) net.IP {
+	if r == nil {
+		return nil
+	}
+	if len(trustedNets) > 0 {
+		return clientIPWithTrustedProxies(r, trustedNets)
 	}
 	if !trust {
-		return parseDirect()
+		return parsePeerIP(r)
 	}
 
-	xff := strings.TrimSpace(r.Header.Get(headerXForwardedFor))
-	if xff != "" {
-		var parts []net.IP
-		for _, chunk := range strings.Split(xff, ",") {
-			chunk = strings.TrimSpace(strings.Trim(chunk, `"`))
-			if chunk == "" {
-				continue
-			}
-			if ip := net.ParseIP(chunk); ip != nil {
-				parts = append(parts, ip)
-			}
-		}
-		if len(parts) == 0 {
-			return parseDirect()
-		}
-		i := idx
-		if i < 0 {
-			i = len(parts) + i
-		}
-		if i >= 0 && i < len(parts) {
-			return parts[i]
-		}
-		return parseDirect()
+	parts := parseXFFIPs(r.Header.Get(headerXForwardedFor))
+	if len(parts) == 0 {
+		return parsePeerIP(r)
 	}
-	return parseDirect()
+	i := idx
+	if i < 0 {
+		i = len(parts) + i
+	}
+	if i >= 0 && i < len(parts) {
+		return parts[i]
+	}
+	return parsePeerIP(r)
+}
+
+// clientIPWithTrustedProxies implements the standard rightmost-untrusted-hop
+// algorithm. A forged X-Forwarded-For from an untrusted peer is ignored.
+func clientIPWithTrustedProxies(r *http.Request, trustedNets []*net.IPNet) net.IP {
+	remote := parsePeerIP(r)
+	if remote == nil {
+		return nil
+	}
+	if !ipMatchesNets(remote, trustedNets) {
+		return remote
+	}
+	parts := parseXFFIPs(r.Header.Get(headerXForwardedFor))
+	for i := len(parts) - 1; i >= 0; i-- {
+		if ipMatchesNets(parts[i], trustedNets) {
+			continue
+		}
+		return parts[i]
+	}
+	return remote
+}
+
+// parsePeerIP returns the real TCP peer captured by ingress. It deliberately
+// does not use RemoteAddr alone: zoox's realip middleware rewrites RemoteAddr
+// from client-controlled forwarding headers.
+func parsePeerIP(r *http.Request) net.IP {
+	if r == nil {
+		return nil
+	}
+	if peer := peerip.FromRequest(r); peer != "" {
+		return net.ParseIP(peer)
+	}
+	hostPort := strings.TrimSpace(r.RemoteAddr)
+	ipStr := hostPort
+	if hop, _, err := net.SplitHostPort(hostPort); err == nil {
+		ipStr = hop
+	}
+	return net.ParseIP(ipStr)
+}
+
+func parseXFFIPs(raw string) []net.IP {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var parts []net.IP
+	for _, chunk := range strings.Split(raw, ",") {
+		chunk = strings.TrimSpace(strings.Trim(chunk, `"`))
+		if chunk == "" {
+			continue
+		}
+		if ip := net.ParseIP(chunk); ip != nil {
+			parts = append(parts, ip)
+		}
+	}
+	return parts
 }

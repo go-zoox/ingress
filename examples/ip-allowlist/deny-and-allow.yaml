@@ -1,0 +1,18 @@
+# deny wins over allow: block one office IP even though its /24 is allowed.
+version: v1
+port: 8080
+
+rules:
+  - host: pay.example.com
+    backend:
+      service:
+        name: pay
+        port: 8080
+        protocol: http
+    waf:
+      enabled: true
+      disable_builtin: true
+      allow:
+        - 203.0.113.0/24
+      deny:
+        - 203.0.113.66/32

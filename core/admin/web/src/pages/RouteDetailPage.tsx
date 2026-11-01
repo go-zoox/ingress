@@ -319,6 +319,34 @@ export function RouteDetailPage() {
                     </dd>
                   </>
                 )}
+
+                {detail.ip_allowlist && (
+                  <>
+                    <dt>IP 白名单</dt>
+                    <dd>
+                      {detail.ip_allowlist.enabled ? (
+                        <>
+                          <span className="badge badge-block">已启用</span>{' '}
+                          allow {detail.ip_allowlist.allow_count} 条
+                          {detail.ip_allowlist.deny_count > 0
+                            ? ` · deny ${detail.ip_allowlist.deny_count} 条`
+                            : ''}
+                          {' · '}
+                          客户端 IP：
+                          {detail.ip_allowlist.client_ip_mode === 'trusted_proxies'
+                            ? `受信代理 ${(detail.ip_allowlist.trusted_proxies ?? []).length} 个网段`
+                            : detail.ip_allowlist.client_ip_mode === 'trust_proxy'
+                              ? '旧 trust_proxy（X-Forwarded-For）'
+                              : '仅 RemoteAddr'}
+                          {' · '}
+                          拦截 {detail.ip_allowlist.block_status || 403}
+                        </>
+                      ) : (
+                        <span className="badge badge-audit">未限制</span>
+                      )}
+                    </dd>
+                  </>
+                )}
               </dl>
             </div>
           </div>

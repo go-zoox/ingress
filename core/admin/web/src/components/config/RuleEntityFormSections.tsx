@@ -6,6 +6,7 @@ import { BackendTypeTabs } from './BackendTypeTabs'
 import { ConnectProxyFormFields } from './ConnectProxyFormFields'
 import { EntityFormLayout, EntityFormUnavailable, type EntityFormSection } from './EntityFormLayout'
 import { HealthCheckFormFields } from './HealthCheckFormFields'
+import { IPAllowlistFormFields } from './IPAllowlistFormFields'
 import { RateLimitFormFields } from './RateLimitFormFields'
 import { RouteSecurityFormFields } from './RouteSecurityFormFields'
 import { MaintenanceFormFields } from './MaintenanceFormFields'
@@ -17,6 +18,7 @@ import type { ServiceForm } from '../../lib/services'
 export type RuleEntitySectionId =
   | 'basic'
   | 'backend'
+  | 'ip_allowlist'
   | 'connect_proxy'
   | 'paths'
   | 'health'
@@ -35,6 +37,10 @@ const SECTION_COPY: Record<RuleEntitySectionId, { label: string; description: st
   backend: {
     label: 'Backend',
     description: 'Host 级默认 upstream / handler / redirect 配置。',
+  },
+  ip_allowlist: {
+    label: 'IP 白名单',
+    description: '仅名单内的来源 IP 可访问该域名（rules[].waf.allow，由 WAF IP 阶段执行，拦截返回 403）。',
   },
   connect_proxy: {
     label: '正向代理',
@@ -80,7 +86,7 @@ function serviceOnly(form: BackendForm): boolean {
 
 function ruleSections(form: BackendForm & { paths?: PathForm[] }, includePaths: boolean): EntityFormSection[] {
   const ids: RuleEntitySectionId[] = includePaths
-    ? ['basic', 'backend', 'connect_proxy', 'paths', 'health', 'auth', 'maintenance', 'upstream', 'cache', 'security', 'rate_limit']
+    ? ['basic', 'backend', 'ip_allowlist', 'connect_proxy', 'paths', 'health', 'auth', 'maintenance', 'upstream', 'cache', 'security', 'rate_limit']
     : ['basic', 'backend', 'health', 'auth', 'maintenance', 'upstream', 'cache', 'security']
 
   return ids.map((id) => {
@@ -95,6 +101,13 @@ function ruleSections(form: BackendForm & { paths?: PathForm[] }, includePaths: 
       section.badge = count > 0 ? count : undefined
     }
     if (id === 'cache' && form.cache_enabled) section.badge = '开'
+    if (id === 'ip_allowlist' && 'waf_ip_enabled' in form) {
+      const ipForm = form as RuleForm
+      if (ipForm.waf_ip_enabled) {
+        const total = ipForm.waf_ip_allow.length + ipForm.waf_ip_deny.length
+        section.badge = total > 0 ? `${total} 条` : '开'
+      }
+    }
     if (id === 'auth' && form.auth_type) section.badge = form.auth_type
     if (id === 'maintenance' && form.maintenance_enabled) {
       section.badge = form.maintenance_scope === 'listed' ? '部分' : '开'
@@ -146,6 +159,7 @@ type RuleEntityFormSectionsProps =
       idPrefix?: string
       serviceCatalog?: ServiceForm[]
       serviceFieldMode?: 'manual' | 'catalog-select'
+      trustedProxies?: string[]
     }
   | {
       variant: 'path'
@@ -156,6 +170,7 @@ type RuleEntityFormSectionsProps =
       idPrefix?: string
       serviceCatalog?: ServiceForm[]
       serviceFieldMode?: 'manual' | 'catalog-select'
+      trustedProxies?: string[]
     }
 
 function SharedBackendSections<T extends BackendForm>({
@@ -271,7 +286,7 @@ function SharedBackendSections<T extends BackendForm>({
 }
 
 export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
-  const { form, onChange, activeSection, onSectionChange, variant, idPrefix = '', serviceCatalog, serviceFieldMode = 'manual' } = props
+  const { form, onChange, activeSection, onSectionChange, variant, idPrefix = '', serviceCatalog, serviceFieldMode = 'manual', trustedProxies = [] } = props
   const sections = ruleSections(form, variant === 'rule')
 
   const renderSection = () => {
@@ -304,6 +319,16 @@ export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
                 <option value="wildcard">wildcard</option>
                 <option value="regex">regex</option>
               </FormSelectField>
+            </FormGrid>
+          )
+        case 'ip_allowlist':
+          return (
+            <FormGrid columns={1}>
+              <IPAllowlistFormFields
+                form={ruleForm}
+                onChange={setRuleForm}
+                trustedProxies={trustedProxies}
+              />
             </FormGrid>
           )
         case 'connect_proxy':

@@ -14,7 +14,6 @@ import (
 	"github.com/go-zoox/ingress/core/security"
 	"github.com/go-zoox/ingress/core/waf"
 	"github.com/go-zoox/zoox"
-	"github.com/go-zoox/zoox/defaults"
 )
 
 type Core interface {
@@ -80,7 +79,7 @@ func New(version string, cfg *Config) (Core, error) {
 // NewWithPaths creates core with ingress config and pid file paths (required for admin console).
 func NewWithPaths(version string, cfg *Config, configFilePath, pidFilePath string) (Core, error) {
 	c := &core{
-		app: defaults.Default(),
+		app: newIngressApplication(),
 		//
 		version: version,
 		//
@@ -117,7 +116,9 @@ func (c *core) GetWAFOverride() *bool {
 	return c.wafRuntimeOverride
 }
 
-// IsWAFEnabled returns true if WAF should be active (considering config + runtime override).
+// IsWAFEnabled returns true if the global WAF baseline should be active
+// (considering config + runtime override). Per-route WAF can still be enabled
+// through rules[].waf.enabled when the global baseline is off.
 func (c *core) IsWAFEnabled() bool {
 	c.wafOverrideMu.RLock()
 	override := c.wafRuntimeOverride
@@ -126,6 +127,23 @@ func (c *core) IsWAFEnabled() bool {
 		return *override
 	}
 	return c.cfg.WAF.Enabled
+}
+
+// isWAFProfileActive reports whether a compiled per-route/fallback WAF profile
+// should run. A nil runtime override means "follow the profile" (which already
+// reflects the merged global + per-route enabled flags); an explicit override
+// still wins for emergency global off/on.
+func (c *core) isWAFProfileActive(p *waf.Profile) bool {
+	if p == nil || !p.Enabled {
+		return false
+	}
+	c.wafOverrideMu.RLock()
+	override := c.wafRuntimeOverride
+	c.wafOverrideMu.RUnlock()
+	if override != nil {
+		return *override
+	}
+	return true
 }
 
 // SetWAFCallback registers a callback invoked when WAF blocks or audits.

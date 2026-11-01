@@ -9,41 +9,55 @@ import (
 	"github.com/go-zoox/ingress/core/waf"
 )
 
+// IPAllowlistSummary is the per-route IP allowlist state shown by admin tools.
+// It reflects the merged rules[].waf config (global baseline + route patch).
+type IPAllowlistSummary struct {
+	// Enabled is true when the route runs WAF and has a non-empty allow/deny list.
+	Enabled     bool     `json:"enabled"`
+	Allow       []string `json:"allow,omitempty"`
+	Deny        []string `json:"deny,omitempty"`
+	AllowCount  int      `json:"allow_count"`
+	DenyCount   int      `json:"deny_count"`
+	BlockStatus int      `json:"block_status"`
+}
+
 // RouteRow is a flattened routing entry for admin UIs.
 type RouteRow struct {
-	ID          int    `json:"id"`
-	RuleIndex   int    `json:"rule_index"`
-	PathIndex   int    `json:"path_index"`
-	Host        string `json:"host"`
-	HostType    string `json:"host_type"`
-	Path        string `json:"path"`
-	PathPattern string `json:"path_pattern"`
-	BackendType string `json:"backend_type"`
-	Target      string `json:"target"`
-	WAF         string `json:"waf"`
-	Cache       bool   `json:"cache"`
-	Auth        string `json:"auth"`
-	HealthCheck string `json:"health_check"`
-	Maintenance string `json:"maintenance"`
-	Enabled     bool   `json:"enabled"`
+	ID          int                `json:"id"`
+	RuleIndex   int                `json:"rule_index"`
+	PathIndex   int                `json:"path_index"`
+	Host        string             `json:"host"`
+	HostType    string             `json:"host_type"`
+	Path        string             `json:"path"`
+	PathPattern string             `json:"path_pattern"`
+	BackendType string             `json:"backend_type"`
+	Target      string             `json:"target"`
+	WAF         string             `json:"waf"`
+	IPAllowlist IPAllowlistSummary `json:"ip_allowlist"`
+	Cache       bool               `json:"cache"`
+	Auth        string             `json:"auth"`
+	HealthCheck string             `json:"health_check"`
+	Maintenance string             `json:"maintenance"`
+	Enabled     bool               `json:"enabled"`
 }
 
 // MatchPreview is the result of a dry-run host/path match.
 type MatchPreview struct {
-	Matched     bool   `json:"matched"`
-	RuleIndex   int    `json:"rule_index"`
-	PathIndex   int    `json:"path_index"`
-	Host        string `json:"host"`
-	HostType    string `json:"host_type"`
-	Path        string `json:"path"`
-	BackendType string `json:"backend_type"`
-	Target      string `json:"target"`
-	WAF         string `json:"waf"`
-	Auth        string `json:"auth"`
-	HealthCheck string `json:"health_check"`
-	Fallback    bool   `json:"fallback"`
-	Maintenance string `json:"maintenance"`
-	Message     string `json:"message,omitempty"`
+	Matched     bool               `json:"matched"`
+	RuleIndex   int                `json:"rule_index"`
+	PathIndex   int                `json:"path_index"`
+	Host        string             `json:"host"`
+	HostType    string             `json:"host_type"`
+	Path        string             `json:"path"`
+	BackendType string             `json:"backend_type"`
+	Target      string             `json:"target"`
+	WAF         string             `json:"waf"`
+	IPAllowlist IPAllowlistSummary `json:"ip_allowlist"`
+	Auth        string             `json:"auth"`
+	HealthCheck string             `json:"health_check"`
+	Fallback    bool               `json:"fallback"`
+	Maintenance string             `json:"maintenance"`
+	Message     string             `json:"message,omitempty"`
 }
 
 // PrepareForInspect runs inference and compilation checks used by admin tools.
@@ -72,18 +86,46 @@ func ListRouteRows(cfg *Config) ([]RouteRow, error) {
 		r := &cfg.Rules[i]
 		ht := effectiveHostType(r.HostType, r.Host)
 		r.HostType = ht
-		rows = append(rows, routeRowFromBackend(id, i, -1, r, ht, "/", r.Backend))
+		ipAllowlist, err := describeIPAllowlist(cfg.WAF, r, i)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, routeRowFromBackend(id, i, -1, r, ht, "/", r.Backend, ipAllowlist))
 		id++
 		for j := range r.Paths {
 			p := &r.Paths[j]
-			rows = append(rows, routeRowFromBackend(id, i, j, r, ht, p.Path, p.Backend))
+			rows = append(rows, routeRowFromBackend(id, i, j, r, ht, p.Path, p.Backend, ipAllowlist))
 			id++
 		}
 	}
 	return rows, nil
 }
 
-func routeRowFromBackend(id, ruleIndex, pathIndex int, r *rule.Rule, hostType, path string, b rule.Backend) RouteRow {
+// describeIPAllowlist merges the route WAF patch over the global baseline and
+// reports whether a per-route IP allowlist is active.
+func describeIPAllowlist(global rule.WAF, r *rule.Rule, ruleIdx int) (IPAllowlistSummary, error) {
+	if r == nil {
+		return IPAllowlistSummary{}, nil
+	}
+	merged, err := waf.MergePatch(global, r.WAFPatch, ruleIdx)
+	if err != nil {
+		return IPAllowlistSummary{}, err
+	}
+	out := IPAllowlistSummary{
+		Allow:       merged.Allow,
+		Deny:        merged.Deny,
+		AllowCount:  len(merged.Allow),
+		DenyCount:   len(merged.Deny),
+		BlockStatus: int(merged.BlockStatusCode),
+	}
+	if out.BlockStatus <= 0 {
+		out.BlockStatus = 403
+	}
+	out.Enabled = merged.Enabled && (out.AllowCount > 0 || out.DenyCount > 0)
+	return out, nil
+}
+
+func routeRowFromBackend(id, ruleIndex, pathIndex int, r *rule.Rule, hostType, path string, b rule.Backend, ipAllowlist IPAllowlistSummary) RouteRow {
 	bt := getBackendType(b)
 	target := backendTargetSummary(b)
 	cache := b.Cache.Enabled
@@ -102,6 +144,7 @@ func routeRowFromBackend(id, ruleIndex, pathIndex int, r *rule.Rule, hostType, p
 		BackendType: bt,
 		Target:      target,
 		WAF:         wafLabel,
+		IPAllowlist: ipAllowlist,
 		Cache:       cache,
 		Auth:        authLabelFromBackend(b),
 		HealthCheck: healthCheckLabelFromBackend(b),
@@ -320,17 +363,26 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 	matchedPathIndex := -1
 	var svc *service.Service = hm.Service
 
+	var ipAllowlist IPAllowlistSummary
+	if hm.ruleIndex >= 0 {
+		ipAllowlist, err = describeIPAllowlist(cfg.WAF, t, hm.ruleIndex)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if hm.IsPathsExist && hm.ruleIndex >= 0 {
 		ps, mp, _, _, perr := matchPathWithRouter(idx, cfg.Rules, hm.ruleIndex, path, host, hm.hostSubmatches)
 		if perr != nil {
 			if perr == ErrPathNotFound {
 				return &MatchPreview{
-					Matched:   false,
-					RuleIndex: hm.ruleIndex,
-					PathIndex: -1,
-					Host:      t.Host,
-					HostType:  t.HostType,
-					Message:   "host matched but path did not",
+					Matched:     false,
+					RuleIndex:   hm.ruleIndex,
+					PathIndex:   -1,
+					Host:        t.Host,
+					HostType:    t.HostType,
+					IPAllowlist: ipAllowlist,
+					Message:     "host matched but path did not",
 				}, nil
 			}
 			return nil, perr
@@ -380,6 +432,7 @@ func PreviewMatch(cfg *Config, host, path string) (*MatchPreview, error) {
 		BackendType: bt,
 		Target:      target,
 		WAF:         "inherit",
+		IPAllowlist: ipAllowlist,
 		Auth:        authLabelFromService(svc),
 		HealthCheck: healthCheckLabelFromService(svc),
 		Maintenance: maintenanceLabelFromRule(t),

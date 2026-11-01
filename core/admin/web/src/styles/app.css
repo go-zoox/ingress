@@ -7405,3 +7405,54 @@ tr.row-active td {
   color: var(--text-muted);
 }
 
+
+/* ---- Route-level IP allowlist (WAF IP phase) ---- */
+.ip-allowlist-presets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted, #8b9bb4);
+  margin: 4px 0 12px;
+}
+
+.ip-allowlist-yaml {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border, #2a3548);
+  border-radius: 6px;
+  background: var(--code-bg, rgba(0, 0, 0, 0.25));
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre;
+  overflow: auto;
+}
+
+.ip-allowlist-result {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #2a3548);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.ip-allowlist-result--ok {
+  border-color: rgba(127, 217, 154, 0.3);
+  background: rgba(127, 217, 154, 0.06);
+}
+
+.ip-allowlist-result--deny {
+  border-color: rgba(240, 113, 120, 0.3);
+  background: rgba(240, 113, 120, 0.06);
+}
+
+.ip-allowlist-result-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}

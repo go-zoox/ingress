@@ -27,17 +27,20 @@ type WAF struct {
 	// BuiltinRuleActions sets block / audit / pass per built-in rule id (overrides default block).
 	BuiltinRuleActions map[string]string `config:"builtin_rule_actions"`
 
-	Deny  []string  `config:"deny"`
-	Allow []string  `config:"allow"`
+	Deny  []string `config:"deny"`
+	Allow []string `config:"allow"`
+	// TrustedProxies lists CIDRs of reverse proxies whose X-Forwarded-For header
+	// is trusted for client IP resolution. Empty means only RemoteAddr is used.
+	TrustedProxies []string `config:"trusted_proxies"`
 	// AllowHosts lists host patterns that skip all WAF phases (exact, wildcard *, or regex auto).
-	AllowHosts []string `config:"allow_hosts"`
-	Rules []WAFRule `config:"rules"`
+	AllowHosts []string  `config:"allow_hosts"`
+	Rules      []WAFRule `config:"rules"`
 }
 
 // WAFRule matches attack patterns against selected request parts (no body scanning in v1).
 type WAFRule struct {
-	ID      string   `config:"id"`
-	Name    string   `config:"name"`
+	ID   string `config:"id"`
+	Name string `config:"name"`
 	// Action is block (default), audit (log only), or pass (allow on match, stop further signatures).
 	// log_only: true is equivalent to action: audit when action is omitted.
 	Action  string   `config:"action"`

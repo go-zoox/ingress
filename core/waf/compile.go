@@ -26,11 +26,11 @@ type sigRule struct {
 	actionExplicit bool
 	ruleLogOnly    bool
 	contains       bool
-	pattern  string
-	re       *regexp.Regexp
-	targets  []targetKind
-	hdrNames   []string
-	skipHosts  []hostMatcher
+	pattern        string
+	re             *regexp.Regexp
+	targets        []targetKind
+	hdrNames       []string
+	skipHosts      []hostMatcher
 }
 
 // Profile is compiled WAF state for one ingress rule (or global fallback index -1 internally).
@@ -47,6 +47,7 @@ type Profile struct {
 
 	denyNet        []*net.IPNet
 	allowNet       []*net.IPNet
+	trustedNets    []*net.IPNet
 	allowHosts     []hostMatcher
 	signatureRules []*sigRule
 }
@@ -113,6 +114,16 @@ func compileProfile(ruleIndex int, mergedIn rule.WAF) (*Profile, error) {
 		}
 		p.allowNet = append(p.allowNet, ipnet)
 	}
+
+	trustedLoc := "waf.trusted_proxies"
+	if ruleIndex >= 0 {
+		trustedLoc = fmt.Sprintf("rules[%d].waf.trusted_proxies", ruleIndex)
+	}
+	trustedNets, err := compileTrustedProxyNets(merged.TrustedProxies, trustedLoc)
+	if err != nil {
+		return nil, err
+	}
+	p.trustedNets = trustedNets
 
 	for _, raw := range merged.AllowHosts {
 		raw = strings.TrimSpace(raw)
@@ -255,8 +266,35 @@ func parseIPCIDR(s string) (*net.IPNet, error) {
 	return &net.IPNet{IP: v6, Mask: net.CIDRMask(128, 128)}, nil
 }
 
+// compileTrustedProxyNets parses waf.trusted_proxies CIDRs. An all-addresses
+// entry (/0) is rejected: it would trust every source and make X-Forwarded-For
+// spoofable, defeating an IP allowlist.
+func compileTrustedProxyNets(raw []string, loc string) ([]*net.IPNet, error) {
+	var out []*net.IPNet
+	for _, entry := range raw {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		ipnet, err := parseIPCIDR(entry)
+		if err != nil {
+			return nil, fmt.Errorf("%s[%q]: %w", loc, entry, err)
+		}
+		if ones, bits := ipnet.Mask.Size(); bits > 0 && ones == 0 {
+			return nil, fmt.Errorf("%s[%q]: trusts every source address; X-Forwarded-For would be spoofable", loc, entry)
+		}
+		out = append(out, ipnet)
+	}
+	return out, nil
+}
+
 // CompileIngress builds a Profile per ingress rule plus a global-merge-only fallback Profile.
 func CompileIngress(global rule.WAF, rules []rule.Rule) ([]*Profile, *Profile, error) {
+	// Validate trusted proxies even when WAF is currently disabled: a malformed
+	// security setting must fail fast instead of silently applying later.
+	if _, err := compileTrustedProxyNets(global.TrustedProxies, "waf.trusted_proxies"); err != nil {
+		return nil, nil, err
+	}
 	perRule := make([]*Profile, len(rules))
 	for i := range rules {
 		merged, err := MergePatch(global, rules[i].WAFPatch, i)

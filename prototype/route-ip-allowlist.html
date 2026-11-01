@@ -1,0 +1,1188 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ingress Console · 域名级 IP 白名单</title>
+<style>:root{
+  --bg:#0c0f14; --bg-elevated:#12171f; --bg-panel:#12171f; --bg-hover:#1a2230;
+  --border:#2a3548; --text:#e8edf5; --text-muted:#8b9bb4; --text-placeholder:rgba(139,155,180,.38);
+  --accent:#3dd6c6; --accent-dim:#2a9d90; --warn:#e8b84a; --danger:#f07178; --ok:#7fd99a;
+  --radius:8px; --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  --font:"IBM Plex Sans","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.5 var(--font)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+a{color:var(--accent)}
+.layout{display:flex;height:100vh;min-height:720px}
+.sidebar{width:220px;flex-shrink:0;background:var(--bg-elevated);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.brand{padding:20px 16px 12px;font-weight:600;font-size:15px;letter-spacing:-.02em}
+.brand-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.brand-title{font-size:15px;font-weight:600;white-space:nowrap}
+.brand-version{font-size:10px;font-weight:600;font-family:var(--mono);padding:2px 6px;border-radius:999px;background:var(--bg-hover);border:1px solid var(--border);color:var(--text-muted)}
+.brand-sub{display:block;font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px}
+.nav{flex:1;padding:8px;overflow-y:auto}
+.nav-group{margin-bottom:12px}
+.nav-group-label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);padding:4px 12px 6px}
+.nav button{width:100%;text-align:left;border:none;background:transparent;color:var(--text-muted);padding:10px 12px;border-radius:var(--radius);display:flex;align-items:center;gap:10px;transition:.15s}
+.nav button:hover{background:var(--bg-hover);color:var(--text)}
+.nav button.active{background:rgba(61,214,198,.12);color:var(--accent)}
+.nav .ico{width:20px;height:20px;flex:0 0 20px;display:grid;place-items:center;opacity:.85}
+.nav .label{flex:1}
+.nav .count{font-size:10px;padding:1px 6px;border-radius:999px;background:var(--bg-hover);border:1px solid var(--border)}
+.sidebar-footer{padding:12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted)}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px;box-shadow:0 0 0 3px rgba(127,217,154,.1)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:48px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 22px;flex-shrink:0}
+.crumb{display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:12px}
+.crumb strong{color:var(--text);font-weight:500}
+.top-actions{display:flex;align-items:center;gap:10px}
+.runtime-pill{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:999px;color:var(--text-muted);font-size:11px;border:1px solid var(--border);background:var(--bg-elevated)}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3dd6c6,#4c7ef3);display:grid;place-items:center;font-size:11px;font-weight:700;color:#032b2b}
+.page{flex:1;overflow:auto;padding:24px}
+.page-inner{max-width:1240px;margin:0 auto}
+.page-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:18px}
+h1{font-size:22px;line-height:1.25;letter-spacing:-.02em;margin:0 0 6px;font-weight:600}
+.sub{color:var(--text-muted);font-size:13px;margin:0;max-width:760px}
+.actions{display:flex;gap:8px;flex-shrink:0}
+.btn{border:1px solid var(--border);background:var(--bg-elevated);color:var(--text);padding:8px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.btn:hover{border-color:#46536c;background:var(--bg-hover)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#032b2b;font-weight:600}
+.btn.primary:hover{background:#52e4d4}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:5px 9px;font-size:12px}
+.btn.link{border:none;background:transparent;padding:4px 0;color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{border:0;background:transparent;color:var(--text-muted);padding:10px 13px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab .badge{margin-left:6px}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:4px;font-size:10px;font-weight:600;border:1px solid var(--border);color:var(--text-muted);background:var(--bg-hover)}
+.badge.ok{color:var(--ok);border-color:rgba(127,217,154,.26);background:rgba(127,217,154,.08)}
+.badge.warn{color:var(--warn);border-color:rgba(232,184,74,.26);background:rgba(232,184,74,.08)}
+.badge.danger{color:var(--danger);border-color:rgba(240,113,120,.26);background:rgba(240,113,120,.08)}
+.badge.accent{color:var(--accent);border-color:rgba(61,214,198,.3);background:rgba(61,214,198,.08)}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;min-width:0}
+.card-label{font-size:11px;color:var(--text-muted);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.card-value{font-size:23px;font-family:var(--mono);font-weight:600;letter-spacing:-.03em;line-height:1.1}
+.card-note{font-size:11px;color:var(--text-muted);margin-top:7px}
+.card-note .up{color:var(--ok)}
+.card-note .down{color:var(--danger)}
+.panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);gap:12px}
+.panel-title{font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px}
+.panel-sub{color:var(--text-muted);font-size:11px;font-weight:400}
+.panel-body{padding:16px}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.055em;color:var(--text-muted);font-weight:500;text-align:left;padding:9px 14px;background:rgba(0,0,0,.12);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid rgba(42,53,72,.7);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tr.row-hover:hover td{background:rgba(26,34,48,.55)}
+.host{font-family:var(--mono);font-size:12px;color:var(--text)}
+.host small{display:block;color:var(--text-muted);font-family:var(--font);font-size:10px;margin-top:2px}
+.route-kind{display:flex;align-items:center;gap:7px}
+.kind-icon{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;background:rgba(61,214,198,.1);color:var(--accent);border:1px solid rgba(61,214,198,.18);flex-shrink:0}
+.kind-icon.normal{background:rgba(139,155,180,.08);color:var(--text-muted);border-color:rgba(139,155,180,.16)}
+.backend{font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+.targets{display:flex;gap:4px;flex-wrap:wrap;max-width:220px}
+.chip{font-family:var(--mono);font-size:10px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);background:rgba(0,0,0,.12);white-space:nowrap}
+.health{display:flex;align-items:center;gap:7px;font-size:12px}
+.health .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(127,217,154,.08)}
+.health.warn .dot{background:var(--warn)}
+.ops{display:flex;gap:4px;justify-content:flex-end;white-space:nowrap}
+.icon-btn{width:27px;height:27px;border:1px solid transparent;background:transparent;border-radius:5px;color:var(--text-muted);display:grid;place-items:center}
+.icon-btn:hover{background:var(--bg-hover);color:var(--text);border-color:var(--border)}
+.inline-alert{display:flex;gap:11px;align-items:flex-start;border:1px solid rgba(61,214,198,.22);background:rgba(61,214,198,.055);border-radius:var(--radius);padding:12px 14px;margin-bottom:16px;color:var(--text-muted);font-size:12px}
+.inline-alert .alert-icon{color:var(--accent);flex-shrink:0;margin-top:1px}
+.inline-alert strong{color:var(--text);font-weight:600}
+.inline-alert code{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.inline-alert.warn{border-color:rgba(232,184,74,.24);background:rgba(232,184,74,.05)}
+.inline-alert.warn .alert-icon{color:var(--warn)}
+.topology{display:grid;grid-template-columns:1fr 26px 1fr 26px 1fr 26px 1fr;align-items:center;gap:8px;padding:18px 20px 20px}
+.topo-node{border:1px solid var(--border);border-radius:7px;background:rgba(0,0,0,.12);padding:12px;min-width:0}
+.topo-node .topo-kicker{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:5px}
+.topo-node .topo-name{font-size:12px;font-weight:600;word-break:break-all}
+.topo-node .topo-meta{font-size:10px;color:var(--text-muted);margin-top:4px;font-family:var(--mono);word-break:break-all}
+.topo-node.highlight{border-color:rgba(61,214,198,.35);background:rgba(61,214,198,.045)}
+.topo-node.target{border-style:dashed}
+.topo-arrow{text-align:center;color:var(--text-muted);font-size:18px}
+.flow-label{display:flex;flex-direction:column;align-items:center;gap:3px}
+.flow-label span{font-size:9px;color:var(--text-muted);white-space:nowrap}
+.proxy-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px}
+.kv{display:grid;grid-template-columns:138px 1fr;gap:9px 14px;font-size:12px}
+.kv dt{color:var(--text-muted)}
+.kv dd{margin:0;color:var(--text);min-width:0;word-break:break-word}
+.kv code{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.section-title{font-size:12px;font-weight:600;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.section-title .muted{font-weight:400;color:var(--text-muted);font-size:11px}
+.allowed-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px dashed rgba(42,53,72,.8)}
+.allowed-row:last-child{border-bottom:0}
+.allowed-row code{font-family:var(--mono);font-size:11px;color:var(--text)}
+.allowed-row .desc{font-size:10px;color:var(--text-muted);margin-top:3px}
+.filterbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border)}
+.filterbar select,.filterbar input{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 8px;font-size:12px;outline:none}
+.filterbar input{width:220px}
+.filterbar input:focus,.filterbar select:focus{border-color:var(--accent-dim)}
+.log-status{font-family:var(--mono);font-size:11px;padding:2px 6px;border-radius:4px;border:1px solid var(--border)}
+.log-status.ok{color:var(--ok);border-color:rgba(127,217,154,.22);background:rgba(127,217,154,.07)}
+.log-status.warn{color:var(--warn);border-color:rgba(232,184,74,.22);background:rgba(232,184,74,.07)}
+.log-status.danger{color:var(--danger);border-color:rgba(240,113,120,.22);background:rgba(240,113,120,.07)}
+.empty{padding:42px 20px;text-align:center;color:var(--text-muted);font-size:12px}
+.toast{position:fixed;z-index:120;right:24px;bottom:24px;display:flex;align-items:flex-start;gap:10px;background:#17231f;border:1px solid rgba(127,217,154,.32);color:var(--text);padding:12px 14px;border-radius:8px;box-shadow:0 12px 36px rgba(0,0,0,.36);max-width:380px;transform:translateY(18px);opacity:0;pointer-events:none;transition:.22s}
+.toast.show{transform:none;opacity:1}
+.toast.error{background:#241718;border-color:rgba(240,113,120,.36)}
+.toast .toast-title{font-weight:600;font-size:12px}
+.toast .toast-desc{font-size:11px;color:var(--text-muted);margin-top:2px}
+/* Drawer */
+.drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(1px);z-index:50;opacity:0;pointer-events:none;transition:.18s}
+.drawer-backdrop.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;z-index:51;top:0;right:0;height:100vh;width:min(860px,100vw);background:var(--bg-elevated);border-left:1px solid var(--border);box-shadow:-24px 0 70px rgba(0,0,0,.38);transform:translateX(102%);transition:transform .22s ease;display:flex;flex-direction:column}
+.drawer.open{transform:none}
+.drawer-head{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-shrink:0}
+.drawer-kicker{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.drawer-title{font-size:17px;font-weight:600;font-family:var(--mono);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.drawer-sub{font-size:11px;color:var(--text-muted);margin-top:5px}
+.close-btn{border:1px solid var(--border);background:transparent;color:var(--text-muted);width:30px;height:30px;border-radius:6px;display:grid;place-items:center}
+.close-btn:hover{color:var(--text);background:var(--bg-hover)}
+.drawer-main{display:flex;flex:1;min-height:0}
+.drawer-sections{width:168px;border-right:1px solid var(--border);padding:12px 8px;overflow-y:auto;flex-shrink:0}
+.drawer-section{border:0;background:transparent;color:var(--text-muted);text-align:left;width:100%;padding:9px 10px;border-radius:6px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:2px}
+.drawer-section:hover{background:var(--bg-hover);color:var(--text)}
+.drawer-section.active{background:rgba(61,214,198,.1);color:var(--accent)}
+.drawer-content{flex:1;padding:20px 22px;overflow-y:auto;min-width:0}
+.drawer-foot{border-top:1px solid var(--border);padding:12px 22px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;background:rgba(18,23,31,.95)}
+.drawer-foot .hint{font-size:11px;color:var(--text-muted)}
+.drawer-foot .buttons{display:flex;gap:8px}
+.form-section{display:none}
+.form-section.active{display:block}
+.form-section h3{font-size:13px;margin:0 0 4px;font-weight:600}
+.form-section > .desc{font-size:11px;color:var(--text-muted);margin:0 0 18px}
+.field{margin-bottom:16px}
+.field label{font-size:11px;color:var(--text-muted);display:block;margin-bottom:6px}
+.field .required{color:var(--warn);margin-left:2px}
+.field input[type=text],.field input[type=number],.field input[type=password],.field select,.field textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent-dim);box-shadow:0 0 0 2px rgba(61,214,198,.08)}
+.field textarea{resize:vertical;font-family:var(--mono);font-size:11px;line-height:1.55}
+.field .hint{font-size:10px;color:var(--text-muted);margin-top:5px;line-height:1.5}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.toggle-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;border:1px solid var(--border);background:rgba(0,0,0,.1);border-radius:7px;padding:12px 14px;margin-bottom:16px}
+.toggle-row .t-title{font-size:12px;font-weight:600;margin-bottom:3px}
+.toggle-row .t-desc{font-size:10px;color:var(--text-muted);line-height:1.5}
+.switch{position:relative;display:inline-flex;flex-shrink:0;width:38px;height:21px;margin-top:2px}
+.switch input{opacity:0;width:0;height:0}
+.switch .slider{position:absolute;inset:0;border-radius:999px;background:#2d394c;border:1px solid #3b4a61;transition:.18s}
+.switch .slider::before{content:"";position:absolute;width:15px;height:15px;left:2px;top:2px;border-radius:50%;background:#9aa8bb;transition:.18s}
+.switch input:checked + .slider{background:rgba(61,214,198,.22);border-color:rgba(61,214,198,.55)}
+.switch input:checked + .slider::before{transform:translateX(17px);background:var(--accent)}
+.check-row{display:flex;align-items:flex-start;gap:9px;font-size:11px;color:var(--text-muted);margin:9px 0}
+.check-row input{accent-color:var(--accent);margin-top:1px}
+.check-row strong{color:var(--text);font-weight:500}
+.radio-cards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.radio-card{border:1px solid var(--border);border-radius:7px;padding:11px 12px;background:rgba(0,0,0,.1);display:flex;gap:9px;align-items:flex-start;cursor:pointer}
+.radio-card:hover{border-color:#46536c}
+.radio-card.selected{border-color:rgba(61,214,198,.5);background:rgba(61,214,198,.05)}
+.radio-card input{accent-color:var(--accent);margin-top:2px}
+.radio-card .rc-title{display:block;font-size:11px;font-weight:600;color:var(--text)}
+.radio-card .rc-desc{display:block;font-size:10px;color:var(--text-muted);line-height:1.45;margin-top:2px}
+.chip-input{display:flex;gap:6px;flex-wrap:wrap;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
+.chip-input .chip{display:flex;align-items:center;gap:5px;padding:3px 7px;color:var(--text)}
+.chip-input .chip button{border:0;background:transparent;color:var(--text-muted);padding:0;line-height:1}
+.chip-input .chip button:hover{color:var(--danger)}
+.chip-input input{flex:1;min-width:160px;border:0;background:transparent;color:var(--text);outline:none;font-family:var(--mono);font-size:11px;padding:4px}
+.preview-yaml{background:#090c11;border:1px solid var(--border);border-radius:7px;padding:14px;overflow:auto;font-family:var(--mono);font-size:11px;line-height:1.65;color:#c9d5e6;white-space:pre}
+.preview-yaml .k{color:#7fb6ff}.preview-yaml .s{color:#a8d8a0}.preview-yaml .c{color:#66758c}
+.test-panel{border:1px solid var(--border);border-radius:8px;background:rgba(0,0,0,.1);padding:14px;margin-top:14px}
+.test-panel .test-log{background:#090c11;border:1px solid var(--border);border-radius:6px;padding:12px;min-height:170px;max-height:260px;overflow:auto;font-family:var(--mono);font-size:11px;line-height:1.7;color:#c9d5e6;white-space:pre-wrap}
+.test-panel .test-log .ok{color:var(--ok)}.test-panel .test-log .warn{color:var(--warn)}.test-panel .test-log .muted{color:#66758c}.test-panel .test-log .err{color:var(--danger)}
+.test-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.spinner{width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:#032b2b;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.modal-note{font-size:10px;color:var(--text-muted);line-height:1.5;margin-top:8px}
+@media(max-width:900px){
+  .sidebar{width:64px}.brand-sub,.nav .label,.nav .count,.nav-group-label,.brand-title,.brand-version{display:none}.brand{padding:16px 10px}.brand-top{justify-content:center}.nav button{justify-content:center;padding:11px}.nav .ico{width:24px}
+  .cards{grid-template-columns:1fr 1fr}.proxy-grid{grid-template-columns:1fr}.topology{grid-template-columns:1fr;gap:6px}.topo-arrow{transform:rotate(90deg)}.page{padding:16px}.drawer-sections{width:130px}
+}
+@media(max-width:640px){
+  .sidebar{display:none}.page-inner{max-width:none}.page-head{flex-direction:column}.actions{width:100%}.cards{grid-template-columns:1fr 1fr}.field-row{grid-template-columns:1fr}.drawer-main{display:block}.drawer-sections{width:100%;display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);padding:8px}.drawer-section{white-space:nowrap;width:auto;margin-right:3px}.drawer-content{padding:16px}.drawer{width:100vw}.topbar{padding:0 14px}.runtime-pill{display:none}
+}</style>
+<style>
+/* ---- 本次原型新增样式（复用上方 Admin Console 主题变量） ---- */
+.preset-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:10px;color:var(--text-muted)}
+.preset{border:1px solid var(--border);background:var(--bg-hover);color:var(--text-muted);border-radius:999px;padding:3px 8px;font-family:var(--mono);font-size:10px}
+.preset:hover{color:var(--accent);border-color:rgba(61,214,198,.35)}
+.readonly-box{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);background:rgba(0,0,0,.1);border-radius:6px;padding:8px 10px;font-size:12px}
+.readonly-box code{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.empty-state{border:1px dashed var(--border);border-radius:8px;padding:30px 18px;text-align:center;color:var(--text-muted);font-size:12px;background:rgba(0,0,0,.08)}
+.empty-state .empty-icon{font-size:22px;margin-bottom:8px;color:var(--text-muted)}
+.empty-state .hint{margin-top:6px}
+details.advanced{border:1px solid var(--border);border-radius:7px;background:rgba(0,0,0,.08);padding:0 12px;margin-bottom:16px}
+details.advanced summary{cursor:pointer;padding:11px 0;font-size:11px;color:var(--text-muted);list-style:none}
+details.advanced summary::-webkit-details-marker{display:none}
+details.advanced summary::before{content:'▸ ';color:var(--accent)}
+details.advanced[open] summary::before{content:'▾ '}
+details.advanced .field{margin-top:12px}
+.test-result{margin-top:10px;border:1px solid var(--border);border-radius:7px;padding:12px;background:rgba(0,0,0,.1);font-size:12px;line-height:1.75}
+.test-result.ok{border-color:rgba(127,217,154,.28);background:rgba(127,217,154,.05)}
+.test-result.deny{border-color:rgba(240,113,120,.28);background:rgba(240,113,120,.05)}
+.test-result .tr-title{font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.test-result code{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.test-result .tr-line{color:var(--text-muted)}
+.test-result .tr-line strong{color:var(--text);font-weight:500}
+.wl-badge{display:inline-flex;align-items:center;gap:5px}
+.wl-badge .shield{color:var(--accent)}
+.warn-inline{border:1px solid rgba(232,184,74,.28);background:rgba(232,184,74,.06);border-radius:6px;padding:9px 11px;font-size:11px;color:var(--warn);margin-bottom:14px;line-height:1.55}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-top"><span class="brand-title">Ingress Console</span><span class="brand-version">v1.23.0</span></div>
+      <span class="brand-sub">运维控制台</span>
+    </div>
+    <nav class="nav">
+      <div class="nav-group"><div class="nav-group-label">概览</div>
+        <button><span class="ico">▦</span><span class="label">总览</span></button>
+        <button><span class="ico">◈</span><span class="label">拓扑</span></button>
+        <button><span class="ico">⌁</span><span class="label">健康</span><span class="count">2</span></button>
+      </div>
+      <div class="nav-group"><div class="nav-group-label">流量</div>
+        <button class="active"><span class="ico">⇄</span><span class="label">路由与访问控制</span></button>
+        <button><span class="ico">≋</span><span class="label">访问日志</span></button>
+        <button><span class="ico">◌</span><span class="label">WAF 事件</span><span class="count">3</span></button>
+      </div>
+      <div class="nav-group"><div class="nav-group-label">配置</div>
+        <button><span class="ico">◇</span><span class="label">WAF</span></button>
+        <button><span class="ico">◫</span><span class="label">TLS 证书</span></button>
+        <button><span class="ico">⌘</span><span class="label">场景</span></button>
+      </div>
+    </nav>
+    <div class="sidebar-footer"><span class="status-dot"></span>运行中 · reload 就绪</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="crumb">Ingress Console <span>/</span> 流量 <span>/</span> <strong>路由与访问控制</strong></div>
+      <div class="top-actions">
+        <span class="badge warn">产品原型 · 模拟数据</span>
+        <div class="runtime-pill"><span class="status-dot"></span>配置与运行时一致</div>
+        <button class="btn sm ghost" title="刷新">↻</button>
+        <div class="avatar">AD</div>
+      </div>
+    </header>
+
+    <div class="page">
+      <div class="page-inner">
+        <div class="page-head">
+          <div>
+            <h1>路由与访问控制</h1>
+            <p class="sub">域名级 IP 白名单：默认不限制，按需只允许内网或指定 IP 访问。白名单复用 WAF 的 IP 阶段（<code>rules[].waf.allow</code>），命中拦截返回 403。</p>
+          </div>
+          <div class="actions">
+            <button class="btn">配置中心</button>
+            <button class="btn primary">＋ 新建规则</button>
+          </div>
+        </div>
+
+        <div class="inline-alert">
+          <span class="alert-icon">◉</span>
+          <div><strong>复用 WAF，不新增模块</strong> · 单条路由的 <code>waf.allow</code> 非空即启用白名单；<code>allow</code> / <code>deny</code> 都为空时行为完全不变。<br>
+          客户端 IP 默认只认 TCP <code>RemoteAddr</code>；部署在 LB 后面时，在「客户端 IP 判定」里配置受信代理网段后才会采信 <code>X-Forwarded-For</code>。</div>
+        </div>
+
+        <div class="cards">
+          <div class="card"><div class="card-label">路由规则</div><div class="card-value">12</div><div class="card-note"><span class="up">3</span> 个域名启用 IP 白名单</div></div>
+          <div class="card"><div class="card-label">24h 白名单拦截</div><div class="card-value">128</div><div class="card-note">全部 403 · 访问日志 <code>waf_block=1</code></div></div>
+          <div class="card"><div class="card-label">受信代理</div><div class="card-value">2<span style="font-size:12px;color:var(--text-muted)"> 个网段</span></div><div class="card-note">10.0.0.0/8 · 172.16.0.0/12</div></div>
+          <div class="card"><div class="card-label">客户端 IP 判定</div><div class="card-value" style="font-size:15px;font-family:var(--font)">受信代理优先</div><div class="card-note">XFF 仅受信来源采信 · 右起第一个非受信地址</div></div>
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-page-tab="routes">路由列表 <span class="badge">6</span></button>
+          <button class="tab" data-page-tab="global">客户端 IP 判定 <span class="badge accent">GLOBAL</span></button>
+          <button class="tab" data-page-tab="logs">访问日志 <span class="badge">24h</span></button>
+        </div>
+
+        <!-- ============ 路由列表 ============ -->
+        <section id="tab-routes" class="tab-panel">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">规则列表 <span class="panel-sub">按顺序匹配，首条命中生效</span></div>
+              <div class="panel-sub">点击「编辑」配置该域名的 IP 白名单</div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>#</th><th>Host</th><th>Backend</th><th>Paths</th><th>IP 白名单</th><th>状态</th><th style="text-align:right">操作</th></tr></thead>
+                <tbody id="routeRows"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="inline-alert warn">
+            <span class="alert-icon">!</span>
+            <div>白名单只在「该路由 WAF 已启用」时生效。路由编辑器会自动写入 <code>waf.enabled: true</code>；手写 YAML 时若只写 <code>allow</code> 不写 <code>enabled</code>，<code>ingress validate</code> 会直接报错，避免安全配置静默失效。</div>
+          </div>
+        </section>
+
+        <!-- ============ 全局：客户端 IP 判定 ============ -->
+        <section id="tab-global" class="tab-panel" hidden>
+          <div class="proxy-grid">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-title">客户端 IP 判定 <span class="panel-sub">WAF · trusted_proxies</span></div><span class="badge accent">全局</span></div>
+              <div class="panel-body">
+                <div class="field">
+                  <label>判定模式</label>
+                  <div class="radio-cards" id="modeCards">
+                    <label class="radio-card" data-mode="remote">
+                      <input type="radio" name="ipmode" value="remote" id="modeRemote">
+                      <span><span class="rc-title">仅 RemoteAddr（默认）</span><span class="rc-desc">只认 TCP 来源地址。最严格，适合 ingress 直接暴露公网的场景。</span></span>
+                    </label>
+                    <label class="radio-card" data-mode="trusted">
+                      <input type="radio" name="ipmode" value="trusted" id="modeTrusted">
+                      <span><span class="rc-title">受信代理 trusted_proxies</span><span class="rc-desc">仅当来源命中受信网段时才采信 X-Forwarded-For，取右起第一个非受信地址。</span></span>
+                    </label>
+                  </div>
+                </div>
+
+                <div id="trustedEditor">
+                  <div class="field">
+                    <label>受信代理网段 <span class="required">*</span></label>
+                    <div class="chip-input" id="trustedChips">
+                      <input id="trustedInput" placeholder="输入 10.0.0.0/8 后回车">
+                    </div>
+                    <div class="hint">通常是集群入口 LB / Ingress Controller 的网段。只有来自这些网段的请求，XFF 才被视为可信。</div>
+                    <div class="preset-row">
+                      <span>快速添加：</span>
+                      <button class="preset" data-trusted="10.0.0.0/8">10.0.0.0/8</button>
+                      <button class="preset" data-trusted="172.16.0.0/12">172.16.0.0/12</button>
+                      <button class="preset" data-trusted="192.168.0.0/16">192.168.0.0/16</button>
+                    </div>
+                  </div>
+                  <div class="inline-alert" style="margin:14px 0 16px">
+                    <span class="alert-icon">◉</span>
+                    <div><strong>取地址规则</strong> · 从 <code>X-Forwarded-For</code> 右侧向左，跳过受信代理，取第一个非受信地址；全部受信则退回 <code>RemoteAddr</code>。左侧第一跳最容易被伪造，因此不使用。</div>
+                  </div>
+                </div>
+
+                <details class="advanced">
+                  <summary>兼容旧配置：trust_proxy + xff_index</summary>
+                  <div class="check-row"><input type="checkbox" id="legacyTrustProxy" disabled><span><strong>trust_proxy</strong>（存量配置保留，不推荐新配置）<br>开启后按 <code>X-Forwarded-For[xff_index]</code> 取 IP；无法区分伪造来源。</span></div>
+                  <div class="field"><label>xff_index（0 = 最左）</label><input type="number" id="legacyXffIndex" value="0" disabled></div>
+                </details>
+
+                <div class="field">
+                  <label>将写入 ingress.yaml</label>
+                  <pre class="preview-yaml" id="globalYaml"></pre>
+                </div>
+                <div style="display:flex;justify-content:flex-end"><button class="btn primary" id="saveGlobal">保存全局设置</button></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title">白名单域名概览</div><span class="badge">3 个</span></div>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>Host</th><th>allow</th><th>deny</th><th>状态</th></tr></thead>
+                    <tbody id="overviewRows"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><div class="panel-title">拦截响应</div><span class="badge danger">403</span></div>
+                <div class="panel-body">
+                  <dl class="kv">
+                    <dt>状态码</dt><dd><code>403</code>（v1 固定）</dd>
+                    <dt>响应页面</dt><dd>复用 <code>error_pages</code> 的 403 页面</dd>
+                    <dt>响应头</dt><dd>沿用全局 security 头</dd>
+                    <dt>访问日志</dt><dd><code>waf_block=1</code></dd>
+                    <dt>WAF 日志</dt><dd><code>[waf block] phase=ip allow</code></dd>
+                    <dt>WAF 事件</dt><dd><code>rule=ip allow</code>，可在 WAF 事件页筛选</dd>
+                  </dl>
+                  <p class="field hint" style="margin:12px 0 0">404 隐藏域名暂不支持：需要 WAF 返回拦截阶段，属后续改造。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 访问日志 ============ -->
+        <section id="tab-logs" class="tab-panel" hidden>
+          <div class="panel">
+            <div class="panel-head"><div class="panel-title">访问日志 <span class="panel-sub">IP 白名单拦截会计入 WAF block</span></div><button class="btn sm ghost">导出</button></div>
+            <div class="filterbar">
+              <select id="logFilterStatus">
+                <option value="all">全部结果</option>
+                <option value="200">仅 200</option>
+                <option value="403">仅 403</option>
+              </select>
+              <input id="logFilterText" placeholder="过滤 host / client_ip / 原因" />
+              <button class="btn sm" id="logFilterBtn">筛选</button>
+              <span class="panel-sub" style="margin-left:auto">最近 24h</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>时间</th><th>客户端 IP</th><th>Host</th><th>请求</th><th>状态</th><th>拦截原因</th><th>日志标记</th></tr></thead>
+                <tbody id="logRows">
+                  <tr class="log-row" data-status="200" data-text="203.0.113.7 admin.example.com allow">
+                    <td>14:52:11</td><td class="backend">203.0.113.7</td><td class="backend">admin.example.com</td><td class="backend">GET /admin HTTP/1.1</td><td><span class="log-status ok">200</span></td><td><span class="badge ok">命中 allow</span></td><td class="backend">waf_block=0</td>
+                  </tr>
+                  <tr class="log-row" data-status="403" data-text="198.51.100.23 admin.example.com ip allow">
+                    <td>14:51:40</td><td class="backend">198.51.100.23</td><td class="backend">admin.example.com</td><td class="backend">GET /admin HTTP/1.1</td><td><span class="log-status danger">403</span></td><td><span class="badge danger">IP 白名单（phase=ip allow）</span></td><td class="backend">waf_block=1</td>
+                  </tr>
+                  <tr class="log-row" data-status="403" data-text="198.51.100.23 admin.example.com ip allow">
+                    <td>14:51:39</td><td class="backend">198.51.100.23</td><td class="backend">admin.example.com</td><td class="backend">POST /api/login HTTP/1.1</td><td><span class="log-status danger">403</span></td><td><span class="badge danger">IP 白名单（phase=ip allow）</span></td><td class="backend">waf_block=1</td>
+                  </tr>
+                  <tr class="log-row" data-status="200" data-text="10.0.0.21 api-internal.example.com allow">
+                    <td>14:50:02</td><td class="backend">10.0.0.21</td><td class="backend">api-internal.example.com</td><td class="backend">GET /v1/health HTTP/1.1</td><td><span class="log-status ok">200</span></td><td><span class="badge ok">命中 allow</span></td><td class="backend">waf_block=0</td>
+                  </tr>
+                  <tr class="log-row" data-status="403" data-text="45.33.12.9 app.example.com sig sqli">
+                    <td>14:49:31</td><td class="backend">45.33.12.9</td><td class="backend">app.example.com</td><td class="backend">GET /search?q=1%27+OR+1%3D1 HTTP/1.1</td><td><span class="log-status danger">403</span></td><td><span class="badge warn">攻击签名（phase=sig sqli）</span></td><td class="backend">waf_block=1</td>
+                  </tr>
+                  <tr class="log-row" data-status="403" data-text="203.0.113.66 pay.example.com ip deny">
+                    <td>14:48:55</td><td class="backend">203.0.113.66</td><td class="backend">pay.example.com</td><td class="backend">POST /pay HTTP/1.1</td><td><span class="log-status danger">403</span></td><td><span class="badge danger">命中 deny（phase=ip deny）</span></td><td class="backend">waf_block=1</td>
+                  </tr>
+                  <tr class="log-row" data-status="200" data-text="10.0.0.8 pay.example.com allow">
+                    <td>14:48:12</td><td class="backend">10.0.0.8</td><td class="backend">pay.example.com</td><td class="backend">POST /pay HTTP/1.1</td><td><span class="log-status ok">200</span></td><td><span class="badge ok">命中 allow</span></td><td class="backend">waf_block=0</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="inline-alert">
+            <span class="alert-icon">◉</span>
+            <div><strong>客户端 IP 列展示的是「判定用 IP」</strong> · 配置受信代理后，这一列是 XFF 右起第一个非受信地址；XFF 原文仍保留在访问日志的 <code>xff=</code> 字段，便于审计。被拒请求同样计入 WAF 事件，但不会进入上游。</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ 路由编辑抽屉 ============ -->
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <div>
+      <div class="drawer-kicker">编辑路由 · 域名级访问控制</div>
+      <div class="drawer-title"><span id="drawerHost">admin.example.com</span><span class="badge accent" id="drawerBadge">白名单 3 条</span></div>
+      <div class="drawer-sub" id="drawerSub">按 Host 匹配；IP 白名单由 WAF 的 IP 阶段执行，命中拦截返回 403。</div>
+    </div>
+    <button class="close-btn" id="closeDrawer" aria-label="关闭">✕</button>
+  </div>
+  <div class="drawer-main">
+    <nav class="drawer-sections" id="drawerSections">
+      <button class="drawer-section" data-section="basic">基础信息</button>
+      <button class="drawer-section" data-section="backend">Backend</button>
+      <button class="drawer-section active" data-section="ip">IP 白名单</button>
+      <button class="drawer-section" data-section="paths">Path 规则</button>
+      <button class="drawer-section" data-section="health">健康检查</button>
+      <button class="drawer-section" data-section="auth">认证授权</button>
+      <button class="drawer-section" data-section="maintenance">维护模式</button>
+      <button class="drawer-section" data-section="upstream">上游转发</button>
+      <button class="drawer-section" data-section="cache">响应缓存</button>
+      <button class="drawer-section" data-section="security">安全</button>
+      <button class="drawer-section" data-section="ratelimit">路由限流</button>
+      <button class="drawer-section" data-section="yaml">YAML 预览</button>
+    </nav>
+    <div class="drawer-content">
+      <section class="form-section" data-section-panel="basic">
+        <h3>基础信息</h3><p class="desc">Host 匹配与规则优先级（列表顺序即匹配顺序）。</p>
+        <div class="field"><label>Host</label><input type="text" id="fieldHost" readonly></div>
+        <div class="field-row">
+          <div class="field"><label>Host 类型</label><input type="text" value="exact" readonly></div>
+          <div class="field"><label>规则状态</label><input type="text" value="启用" readonly></div>
+        </div>
+        <p class="field hint">本原型聚焦「IP 白名单」区块；基础信息、Backend 等沿用现有路由编辑器实现。</p>
+      </section>
+      <section class="form-section" data-section-panel="backend">
+        <h3>Backend</h3><p class="desc">Host 级默认 upstream / handler / redirect 配置。</p>
+        <div class="field"><label>Backend 目标</label><input type="text" id="fieldBackend" readonly></div>
+        <p class="field hint">本次变更不涉及 Backend 结构。</p>
+      </section>
+
+      <!-- ====== 本次变更的核心：IP 白名单 ====== -->
+      <section class="form-section active" data-section-panel="ip">
+        <h3>IP 白名单</h3>
+        <p class="desc">非空时仅名单内的来源 IP 可访问该域名；留空表示不限制（默认）。由 WAF 的 IP 阶段执行，命中拦截返回 403。</p>
+
+        <div class="toggle-row">
+          <div>
+            <div class="t-title">启用 IP 白名单</div>
+            <div class="t-desc">写入 <code>rules[].waf.allow</code>，并自动补 <code>waf.enabled: true</code>。关闭后该域名恢复为「所有来源可访问」。</div>
+          </div>
+          <label class="switch"><input type="checkbox" id="ipEnabled"><span class="slider"></span></label>
+        </div>
+
+        <div id="ipFields">
+          <div class="warn-inline" id="ipWarn" hidden>白名单已启用但列表为空：当前不会拦截任何请求。请至少添加一个允许的 IP / CIDR，或关闭白名单。</div>
+
+          <div class="field">
+            <label>允许的来源 IP / CIDR <span class="required">*</span></label>
+            <div class="chip-input" id="allowChips">
+              <input id="allowInput" placeholder="输入 10.0.0.0/8 后回车">
+            </div>
+            <div class="hint">支持单个 IP 与 CIDR（IPv4 / IPv6）。deny 优先于 allow；两者都为空时等同于不限制。</div>
+            <div class="preset-row">
+              <span>快速添加内网网段：</span>
+              <button class="preset" data-cidr="10.0.0.0/8">10.0.0.0/8</button>
+              <button class="preset" data-cidr="172.16.0.0/12">172.16.0.0/12</button>
+              <button class="preset" data-cidr="192.168.0.0/16">192.168.0.0/16</button>
+              <button class="preset" data-cidr="127.0.0.1/32">127.0.0.1/32</button>
+            </div>
+          </div>
+
+          <details class="advanced">
+            <summary>高级：拒绝列表与 WAF 攻击签名</summary>
+            <div class="field">
+              <label>拒绝的来源 IP / CIDR（deny，优先于 allow）</label>
+              <div class="chip-input" id="denyChips">
+                <input id="denyInput" placeholder="输入 203.0.113.66/32 后回车">
+              </div>
+              <div class="hint">一般留空，用于临时封禁某个 IP：即使它命中 allow 也会被拒绝。</div>
+            </div>
+            <div class="check-row">
+              <input type="checkbox" id="signatures">
+              <span><strong>同时启用 WAF 攻击签名（内置规则）</strong><br>
+              关闭时写入 <code>disable_builtin: true</code>，该域名只做 IP 准入，避免内置签名误伤白名单用户；开启后该域名同时进行攻击检测。</span>
+            </div>
+          </details>
+
+          <div class="field">
+            <label>客户端 IP 判定（继承全局）</label>
+            <div class="readonly-box">
+              <span id="trustSummary">仅 RemoteAddr</span>
+              <button class="btn sm ghost" id="gotoGlobal">全局设置 →</button>
+            </div>
+            <div class="hint">默认只认 TCP 来源地址；LB 后部署需在全局设置里配置受信代理网段，才会采信 X-Forwarded-For。</div>
+          </div>
+
+          <div class="field">
+            <label>拦截响应</label>
+            <div class="readonly-box"><span><span class="badge danger">403</span> 走 <code>error_pages</code> 的 403 页面</span><span class="badge">v1 固定</span></div>
+            <div class="hint">暂不支持 404 隐藏域名（需要 WAF 返回拦截阶段，属后续改造）。</div>
+          </div>
+
+          <div class="test-panel">
+            <div class="section-title">拦截试算 <span class="muted">用一组来源地址验证当前白名单</span></div>
+            <div class="field-row">
+              <div class="field"><label>RemoteAddr（TCP 来源）</label><input type="text" id="testRemote" value="10.0.0.5"></div>
+              <div class="field"><label>X-Forwarded-For</label><input type="text" id="testXff" value="203.0.113.7, 10.0.0.2"></div>
+            </div>
+            <div class="test-actions"><button class="btn primary" id="runTest">试算</button><span class="hint" id="testModeHint"></span></div>
+            <div id="testLog"><div class="test-result"><div class="tr-line">点击「试算」查看判定结果与依据…</div></div></div>
+          </div>
+
+          <div class="field">
+            <label>将写入 ingress.yaml</label>
+            <pre class="preview-yaml" id="yamlPreview"></pre>
+          </div>
+        </div>
+
+        <div id="ipEmpty" class="empty-state" hidden>
+          <div class="empty-icon">◌</div>
+          <div>该域名未启用 IP 白名单，所有来源均可访问（默认行为）。</div>
+          <div class="hint">若全局 WAF 已开启，仍会按全局规则检测攻击签名。</div>
+        </div>
+      </section>
+
+      <section class="form-section" data-section-panel="paths">
+        <h3>Path 规则</h3><p class="desc">按 path 前缀覆盖 Host 级 backend。</p>
+        <p class="field hint" id="pathHint">该域名有 3 条 path 规则。v1 的 IP 白名单只作用于域名级，不区分 path。</p>
+      </section>
+      <section class="form-section" data-section-panel="health">
+        <h3>健康检查</h3><p class="desc">上游 service 健康探测（仅 service backend）。</p>
+        <p class="field hint">本次变更不涉及。</p>
+      </section>
+      <section class="form-section" data-section-panel="auth">
+        <h3>认证授权</h3><p class="desc">上游 service 访问认证（仅 service backend）。</p>
+        <p class="field hint">IP 白名单是网络层准入，与认证是叠加关系：先过 IP 白名单，再做认证。</p>
+      </section>
+      <section class="form-section" data-section-panel="maintenance">
+        <h3>维护模式</h3><p class="desc">Host 级上游维护；开启后整站返回 503。</p>
+        <p class="field hint">执行顺序：IP 白名单（WAF）在维护模式之前，白名单拒绝优先于维护页。</p>
+      </section>
+      <section class="form-section" data-section-panel="upstream">
+        <h3>上游转发</h3><p class="desc">request / response 改写（Host、路径、头、超时等）。</p>
+        <p class="field hint">本次变更不涉及。</p>
+      </section>
+      <section class="form-section" data-section-panel="cache">
+        <h3>响应缓存</h3><p class="desc">HTTP 响应缓存 backend.cache。</p>
+        <p class="field hint">本次变更不涉及。</p>
+      </section>
+      <section class="form-section" data-section-panel="security">
+        <h3>安全</h3><p class="desc">覆盖全局 security: 的响应头与 CORS。</p>
+        <p class="field hint">白名单拦截的 403 响应沿用该域名/全局的 security 响应头。</p>
+      </section>
+      <section class="form-section" data-section-panel="ratelimit">
+        <h3>路由限流</h3><p class="desc">rules[].rate_limit 按 Host 规则限流。</p>
+        <p class="field hint">执行顺序：限流在 WAF 之前，被白名单拒绝的请求仍会消耗该 IP 的限流桶（与现有 WAF 行为一致）。</p>
+      </section>
+      <section class="form-section" data-section-panel="yaml">
+        <h3>YAML 预览</h3><p class="desc">保存前预览最终写入配置的片段；未启用白名单时不会写入 <code>waf</code> 键。</p>
+        <pre class="preview-yaml" id="yamlPreviewFull"></pre>
+      </section>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <div class="hint">保存后写入 ingress.yaml，需 reload 生效；可随时关闭白名单恢复默认。</div>
+    <div class="buttons"><button class="btn" id="cancelDrawer">取消</button><button class="btn primary" id="saveRoute">保存并发布</button></div>
+  </div>
+</aside>
+
+<div class="toast" id="toast"><div class="toast-icon">✓</div><div><div class="toast-title" id="toastTitle">已保存</div><div class="toast-desc" id="toastDesc">配置已写入，reload 成功</div></div></div>
+
+<script>
+/* =========================================================
+ * 域名级 IP 白名单 · 产品原型（模拟数据）
+ * 说明：仅用于确认交互与信息结构；真实实现见 openspec change 0001。
+ * ========================================================= */
+
+const globalState = {
+  ipMode: 'trusted', // 'remote' | 'trusted'
+  trustedProxies: ['10.0.0.0/8', '172.16.0.0/12'],
+};
+
+const routes = [
+  { host: 'admin.example.com',        backend: 'admin-console:8080', paths: 3, allow: ['10.0.0.0/8', '172.16.0.0/12', '203.0.113.7/32'], deny: [], enabled: true,  signatures: false },
+  { host: 'api-internal.example.com', backend: 'api:8080',           paths: 2, allow: ['10.0.0.0/8', '192.168.0.0/16'],                deny: [], enabled: true,  signatures: false },
+  { host: 'pay.example.com',          backend: 'pay:8080',           paths: 1, allow: ['203.0.113.0/24'],                              deny: ['203.0.113.66/32'], enabled: true, signatures: true },
+  { host: 'app.example.com',          backend: 'app:8080',           paths: 2, allow: [], deny: [], enabled: false, signatures: false },
+  { host: '*.cdn.example.com',        backend: 'cdn:80',             paths: 0, allow: [], deny: [], enabled: false, signatures: false },
+  { host: 'docs.example.com',         backend: 'docs:8080',          paths: 1, allow: [], deny: [], enabled: false, signatures: false },
+];
+
+let editingIndex = -1;
+let draft = null;
+
+const $ = (s, root = document) => root.querySelector(s);
+const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+
+/* ---------- IP / CIDR 工具（原型实现；IPv6 由后端完整支持） ---------- */
+function ipv4ToInt(ip) {
+  const parts = String(ip).trim().split('.');
+  if (parts.length !== 4) return null;
+  let n = 0;
+  for (const p of parts) {
+    if (!/^\d{1,3}$/.test(p)) return null;
+    const v = Number(p);
+    if (v > 255) return null;
+    n = n * 256 + v;
+  }
+  return n;
+}
+
+function cidrContains(cidr, ip) {
+  const c = String(cidr || '').trim();
+  const addr = String(ip || '').trim();
+  if (!c || !addr) return false;
+  if (!c.includes('/')) {
+    const a = ipv4ToInt(c);
+    const b = ipv4ToInt(addr);
+    return a !== null && b !== null ? a === b : c.toLowerCase() === addr.toLowerCase();
+  }
+  const [base, prefixStr] = c.split('/');
+  const prefix = Number(prefixStr);
+  const baseInt = ipv4ToInt(base);
+  const ipInt = ipv4ToInt(addr);
+  if (baseInt === null || ipInt === null) return base.toLowerCase() === addr.toLowerCase();
+  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) return false;
+  const mask = prefix === 0 ? 0 : (0xFFFFFFFF << (32 - prefix)) >>> 0;
+  return ((baseInt & mask) >>> 0) === ((ipInt & mask) >>> 0);
+}
+
+function isValidEntry(v) {
+  const s = String(v || '').trim();
+  if (!s) return false;
+  if (s.includes(':')) return /^[0-9a-fA-F:]+(\/\d{1,3})?$/.test(s);
+  if (s.includes('/')) {
+    const [base, p] = s.split('/');
+    if (ipv4ToInt(base) === null) return false;
+    const n = Number(p);
+    return Number.isInteger(n) && n >= 0 && n <= 32;
+  }
+  return ipv4ToInt(s) !== null;
+}
+
+function isWildcardTrusted(cidr) {
+  return cidr === '0.0.0.0/0' || cidr === '::/0';
+}
+
+function resolveClientIP(remote, xff, mode, trusted) {
+  const r = String(remote || '').trim();
+  if (mode !== 'trusted') {
+    return { ip: r, source: 'RemoteAddr（未配置受信代理）' };
+  }
+  const remoteTrusted = trusted.some((c) => cidrContains(c, r));
+  if (!remoteTrusted) {
+    return { ip: r, source: 'RemoteAddr（来源不在受信代理，X-Forwarded-For 已忽略）' };
+  }
+  const parts = String(xff || '')
+    .split(',')
+    .map((s) => s.trim().replace(/^"|"$/g, ''))
+    .filter(Boolean);
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const ip = parts[i];
+    if (!isValidEntry(ip)) continue;
+    if (trusted.some((c) => cidrContains(c, ip))) continue;
+    return { ip, source: 'X-Forwarded-For 右起第一个非受信地址' };
+  }
+  return { ip: r, source: 'RemoteAddr（XFF 全为受信代理或为空）' };
+}
+
+function evaluateAllowlist(allow, deny, clientIP) {
+  if (!clientIP) return { allowed: false, reason: '无法解析客户端 IP' };
+  if (deny.some((c) => cidrContains(c, clientIP))) return { allowed: false, reason: '命中 deny' };
+  if (allow.length === 0) return { allowed: true, reason: '未配置 allow（不限制）' };
+  if (allow.some((c) => cidrContains(c, clientIP))) return { allowed: true, reason: '命中 allow' };
+  return { allowed: false, reason: '未命中 allow' };
+}
+
+/* ---------- YAML 预览 ---------- */
+function buildRouteYaml(route) {
+  if (!route.enabled || (route.allow.length === 0 && route.deny.length === 0)) {
+    return '# ' + route.host + '\n# 未配置 IP 白名单 → 不限制来源（默认行为）';
+  }
+  const lines = ['rules:', "  - host: '" + route.host + "'", '    waf:', '      enabled: true'];
+  if (!route.signatures) lines.push('      disable_builtin: true   # 仅 IP 准入，不运行内置攻击签名');
+  if (route.allow.length > 0) {
+    lines.push('      allow:');
+    route.allow.forEach((v) => lines.push("        - '" + v + "'"));
+  }
+  if (route.deny.length > 0) {
+    lines.push('      deny:');
+    route.deny.forEach((v) => lines.push("        - '" + v + "'"));
+  }
+  lines.push('      block_status_code: 403');
+  return lines.join('\n');
+}
+
+function buildGlobalYaml() {
+  if (globalState.ipMode !== 'trusted' || globalState.trustedProxies.length === 0) {
+    return '# 未配置 waf.trusted_proxies → 只认 TCP RemoteAddr';
+  }
+  return ['waf:', '  trusted_proxies:']
+    .concat(globalState.trustedProxies.map((v) => "    - '" + v + "'"))
+    .join('\n');
+}
+
+/* ---------- 路由列表 ---------- */
+function whitelistCell(route) {
+  if (!route.enabled || (route.allow.length === 0 && route.deny.length === 0)) {
+    return '<span class="badge">未限制</span>';
+  }
+  const parts = ['<span class="badge accent">allow ' + route.allow.length + ' 条</span>'];
+  if (route.deny.length > 0) parts.push('<span class="badge danger">deny ' + route.deny.length + '</span>');
+  return '<span class="wl-badge"><span class="shield">🛡</span>' + parts.join(' ') + '</span>';
+}
+
+function renderRoutes() {
+  const tbody = $('#routeRows');
+  tbody.innerHTML = routes
+    .map((r, i) => {
+      return (
+        '<tr class="row-hover">' +
+        '<td class="backend">' + (i + 1) + '</td>' +
+        '<td><div class="host">' + r.host + '<small>' + (r.enabled ? '启用' : '停用') + '</small></div></td>' +
+        '<td class="backend">' + r.backend + '</td>' +
+        '<td class="backend">' + r.paths + '</td>' +
+        '<td>' + whitelistCell(r) + '</td>' +
+        '<td><span class="health"><span class="dot"></span>' + (r.enabled ? '启用' : '停用') + '</span></td>' +
+        '<td><div class="ops">' +
+        '<button class="icon-btn" title="拦截试算" data-action="test" data-i="' + i + '">⌕</button>' +
+        '<button class="icon-btn" title="编辑" data-action="edit" data-i="' + i + '">✎</button>' +
+        '</div></td>' +
+        '</tr>'
+      );
+    })
+    .join('');
+}
+
+function renderOverview() {
+  $('#overviewRows').innerHTML = routes
+    .filter((r) => r.enabled && (r.allow.length > 0 || r.deny.length > 0))
+    .map(
+      (r) =>
+        '<tr class="row-hover"><td class="host">' + r.host + '</td>' +
+        '<td class="backend">' + r.allow.length + '</td>' +
+        '<td class="backend">' + r.deny.length + '</td>' +
+        '<td><span class="badge ok">生效</span></td></tr>'
+    )
+    .join('') || '<tr><td colspan="4" class="empty">暂无启用白名单的域名</td></tr>';
+}
+
+/* ---------- 抽屉 ---------- */
+function openDrawer(index, section) {
+  editingIndex = index;
+  draft = JSON.parse(JSON.stringify(routes[index]));
+  $('#drawerHost').textContent = draft.host;
+  $('#drawerBadge').textContent = draft.enabled && (draft.allow.length > 0 || draft.deny.length > 0)
+    ? '白名单 ' + (draft.allow.length + draft.deny.length) + ' 条'
+    : '未限制';
+  $('#drawerSub').textContent = draft.enabled && (draft.allow.length > 0 || draft.deny.length > 0)
+    ? '仅名单内来源可访问；命中拦截返回 403（WAF IP 阶段）。'
+    : '未启用 IP 白名单，所有来源均可访问；开启后仅名单内来源可访问。';
+  $('#fieldHost').value = draft.host;
+  $('#fieldBackend').value = draft.backend;
+  $('#pathHint').textContent = '该域名有 ' + draft.paths + ' 条 path 规则。v1 的 IP 白名单只作用于域名级，不区分 path。';
+  $('#ipEnabled').checked = draft.enabled;
+  $('#signatures').checked = draft.signatures;
+  renderChips('allow');
+  renderChips('deny');
+  syncIpVisibility();
+  renderTrustSummary();
+  $('#drawerBackdrop').classList.add('open');
+  $('#drawer').classList.add('open');
+  $('#drawer').setAttribute('aria-hidden', 'false');
+  switchSection(section || 'ip');
+  renderYaml();
+}
+
+function closeDrawer() {
+  $('#drawerBackdrop').classList.remove('open');
+  $('#drawer').classList.remove('open');
+  $('#drawer').setAttribute('aria-hidden', 'true');
+  editingIndex = -1;
+  draft = null;
+}
+
+function switchSection(name) {
+  $$('.drawer-section').forEach((b) => b.classList.toggle('active', b.dataset.section === name));
+  $$('.form-section').forEach((p) => p.classList.toggle('active', p.dataset.sectionPanel === name));
+}
+
+function syncIpVisibility() {
+  const on = $('#ipEnabled').checked;
+  $('#ipFields').hidden = !on;
+  $('#ipEmpty').hidden = on;
+  const empty = on && draft && draft.allow.length === 0 && draft.deny.length === 0;
+  $('#ipWarn').hidden = !empty;
+  if (draft) draft.enabled = on;
+  renderYaml();
+}
+
+function renderTrustSummary() {
+  const el = $('#trustSummary');
+  if (globalState.ipMode === 'trusted' && globalState.trustedProxies.length > 0) {
+    el.innerHTML = '受信代理优先 · <code>' + globalState.trustedProxies.length + '</code> 个网段（XFF 仅受信来源采信）';
+  } else {
+    el.innerHTML = '仅 <code>RemoteAddr</code>（不采信 X-Forwarded-For）';
+  }
+  $('#testModeHint').textContent =
+    globalState.ipMode === 'trusted'
+      ? '当前：受信代理模式（' + globalState.trustedProxies.join('、') + '）'
+      : '当前：仅 RemoteAddr 模式';
+}
+
+function renderChips(kind) {
+  const container = kind === 'allow' ? $('#allowChips') : $('#denyChips');
+  const input = kind === 'allow' ? $('#allowInput') : $('#denyInput');
+  $$('.chip', container).forEach((c) => c.remove());
+  draft[kind].forEach((v) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = v + '<button title="移除">×</button>';
+    chip.querySelector('button').addEventListener('click', () => {
+      draft[kind] = draft[kind].filter((x) => x !== v);
+      renderChips(kind);
+      renderYaml();
+      syncIpVisibility();
+    });
+    container.insertBefore(chip, input);
+  });
+}
+
+function addEntry(kind, raw) {
+  const v = String(raw || '').trim();
+  if (!v) return;
+  if (!isValidEntry(v)) {
+    toast('格式不正确', '「' + v + '」不是合法的 IP / CIDR，示例：10.0.0.0/8', true);
+    return;
+  }
+  if (draft[kind].includes(v)) return;
+  draft[kind].push(v);
+  renderChips(kind);
+  renderYaml();
+  syncIpVisibility();
+}
+
+function renderYaml() {
+  if (!draft) return;
+  const yaml = buildRouteYaml(draft);
+  $('#yamlPreview').textContent = yaml;
+  $('#yamlPreviewFull').textContent = yaml;
+}
+
+/* ---------- 试算 ---------- */
+function runTest() {
+  if (!draft) return;
+  const remote = $('#testRemote').value.trim();
+  const xff = $('#testXff').value.trim();
+  if (!remote) {
+    toast('请填写 RemoteAddr', 'RemoteAddr 是必填项', true);
+    return;
+  }
+  const resolved = resolveClientIP(remote, xff, globalState.ipMode, globalState.trustedProxies);
+  const allow = draft.enabled ? draft.allow : [];
+  const deny = draft.enabled ? draft.deny : [];
+  const result = evaluateAllowlist(allow, deny, resolved.ip);
+  const ok = result.allowed;
+  $('#testLog').innerHTML =
+    '<div class="test-result ' + (ok ? 'ok' : 'deny') + '">' +
+    '<div class="tr-title">' + (ok ? '✓ 放行' : '✕ 拒绝') + '<span class="badge ' + (ok ? 'ok' : 'danger') + '">' + (ok ? '200' : '403') + '</span></div>' +
+    '<div class="tr-line">判定 IP：<strong>' + resolved.ip + '</strong></div>' +
+    '<div class="tr-line">取址来源：' + resolved.source + '</div>' +
+    '<div class="tr-line">判定依据：<strong>' + result.reason + '</strong></div>' +
+    (draft.enabled ? '' : '<div class="tr-line">白名单未启用：所有来源放行（全局 WAF 仍可能拦截攻击签名）。</div>') +
+    '</div>';
+}
+
+/* ---------- 保存 ---------- */
+function saveRoute() {
+  if (!draft) return;
+  if (draft.enabled && draft.allow.length === 0 && draft.deny.length === 0) {
+    toast('白名单不能为空', '请至少添加一个允许的 IP / CIDR，或关闭白名单', true);
+    return;
+  }
+  const invalid = [...draft.allow, ...draft.deny].find((v) => !isValidEntry(v));
+  if (invalid) {
+    toast('存在非法条目', '「' + invalid + '」不是合法的 IP / CIDR', true);
+    return;
+  }
+  if (!draft.enabled) {
+    draft.allow = [];
+    draft.deny = [];
+    draft.signatures = false;
+  }
+  const savedIndex = editingIndex;
+  routes[savedIndex] = draft;
+  renderRoutes();
+  renderOverview();
+  closeDrawer();
+  toast('已保存并发布', 'rules[' + savedIndex + '].waf 已写入 ingress.yaml，reload 成功');
+}
+
+/* ---------- 全局设置 ---------- */
+function syncGlobalMode() {
+  const trusted = globalState.ipMode === 'trusted';
+  $$('#modeCards .radio-card').forEach((c) => c.classList.toggle('selected', c.dataset.mode === globalState.ipMode));
+  $('#modeRemote').checked = !trusted;
+  $('#modeTrusted').checked = trusted;
+  $('#trustedEditor').hidden = !trusted;
+  $('#globalYaml').textContent = buildGlobalYaml();
+  renderTrustSummary();
+}
+
+function renderTrustedChips() {
+  const container = $('#trustedChips');
+  const input = $('#trustedInput');
+  $$('.chip', container).forEach((c) => c.remove());
+  globalState.trustedProxies.forEach((v) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = v + '<button title="移除">×</button>';
+    chip.querySelector('button').addEventListener('click', () => {
+      globalState.trustedProxies = globalState.trustedProxies.filter((x) => x !== v);
+      renderTrustedChips();
+      syncGlobalMode();
+    });
+    container.insertBefore(chip, input);
+  });
+}
+
+function addTrusted(raw) {
+  const v = String(raw || '').trim();
+  if (!v) return;
+  if (!isValidEntry(v)) {
+    toast('格式不正确', '「' + v + '」不是合法的 IP / CIDR', true);
+    return;
+  }
+  if (isWildcardTrusted(v)) {
+    toast('不能使用 /0', '0.0.0.0/0 等于信任所有来源，X-Forwarded-For 可被任意伪造', true);
+    return;
+  }
+  if (globalState.trustedProxies.includes(v)) return;
+  globalState.trustedProxies.push(v);
+  renderTrustedChips();
+  syncGlobalMode();
+}
+
+function saveGlobal() {
+  if (globalState.ipMode === 'trusted') {
+    if (globalState.trustedProxies.length === 0) {
+      toast('受信代理不能为空', '受信代理模式下请至少添加一个网段，或改回「仅 RemoteAddr」', true);
+      return;
+    }
+    const wildcard = globalState.trustedProxies.find(isWildcardTrusted);
+    if (wildcard) {
+      toast('不能使用 /0', wildcard + ' 等于信任所有来源', true);
+      return;
+    }
+  }
+  syncGlobalMode();
+  toast('已保存全局设置', 'waf.trusted_proxies 已写入 ingress.yaml，reload 成功');
+}
+
+/* ---------- Toast ---------- */
+let toastTimer = null;
+function toast(title, desc, error) {
+  $('#toastTitle').textContent = title;
+  $('#toastDesc').textContent = desc;
+  const t = $('#toast');
+  t.classList.toggle('error', !!error);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+/* ---------- 事件绑定 ---------- */
+$$('.tab[data-page-tab]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const name = btn.dataset.pageTab;
+    $$('.tab[data-page-tab]').forEach((t) => t.classList.toggle('active', t === btn));
+    $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-' + name));
+  });
+});
+
+$('#routeRows').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  const i = Number(btn.dataset.i);
+  if (btn.dataset.action === 'edit') openDrawer(i, 'ip');
+  if (btn.dataset.action === 'test') {
+    openDrawer(i, 'ip');
+    setTimeout(() => {
+      const panel = $('.form-section[data-section-panel="ip"]');
+      const test = panel.querySelector('.test-panel');
+      if (test) test.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 120);
+  }
+});
+
+$('#drawerSections').addEventListener('click', (e) => {
+  const btn = e.target.closest('.drawer-section');
+  if (btn) switchSection(btn.dataset.section);
+});
+$('#closeDrawer').addEventListener('click', closeDrawer);
+$('#cancelDrawer').addEventListener('click', closeDrawer);
+$('#drawerBackdrop').addEventListener('click', closeDrawer);
+$('#saveRoute').addEventListener('click', saveRoute);
+$('#ipEnabled').addEventListener('change', syncIpVisibility);
+$('#signatures').addEventListener('change', () => {
+  draft.signatures = $('#signatures').checked;
+  renderYaml();
+});
+$('#runTest').addEventListener('click', runTest);
+$('#gotoGlobal').addEventListener('click', () => {
+  closeDrawer();
+  $$('.tab[data-page-tab]').forEach((t) => t.classList.toggle('active', t.dataset.pageTab === 'global'));
+  $$('.tab-panel').forEach((p) => (p.hidden = p.id !== 'tab-global'));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+$('#allowInput').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  addEntry('allow', e.target.value);
+  e.target.value = '';
+});
+$('#denyInput').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  addEntry('deny', e.target.value);
+  e.target.value = '';
+});
+$$('.preset[data-cidr]').forEach((b) =>
+  b.addEventListener('click', () => addEntry('allow', b.dataset.cidr))
+);
+
+$('#modeCards').addEventListener('click', (e) => {
+  const card = e.target.closest('.radio-card');
+  if (!card) return;
+  globalState.ipMode = card.dataset.mode;
+  syncGlobalMode();
+});
+$('#trustedInput').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  addTrusted(e.target.value);
+  e.target.value = '';
+});
+$$('.preset[data-trusted]').forEach((b) =>
+  b.addEventListener('click', () => addTrusted(b.dataset.trusted))
+);
+$('#saveGlobal').addEventListener('click', saveGlobal);
+
+/* ---------- 日志筛选 ---------- */
+function filterLogs() {
+  const status = $('#logFilterStatus').value;
+  const text = $('#logFilterText').value.trim().toLowerCase();
+  $$('#logRows .log-row').forEach((row) => {
+    const okStatus = status === 'all' || row.dataset.status === status;
+    const okText = !text || row.dataset.text.toLowerCase().includes(text) || row.textContent.toLowerCase().includes(text);
+    row.hidden = !(okStatus && okText);
+  });
+}
+$('#logFilterStatus').addEventListener('change', filterLogs);
+$('#logFilterText').addEventListener('input', filterLogs);
+$('#logFilterBtn').addEventListener('click', filterLogs);
+
+/* ---------- 初始化 ---------- */
+renderRoutes();
+renderOverview();
+renderTrustedChips();
+syncGlobalMode();
+
+/* ---------- 自测（?selftest=1）：无头验证纯函数，避免截图 ---------- */
+function runSelfTest() {
+  const cases = [];
+  const t = (name, cond) => cases.push({ name, ok: !!cond });
+  t('cidr /8 命中', cidrContains('10.0.0.0/8', '10.1.2.3'));
+  t('cidr /8 不命中', !cidrContains('10.0.0.0/8', '11.0.0.1'));
+  t('cidr /32 命中', cidrContains('203.0.113.7/32', '203.0.113.7'));
+  t('单 IP 命中', cidrContains('203.0.113.7', '203.0.113.7'));
+  t('非法条目拒绝', !isValidEntry('10.0.0.0/33') && !isValidEntry('300.1.1.1'));
+  t('合法条目接受', isValidEntry('10.0.0.0/8') && isValidEntry('fc00::/7') && isValidEntry('1.2.3.4'));
+  t(
+    '受信代理：右起第一个非受信',
+    resolveClientIP('10.0.0.5', '1.2.3.4, 10.0.0.2', 'trusted', ['10.0.0.0/8']).ip === '1.2.3.4'
+  );
+  t(
+    '非受信来源忽略 XFF',
+    resolveClientIP('198.51.100.23', '203.0.113.7', 'trusted', ['10.0.0.0/8']).ip === '198.51.100.23'
+  );
+  t(
+    'XFF 全受信退回 RemoteAddr',
+    resolveClientIP('10.0.0.5', '10.0.0.9, 10.0.0.2', 'trusted', ['10.0.0.0/8']).ip === '10.0.0.5'
+  );
+  t(
+    '仅 RemoteAddr 模式忽略 XFF',
+    resolveClientIP('198.51.100.23', '203.0.113.7', 'remote', []).ip === '198.51.100.23'
+  );
+  t('deny 优先于 allow', evaluateAllowlist(['10.0.0.0/8'], ['10.0.0.9/32'], '10.0.0.9').allowed === false);
+  t('allow 命中放行', evaluateAllowlist(['10.0.0.0/8'], [], '10.1.1.1').allowed === true);
+  t('allow 未命中拒绝', evaluateAllowlist(['10.0.0.0/8'], [], '198.51.100.1').allowed === false);
+  t('空 allow 不限制', evaluateAllowlist([], [], '198.51.100.1').allowed === true);
+  t('未启用不写 waf', buildRouteYaml({ host: 'a.example.com', enabled: false, allow: [], deny: [], signatures: false }).indexOf('waf:') === -1);
+  const yamlOn = buildRouteYaml({ host: 'a.example.com', enabled: true, allow: ['10.0.0.0/8'], deny: [], signatures: false });
+  t('启用写入 enabled/disable_builtin/allow', yamlOn.includes('enabled: true') && yamlOn.includes('disable_builtin: true') && yamlOn.includes("'10.0.0.0/8'"));
+
+  const failed = cases.filter((c) => !c.ok);
+  const pre = document.createElement('pre');
+  pre.id = 'selftest';
+  pre.textContent =
+    (failed.length ? 'FAIL' : 'PASS') + ' ' + (cases.length - failed.length) + '/' + cases.length + '\n' +
+    cases.map((c) => (c.ok ? 'ok   ' : 'FAIL ') + c.name).join('\n');
+  pre.style.cssText = 'position:fixed;left:0;bottom:0;z-index:9999;max-height:40vh;overflow:auto;background:#090c11;color:#c9d5e6;font:11px/1.6 monospace;padding:10px;margin:0;white-space:pre';
+  document.body.appendChild(pre);
+  document.title = (failed.length ? 'FAIL' : 'PASS') + ' selftest';
+}
+if (new URLSearchParams(location.search).get('selftest') === '1') runSelfTest();
+</script>
+</body>
+</html>

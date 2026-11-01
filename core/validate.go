@@ -74,6 +74,9 @@ func ValidateConfig(cfg *Config) error {
 		if err := validateRateLimit(r.RateLimit, fmt.Sprintf("rules[%d]", i)); err != nil {
 			return err
 		}
+		if err := validateRuleWAFIPAllowlist(cfg, i); err != nil {
+			return err
+		}
 		if err := validateBackend(r.Backend, i, r.Host, "/", false); err != nil {
 			return err
 		}
@@ -395,4 +398,31 @@ func validateHandler(handler rule.Handler, ruleIdx int, host, pathPattern string
 		return fmt.Errorf("%s.type: unsupported handler type: %s",
 			handlerLoc(ruleIdx, host, pathPattern), handlerType)
 	}
+}
+
+// validateRuleWAFIPAllowlist rejects a per-route IP allowlist that would be a
+// silent no-op: rules[].waf.allow/deny configured while WAF is not enabled for
+// that rule. Global waf.allow/deny are left alone (backward compatible).
+func validateRuleWAFIPAllowlist(cfg *Config, ruleIdx int) error {
+	r := &cfg.Rules[ruleIdx]
+	if len(r.WAFPatch) == 0 {
+		return nil
+	}
+	_, hasAllow := r.WAFPatch["allow"]
+	_, hasDeny := r.WAFPatch["deny"]
+	if !hasAllow && !hasDeny {
+		return nil
+	}
+	merged, err := waf.MergePatch(cfg.WAF, r.WAFPatch, ruleIdx)
+	if err != nil {
+		return fmt.Errorf("rules[%d].waf: %w", ruleIdx, err)
+	}
+	if merged.Enabled {
+		return nil
+	}
+	return fmt.Errorf(
+		"rules[%d].waf: allow/deny is set but WAF is not enabled for this rule; "+
+			"add rules[%d].waf.enabled: true (or enable global waf)",
+		ruleIdx, ruleIdx,
+	)
 }

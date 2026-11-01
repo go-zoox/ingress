@@ -158,6 +158,13 @@ func MergePatch(base rule.WAF, patch map[string]any, ruleIdx int) (rule.WAF, err
 		}
 		out.Allow = sl
 	}
+	if v, ok := patch["trusted_proxies"]; ok {
+		sl, err := strSlice(v, qual(rLoc, "trusted_proxies"))
+		if err != nil {
+			return out, err
+		}
+		out.TrustedProxies = sl
+	}
 	if v, ok := patch["allow_hosts"]; ok {
 		sl, err := strSlice(v, qual(rLoc, "allow_hosts"))
 		if err != nil {
