@@ -208,6 +208,39 @@ describe('copy fidelity (deep copy via formToRule)', () => {
     expect(source).toEqual(before)
   })
 
+  it('keeps connect_proxy configuration for the duplicate', () => {
+    const source: Record<string, unknown> = {
+      host: 'proxy.example.com',
+      backend: { type: 'service', service: { name: 'orders', port: 8080 } },
+      connect_proxy: {
+        enabled: true,
+        upstream: { name: 'egress-proxy', port: 3128, protocol: 'https' },
+        allowed_targets: ['^api\\..*:443$'],
+        connect_timeout: 5,
+        max_connections: 64,
+      },
+    }
+    const form = ruleToForm(source)
+    form.host = 'proxy-copy.example.com'
+    const copy = formToRule(form, cloneRuleRow(source))
+    expect(copy.connect_proxy).toMatchObject({
+      enabled: true,
+      allowed_targets: ['^api\\..*:443$'],
+      connect_timeout: 5,
+      max_connections: 64,
+      upstream: { name: 'egress-proxy', port: 3128, protocol: 'https' },
+    })
+  })
+
+  it('treats an explicit host_type: exact as literal even with regex metacharacters', () => {
+    const host = '^legacy\\.example\\.com$'
+    const suggestion = suggestCopyHost(host, [], 'exact')
+    expect(suggestion.auto).toBe(true)
+    expect(suggestion.host).not.toBe(host)
+    expect(suggestion.host).toContain('-copy')
+    expect(copyHostWarning(host, 'exact')).toBeNull()
+  })
+
   it('falls back to the source host_type when the form keeps auto', () => {
     const source = sourceRule()
     const form = ruleToForm(source)

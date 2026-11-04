@@ -86,6 +86,7 @@ export const RulesEditor = forwardRef<
   const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null)
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null)
   const noticeTimerRef = useRef<number | null>(null)
+  const noticeBaselineRef = useRef<Record<string, unknown> | null>(null)
 
   const patchRules = (rows: Record<string, unknown>[]) => {
     onChange({ rules: rows })
@@ -156,23 +157,55 @@ export const RulesEditor = forwardRef<
     [],
   )
 
+  // The undo bar only makes sense while the copied draft is untouched. Once the
+  // parent doc changes (save/publish reload or any further edit), drop it.
+  useEffect(() => {
+    if (!copyNotice) {
+      noticeBaselineRef.current = null
+      return
+    }
+    if (noticeBaselineRef.current == null) {
+      noticeBaselineRef.current = doc
+      return
+    }
+    if (noticeBaselineRef.current !== doc) {
+      if (noticeTimerRef.current != null) window.clearTimeout(noticeTimerRef.current)
+      noticeTimerRef.current = null
+      noticeBaselineRef.current = null
+      setCopyNotice(null)
+    }
+  }, [doc, copyNotice])
+
+  const flashRow = (index: number) => {
+    // Reset first so creating another copy at the same index restarts the CSS animation.
+    setHighlightIndex(null)
+    window.requestAnimationFrame(() => setHighlightIndex(index))
+  }
+
+  const dismissCopyNotice = () => {
+    if (noticeTimerRef.current != null) window.clearTimeout(noticeTimerRef.current)
+    noticeTimerRef.current = null
+    noticeBaselineRef.current = null
+    setCopyNotice(null)
+  }
+
   const showCopyNotice = (
     host: string,
     index: number,
     snapshot: Record<string, unknown>[],
   ) => {
     if (noticeTimerRef.current != null) window.clearTimeout(noticeTimerRef.current)
+    noticeBaselineRef.current = null
     setCopyNotice({ message: `已创建副本 ${host}（第 ${index + 1} 条）`, snapshot })
-    setHighlightIndex(index)
+    flashRow(index)
     noticeTimerRef.current = window.setTimeout(() => setCopyNotice(null), 8000)
   }
 
   const undoCopy = () => {
     if (!copyNotice) return
-    if (noticeTimerRef.current != null) window.clearTimeout(noticeTimerRef.current)
     patchRules(copyNotice.snapshot)
-    setCopyNotice(null)
     setHighlightIndex(null)
+    dismissCopyNotice()
   }
 
   const copyHostError = copySource ? copyHostValidation(draft.host, rules) : null
@@ -241,15 +274,11 @@ export const RulesEditor = forwardRef<
 
   const copySuggestionNote = (() => {
     if (!copySource) return null
-    const suggestion = copySource.suggestion
-    if (!suggestion.auto) {
-      return (
-        <p className="copy-route-note">
-          {copyHostWarningMessage ?? '正则 Host 不会自动改名；请确认副本 Host'}
-        </p>
-      )
+    if (copyHostWarningMessage) {
+      return <p className="copy-route-note">{copyHostWarningMessage}</p>
     }
-    if (draft.host.trim() !== suggestion.host) return null
+    const suggestion = copySource.suggestion
+    if (!suggestion.auto || draft.host.trim() !== suggestion.host) return null
     if (suggestion.collisionAvoided) {
       return (
         <p className="copy-route-hint">
@@ -428,8 +457,8 @@ export const RulesEditor = forwardRef<
       </ConfigEntityModal>
 
       {copyNotice ? (
-        <div className="copy-undo-bar" role="status">
-          <span>{copyNotice.message}</span>
+        <div className="copy-undo-bar">
+          <span role="status">{copyNotice.message}</span>
           <span className="copy-undo-hint">未保存 · 发布后才会生效</span>
           <button type="button" className="action-link copy-undo-action" onClick={undoCopy}>
             撤销
@@ -438,7 +467,7 @@ export const RulesEditor = forwardRef<
             type="button"
             className="copy-undo-close"
             aria-label="关闭提示"
-            onClick={() => setCopyNotice(null)}
+            onClick={dismissCopyNotice}
           >
             ×
           </button>

@@ -78,10 +78,6 @@
 - [x] `version.go` → `1.23.1`，提交 `chore(release): bumped version to v1.23.1`，打 tag `v1.23.1`
 - [x] 推送 `master` 与 tag 到 `origin`（https://github.com/go-zoox/ingress）
 
-## Verification
-
-（实现完成后回填：命令、结果、日期、版本）
-
 ## Verification（2026-11-04，v1.23.1）
 
 - `cd core/admin/web && pnpm test`：18 个测试文件 / 141 用例通过（新增 `configEntities.copy.test.ts` 18 例）。
@@ -98,3 +94,15 @@
 - `go test ./core/...`：本 change 无 Go 代码改动；环境相关历史失败（root 下的 geoip「不可读文件」用例、`access_log_empty` 15m 用例）与本次无关，其余包通过。
 - 原型回归：`prototypes/route-copy/` → `node scripts/smoke.js` 通过；`node scripts/ui-smoke.mjs` 33 项通过（headless chromium）。
 - 发布：`version.go` → `1.23.1`，`chore(release): bumped version to v1.23.1`，tag `v1.23.1`，推送 `origin master` 与 tag。
+
+## Review follow-ups（2026-11-04，v1.23.1 之后）
+
+独立评审结论 PASS WITH NITS，已修复以下非阻断项：
+
+- 正则 Host 提示改为按**当前 draft Host** 实时计算（源为 regex、用户改成合法域名后提示消失；exact 规则手输 regex Host 时提示出现）。
+- 撤销条与保存/发布联动：doc 被父级替换（发布 reload 或继续编辑）后自动关闭，避免用旧快照覆盖新草稿；`×` 关闭同时清理计时器。
+- 撤销条 live region 只包裹消息文本（`role="status"`），按钮移出 live region。
+- 行高亮先置空再 `requestAnimationFrame` 设置，重复复制同一下标可重新触发动画。
+- `.copy-route-hint` 使用未定义 CSS 变量 `--text-dim` → 改为 `--text-muted`。
+- 单测补 `connect_proxy` 保真与「显式 host_type: exact + 含正则符号 Host」。
+- 删除 tasks.md 重复的 Verification 占位标题。

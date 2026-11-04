@@ -7530,7 +7530,7 @@ tr.row-active td {
   margin: 0;
   font-size: 11px;
   line-height: 1.5;
-  color: var(--text-dim);
+  color: var(--text-muted);
 }
 
 .copy-route-hint code {
