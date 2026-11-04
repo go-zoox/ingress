@@ -160,6 +160,8 @@ type RuleEntityFormSectionsProps =
       serviceCatalog?: ServiceForm[]
       serviceFieldMode?: 'manual' | 'catalog-select'
       trustedProxies?: string[]
+      /** Inline error for the Host field (route duplicate validation). */
+      hostError?: string | null
     }
   | {
       variant: 'path'
@@ -171,6 +173,8 @@ type RuleEntityFormSectionsProps =
       serviceCatalog?: ServiceForm[]
       serviceFieldMode?: 'manual' | 'catalog-select'
       trustedProxies?: string[]
+      /** Inline error for the Host field (route duplicate validation). */
+      hostError?: string | null
     }
 
 function SharedBackendSections<T extends BackendForm>({
@@ -286,7 +290,7 @@ function SharedBackendSections<T extends BackendForm>({
 }
 
 export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
-  const { form, onChange, activeSection, onSectionChange, variant, idPrefix = '', serviceCatalog, serviceFieldMode = 'manual', trustedProxies = [] } = props
+  const { form, onChange, activeSection, onSectionChange, variant, idPrefix = '', serviceCatalog, serviceFieldMode = 'manual', trustedProxies = [], hostError = null } = props
   const sections = ruleSections(form, variant === 'rule')
 
   const renderSection = () => {
@@ -306,6 +310,7 @@ export function RuleEntityFormSections(props: RuleEntityFormSectionsProps) {
                 label="Host"
                 keyName="host"
                 value={ruleForm.host}
+                error={hostError}
                 onChange={(e) => setRuleForm({ ...ruleForm, host: e.target.value })}
               />
               <FormSelectField

@@ -74,6 +74,7 @@ export function EntityRowActions({
   onMoveDown,
   disableMoveUp,
   disableMoveDown,
+  leadingMenuItems,
   menuItems,
 }: {
   onEdit: () => void
@@ -82,6 +83,8 @@ export function EntityRowActions({
   onMoveDown?: () => void
   disableMoveUp?: boolean
   disableMoveDown?: boolean
+  /** Rendered above the move actions (e.g. duplicate). */
+  leadingMenuItems?: EntityRowMenuItem[]
   menuItems?: EntityRowMenuItem[]
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -141,6 +144,7 @@ export function EntityRowActions({
   }
 
   const canMove = onMoveUp != null || onMoveDown != null
+  const leadingItems = leadingMenuItems ?? []
   const extraItems = menuItems ?? []
 
   const menuPanel = menuOpen ? (
@@ -150,6 +154,18 @@ export function EntityRowActions({
       role="menu"
       style={menuStyle}
     >
+      {leadingItems.map((item) => (
+        <button
+          key={item.label}
+          type="button"
+          role="menuitem"
+          className={`action-menu-item${item.danger ? ' action-danger' : ''}`}
+          disabled={item.disabled}
+          onClick={() => runMenuItem(item)}
+        >
+          {item.label}
+        </button>
+      ))}
       {canMove && (
         <>
           <button
@@ -192,7 +208,7 @@ export function EntityRowActions({
           {item.label}
         </button>
       ))}
-      {(canMove || extraItems.length > 0) && <div className="action-menu-sep" aria-hidden />}
+      {(leadingItems.length > 0 || canMove || extraItems.length > 0) && <div className="action-menu-sep" aria-hidden />}
       <button
         type="button"
         role="menuitem"

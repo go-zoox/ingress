@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { RouteRulesManageTab } from '../components/routes/RouteRulesManageTab'
@@ -26,6 +26,11 @@ export function RoutesPage() {
   const tab = parseTab(searchParams.get('tab'))
   const highlightRi = searchParams.get('ri') ? Number(searchParams.get('ri')) : undefined
   const highlightPi = searchParams.get('pi') ? Number(searchParams.get('pi')) : undefined
+  const copyParam = searchParams.get('copy')
+  const initialCopyIndex =
+    copyParam != null && copyParam !== '' && Number.isInteger(Number(copyParam))
+      ? Number(copyParam)
+      : undefined
 
   const [urlInput, setUrlInput] = useState('https://api.example.com/v2/users')
   const [match, setMatch] = useState<MatchPreview | null>(null)
@@ -39,6 +44,12 @@ export function RoutesPage() {
   useEffect(() => {
     reloadRows()
   }, [])
+
+  const handleCopyHandled = useCallback(() => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('copy')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const setTab = (id: TabId) => {
     const next = new URLSearchParams(searchParams)
@@ -95,6 +106,8 @@ export function RoutesPage() {
 
       {tab === 'list' ? (
         <RouteRulesManageTab
+          initialCopyIndex={initialCopyIndex}
+          onCopyHandled={handleCopyHandled}
           onPublished={reloadRows}
           onSaveSuccess={(msg) => show(msg)}
           onSaveError={(msg) => show(msg, 'error')}

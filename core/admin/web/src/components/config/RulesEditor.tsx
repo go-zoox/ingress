@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { GripVertical } from 'lucide-react'
 import {
   ConfigEntityModal,
@@ -12,13 +12,20 @@ import {
   type RuleEntitySectionId,
 } from './RuleEntityFormSections'
 import {
+  cloneRuleRow,
+  copyHostValidation,
+  copyHostWarning,
   emptyRuleForm,
   formToRule,
+  insertCopiedRule,
   ruleIPAllowlistLabel,
   ruleSaveDisabled,
   ruleSummary,
   ruleToForm,
   rulesFromDoc,
+  suggestCopyHost,
+  type CopyHostSuggestion,
+  type HostType,
   type RuleForm,
 } from '../../lib/configEntities'
 import { trustedProxiesFromDoc } from '../../lib/ipAllowlist'
@@ -29,6 +36,19 @@ import type { ServiceForm } from '../../lib/services'
 
 export type RulesEditorHandle = {
   openAdd: () => void
+  /** Open the duplicate-route modal for the rule at `index` (used by ?copy=<ri> deep links). */
+  openCopy: (index: number) => void
+}
+
+type CopySource = {
+  index: number
+  host: string
+  suggestion: CopyHostSuggestion
+}
+
+type CopyNotice = {
+  message: string
+  snapshot: Record<string, unknown>[]
 }
 
 export const RulesEditor = forwardRef<
@@ -61,21 +81,58 @@ export const RulesEditor = forwardRef<
   const [editIndex, setEditIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState<RuleForm>(emptyRuleForm())
   const [activeSection, setActiveSection] = useState<RuleEntitySectionId>('basic')
+  const [copySource, setCopySource] = useState<CopySource | null>(null)
+  const [copyPosition, setCopyPosition] = useState<'after' | 'end'>('after')
+  const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null)
+  const [highlightIndex, setHighlightIndex] = useState<number | null>(null)
+  const noticeTimerRef = useRef<number | null>(null)
 
   const patchRules = (rows: Record<string, unknown>[]) => {
     onChange({ rules: rows })
   }
 
+  const resetCopyState = () => {
+    setCopySource(null)
+    setCopyPosition('after')
+  }
+
   const openAdd = () => {
+    resetCopyState()
     setEditIndex(null)
     setDraft(emptyRuleForm())
     setActiveSection(defaultRuleEntitySection('rule'))
     setModalOpen(true)
   }
 
-  useImperativeHandle(ref, () => ({ openAdd }), [])
+  const openCopy = (index: number) => {
+    const source = rules[index]
+    if (!source) return
+    const sourceHost = str(source.host)
+    const hostType = str(source.host_type, 'auto') as HostType
+    const suggestion = suggestCopyHost(
+      sourceHost,
+      rules.map((rule) => str(rule.host)),
+      hostType,
+    )
+    const form = ruleToForm(source)
+    form.host = suggestion.host
+    setEditIndex(null)
+    setCopyPosition('after')
+    setCopySource({ index, host: sourceHost, suggestion })
+    setDraft(form)
+    setActiveSection(defaultRuleEntitySection('rule'))
+    setModalOpen(true)
+  }
+
+  useImperativeHandle(ref, () => ({ openAdd, openCopy }))
+
+  const closeModal = () => {
+    setModalOpen(false)
+    resetCopyState()
+  }
 
   const openEdit = (index: number) => {
+    resetCopyState()
     setEditIndex(index)
     setDraft(ruleToForm(rules[index]))
     setActiveSection(defaultRuleEntitySection('rule'))
@@ -86,8 +143,56 @@ export const RulesEditor = forwardRef<
     setPathsModalIndex(index)
   }
 
+  useEffect(() => {
+    if (highlightIndex == null) return
+    const timer = window.setTimeout(() => setHighlightIndex(null), 3200)
+    return () => window.clearTimeout(timer)
+  }, [highlightIndex])
+
+  useEffect(
+    () => () => {
+      if (noticeTimerRef.current != null) window.clearTimeout(noticeTimerRef.current)
+    },
+    [],
+  )
+
+  const showCopyNotice = (
+    host: string,
+    index: number,
+    snapshot: Record<string, unknown>[],
+  ) => {
+    if (noticeTimerRef.current != null) window.clearTimeout(noticeTimerRef.current)
+    setCopyNotice({ message: `已创建副本 ${host}（第 ${index + 1} 条）`, snapshot })
+    setHighlightIndex(index)
+    noticeTimerRef.current = window.setTimeout(() => setCopyNotice(null), 8000)
+  }
+
+  const undoCopy = () => {
+    if (!copyNotice) return
+    if (noticeTimerRef.current != null) window.clearTimeout(noticeTimerRef.current)
+    patchRules(copyNotice.snapshot)
+    setCopyNotice(null)
+    setHighlightIndex(null)
+  }
+
+  const copyHostError = copySource ? copyHostValidation(draft.host, rules) : null
+  const copyHostWarningMessage = copySource
+    ? copyHostWarning(draft.host, (draft.host_type || 'auto') as HostType)
+    : null
+
   const save = () => {
     if (!draft.host.trim()) return
+    if (copySource) {
+      if (copyHostError) return
+      const source = rules[copySource.index]
+      const row = formToRule(draft, source ? cloneRuleRow(source) : undefined)
+      const result = insertCopiedRule(rules, copySource.index, copyPosition, row)
+      patchRules(result.rules)
+      showCopyNotice(str(row.host), result.index, rules)
+      setModalOpen(false)
+      resetCopyState()
+      return
+    }
     const row = formToRule(draft, editIndex == null ? undefined : rules[editIndex])
     const next = [...rules]
     if (editIndex == null) next.push(row)
@@ -127,6 +232,35 @@ export const RulesEditor = forwardRef<
 
   const pathsRule = pathsModalIndex == null ? null : rules[pathsModalIndex]
 
+  const copyRowClass = (index: number, extra?: string) => {
+    const parts: string[] = []
+    if (extra) parts.push(extra)
+    if (highlightIndex === index) parts.push('row-flash')
+    return parts.length > 0 ? parts.join(' ') : undefined
+  }
+
+  const copySuggestionNote = (() => {
+    if (!copySource) return null
+    const suggestion = copySource.suggestion
+    if (!suggestion.auto) {
+      return (
+        <p className="copy-route-note">
+          {copyHostWarningMessage ?? '正则 Host 不会自动改名；请确认副本 Host'}
+        </p>
+      )
+    }
+    if (draft.host.trim() !== suggestion.host) return null
+    if (suggestion.collisionAvoided) {
+      return (
+        <p className="copy-route-hint">
+          {suggestion.firstSuggestion} 已被现有规则占用，已自动顺延为{' '}
+          <code>{suggestion.host}</code>
+        </p>
+      )
+    }
+    return <p className="copy-route-hint">已按原 Host 生成区分名，可直接修改</p>
+  })()
+
   return (
     <>
       {!hideTableChrome ? (
@@ -163,7 +297,7 @@ export const RulesEditor = forwardRef<
               return (
                 <tr
                   key={`${str(rule.host)}-${i}`}
-                  className={rowClassName(i, enabled ? undefined : 'row-muted')}
+                  className={rowClassName(i, copyRowClass(i, enabled ? undefined : 'row-muted'))}
                   {...rowProps(i)}
                 >
                   <td className="col-drag">
@@ -227,6 +361,7 @@ export const RulesEditor = forwardRef<
                       onMoveDown={() => moveRule(i, 1)}
                       disableMoveUp={i === 0}
                       disableMoveDown={i === rules.length - 1}
+                      leadingMenuItems={[{ label: '复制路由', onClick: () => openCopy(i) }]}
                       menuItems={[
                         { label: 'Paths', onClick: () => openPaths(i) },
                         ...(onOpenDetail
@@ -244,12 +379,41 @@ export const RulesEditor = forwardRef<
 
       <ConfigEntityModal
         open={modalOpen}
-        title={editIndex == null ? '添加路由规则' : '编辑路由规则'}
+        title={copySource ? '复制路由' : editIndex == null ? '添加路由规则' : '编辑路由规则'}
         wide
-        onClose={() => setModalOpen(false)}
+        onClose={closeModal}
         onSave={save}
-        disableSave={ruleSaveDisabled(draft)}
+        saveLabel={copySource ? '创建副本' : '保存'}
+        disableSave={ruleSaveDisabled(draft) || Boolean(copyHostError)}
       >
+        {copySource ? (
+          <div className="copy-route-banner">
+            <div className="copy-route-banner-head">
+              <span className="copy-route-badge">副本</span>
+              <span className="copy-route-source">
+                源规则 #{copySource.index + 1} · <code>{copySource.host}</code>
+              </span>
+            </div>
+            <p className="copy-route-desc">
+              除 Host 外全部配置（backend / paths / WAF / 限流 / 缓存 / 安全 / 正向代理）已复制；副本与源规则互相独立。
+            </p>
+            <div className="copy-route-options">
+              <label className="copy-route-option">
+                <span>插入位置</span>
+                <select
+                  className="form-control"
+                  value={copyPosition}
+                  onChange={(event) => setCopyPosition(event.target.value as 'after' | 'end')}
+                >
+                  <option value="after">紧随规则 #{copySource.index + 1} 之后（推荐）</option>
+                  <option value="end">列表末尾</option>
+                </select>
+              </label>
+              {copySuggestionNote}
+            </div>
+            {copyHostError ? <p className="copy-route-error">{copyHostError}</p> : null}
+          </div>
+        ) : null}
         <RuleEntityFormSections
           form={draft}
           onChange={setDraft}
@@ -259,8 +423,27 @@ export const RulesEditor = forwardRef<
           serviceCatalog={serviceCatalog}
           serviceFieldMode={serviceFieldMode}
           trustedProxies={trustedProxies}
+          hostError={copyHostError}
         />
       </ConfigEntityModal>
+
+      {copyNotice ? (
+        <div className="copy-undo-bar" role="status">
+          <span>{copyNotice.message}</span>
+          <span className="copy-undo-hint">未保存 · 发布后才会生效</span>
+          <button type="button" className="action-link copy-undo-action" onClick={undoCopy}>
+            撤销
+          </button>
+          <button
+            type="button"
+            className="copy-undo-close"
+            aria-label="关闭提示"
+            onClick={() => setCopyNotice(null)}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
 
       {pathsRule && pathsModalIndex != null && (
         <RulePathsModal

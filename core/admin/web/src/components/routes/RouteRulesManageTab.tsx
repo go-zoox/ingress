@@ -13,9 +13,19 @@ type Props = {
   onPublished?: () => void
   onSaveError?: (message: string) => void
   onSaveSuccess?: (message: string) => void
+  /** Deep link from the route detail page: open the duplicate modal for this rule index. */
+  initialCopyIndex?: number
+  /** Called once the deep-linked copy modal has been opened so the caller can clear ?copy=. */
+  onCopyHandled?: () => void
 }
 
-export function RouteRulesManageTab({ onPublished, onSaveError, onSaveSuccess }: Props) {
+export function RouteRulesManageTab({
+  onPublished,
+  onSaveError,
+  onSaveSuccess,
+  initialCopyIndex,
+  onCopyHandled,
+}: Props) {
   const navigate = useNavigate()
   const rulesEditorRef = useRef<RulesEditorHandle>(null)
   const {
@@ -36,6 +46,7 @@ export function RouteRulesManageTab({ onPublished, onSaveError, onSaveSuccess }:
   const [publishContent, setPublishContent] = useState('')
   const [savePublishOpen, setSavePublishOpen] = useState(false)
   const [diffHtml, setDiffHtml] = useState('')
+  const openedCopyRef = useRef<number | null>(null)
 
   const loadServices = useCallback(() => {
     api
@@ -52,6 +63,14 @@ export function RouteRulesManageTab({ onPublished, onSaveError, onSaveSuccess }:
   useEffect(() => {
     loadServices()
   }, [loadServices])
+
+  useEffect(() => {
+    if (loading || initialCopyIndex == null || !Number.isInteger(initialCopyIndex)) return
+    if (openedCopyRef.current === initialCopyIndex) return
+    openedCopyRef.current = initialCopyIndex
+    rulesEditorRef.current?.openCopy(initialCopyIndex)
+    onCopyHandled?.()
+  }, [loading, initialCopyIndex, onCopyHandled])
 
   const serviceCatalog = serviceFormListFromDoc(servicesDoc)
 

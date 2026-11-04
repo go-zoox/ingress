@@ -1727,3 +1727,144 @@ export function ruleSaveDisabled(form: RuleForm): boolean {
   }
   return backendSaveDisabled(form)
 }
+
+// ---------------------------------------------------------------------------
+// Route duplicate
+// ---------------------------------------------------------------------------
+
+export type HostType = 'auto' | 'exact' | 'wildcard' | 'regex'
+
+export type CopyHostSuggestion = {
+  host: string
+  /** false when the host is a regex and must be confirmed manually. */
+  auto: boolean
+  firstSuggestion: string
+  /** true when the first suggestion was taken and a -copy-N suffix was used. */
+  collisionAvoided: boolean
+}
+
+const HOST_REGEX_META = /[()[\]{}^$|+?\\]/
+
+/** Mirrors core/compile.go inference: regex metacharacters win over `*`. */
+export function effectiveHostTypeForHost(host: string): 'exact' | 'wildcard' | 'regex' {
+  const value = str(host).trim()
+  if (HOST_REGEX_META.test(value)) return 'regex'
+  if (value.includes('*')) return 'wildcard'
+  return 'exact'
+}
+
+function resolveHostType(host: string, hostType?: HostType): 'exact' | 'wildcard' | 'regex' {
+  if (hostType && hostType !== 'auto') return hostType
+  return effectiveHostTypeForHost(host)
+}
+
+function normalizeHostKey(host: unknown): string {
+  return str(host).trim().toLowerCase()
+}
+
+function patchFirstHostLabel(host: string, attempt: number): string {
+  const labels = host.split('.')
+  let index = 0
+  while (index < labels.length && labels[index] === '') index += 1
+  if (index >= labels.length) return `${host}-copy`
+  const current = labels[index] ?? ''
+  const match = current.match(/-copy(?:-(\d+))?$/)
+  const level = (match ? Number(match[1] ?? 1) : 0) + attempt
+  let base = current.replace(/-copy(?:-\d+)?$/, '')
+  if (!base) base = 'copy'
+  labels[index] = level === 0 ? `${base}-copy` : `${base}-copy-${level + 1}`
+  return labels.join('.')
+}
+
+/**
+ * Suggest the Host for a copied rule.
+ * - exact / wildcard: `api.example.com` -> `api-copy.example.com`,
+ *   `*.shop.example.com` -> `*.shop-copy.example.com`
+ * - already taken -> `-copy-2`, `-copy-3`, ...
+ * - regex hosts are returned unchanged (`auto: false`) so the user confirms them.
+ */
+export function suggestCopyHost(
+  host: string,
+  existingHosts: string[],
+  hostType: HostType = 'auto',
+): CopyHostSuggestion {
+  const raw = str(host).trim()
+  if (resolveHostType(raw, hostType) === 'regex') {
+    return { host: raw, auto: false, firstSuggestion: raw, collisionAvoided: false }
+  }
+
+  const existing = new Set(existingHosts.map((item) => normalizeHostKey(item)))
+  const wildcardPrefix = resolveHostType(raw, hostType) === 'wildcard' && raw.startsWith('*.') ? '*.' : ''
+  const body = wildcardPrefix ? raw.slice(wildcardPrefix.length) : raw
+  const firstSuggestion = wildcardPrefix + patchFirstHostLabel(body, 0)
+  let candidate = firstSuggestion
+  let attempt = 0
+  while (existing.has(normalizeHostKey(candidate)) && attempt < 19) {
+    attempt += 1
+    candidate = wildcardPrefix + patchFirstHostLabel(body, attempt)
+  }
+  return {
+    host: candidate,
+    auto: true,
+    firstSuggestion,
+    collisionAvoided: normalizeHostKey(candidate) !== normalizeHostKey(firstSuggestion),
+  }
+}
+
+export function findHostConflict(
+  host: string,
+  rules: Record<string, unknown>[],
+  excludeIndex = -1,
+): { index: number; host: string } | null {
+  const key = normalizeHostKey(host)
+  if (!key) return null
+  for (let i = 0; i < rules.length; i += 1) {
+    if (i === excludeIndex) continue
+    if (normalizeHostKey(rules[i]?.host) === key) {
+      return { index: i, host: str(rules[i]?.host) }
+    }
+  }
+  return null
+}
+
+/** Blocking validation for the copy modal (empty / whitespace / duplicate host). */
+export function copyHostValidation(host: string, rules: Record<string, unknown>[]): string | null {
+  const value = str(host).trim()
+  if (!value) return 'Host 不能为空'
+  if (/\s/.test(value)) return 'Host 不能包含空白字符'
+  const conflict = findHostConflict(value, rules)
+  if (conflict) {
+    return `Host 与规则 #${conflict.index + 1}（${conflict.host}）重复；列表顺序在前的先匹配，副本通常不会命中`
+  }
+  return null
+}
+
+/** Non-blocking warning for regex hosts (they are never auto-renamed). */
+export function copyHostWarning(host: string, hostType: HostType = 'auto'): string | null {
+  if (resolveHostType(str(host).trim(), hostType) === 'regex') {
+    return '正则 Host 不会自动改名；请确认副本的匹配范围与源规则不同'
+  }
+  return null
+}
+
+/** Deep copy a rule row so the duplicate never shares nested objects with its source. */
+export function cloneRuleRow(row: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(row)) as Record<string, unknown>
+}
+
+/**
+ * Insert a copied rule and return the new array plus the inserted index.
+ * `after` = right below the source rule (default), `end` = list tail.
+ */
+export function insertCopiedRule(
+  rules: Record<string, unknown>[],
+  sourceIndex: number,
+  position: 'after' | 'end',
+  rule: Record<string, unknown>,
+): { rules: Record<string, unknown>[]; index: number } {
+  const next = [...rules]
+  const index =
+    position === 'end' ? next.length : Math.min(Math.max(sourceIndex + 1, 0), next.length)
+  next.splice(index, 0, rule)
+  return { rules: next, index }
+}

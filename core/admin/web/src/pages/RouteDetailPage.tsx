@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { Network, ScrollText, Search, Settings2, Shield } from 'lucide-react'
+import { Copy, Network, ScrollText, Search, Settings2, Shield } from 'lucide-react'
 import { investigateLink, logsLink, routesTabLink, wafLink } from '../lib/deepLinks'
 import { PageHeader } from '../components/PageHeader'
 import { DetailMetricsToolbar } from '../components/DetailMetricsToolbar'
@@ -191,6 +191,14 @@ export function RouteDetailPage() {
         }
         actions={
           <>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              title="基于该规则创建副本"
+              onClick={() => navigate(`/routes?copy=${detail.rule_index}`)}
+            >
+              <Copy size={14} aria-hidden /> 复制路由
+            </button>
             <Link
               to={investigateLink({
                 host: viewHost,

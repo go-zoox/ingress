@@ -7456,3 +7456,195 @@ tr.row-active td {
   font-weight: 600;
   margin-bottom: 4px;
 }
+
+/* ---------- route duplicate ---------- */
+
+.copy-route-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(61, 214, 198, 0.28);
+  border-radius: 8px;
+  background: rgba(61, 214, 198, 0.07);
+}
+
+.copy-route-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.copy-route-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: rgba(61, 214, 198, 0.14);
+  border: 1px solid rgba(61, 214, 198, 0.35);
+  border-radius: 999px;
+}
+
+.copy-route-source code {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.copy-route-desc {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.copy-route-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.copy-route-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.copy-route-option .form-control {
+  width: 268px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.copy-route-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.copy-route-hint code {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.copy-route-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--warn);
+}
+
+.copy-route-error {
+  margin: 0;
+  padding: 6px 9px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--danger);
+  background: rgba(240, 113, 120, 0.08);
+  border: 1px solid rgba(240, 113, 120, 0.28);
+  border-radius: 6px;
+}
+
+.copy-undo-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(720px, 92vw);
+  padding: 10px 16px;
+  font-size: 12.5px;
+  color: var(--text);
+  background: #1b2532;
+  border: 1px solid var(--border-strong, #3a4a63);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  transform: translateX(-50%);
+  animation: copy-undo-in 0.18s ease;
+}
+
+.copy-undo-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.copy-undo-action {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.copy-undo-close {
+  padding: 0 2px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.copy-undo-close:hover {
+  color: var(--text);
+}
+
+@keyframes copy-undo-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+tr.row-flash {
+  animation: route-row-flash 3.2s ease-out;
+}
+
+@keyframes route-row-flash {
+  0% {
+    background: rgba(61, 214, 198, 0.2);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  55% {
+    background: rgba(61, 214, 198, 0.09);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  100% {
+    background: transparent;
+    box-shadow: inset 0 0 0 transparent;
+  }
+}
+
+.form-error-text {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--danger);
+}
+
+.form-item--invalid .form-control,
+.form-control[aria-invalid='true'] {
+  border-color: rgba(240, 113, 120, 0.65);
+}
+
+.form-item--invalid .form-control:focus,
+.form-control[aria-invalid='true']:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(240, 113, 120, 0.12);
+}

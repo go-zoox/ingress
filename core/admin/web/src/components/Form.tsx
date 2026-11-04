@@ -80,16 +80,19 @@ export function FormItem({
   hint,
   full,
   htmlFor,
+  error,
   children,
 }: {
   label: string
   hint?: string
   full?: boolean
   htmlFor?: string
+  /** Inline validation error rendered below the control. */
+  error?: string | null
   children: ReactNode
 }) {
   return (
-    <div className={`form-item${full ? ' form-item--full' : ''}`}>
+    <div className={`form-item${full ? ' form-item--full' : ''}${error ? ' form-item--invalid' : ''}`}>
       <div className="form-label-row">
         <label className="form-label" htmlFor={htmlFor}>
           <span className="form-label-text">{label}</span>
@@ -97,6 +100,11 @@ export function FormItem({
         {hint ? <p className="form-hint form-hint--field">{hint}</p> : null}
       </div>
       <div className="form-control-wrap">{children}</div>
+      {error ? (
+        <p className="form-error-text" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   )
 }
@@ -159,6 +167,7 @@ export function FormField({
   keyName: _keyName,
   hint,
   full,
+  error,
   ...inputProps
 }: {
   label: string
@@ -166,11 +175,13 @@ export function FormField({
   keyName?: string
   hint?: string
   full?: boolean
+  /** Inline validation error rendered below the control. */
+  error?: string | null
 } & Omit<InputHTMLAttributes<HTMLInputElement>, 'className'>) {
   const id = useId()
   return (
-    <FormItem label={label} hint={hint} full={full} htmlFor={id}>
-      <FormInput id={id} {...inputProps} />
+    <FormItem label={label} hint={hint} full={full} htmlFor={id} error={error}>
+      <FormInput id={id} aria-invalid={error ? true : undefined} {...inputProps} />
     </FormItem>
   )
 }
