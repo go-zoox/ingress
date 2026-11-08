@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 
 	"github.com/go-zoox/ingress/core/ratelimit"
 	"github.com/go-zoox/ingress/core/security"
@@ -26,6 +27,10 @@ type Core interface {
 	SetWAFOverride(enabled *bool)
 	GetWAFOverride() *bool
 	IsWAFEnabled() bool
+	//
+	SetBanSet(set *waf.BanSet)
+	GetBanSet() *waf.BanSet
+	SetBanHitCallback(cb BanHitCallback)
 	//
 	SetWAFCallback(cb WAFCallback)
 	SetAccessMetricsCallback(cb AccessMetricsCallback)
@@ -64,9 +69,15 @@ type core struct {
 
 	plugins []Plugin
 
+	// banSet holds the runtime ban snapshot. It is an atomic pointer so the
+	// request path can read it without a lock while the admin API replaces it
+	// wholesale (no config reload, no cache flush, no rate-limit reset).
+	banSet atomic.Pointer[waf.BanSet]
+
 	wafRuntimeOverride *bool
 	wafOverrideMu      sync.RWMutex
 	wafCallback        WAFCallback
+	banHitCallback     BanHitCallback
 	accessMetricsCb    AccessMetricsCallback
 
 	runtimeConfigHash string
@@ -116,6 +127,18 @@ func (c *core) GetWAFOverride() *bool {
 	return c.wafRuntimeOverride
 }
 
+// SetBanSet installs a new runtime ban snapshot. Passing nil disables runtime
+// banning entirely. The snapshot is swapped atomically: in-flight requests keep
+// using the previous one and never observe a partial set.
+func (c *core) SetBanSet(set *waf.BanSet) {
+	c.banSet.Store(set)
+}
+
+// GetBanSet returns the current runtime ban snapshot (nil when unset).
+func (c *core) GetBanSet() *waf.BanSet {
+	return c.banSet.Load()
+}
+
 // IsWAFEnabled returns true if the global WAF baseline should be active
 // (considering config + runtime override). Per-route WAF can still be enabled
 // through rules[].waf.enabled when the global baseline is off.
@@ -144,6 +167,11 @@ func (c *core) isWAFProfileActive(p *waf.Profile) bool {
 		return *override
 	}
 	return true
+}
+
+// SetBanHitCallback registers a callback invoked when a runtime ban matches.
+func (c *core) SetBanHitCallback(cb BanHitCallback) {
+	c.banHitCallback = cb
 }
 
 // SetWAFCallback registers a callback invoked when WAF blocks or audits.

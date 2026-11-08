@@ -4,6 +4,7 @@ Ingress 在 **路由匹配完成之后**、**重定向 / 静态处理 / 回源�
 
 - **IP**：`deny` 先于 `allow`；若配置了非空 `allow`，则仅列表内网段可通过 IP 阶段。
 - **域名级 IP 白名单**：`rules[].waf.allow` 按域名限制来源 IP，复用 WAF IP 阶段（见下文「域名级 IP 白名单」）。
+- **运行时封禁名单**：在管理后台直接封禁 IP / CIDR / User-Agent，无需改 `ingress.yaml`（见下文「运行时封禁名单」）。
 - **域名白名单**：`allow_hosts` 中的 Host 跳过全部 WAF 阶段（IP 与特征均不检查）。
 - **单条规则域名白名单**：`rules[].allow_hosts` 中的 Host 仅跳过**该条规则**，其余规则照常评估。
 - **特征**：针对 `path`、`query`、`uri`（path + raw query）、`headers`（所有头拼接）或 `header:Name` 做单次匹配；支持 `regex` / `contains`。
@@ -121,4 +122,60 @@ builtin:xss-lite
 
 内置规则可能对正常流量误报，可先用 **`log_only`** 观察，或 **`disable_builtin: true`** 后仅靠自定义规则。常见正常流量回归见 **`core/waf/builtin_false_positive_test.go`**。
 
-可运行样例：`examples/waf/`。字段表格见 **[配置参考](./configuration.md)**；英文版说明：**[English WAF](../../guide/waf.md)**。
+## 运行时封禁名单
+
+管理后台可以直接封禁客户端 IP 或 User-Agent，**不需要编辑 `ingress.yaml`**。
+
+这是**运维态**能力，不是配置：封禁条目存在后台数据库（`waf_ban` 表），编译成不可变快照后由运行中的 ingress 原子替换。因此发布一条封禁**不会**：
+
+- 触发配置 reload；
+- 清空 HTTP 响应缓存或路由匹配缓存；
+- 重置限流计数器；
+- 重启监听或断开连接。
+
+### 语义
+
+| 维度 | 行为 |
+|---|---|
+| 类型 | `ip`（单地址）、`ip_cidr`（网段）、`ua_contains`（子串，大小写不敏感）、`ua_regex`（Go 正则） |
+| 范围 | 默认全局；条目可带 `hosts` 只对这些域名生效（exact / wildcard / regex 推理同路由） |
+| 生命周期 | 可选 `expires_at`，不填为永久。过期在每次请求时判定，因此到期瞬间即失效，**不依赖任何定时任务** |
+| 顺序 | 在**路由匹配之后**、**限流与 WAF 之前**判定。被封客户端拿到 **403**，不会是 **429** |
+| WAF 开关 | **独立于 `waf.enabled`**：关闭 WAF（配置或运行时开关）**不会**关闭封禁名单 |
+| 白名单 | **优先于 `rules[].waf.allow`**：封禁白名单内的 IP 依然会拦截 |
+
+### 客户端 IP
+
+封禁使用与 WAF **完全相同**的客户端 IP 算法：优先真实 TCP 对端，对端命中 `waf.trusted_proxies` 时才采信 `X-Forwarded-For`。来自非受信来源的伪造 XFF 会被忽略，无法靠改请求头绕过封禁。
+
+### 可观测性
+
+- 访问日志新增 **`ban_block=1`**，与 `waf_block` 是两个独立字段：封禁命中时 `ban_block=1 waf_block=0`，因此可以区分「运维封禁」与「配置态 WAF 拦截」。
+- WAF 事件记录 `action=ban`、`rule=ban:<kind>`（如 `ban:ip`、`ban:ua_contains`），事件列表可筛选。
+- 每次新增 / 续期 / 解封都会写审计（`waf.ban.add`、`waf.ban.renew`、`waf.ban.remove`），`actor` 为真实操作人。
+
+### 管理后台 API
+
+```text
+GET    /api/v1/waf/bans?status=active|expired|all&kind=&keyword=
+POST   /api/v1/waf/bans
+PATCH  /api/v1/waf/bans/:id
+DELETE /api/v1/waf/bans/:id
+POST   /api/v1/waf/bans/preview
+```
+
+**服务端强制的安全护栏**（前端只是镜像，API 才是权威）：
+
+- 目标 IP 命中 **`waf.trusted_proxies`** 时**拒绝创建**——那是反向代理或负载均衡自身，封掉会导致整站不可访问；
+- 创建**永久**封禁必须带 `confirm_permanent: true`；
+- `ua_regex` 必须可编译，`ip` / `ip_cidr` 必须可解析；
+- 完全相同的生效条目（`kind` + `value` + `hosts`）会被判定为重复并拒绝。
+
+### 限制
+
+- **仅单副本生效**：只有收到 API 调用的那个 admin 进程会把快照注入自己的 ingress 实例。多副本部署下其他副本仍用旧名单；Redis pub/sub 或 DB 轮询同步尚未实现。
+- **UA 可绕过**：`User-Agent` 完全由客户端控制，换一个即可绕开。按 UA 封禁只作止血手段，不是防御手段。
+- **NAT / 运营商出口**：一个出口 IP 背后可能是上千真实用户。`preview` 接口会返回近 24h 的不同 UA 数量，便于操作前识别风险。
+- **不做自动封禁**：封禁始终由人工（或外部系统调用 API）创建。
+
+可运行样例：`examples/waf-ban/`。字段表格见 **[配置参考](./configuration.md)**；英文版说明：**[English WAF](../../guide/waf.md)**。

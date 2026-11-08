@@ -1,3 +1,7 @@
+import type { BanCreateInput, WAFBanPreview, WAFBanRow } from '../lib/wafBan'
+
+export type { WAFBanRow, WAFBanPreview, BanCreateInput }
+
 type ApiEnvelope<T> = {
   code: number
   message: string
@@ -113,6 +117,23 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ enabled }),
     }),
+  wafBans: (params?: { status?: string; kind?: string; keyword?: string; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.status) q.set('status', params.status)
+    if (params?.kind) q.set('kind', params.kind)
+    if (params?.keyword) q.set('keyword', params.keyword)
+    if (params?.limit) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return request<WAFBanRow[]>(`/waf/bans${qs ? `?${qs}` : ''}`)
+  },
+  wafBan: (id: number) => request<WAFBanRow>(`/waf/bans/${id}`),
+  createWafBan: (input: BanCreateInput) =>
+    request<WAFBanRow>('/waf/bans', { method: 'POST', body: JSON.stringify(input) }),
+  updateWafBan: (id: number, input: { ttl_seconds?: number; enabled?: boolean; confirm_permanent?: boolean }) =>
+    request<WAFBanRow>(`/waf/bans/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteWafBan: (id: number) => request<{ ok: boolean }>(`/waf/bans/${id}`, { method: 'DELETE' }),
+  previewWafBan: (input: BanCreateInput) =>
+    request<WAFBanPreview>('/waf/bans/preview', { method: 'POST', body: JSON.stringify(input) }),
   clearDemoWafEvents: () =>
     request<{ ok: boolean; deleted: number }>('/waf/events/demo-seed', { method: 'DELETE' }),
   wafHosts: () => request<string[]>('/waf/hosts'),

@@ -24,6 +24,7 @@ export const RBAC_MENU_CATALOG: RbacMenuDef[] = [
   { key: 'cache', label: '缓存', navGroup: '流量', actionOwner: true },
 
   { key: 'waf', label: 'WAF', navGroup: '安全', actionOwner: true },
+  { key: 'waf-bans', label: '封禁名单', navGroup: '安全' },
   { key: 'tls', label: 'TLS', navGroup: '安全', actionOwner: true },
   { key: 'healths', label: '健康检查', navGroup: '安全', resourcePrefix: 'health', actionOwner: true },
 

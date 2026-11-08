@@ -20,6 +20,7 @@ import { TLSPage } from './pages/TLSPage'
 import { TopologyPage } from './pages/TopologyPage'
 import { HealthPage } from './pages/HealthPage'
 import { WAFPage } from './pages/WAFPage'
+import { WAFBansPage } from './pages/WAFBansPage'
 import { MaintenancePage } from './pages/MaintenancePage'
 import { ScenariosPage } from './pages/ScenariosPage'
 import { TerminalPage } from './pages/TerminalPage'
@@ -59,6 +60,7 @@ export default function App() {
               <Route path="health" element={<Navigate to="/healths" replace />} />
               <Route path="cache" element={<CachePage />} />
               <Route path="waf" element={<WAFPage />} />
+              <Route path="waf/bans" element={<WAFBansPage />} />
               <Route path="maintenance" element={<MaintenancePage />} />
               <Route path="scenarios" element={<ScenariosPage />} />
               <Route path="terminal" element={<TerminalPage />} />

@@ -4,6 +4,7 @@ Ingress can run a **first-version WAF** on matched routes **after routing** and 
 
 - **IP lists** (`deny` then optional `allow` gate).
 - **Route-level IP allowlist** (`rules[].waf.allow` per host; see [Route-level IP allowlist](#route-level-ip-allowlist-per-host)).
+- **Runtime ban list** (IP / CIDR / User-Agent, managed from the Admin Console; see [Runtime ban list](#runtime-ban-list)).
 - **Host allowlist** (`allow_hosts`): listed hosts skip all WAF phases (IP lists and signatures).
 - **Per-rule host allowlist** (`rules[].allow_hosts`): listed hosts skip **that rule only**; other rules still run.
 - **Signature checks** against `path`, `query`, assembled `uri`, all header lines (`headers`), or one header (`header:User-Agent`).
@@ -166,6 +167,76 @@ Starters can false-positive on unusual but legitimate traffic — use **`log_onl
 | `allow_hosts` | Optional. Matching Host **skips this rule only** (same syntax as global `allow_hosts`). Use with same `id` as a builtin to scope exceptions without replacing the pattern. |
 
 Runnable files: [`examples/waf/`](https://github.com/go-zoox/ingress/tree/master/examples/waf).
+
+## Runtime ban list
+
+The Admin Console can ban a client IP or a User-Agent **at runtime**, without editing `ingress.yaml`.
+
+This is an **operational control**, not configuration. Bans live in the admin database (`waf_ban` table) and are
+compiled into an immutable snapshot that the running ingress swaps in atomically. Publishing a ban therefore does
+**not**:
+
+- reload the configuration,
+- flush the HTTP response cache or the route match cache,
+- reset rate-limit counters,
+- restart listeners or drop connections.
+
+### Semantics
+
+| Aspect | Behavior |
+|---|---|
+| Kinds | `ip` (single address), `ip_cidr` (network), `ua_contains` (substring, case-insensitive), `ua_regex` (Go regexp) |
+| Scope | Global by default; an entry may list `hosts` to apply only to those hostnames (same exact / wildcard / regex inference as routing) |
+| Lifetime | Optional `expires_at`; absent means permanent. Expiry is evaluated per request, so a ban stops matching the moment it expires — no job needed |
+| Order | Checked **after routing**, **before rate limiting and WAF**. A banned client gets **403**, never **429** |
+| WAF switch | **Independent of `waf.enabled`.** Turning WAF off (config or runtime toggle) does **not** disable the ban list |
+| Allow list | **Takes precedence over `rules[].waf.allow`** — banning an allowlisted IP still blocks it |
+
+### Client IP
+
+The ban list resolves the client IP with the **same algorithm as the WAF**: the real TCP peer first, then
+`waf.trusted_proxies` when the peer is a trusted proxy. A forged `X-Forwarded-For` from an untrusted peer is
+ignored, so the ban cannot be evaded by spoofing headers.
+
+### Observability
+
+- Access logs add **`ban_block=1`** next to `waf_block`. They are independent fields: a ban hit sets
+  `ban_block=1 waf_block=0`, so you can tell operational bans apart from config-level WAF blocks.
+- WAF events record `action=ban` and `rule=ban:<kind>` (for example `ban:ip`, `ban:ua_contains`), which the
+  events list can filter on.
+- Every create / renew / remove writes an audit row (`waf.ban.add`, `waf.ban.renew`, `waf.ban.remove`) with the
+  real operator name.
+
+### Admin API
+
+```text
+GET    /api/v1/waf/bans?status=active|expired|all&kind=&keyword=
+POST   /api/v1/waf/bans
+PATCH  /api/v1/waf/bans/:id
+DELETE /api/v1/waf/bans/:id
+POST   /api/v1/waf/bans/preview
+```
+
+**Guardrails enforced server-side** (the UI mirrors them, but the API is authoritative):
+
+- Banning an address inside **`waf.trusted_proxies`** is rejected — that is the reverse proxy or load balancer
+  itself, and banning it would take the whole site down.
+- Creating a **permanent** ban requires `confirm_permanent: true`.
+- `ua_regex` values must compile; `ip` / `ip_cidr` values must parse.
+- An identical active ban (`kind` + `value` + `hosts`) is rejected as a duplicate.
+
+### Limitations
+
+- **Single replica.** Only the admin process that received the API call injects the snapshot into its own ingress
+  instance. In a multi-replica deployment the other replicas keep their previous ban list; a Redis pub/sub or
+  DB-polling sync is planned but not implemented.
+- **UA bans are bypassable.** `User-Agent` is fully client-controlled; changing it defeats the ban. Use UA bans as
+  a stop-gap, not a defense.
+- **NAT / CGNAT.** A single egress IP may front thousands of real users. The preview endpoint surfaces the number of
+  distinct User-Agents seen in the last 24h so operators can spot this before banning.
+- **No automatic banning.** Bans are always created by a human (or an external system calling the API).
+
+Runnable example: [`examples/waf-ban/`](https://github.com/go-zoox/ingress/tree/master/examples/waf-ban).
 
 ## See also
 

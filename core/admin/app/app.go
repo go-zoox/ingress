@@ -58,6 +58,17 @@ func New(cfg *config.Config) (*zoox.Application, error) {
 	if cfg.CoreInstance != nil {
 		audit := service.NewAudit()
 		cfg.CoreInstance.SetWAFCallback(&wafEventAdapter{audit: audit, broker: api.Broker()})
+
+		// Install the persisted runtime ban list into the running core. Bans are
+		// operational state: they live in the admin DB and are compiled into an
+		// immutable snapshot, so this never reloads the ingress config.
+		banSvc := service.NewWAFBanService(service.NewIngress(cfg), audit)
+		if err := banSvc.SyncToCore(); err != nil {
+			logger.Warnf("waf ban sync on startup: %v", err)
+		}
+		cfg.CoreInstance.SetBanHitCallback(&banHitAdapter{})
+		go runBanHitFlush(banSvc)
+
 		if metricsSvc != nil {
 			recorder := service.NewAsyncRollupRecorder(metricsSvc.Rollup(), 0)
 			cfg.CoreInstance.SetAccessMetricsCallback(&accessMetricsAdapter{
@@ -195,6 +206,24 @@ func (a *wafEventAdapter) OnWAFEvent(action, rule, host, path, clientIP, userAge
 			a.broker.PublishJSON("waf", "event", row)
 		}
 	}()
+}
+
+// banHitAdapter counts ban matches in process; the flush loop persists them.
+type banHitAdapter struct{}
+
+func (a *banHitAdapter) OnBanHit(banID uint) {
+	service.RecordBanHit(banID)
+}
+
+// runBanHitFlush periodically persists in-process ban hit counters.
+func runBanHitFlush(svc *service.WAFBanService) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		if err := svc.FlushBanHits(); err != nil {
+			logger.Warnf("waf ban hit flush: %v", err)
+		}
+	}
 }
 
 type accessMetricsAdapter struct {

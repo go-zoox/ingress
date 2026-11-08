@@ -114,6 +114,37 @@ func (c *core) build() error {
 			return false, true, nil
 		}
 
+		// Runtime ban list: an operational control that is deliberately
+		// independent from waf.enabled (a ban must survive an emergency
+		// "turn WAF off") and takes precedence over the allow allowlist.
+		// Checked before rate limiting so a banned client gets 403 rather
+		// than 429. Replacing the snapshot never triggers a config reload.
+		if banSet := c.banSet.Load(); banSet != nil {
+			if hit := banSet.Check(ctx.Request, hostname); hit != nil {
+				if c.banHitCallback != nil {
+					c.banHitCallback.OnBanHit(hit.ID)
+				}
+				if c.wafCallback != nil {
+					ua := ""
+					if ctx.Request != nil {
+						ua = ctx.Request.UserAgent()
+					}
+					c.wafCallback.OnWAFEvent("ban", hit.Label, hostname, path, hit.ClientIP, ua)
+				}
+				c.writeErrorPage(ctx, http.StatusForbidden, secProf, pageDetail)
+				target := "-"
+				if serviceIns != nil {
+					target = serviceIns.Target()
+				}
+				c.logAccess(ctx, hostname, target, method, path, ctx.Request.Proto, http.StatusForbidden, time.Since(reqStart), accessLogMeta{
+					BanBlock:               true,
+					UpstreamStatus:         http.StatusForbidden,
+					UpstreamResponseLength: -1,
+				})
+				return false, true, nil
+			}
+		}
+
 		if c.rateLimits != nil {
 			var ruleRL *ratelimit.Policy
 			if ruleIdx >= 0 && ruleIdx < len(c.rateLimits.ByRule) {

@@ -452,6 +452,8 @@ Ingress 的访问日志为应用侧固定格式（非 Nginx `log_format` 配置�
 - `upstream_response_length`：上游响应长度（未知时可能为 `-1`）
 - `upstream_response_time`：上游响应耗时（Go `time.Duration` 文本格式）
 - `cache_hit`：响应由 **`backend.cache`** 命中时附加 **`cache_hit=1`**（含 service 反代、handler、redirect）；未命中或未启用缓存的路由不会出现该字段
+- `waf_block`：`0` 或 `1`，请求被 WAF 拦截时为 `1`
+- `ban_block`：`0` 或 `1`，请求被**运行时封禁名单**拦截时为 `1`。与 `waf_block` 相互独立：封禁命中时 `ban_block=1` 且 `waf_block=0`，因此可以把运维封禁与配置态 WAF 拦截区分开
 
 示例：
 

@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/go-zoox/ingress"
-	"github.com/go-zoox/ingress/core/admin/config"
-	adminauth "github.com/go-zoox/ingress/core/admin/auth"
-	"github.com/go-zoox/ingress/core/admin/service"
 	ingcore "github.com/go-zoox/ingress/core"
+	adminauth "github.com/go-zoox/ingress/core/admin/auth"
+	"github.com/go-zoox/ingress/core/admin/config"
+	"github.com/go-zoox/ingress/core/admin/service"
 	"github.com/go-zoox/ingress/core/admin/service/jobs"
 	"github.com/go-zoox/ingress/core/admin/service/rbac"
 	"github.com/go-zoox/zoox"
@@ -19,19 +19,19 @@ import (
 
 // API bundles admin HTTP handlers.
 type API struct {
-	cfg      *config.Config
-	ingress  *service.Ingress
-	logs     *service.Logs
-	metrics  *service.Metrics
-	audit    *service.Audit
-	tls      *service.TLS
-	cache    *service.Cache
-	settings *service.Settings
-	config   *service.Config
-	scenarios *service.Scenarios
-	broker   *service.SSEBroker
-	health   *service.HealthCheckService
-	system   *service.SystemMetrics
+	cfg              *config.Config
+	ingress          *service.Ingress
+	logs             *service.Logs
+	metrics          *service.Metrics
+	audit            *service.Audit
+	tls              *service.TLS
+	cache            *service.Cache
+	settings         *service.Settings
+	config           *service.Config
+	scenarios        *service.Scenarios
+	broker           *service.SSEBroker
+	health           *service.HealthCheckService
+	system           *service.SystemMetrics
 	parseIssues      *service.ParseIssues
 	overviewBuilder  *service.OverviewBuilder
 	overviewStreamer *service.OverviewStreamer
@@ -41,6 +41,7 @@ type API struct {
 	jobs             *jobs.Service
 	rbac             *rbac.Service
 	auth             *adminauth.Service
+	bans             *service.WAFBanService
 }
 
 func NewAPI(cfg *config.Config, auth *adminauth.Service) *API {
@@ -82,6 +83,7 @@ func NewAPI(cfg *config.Config, auth *adminauth.Service) *API {
 		serviceMetrics:   serviceMetricsBuilder,
 		jobs:             jobsSvc,
 		rbac:             rbac.New(),
+		bans:             service.NewWAFBanService(ingress, audit),
 		auth:             auth,
 	}
 }
@@ -144,6 +146,9 @@ func (a *API) Mount(g *zoox.RouterGroup) {
 	jobsHandler.Mount(g)
 	rbacHandler := NewRBACHandler(a.rbac, a.auth)
 	rbacHandler.Mount(g)
+	if a.bans != nil {
+		NewWAFBanHandler(a.bans, a.auth).Mount(g)
+	}
 	if err := MountTerminal(g); err != nil {
 		panic(err)
 	}

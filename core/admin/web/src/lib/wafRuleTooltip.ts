@@ -18,6 +18,38 @@ export function buildWafRuleLookup(catalog: WAFRuleDetail[]): Map<string, WAFRul
   return m
 }
 
+/** Human labels for runtime ban rule ids (`ban:<kind>`). */
+const BAN_KIND_LABEL: Record<string, string> = {
+  ip: 'IP 精确匹配',
+  ip_cidr: 'CIDR 网段匹配',
+  ua_contains: 'User-Agent 子串匹配',
+  ua_regex: 'User-Agent 正则匹配',
+}
+
+/**
+ * Synthesizes a rule detail for runtime ban events (`rule=ban:<kind>`).
+ *
+ * Ban events are produced by the runtime ban list, not by a WAF config rule, so
+ * they never appear in the rules catalog. Without this the tooltip would claim
+ * "no rule definition found", which reads like a broken/missing rule.
+ */
+export function resolveBanRule(ruleField: string): WAFRuleDetail | undefined {
+  const raw = ruleField.trim().toLowerCase()
+  if (!raw.startsWith('ban:')) return undefined
+  const kind = raw.slice('ban:'.length)
+  const label = BAN_KIND_LABEL[kind]
+  if (!label) return undefined
+  return {
+    id: raw,
+    name: `运行时封禁（${label}）`,
+    phase: 'ban',
+    type: 'ban',
+    source: 'runtime',
+    description: '来自运行时封禁名单，非配置文件中的 WAF 规则；在「封禁名单」页面管理',
+    enabled: true,
+  }
+}
+
 export function resolveWafRule(
   lookup: Map<string, WAFRuleDetail>,
   ruleField: string,
@@ -29,6 +61,9 @@ export function resolveWafRule(
 
   const direct = tryKey(raw)
   if (direct) return direct
+
+  const ban = resolveBanRule(raw)
+  if (ban) return ban
 
   if (raw.toLowerCase() === 'ip deny' || raw.toLowerCase() === 'ip allow') {
     return tryKey(raw)
@@ -50,6 +85,7 @@ const SOURCE_LABEL: Record<string, string> = {
   config: '配置文件',
   builtin: '内置',
   demo: '演示数据',
+  runtime: '运行时封禁',
   phase: '阶段',
   unknown: '未知',
 }

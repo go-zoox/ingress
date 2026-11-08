@@ -12,6 +12,7 @@ import (
 type accessLogMeta struct {
 	CacheHit               bool
 	WAFBlock               bool
+	BanBlock               bool
 	RateLimitBlock         bool
 	MaintenanceBlock       bool
 	UpstreamStatus         int
@@ -104,6 +105,10 @@ func buildAccessLogExtraFields(req *http.Request, meta accessLogMeta) string {
 	if meta.WAFBlock {
 		wafBlock = 1
 	}
+	banBlock := 0
+	if meta.BanBlock {
+		banBlock = 1
+	}
 	rateLimitBlock := 0
 	if meta.RateLimitBlock {
 		rateLimitBlock = 1
@@ -114,9 +119,10 @@ func buildAccessLogExtraFields(req *http.Request, meta accessLogMeta) string {
 	}
 
 	return fmt.Sprintf(
-		"cache_hit=%d waf_block=%d rate_limit_block=%d maintenance_block=%d real_ip=%s referer=%s ua=%s xff=%s tls_protocol=%s tls_cipher=%s upstream_status=%d upstream_response_length=%d upstream_response_time=%s",
+		"cache_hit=%d waf_block=%d ban_block=%d rate_limit_block=%d maintenance_block=%d real_ip=%s referer=%s ua=%s xff=%s tls_protocol=%s tls_cipher=%s upstream_status=%d upstream_response_length=%d upstream_response_time=%s",
 		cacheHit,
 		wafBlock,
+		banBlock,
 		rateLimitBlock,
 		maintenanceBlock,
 		accessLogFieldValue(realIP),

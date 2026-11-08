@@ -35,6 +35,7 @@ func BuiltinMenus() []menuItemDef {
 		{Key: "cache", To: "/cache", Label: "缓存", Icon: "hard-drive", Group: "流量"},
 
 		{Key: "waf", To: "/waf", Label: "WAF", Icon: "shield", Group: "安全"},
+		{Key: "waf-bans", To: "/waf/bans", Label: "封禁名单", Icon: "ban", Group: "安全"},
 		{Key: "tls", To: "/tls", Label: "TLS", Icon: "lock", Group: "安全", BadgeKey: "tls"},
 		{Key: "healths", To: "/healths", Label: "健康检查", Icon: "heart-pulse", Group: "安全", BadgeKey: "healths"},
 

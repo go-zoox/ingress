@@ -475,6 +475,7 @@ Extra fields (space-separated `key=value`):
 
 - `cache_hit`: `0` or `1` (HTTP response cache hit)
 - `waf_block`: `0` or `1` (WAF blocked this request)
+- `ban_block`: `0` or `1` (a runtime ban entry blocked this request). Independent from `waf_block`: a ban hit sets `ban_block=1` with `waf_block=0`, so operational bans are distinguishable from config-level WAF blocks.
 - `real_ip`: `X-Real-IP`, else client address; `-` when unavailable
 - `referer`: `Referer` header; `-` when empty
 - `ua`: `User-Agent`; `-` when empty
@@ -487,7 +488,7 @@ Extra fields (space-separated `key=value`):
 Example:
 
 ```text
-203.0.113.44 api.example.com -> api.internal:8080 "GET /api/users HTTP/1.1" 200 12ms cache_hit=0 waf_block=0 real_ip=203.0.113.44 referer=- ua=curl/8.0 xff=- tls_protocol=- tls_cipher=- upstream_status=200 upstream_response_length=1024 upstream_response_time=12ms
+203.0.113.44 api.example.com -> api.internal:8080 "GET /api/users HTTP/1.1" 200 12ms cache_hit=0 waf_block=0 ban_block=0 real_ip=203.0.113.44 referer=- ua=curl/8.0 xff=- tls_protocol=- tls_cipher=- upstream_status=200 upstream_response_length=1024 upstream_response_time=12ms
 ```
 
 Note: there is currently no standalone field exactly equivalent to Nginx `$body_bytes_sent`; if needed, derive it via downstream log/metrics aggregation.

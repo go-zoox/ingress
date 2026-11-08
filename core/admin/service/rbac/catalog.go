@@ -24,7 +24,7 @@ func BuiltinPermissions() []permissionDef {
 		{Code: "cache:write", Name: "管理缓存", Group: "流量", Description: "修改缓存相关配置"},
 
 		{Code: "waf:read", Name: "查看 WAF", Group: "安全", Description: "查看 WAF 规则与事件"},
-		{Code: "waf:write", Name: "管理 WAF", Group: "安全", Description: "修改 WAF 配置与运行时开关"},
+		{Code: "waf:write", Name: "管理 WAF", Group: "安全", Description: "修改 WAF 配置、运行时开关与封禁名单"},
 		{Code: "tls:read", Name: "查看 TLS", Group: "安全", Description: "查看证书与 HTTPS 配置"},
 		{Code: "tls:write", Name: "管理 TLS", Group: "安全", Description: "修改 TLS 相关配置"},
 		{Code: "health:read", Name: "查看健康检查", Group: "安全", Description: "查看后端健康探测结果"},

@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WAF 封禁名单 — Ingress 管理后台原型</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <div class="proto-banner">
+      <span><strong>产品原型</strong> · WAF 运行时封禁名单 · 模拟数据，按钮可点通流程</span>
+      <span class="tag">prototype</span>
+    </div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          Ingress Console
+          <small>单机运维管理</small>
+        </div>
+        <nav class="nav" id="nav"></nav>
+        <div class="sidebar-footer">
+          配置路径<br />
+          <code>/etc/ingress/ingress.yaml</code>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="app-chrome">
+          <span>admin</span>
+          <span class="muted">·</span>
+          <span>WAF 封禁名单生效中 <strong class="text-ok" id="chrome-count">—</strong> 条</span>
+        </div>
+
+        <div class="main-body">
+          <!-- ==================== 页面 1：WAF 事件（含封禁入口） ==================== -->
+          <section class="page active" id="page-events" data-page="events">
+            <header class="page-header">
+              <div class="page-header-with-actions">
+                <div>
+                  <h1>WAF 事件</h1>
+                  <p>拦截与审计记录 · 支持从事件直接封禁 IP 或 UA</p>
+                </div>
+                <div class="page-header-actions">
+                  <button type="button" class="btn btn-sm" id="btn-events-refresh">刷新</button>
+                  <button type="button" class="btn btn-sm btn-primary" data-open="ban-create">
+                    新增封禁
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div class="cards">
+              <div class="card">
+                <div class="label">近 24h 拦截</div>
+                <div class="value text-danger">2,431</div>
+                <div class="sub">block 事件数</div>
+              </div>
+              <div class="card">
+                <div class="label">独立攻击 IP</div>
+                <div class="value">167</div>
+                <div class="sub">去重 client_ip</div>
+              </div>
+              <div class="card">
+                <div class="label">已封禁</div>
+                <div class="value text-warn" id="events-card-bans">—</div>
+                <div class="sub">生效中的封禁条目</div>
+              </div>
+              <div class="card ok">
+                <div class="label">封禁命中</div>
+                <div class="value">1,204</div>
+                <div class="sub">近 24h 被 ban 挡下</div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>事件筛选</h2>
+                <div class="filter-actions">
+                  <label class="muted" style="font-size: 12px">
+                    <input type="checkbox" id="events-realtime" /> 实时刷新（SSE）
+                  </label>
+                  <button type="button" class="btn btn-sm" id="btn-events-reset">重置</button>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="filter-grid">
+                  <div class="filter-field">
+                    <label>动作</label>
+                    <select id="f-action">
+                      <option value="all">全部</option>
+                      <option value="block">Block</option>
+                      <option value="audit">Audit</option>
+                    </select>
+                  </div>
+                  <div class="filter-field">
+                    <label>Host</label>
+                    <select id="f-host">
+                      <option value="">全部</option>
+                      <option value="api.example.com">api.example.com</option>
+                      <option value="www.example.com">www.example.com</option>
+                      <option value="admin.example.com">admin.example.com</option>
+                    </select>
+                  </div>
+                  <div class="filter-field">
+                    <label>客户端 IP</label>
+                    <input type="text" id="f-ip" placeholder="模糊匹配" />
+                  </div>
+                  <div class="filter-field">
+                    <label>规则</label>
+                    <input type="text" id="f-rule" placeholder="如 sql-injection" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h2>事件列表<span class="panel-sub" id="events-count">—</span></h2>
+                <div class="toolbar-row">
+                  <span class="muted" style="font-size: 12px" id="bulk-sel">已选 0 项</span>
+                  <button type="button" class="btn btn-sm btn-danger" id="btn-bulk-ban" disabled>
+                    批量封禁所选 IP
+                  </button>
+                </div>
+              </div>
+              <div class="panel-body panel-table-wrap">
+                <table class="data" id="events-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 36px"><input type="checkbox" id="events-check-all" /></th>
+                      <th class="col-time">时间</th>
+                      <th class="col-action">动作</th>
+                      <th class="col-rule">规则</th>
+                      <th class="col-host">Host</th>
+                      <th class="col-path">Path</th>
+                      <th class="col-ip">客户端 IP</th>
+                      <th class="col-actions">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="events-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- ==================== 页面 2：封禁名单 ==================== -->
+          <section class="page" id="page-bans" data-page="bans">
+            <header class="page-header">
+              <div class="page-header-with-actions">
+                <div>
+                  <h1>封禁名单</h1>
+                  <p>运行时生效，无需 reload · 独立于 WAF 总开关，WAF 关闭时仍然生效</p>
+                </div>
+                <div class="page-header-actions">
+                  <button type="button" class="btn btn-sm btn-primary" data-open="ban-create">
+                    新增封禁
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div class="cards">
+              <div class="card">
+                <div class="label">生效中</div>
+                <div class="value" id="ban-card-active">—</div>
+                <div class="sub" id="ban-card-split">—</div>
+              </div>
+              <div class="card warn">
+                <div class="label">即将到期</div>
+                <div class="value" id="ban-card-expiring">—</div>
+                <div class="sub">2 小时内，可续期</div>
+              </div>
+              <div class="card">
+                <div class="label">已过期（保留记录）</div>
+                <div class="value muted" id="ban-card-expired">—</div>
+                <div class="sub">超过 7 天自动清理</div>
+              </div>
+              <div class="card ok">
+                <div class="label">今日命中</div>
+                <div class="value">1,204</div>
+                <div class="sub">被 ban 规则挡下的请求</div>
+              </div>
+            </div>
+
+            <div class="page-tabs" id="bans-tabs">
+              <button type="button" class="btn btn-sm active" data-btab="active">
+                生效中<span class="tab-count" id="tab-count-active">—</span>
+              </button>
+              <button type="button" class="btn btn-sm" data-btab="expired">
+                已过期<span class="tab-count" id="tab-count-expired">—</span>
+              </button>
+              <button type="button" class="btn btn-sm" data-btab="audit">操作审计</button>
+            </div>
+
+            <div id="bans-panel-active">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>生效中的封禁</h2>
+                  <div class="toolbar-row">
+                    <input
+                      type="text"
+                      id="ban-search"
+                      placeholder="搜索 IP / UA / 原因"
+                      style="
+                        padding: 5px 9px;
+                        border: 1px solid var(--border);
+                        border-radius: 6px;
+                        background: var(--bg);
+                        color: var(--text);
+                        font-size: 12px;
+                        width: 220px;
+                      "
+                    />
+                    <select
+                      id="ban-kind-filter"
+                      style="
+                        padding: 5px 9px;
+                        border: 1px solid var(--border);
+                        border-radius: 6px;
+                        background: var(--bg);
+                        color: var(--text);
+                        font-size: 12px;
+                      "
+                    >
+                      <option value="all">全部类型</option>
+                      <option value="ip">IP</option>
+                      <option value="ua">UA</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="panel-body panel-table-wrap">
+                  <table class="data" id="bans-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 92px">类型</th>
+                        <th>封禁目标</th>
+                        <th style="width: 130px">生效范围</th>
+                        <th style="width: 130px">到期</th>
+                        <th style="width: 92px">命中</th>
+                        <th class="col-time">操作人</th>
+                        <th class="col-actions">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="bans-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div id="bans-panel-expired" style="display: none">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>已过期封禁<span class="panel-sub">保留 7 天，可快速重新封禁</span></h2>
+                </div>
+                <div class="panel-body panel-table-wrap">
+                  <table class="data">
+                    <thead>
+                      <tr>
+                        <th style="width: 92px">类型</th>
+                        <th>封禁目标</th>
+                        <th style="width: 140px">过期时间</th>
+                        <th style="width: 92px">总命中</th>
+                        <th class="col-time">操作人</th>
+                        <th class="col-actions">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="bans-expired-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div id="bans-panel-audit" style="display: none">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>封禁操作审计</h2>
+                  <span class="muted" style="font-size: 12px">action: waf.ban.*</span>
+                </div>
+                <div class="panel-body panel-table-wrap">
+                  <table class="data">
+                    <thead>
+                      <tr>
+                        <th class="col-time">时间</th>
+                        <th style="width: 150px">动作</th>
+                        <th>详情</th>
+                        <th class="col-time">操作人</th>
+                      </tr>
+                    </thead>
+                    <tbody id="bans-audit-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- ==================== 抽屉：从事件封禁 ==================== -->
+    <div class="drawer-overlay" id="drawer-from-event" style="display: none">
+      <aside class="drawer" style="width: min(560px, 100vw)">
+        <header class="drawer-head">
+          <h2 id="fe-title">封禁 IP</h2>
+          <button type="button" class="drawer-close" data-close>×</button>
+        </header>
+        <div class="drawer-body">
+          <p class="section-title">封禁目标</p>
+          <div class="target-card">
+            <div class="target-row">
+              <span class="badge badge-kind" id="fe-kind">IP</span>
+              <span class="target-value" id="fe-value">203.0.113.42</span>
+            </div>
+            <div class="target-meta" id="fe-meta">
+              来自事件 #18392 · sql-injection-uri · api.example.com
+            </div>
+          </div>
+
+          <p class="section-title">影响面评估</p>
+          <div class="metric-grid">
+            <div class="metric">
+              <div class="m-label">近 24h 该 IP 命中</div>
+              <div class="m-value danger" id="fe-hits">348</div>
+            </div>
+            <div class="metric">
+              <div class="m-label">涉及 Host</div>
+              <div class="m-value" id="fe-hosts">2</div>
+            </div>
+            <div class="metric">
+              <div class="m-label">独立 UA</div>
+              <div class="m-value" id="fe-uas">1</div>
+            </div>
+            <div class="metric">
+              <div class="m-label">独立路径</div>
+              <div class="m-value" id="fe-paths">27</div>
+            </div>
+          </div>
+
+          <div id="fe-notices">
+            <div class="notice notice-warn">
+              <span class="n-icon">⚠</span>
+              <span>
+                <span class="n-title">该 IP 的 UA 单一、路径多样</span>
+                疑似扫描器/自动化工具，封禁误伤风险较低。
+              </span>
+            </div>
+          </div>
+
+          <p class="section-title">生效范围</p>
+          <div class="field" style="margin-bottom: 12px">
+            <div class="radio-row">
+              <label>
+                <input type="radio" name="fe-scope" value="global" checked />
+                全部 Host（全局）
+              </label>
+              <label>
+                <input type="radio" name="fe-scope" value="hosts" />
+                指定 Host
+              </label>
+            </div>
+            <div class="host-chips" id="fe-host-chips" style="display: none">
+              <span class="host-chip on">api.example.com</span>
+              <span class="host-chip on">www.example.com</span>
+              <span class="host-chip">admin.example.com</span>
+            </div>
+            <p class="hint">默认全局生效；多租户场景可限定到具体 Host 避免误伤其他业务。</p>
+          </div>
+
+          <p class="section-title">封禁时长</p>
+          <div class="segmented" id="fe-ttl">
+            <button type="button" class="seg" data-ttl="1h">1 小时</button>
+            <button type="button" class="seg active" data-ttl="24h">24 小时</button>
+            <button type="button" class="seg" data-ttl="7d">7 天</button>
+            <button type="button" class="seg seg-danger" data-ttl="forever">永久</button>
+          </div>
+          <p class="hint" id="fe-ttl-hint" style="margin-top: 8px">
+            到期自动失效，无需手工解封。
+          </p>
+
+          <p class="section-title">原因备注</p>
+          <div class="field">
+            <input type="text" id="fe-reason" value="SQL 注入扫描，自动联动封禁" />
+            <p class="hint">会记录到审计与封禁名单，便于日后复盘。</p>
+          </div>
+
+          <div class="notice notice-warn" id="fe-ttl-warn" style="display: none">
+            <span class="n-icon">⚠</span>
+            <span>
+              <span class="n-title">永久封禁需要二次确认</span>
+              永久条目不会自动过期，建议优先使用 7 天并观察命中情况。
+            </span>
+          </div>
+        </div>
+        <footer class="drawer-foot">
+          <button type="button" class="btn btn-ghost" data-close>取消</button>
+          <button type="button" class="btn btn-danger" id="fe-submit">确认封禁</button>
+        </footer>
+      </aside>
+    </div>
+
+    <!-- ==================== 抽屉：新增封禁 ==================== -->
+    <div class="drawer-overlay" id="drawer-ban-create" style="display: none">
+      <aside class="drawer" style="width: min(560px, 100vw)">
+        <header class="drawer-head">
+          <h2>新增封禁</h2>
+          <button type="button" class="drawer-close" data-close>×</button>
+        </header>
+        <div class="drawer-body">
+          <p class="section-title">封禁类型</p>
+          <div class="segmented" id="bc-kind">
+            <button type="button" class="seg active" data-kind="ip">IP / CIDR</button>
+            <button type="button" class="seg" data-kind="ua">User-Agent</button>
+          </div>
+
+          <div class="field" style="margin-top: 16px" id="bc-value-field">
+            <label id="bc-value-label">IP 或 CIDR</label>
+            <input type="text" id="bc-value" placeholder="203.0.113.42 或 203.0.113.0/24" />
+            <p class="field-error" id="bc-value-error">请输入合法的 IP 或 CIDR</p>
+            <p class="hint" id="bc-value-hint">
+              支持单个 IP 或 CIDR 网段；IPv6 自动归一化（::ffff:1.2.3.4 → 1.2.3.4）。
+            </p>
+          </div>
+
+          <div class="field" id="bc-ua-mode-field" style="display: none">
+            <label>匹配方式</label>
+            <select id="bc-ua-mode">
+              <option value="contains">包含子串（contains）</option>
+              <option value="regex">正则（regex）</option>
+            </select>
+          </div>
+
+          <div class="notice notice-danger" id="bc-trusted-warn" style="display: none">
+            <span class="n-icon">✕</span>
+            <span>
+              <span class="n-title">目标 IP 命中 trusted_proxies，拒绝封禁</span>
+              该地址是反向代理/负载均衡自身。<strong>封禁它会导致整站不可访问</strong>。
+              请检查 waf.trusted_proxies 配置，确认目标是真实客户端 IP。
+            </span>
+          </div>
+
+          <div class="notice notice-danger" id="bc-nat-warn" style="display: none">
+            <span class="n-icon">⚠</span>
+            <span>
+              <span class="n-title">该 IP 可能位于 NAT / 运营商出口之后</span>
+              近 24h 该 IP 出现 <strong>73 个不同 UA</strong>，封禁可能误伤大量真实用户。
+              建议缩短封禁时长或改为封禁具体 UA。
+            </span>
+          </div>
+
+          <div class="notice notice-info" id="bc-allow-warn" style="display: none">
+            <span class="n-icon">i</span>
+            <span>
+              <span class="n-title">该 IP 在 allow 白名单中</span>
+              运行时封禁优先于 allow 白名单，依然会生效。如果你的本意是保留访问，请先确认。
+            </span>
+          </div>
+
+          <p class="section-title">生效范围</p>
+          <div class="field" style="margin-bottom: 12px">
+            <div class="radio-row">
+              <label><input type="radio" name="bc-scope" value="global" checked /> 全部 Host（全局）</label>
+              <label><input type="radio" name="bc-scope" value="hosts" /> 指定 Host</label>
+            </div>
+            <div class="host-chips" id="bc-host-chips" style="display: none">
+              <span class="host-chip on">api.example.com</span>
+              <span class="host-chip on">www.example.com</span>
+              <span class="host-chip">admin.example.com</span>
+            </div>
+          </div>
+
+          <p class="section-title">封禁时长</p>
+          <div class="segmented" id="bc-ttl">
+            <button type="button" class="seg" data-ttl="1h">1 小时</button>
+            <button type="button" class="seg active" data-ttl="24h">24 小时</button>
+            <button type="button" class="seg" data-ttl="7d">7 天</button>
+            <button type="button" class="seg seg-danger" data-ttl="forever">永久</button>
+          </div>
+
+          <p class="section-title">原因备注</p>
+          <div class="field">
+            <input type="text" id="bc-reason" placeholder="例：持续 SQL 注入扫描" />
+          </div>
+
+          <div class="notice notice-muted">
+            <span class="n-icon">i</span>
+            <span>
+              封禁立即生效，不触发配置 reload、不清空响应缓存、不影响限流计数器。
+              UA 是客户端可控字段，换 UA 即可绕过，仅作止血手段。
+            </span>
+          </div>
+        </div>
+        <footer class="drawer-foot">
+          <button type="button" class="btn btn-ghost" data-close>取消</button>
+          <button type="button" class="btn btn-danger" id="bc-submit">确认封禁</button>
+        </footer>
+      </aside>
+    </div>
+
+    <!-- ==================== 抽屉：封禁详情 / 编辑 ==================== -->
+    <div class="drawer-overlay" id="drawer-ban-detail" style="display: none">
+      <aside class="drawer" style="width: min(520px, 100vw)">
+        <header class="drawer-head">
+          <h2 id="bd-title">封禁详情</h2>
+          <button type="button" class="drawer-close" data-close>×</button>
+        </header>
+        <div class="drawer-body" id="bd-body"></div>
+        <footer class="drawer-foot">
+          <button type="button" class="btn btn-danger" id="bd-unban">立即解封</button>
+          <button type="button" class="btn btn-ghost" id="bd-renew">续期 24 小时</button>
+          <button type="button" class="btn btn-ghost" data-close>关闭</button>
+        </footer>
+      </aside>
+    </div>
+
+    <!-- ==================== 抽屉：批量封禁 ==================== -->
+    <div class="drawer-overlay" id="drawer-bulk" style="display: none">
+      <aside class="drawer" style="width: min(560px, 100vw)">
+        <header class="drawer-head">
+          <h2>批量封禁</h2>
+          <button type="button" class="drawer-close" data-close>×</button>
+        </header>
+        <div class="drawer-body">
+          <div class="notice notice-info">
+            <span class="n-icon">i</span>
+            <span>将对选中的 <strong id="bulk-count">0</strong> 个 IP 逐一创建封禁条目。</span>
+          </div>
+          <p class="section-title">待封禁 IP</p>
+          <div class="target-card">
+            <div id="bulk-list" class="mono" style="line-height: 1.9"></div>
+          </div>
+          <p class="section-title">封禁时长</p>
+          <div class="segmented" id="bulk-ttl">
+            <button type="button" class="seg" data-ttl="1h">1 小时</button>
+            <button type="button" class="seg active" data-ttl="24h">24 小时</button>
+            <button type="button" class="seg" data-ttl="7d">7 天</button>
+            <button type="button" class="seg seg-danger" data-ttl="forever">永久</button>
+          </div>
+          <p class="section-title">原因备注</p>
+          <div class="field">
+            <input type="text" id="bulk-reason" value="批量封禁：近 24h 高频扫描" />
+          </div>
+        </div>
+        <footer class="drawer-foot">
+          <button type="button" class="btn btn-ghost" data-close>取消</button>
+          <button type="button" class="btn btn-danger" id="bulk-submit">全部封禁</button>
+        </footer>
+      </aside>
+    </div>
+
+    <div class="toast-container" id="toasts"></div>
+
+    <script src="js/mock-data.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>

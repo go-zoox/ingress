@@ -1,0 +1,41 @@
+# Runtime ban list example.
+#
+# Bans are NOT configured here. They are created from the Admin Console
+# (WAF -> 封禁名单) or via POST /api/v1/waf/bans, stored in the admin database,
+# and injected into the running ingress as an immutable snapshot. Publishing a
+# ban never reloads this file, so caches and rate-limit counters are untouched.
+#
+# This file only enables the pieces the ban list depends on:
+#   - admin console (where bans are managed)
+#   - waf.trusted_proxies (so the client IP behind a load balancer is real;
+#     banning a proxy address is rejected by the API on purpose)
+version: v1
+port: 8080
+
+admin:
+  enabled: true
+  port: 9080
+  database:
+    driver: sqlite
+    dsn: file:./admin.db?cache=shared&_fk=1
+  web:
+    dev_proxy: true
+
+waf:
+  # The ban list works even with waf.enabled: false — it is deliberately
+  # independent from the WAF switch so an emergency "turn WAF off" cannot
+  # silently drop active bans. Enabling WAF here just adds signature rules.
+  enabled: true
+  # Only trust X-Forwarded-For from the proxy tier. Without this, the client IP
+  # is the raw TCP peer and banning it would hit the load balancer instead.
+  trusted_proxies:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+
+rules:
+  - host: api.example.com
+    backend:
+      service:
+        name: api
+        port: 8080
+        protocol: http

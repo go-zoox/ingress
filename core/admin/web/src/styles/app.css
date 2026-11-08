@@ -7648,3 +7648,217 @@ tr.row-flash {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px rgba(240, 113, 120, 0.12);
 }
+
+/* ============================================
+ * WAF runtime ban list
+ * ============================================ */
+.ban-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.ban-seg {
+  flex: 1 1 auto;
+  min-width: 74px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+}
+.ban-seg:hover { border-color: var(--text-muted); color: var(--text); }
+.ban-seg.active {
+  border-color: var(--accent);
+  background: rgba(61, 214, 198, 0.12);
+  color: var(--accent);
+  font-weight: 600;
+}
+.ban-seg.danger.active {
+  border-color: var(--danger);
+  background: rgba(240, 113, 120, 0.12);
+  color: var(--danger);
+}
+
+.ban-field { margin-bottom: 16px; }
+.ban-field > label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.ban-field input[type="text"],
+.ban-field select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.ban-field input:focus,
+.ban-field select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(61, 214, 198, 0.16);
+}
+.ban-field.invalid input { border-color: var(--danger); }
+
+.ban-radio-row {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 4px 0 12px;
+}
+.ban-radio-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ban-host-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.ban-host-chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-weight: 400;
+}
+.ban-host-chip.on {
+  border-color: var(--accent);
+  background: rgba(61, 214, 198, 0.12);
+  color: var(--accent);
+}
+
+.ban-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.ban-metric {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+.ban-metric .m-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.ban-metric .m-value {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.ban-metric .m-value.danger { color: var(--danger); }
+.ban-metric .m-value.muted { color: var(--text-muted); font-size: 13px; }
+
+.ban-notice {
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid;
+  font-size: 12px;
+  line-height: 1.55;
+  margin-bottom: 12px;
+}
+.ban-notice--warn {
+  background: rgba(232, 184, 74, 0.08);
+  border-color: rgba(232, 184, 74, 0.3);
+  color: #f0d69a;
+}
+.ban-notice--danger {
+  background: rgba(240, 113, 120, 0.08);
+  border-color: rgba(240, 113, 120, 0.32);
+  color: #f5a7ab;
+}
+.ban-notice--info {
+  background: rgba(61, 214, 198, 0.07);
+  border-color: rgba(61, 214, 198, 0.26);
+  color: #a6e8e1;
+}
+.ban-notice--muted {
+  background: rgba(139, 155, 180, 0.08);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.ban-target-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.ban-target-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ban-target-value {
+  font-family: var(--mono);
+  font-size: 15px;
+  word-break: break-all;
+}
+.ban-target-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.ban-value-cell {
+  font-family: var(--mono);
+  font-size: 12px;
+  max-width: 300px;
+  word-break: break-all;
+}
+
+.badge-kind {
+  background: rgba(61, 214, 198, 0.13);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.badge-ban {
+  background: rgba(240, 113, 120, 0.15);
+  color: var(--danger);
+}
+.badge-muted {
+  background: rgba(139, 155, 180, 0.16);
+  color: var(--text-muted);
+}
+.badge-warn {
+  background: rgba(232, 184, 74, 0.16);
+  color: var(--warn);
+}
+
+.ban-search-input {
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  width: 200px;
+}

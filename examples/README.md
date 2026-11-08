@@ -24,6 +24,7 @@ Several files **mix explicit `backend.type` and omission on purpose** (for examp
 | `handler/` | **`backend.handler`** — `static_response`, `file_server`, `templates`, `script` |
 | `waf/` | IP lists, custom signatures, `rules[].waf` overlays |
 | `ip-allowlist/` | Per-host IP allowlist via `rules[].waf.allow` / `deny`; `waf.trusted_proxies` for LB deployments |
+| `waf-ban/` | Runtime ban list (IP / CIDR / User-Agent) managed from the Admin Console; no config reload |
 | `admin-console/` | **Admin UI** demo routes, WAF, sample `access.log` (`admin.enabled: true` in ingress.yaml) |
 | `admin-auth/` | **Admin Console login** — default `none` (`open-no-auth.yaml`) + opt-in `basic` (`ingress.yaml`) |
 

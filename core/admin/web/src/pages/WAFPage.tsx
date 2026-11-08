@@ -7,6 +7,8 @@ import { WafEventDetailDrawer } from '../components/WafEventDetailDrawer'
 import { WafTrialDrawer } from '../components/WafTrialDrawer'
 import { WafRuleTooltip } from '../components/WafRuleTooltip'
 import { WafAttackMap } from '../components/WafAttackMap'
+import { BanDrawer } from '../components/ban/BanDrawer'
+import { BanBulkDrawer } from '../components/ban/BanBulkDrawer'
 import { api, type WAFEvent, type WAFEventDetail, type WAFVisualization } from '../api/client'
 import { useRouteSearchKey } from '../hooks/useRouteSearchKey'
 import { useSSE } from '../hooks/useSSE'
@@ -49,6 +51,17 @@ export function WAFPage() {
   const [wafRules, setWafRules] = useState<string[]>([])
   const [viz, setViz] = useState<WAFVisualization | null>(null)
   const [vizLoading, setVizLoading] = useState(false)
+
+  const [banSeed, setBanSeed] = useState<{
+    kind: 'ip' | 'ua'
+    value: string
+    host: string
+    eventId?: number
+    rule?: string
+  } | null>(null)
+  const [banOpen, setBanOpen] = useState(false)
+  const [selectedEvents, setSelectedEvents] = useState<Set<number>>(new Set())
+  const [bulkOpen, setBulkOpen] = useState(false)
 
   const [realtime, setRealtime] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -212,6 +225,35 @@ export function WAFPage() {
     setFilterTimeEnd('')
   }
 
+  const openBanFromEvent = (e: WAFEvent, kind: 'ip' | 'ua') => {
+    setBanSeed({
+      kind,
+      value: kind === 'ip' ? e.client_ip : (e.user_agent || ''),
+      host: e.host,
+      eventId: e.id,
+      rule: e.rule,
+    })
+    setBanOpen(true)
+  }
+
+  const toggleSelected = (id: number) => {
+    setSelectedEvents((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const selectedIPs = useMemo(() => {
+    const ips: string[] = []
+    for (const e of events) {
+      if (!selectedEvents.has(e.id)) continue
+      if (e.client_ip && !ips.includes(e.client_ip)) ips.push(e.client_ip)
+    }
+    return ips
+  }, [events, selectedEvents])
+
   const handleToggle = async (enabled: boolean) => {
     try {
       await api.wafToggle(enabled ? true : null)
@@ -318,6 +360,7 @@ export function WAFPage() {
               <option value="all">全部</option>
               <option value="block">Block</option>
               <option value="audit">Audit</option>
+              <option value="ban">Ban（运行时封禁）</option>
             </select>
           </div>
           <div className="filter-field">
@@ -378,6 +421,19 @@ export function WAFPage() {
       <div className="panel">
         <div className="panel-head">
           <h2>事件列表 ({events.length})</h2>
+          <div className="filter-actions">
+            <span className="muted" style={{ fontSize: 12 }}>
+              已选 {selectedEvents.size} 项
+            </span>
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              disabled={selectedIPs.length === 0}
+              onClick={() => setBulkOpen(true)}
+            >
+              批量封禁所选 IP
+            </button>
+          </div>
         </div>
         <div className="panel-body panel-table-wrap">
           {events.length === 0 ? (
@@ -389,6 +445,17 @@ export function WAFPage() {
             <table className="data">
               <thead>
                 <tr>
+                  <th style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      aria-label="全选"
+                      checked={events.length > 0 && events.every((e) => selectedEvents.has(e.id))}
+                      onChange={(ev) => {
+                        if (ev.target.checked) setSelectedEvents(new Set(events.map((e) => e.id)))
+                        else setSelectedEvents(new Set())
+                      }}
+                    />
+                  </th>
                   <th className="col-time">时间</th>
                   <th className="col-action">动作</th>
                   <th className="col-rule">规则</th>
@@ -404,6 +471,14 @@ export function WAFPage() {
                     key={e.id}
                     className={drawer === 'detail' && selectedId === e.id ? 'match-highlight' : ''}
                   >
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`选择事件 ${e.id}`}
+                        checked={selectedEvents.has(e.id)}
+                        onChange={() => toggleSelected(e.id)}
+                      />
+                    </td>
                     <td className="col-time">{formatTime(e.created_at)}</td>
                     <td className="col-action">
                       <span className={`badge badge-${e.action}`}>{e.action}</span>
@@ -427,6 +502,23 @@ export function WAFPage() {
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => openDetail(e.id)}>
                         详情
                       </button>
+                      {e.user_agent ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => openBanFromEvent(e, 'ua')}
+                        >
+                          封禁 UA
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        onClick={() => openBanFromEvent(e, 'ip')}
+                        disabled={!e.client_ip}
+                      >
+                        封禁 IP
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -441,6 +533,28 @@ export function WAFPage() {
         open={drawer === 'detail'}
         onClose={closeDrawer}
         onTrial={(detail) => openTrial(detail)}
+      />
+
+      <BanDrawer
+        open={banOpen}
+        mode={banSeed ? 'from-event' : 'create'}
+        seed={banSeed}
+        availableHosts={wafHosts}
+        onClose={() => {
+          setBanOpen(false)
+          setBanSeed(null)
+        }}
+        onCreated={handleRefresh}
+      />
+
+      <BanBulkDrawer
+        open={bulkOpen}
+        ips={selectedIPs}
+        onClose={() => setBulkOpen(false)}
+        onCreated={() => {
+          setSelectedEvents(new Set())
+          handleRefresh()
+        }}
       />
 
       <WafTrialDrawer
