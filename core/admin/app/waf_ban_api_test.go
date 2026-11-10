@@ -80,6 +80,16 @@ func TestWAFBansAPI_CRUD(t *testing.T) {
 	if created.Actor == "" {
 		t.Fatalf("actor should be resolved from the session, got empty")
 	}
+	// Regression: a global ban (no hosts) must return `hosts: []`, not `hosts:
+	// null`. Go serializes a nil []string as null, which crashed the ban list
+	// page when it read `hosts.length`. Check the raw bytes, since unmarshalling
+	// null into []string silently yields nil.
+	if strings.Contains(string(env.Result), `"hosts":null`) {
+		t.Fatalf("create returned hosts:null: %s", string(env.Result))
+	}
+	if !strings.Contains(string(env.Result), `"hosts":[]`) {
+		t.Fatalf("create must return hosts:[]: %s", string(env.Result))
+	}
 
 	// List
 	resp, env = doJSON(t, client, http.MethodGet, ts.URL+"/api/v1/waf/bans?status=active", "")
@@ -92,6 +102,9 @@ func TestWAFBansAPI_CRUD(t *testing.T) {
 	}
 	if len(rows) != 1 {
 		t.Fatalf("expected 1 active ban, got %d", len(rows))
+	}
+	if strings.Contains(string(env.Result), `"hosts":null`) {
+		t.Fatalf("list returned hosts:null: %s", string(env.Result))
 	}
 
 	// Get one

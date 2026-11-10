@@ -3,6 +3,7 @@ import {
   BAN_TTL_PRESETS,
   NAT_WARNING_UA_THRESHOLD,
   banErrorCode,
+  banHosts,
   buildBanPayload,
   buildImpactWarnings,
   describeBanError,
@@ -262,10 +263,31 @@ describe('isExpiringSoon', () => {
   })
 })
 
+describe('banHosts', () => {
+  it('normalizes null and undefined to an empty array', () => {
+    // Regression: the API used to emit `hosts: null` for global bans, which
+    // crashed the ban list page on `hosts.length`.
+    expect(banHosts({ hosts: null })).toEqual([])
+    expect(banHosts({ hosts: undefined as unknown as string[] })).toEqual([])
+  })
+
+  it('passes through a real host list', () => {
+    expect(banHosts({ hosts: ['api.example.com', 'www.example.com'] })).toEqual([
+      'api.example.com',
+      'www.example.com',
+    ])
+  })
+})
+
 describe('describeScope', () => {
   it('labels global and host scopes', () => {
     expect(describeScope({ hosts: [] })).toBe('全局')
     expect(describeScope({ hosts: ['api.example.com'] })).toBe('api.example.com')
+  })
+
+  it('treats a null hosts field as global instead of throwing', () => {
+    expect(describeScope({ hosts: null })).toBe('全局')
+    expect(describeScope({ hosts: undefined as unknown as string[] })).toBe('全局')
   })
 })
 

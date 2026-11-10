@@ -15,7 +15,10 @@ export type WAFBanRow = {
   id: number
   kind: BanKind
   value: string
-  hosts: string[]
+  // Backend may return `null` for an empty host scope (Go nil []string), and
+  // existing rows written before the backend fix can still deserialize that
+  // way. Treat it as nullable at the boundary and normalize before reading.
+  hosts: string[] | null
   scope: BanScope
   reason: string
   source: string
@@ -25,6 +28,11 @@ export type WAFBanRow = {
   expires_at: string | null
   active: boolean
   created_at: string
+}
+
+/** Normalizes the nullable hosts field to a safe array. */
+export function banHosts(row: Pick<WAFBanRow, 'hosts'>): string[] {
+  return Array.isArray(row.hosts) ? row.hosts : []
 }
 
 /** Impact preview returned by POST /waf/bans/preview. */
@@ -224,7 +232,8 @@ export function buildBanPayload(input: {
     value: input.value.trim(),
     reason: input.reason.trim(),
   }
-  if (input.hosts.length > 0) payload.hosts = input.hosts
+  const hosts = Array.isArray(input.hosts) ? input.hosts : []
+  if (hosts.length > 0) payload.hosts = hosts
   if (preset.seconds > 0) payload.ttl_seconds = preset.seconds
   if (preset.seconds === 0) payload.confirm_permanent = Boolean(input.confirmPermanent)
   return payload
@@ -257,7 +266,8 @@ export function isExpiringSoon(expiresAt: string | null, now: Date = new Date())
 
 /** Human summary of a ban's scope for list rows. */
 export function describeScope(row: Pick<WAFBanRow, 'hosts'>): string {
-  return row.hosts.length === 0 ? '全局' : row.hosts.join(', ')
+  const hosts = banHosts(row)
+  return hosts.length === 0 ? '全局' : hosts.join(', ')
 }
 
 /** Builds impact warnings shown above the confirm button. */

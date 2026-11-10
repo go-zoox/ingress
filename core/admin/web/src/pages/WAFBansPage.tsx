@@ -6,6 +6,7 @@ import { api } from '../api/client'
 import type { WAFBanRow } from '../lib/wafBan'
 import {
   BAN_KIND_LABELS,
+  banHosts,
   describeBanError,
   describeScope,
   filterBanRows,
@@ -230,7 +231,7 @@ export function WAFBansPage() {
                           <div className="sub-line">{row.reason || '—'}</div>
                         </td>
                         <td>
-                          {row.hosts.length === 0 ? (
+                          {banHosts(row).length === 0 ? (
                             <span className="badge badge-muted">全局</span>
                           ) : (
                             <>

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -345,9 +346,19 @@ func TestResolveBanExpiry(t *testing.T) {
 }
 
 func TestEncodeDecodeBanHosts(t *testing.T) {
-	if got := decodeBanHosts(""); got != nil {
-		t.Fatalf("empty hosts should decode to nil, got %v", got)
+	// Empty host scope must decode to a non-nil empty slice. A nil []string
+	// serializes to JSON `null` and crashes frontend consumers reading
+	// `hosts.length` (regression: WAF ban list page threw on global bans).
+	for _, raw := range []string{"", "not-json", "null"} {
+		got := decodeBanHosts(raw)
+		if got == nil {
+			t.Fatalf("decodeBanHosts(%q) returned nil; want non-nil empty slice", raw)
+		}
+		if len(got) != 0 {
+			t.Fatalf("decodeBanHosts(%q) = %v; want empty", raw, got)
+		}
 	}
+
 	raw, err := encodeBanHosts([]string{"api.example.com", "*.example.org"})
 	if err != nil {
 		t.Fatalf("encode: %v", err)
@@ -356,8 +367,35 @@ func TestEncodeDecodeBanHosts(t *testing.T) {
 	if len(hosts) != 2 || hosts[0] != "api.example.com" {
 		t.Fatalf("roundtrip mismatch: %v", hosts)
 	}
-	if got := decodeBanHosts("not-json"); got != nil {
-		t.Fatalf("malformed json should decode to nil, got %v", got)
+}
+
+func TestBanRowJSON_HostsNeverNull(t *testing.T) {
+	// Contract-level guard: the API must emit `hosts: []`, never `hosts: null`,
+	// for a global-scope ban. This is exactly what the admin UI consumes.
+	row := banRowFromModel(&model.WAFBan{
+		ID: 1, Kind: "ip", Value: "203.0.113.42", Hosts: "", Enabled: true,
+	})
+	b, err := json.Marshal(row)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(b), `"hosts":null`) {
+		t.Fatalf("hosts serialized as null: %s", string(b))
+	}
+	if !strings.Contains(string(b), `"hosts":[]`) {
+		t.Fatalf("hosts must serialize as []: %s", string(b))
+	}
+
+	// An explicit JSON "null" in a stored row must not leak through either.
+	row2 := banRowFromModel(&model.WAFBan{
+		ID: 2, Kind: "ip", Value: "203.0.113.43", Hosts: "null", Enabled: true,
+	})
+	b2, err := json.Marshal(row2)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(b2), `"hosts":null`) {
+		t.Fatalf("stored null hosts leaked into API response: %s", string(b2))
 	}
 }
 

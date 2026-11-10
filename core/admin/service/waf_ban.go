@@ -671,14 +671,23 @@ func encodeBanHosts(hosts []string) (string, error) {
 	return string(b), nil
 }
 
+// decodeBanHosts decodes the stored JSON host list.
+//
+// It always returns a non-nil slice: a Go nil []string serializes to JSON
+// `null`, which breaks frontend consumers that read `hosts.length` (the ban
+// list page renders global-scope bans whose Hosts column is empty). Empty
+// host scope must be `[]`, never `null`.
 func decodeBanHosts(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return nil
+		return []string{}
 	}
 	var out []string
 	if err := json.Unmarshal([]byte(raw), &out); err != nil {
-		return nil
+		return []string{}
+	}
+	if out == nil {
+		return []string{}
 	}
 	return out
 }
